@@ -1,8 +1,40 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import authRouter from "./auth";
+import userRouter from "./user";
+import crimesRouter from "./crimes";
+import jobsRouter from "./jobs";
+import combatRouter from "./combat";
+import bankRouter from "./bank";
+import hospitalRouter from "./hospital";
+import dailyRouter from "./daily";
+import feedRouter from "./feed";
+import leaderboardRouter from "./leaderboard";
+import notificationsRouter from "./notifications";
+import districtsRouter from "./districts";
+import inventoryRouter from "./inventory";
+import marketRouter from "./market";
+import devRouter from "./dev";
+import ownerRouter from "./owner";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use("/auth", authRouter);
+router.use("/user", userRouter);
+router.use("/crimes", crimesRouter);
+router.use("/jobs", jobsRouter);
+router.use("/combat", combatRouter);
+router.use("/bank", bankRouter);
+router.use("/hospital", hospitalRouter);
+router.use("/daily", dailyRouter);
+router.use("/feed", feedRouter);
+router.use("/leaderboard", leaderboardRouter);
+router.use("/notifications", notificationsRouter);
+router.use("/districts", districtsRouter);
+router.use("/inventory", inventoryRouter);
+router.use("/market", marketRouter);
+router.use("/dev", devRouter);
+router.use("/owner", ownerRouter);
 
 export default router;

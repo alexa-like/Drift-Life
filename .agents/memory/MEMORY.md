@@ -1,0 +1,2 @@
+- [DriftLife Stack](driftlife-stack.md) — MongoDB+Mongoose (NOT Postgres/Drizzle), bcryptjs (not native bcrypt), nodemailer externalized in build.mjs
+- [DriftLife Auth Flow](driftlife-auth.md) — custom JWT + bcrypt + email OTP; access token 15min, refresh 30d; email OTP 10min expiry
