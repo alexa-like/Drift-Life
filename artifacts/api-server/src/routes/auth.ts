@@ -1,158 +1,31 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import User from "../models/User";
+import User, { generateTag, generateReferralCode, levelUp } from "../models/User";
 import { signAccess, signRefresh, verifyRefresh } from "../lib/jwt";
 import { generateOtp, sendOtpEmail } from "../lib/mailer";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { applyRegen } from "../lib/regen";
 
 const router = Router();
 
-// POST /api/auth/register
-router.post("/register", async (req, res) => {
-  try {
-    const { username, email, password } = req.body;
-    if (!username || !email || !password)
-      return res.status(400).json({ message: "username, email and password required" });
-    if (username.length < 3 || username.length > 20)
-      return res.status(400).json({ message: "Username must be 3-20 characters" });
-    if (password.length < 8)
-      return res.status(400).json({ message: "Password must be at least 8 characters" });
-
-    const existing = await User.findOne({ $or: [{ username }, { email: email.toLowerCase() }] });
-    if (existing)
-      return res.status(409).json({ message: "Username or email already taken" });
-
-    const passwordHash = await bcrypt.hash(password, 12);
-    const otp = generateOtp();
-    const user = await User.create({
-      username,
-      email: email.toLowerCase(),
-      passwordHash,
-      emailOtp: otp,
-      emailOtpExpiry: new Date(Date.now() + 10 * 60 * 1000),
-    });
-
-    // Fire-and-forget OTP email
-    sendOtpEmail(user.email, otp).catch(() => {});
-
-    res.status(201).json({ message: "Account created. Check your email for the verification code.", userId: user._id });
-  } catch (err: any) {
-    req.log.error({ err }, "register error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// POST /api/auth/verify-email
-router.post("/verify-email", async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    const user = await User.findOne({ email: email?.toLowerCase() });
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.isEmailVerified) return res.status(400).json({ message: "Email already verified" });
-    if (!user.emailOtp || user.emailOtp !== otp)
-      return res.status(400).json({ message: "Invalid OTP" });
-    if (!user.emailOtpExpiry || user.emailOtpExpiry < new Date())
-      return res.status(400).json({ message: "OTP expired" });
-
-    user.isEmailVerified = true;
-    user.emailOtp = null;
-    user.emailOtpExpiry = null;
-    await user.save();
-
-    const payload = { userId: String(user._id), username: user.username, role: user.role };
-    res.json({
-      accessToken: signAccess(payload),
-      refreshToken: signRefresh(payload),
-      user: safeUser(user),
-    });
-  } catch (err: any) {
-    req.log.error({ err }, "verify-email error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// POST /api/auth/resend-otp
-router.post("/resend-otp", async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await User.findOne({ email: email?.toLowerCase() });
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.isEmailVerified) return res.status(400).json({ message: "Email already verified" });
-
-    const otp = generateOtp();
-    user.emailOtp = otp;
-    user.emailOtpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    await user.save();
-    sendOtpEmail(user.email, otp).catch(() => {});
-
-    res.json({ message: "OTP resent" });
-  } catch (err: any) {
-    req.log.error({ err }, "resend-otp error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// POST /api/auth/login
-router.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password)
-      return res.status(400).json({ message: "email and password required" });
-
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) return res.status(401).json({ message: "Invalid credentials" });
-    if (user.banned) return res.status(403).json({ message: `Banned: ${user.banReason ?? "no reason given"}` });
-    if (!user.isEmailVerified) return res.status(403).json({ message: "Email not verified", needsVerification: true, email: user.email });
-
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ message: "Invalid credentials" });
-
-    user.lastLogin = new Date();
-    await user.save();
-
-    const payload = { userId: String(user._id), username: user.username, role: user.role };
-    res.json({
-      accessToken: signAccess(payload),
-      refreshToken: signRefresh(payload),
-      user: safeUser(user),
-    });
-  } catch (err: any) {
-    req.log.error({ err }, "login error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// POST /api/auth/refresh
-router.post("/refresh", async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-    if (!refreshToken) return res.status(400).json({ message: "refreshToken required" });
-    const payload = verifyRefresh(refreshToken);
-    const user = await User.findById(payload.userId);
-    if (!user || user.banned) return res.status(401).json({ message: "Unauthorized" });
-    const newPayload = { userId: String(user._id), username: user.username, role: user.role };
-    res.json({ accessToken: signAccess(newPayload) });
-  } catch {
-    res.status(401).json({ message: "Invalid refresh token" });
-  }
-});
-
-// POST /api/auth/logout
-router.post("/logout", requireAuth, async (_req, res) => {
-  res.json({ message: "Logged out" });
-});
-
-function safeUser(user: InstanceType<typeof User>) {
+export function safeUser(user: InstanceType<typeof User>) {
   return {
     id: user._id,
     username: user.username,
+    tag: user.tag,
     email: user.email,
     avatar: user.avatar,
+    avatarUrl: user.avatarUrl,
+    bio: user.bio,
+    faction: user.faction,
     level: user.level,
     xp: user.xp,
     xpToNext: user.xpToNext,
+    prestige: user.prestige,
+    skillPoints: user.skillPoints,
     dc: user.dc,
-    credits: user.credits,
+    nc: user.nc,
+    credits: user.nc,
     health: user.health,
     maxHealth: user.maxHealth,
     energy: user.energy,
@@ -160,9 +33,9 @@ function safeUser(user: InstanceType<typeof User>) {
     nerve: user.nerve,
     maxNerve: user.maxNerve,
     strength: user.strength,
-    defense: user.defense,
-    speed: user.speed,
-    stealth: user.stealth,
+    charisma: user.charisma,
+    intelligence: user.intelligence,
+    streetCred: user.streetCred,
     district: user.district,
     job: user.job,
     rank: user.rank,
@@ -180,9 +53,224 @@ function safeUser(user: InstanceType<typeof User>) {
     bankBalance: user.bankBalance,
     gang: user.gang,
     isEmailVerified: user.isEmailVerified,
+    equippedFrame: user.equippedFrame,
+    equippedTitle: user.equippedTitle,
+    titles: user.titles,
+    devMode: user.devMode,
+    referralCode: user.referralCode,
+    attacksToday: user.attacksToday,
     createdAt: user.createdAt,
   };
 }
 
-export { safeUser };
+// POST /api/auth/register
+router.post("/register", async (req, res) => {
+  try {
+    const { username, email, password, faction, referralCode } = req.body;
+    if (!username || !email || !password)
+      return res.status(400).json({ message: "username, email and password required" });
+    if (username.length < 3 || username.length > 20)
+      return res.status(400).json({ message: "Username must be 3-20 characters" });
+    if (password.length < 6)
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+
+    const emailLower = email.toLowerCase().trim();
+    const existingEmail = await User.findOne({ email: emailLower });
+    if (existingEmail) return res.status(409).json({ message: "Email already registered" });
+    const existingUser = await User.findOne({ username: new RegExp(`^${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") });
+    if (existingUser) return res.status(409).json({ message: "Username already taken" });
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const otp = generateOtp();
+    const tag = generateTag(username);
+    const refCode = generateReferralCode();
+
+    const user = await User.create({
+      username,
+      email: emailLower,
+      tag,
+      passwordHash,
+      emailOtp: otp,
+      emailOtpExpiry: new Date(Date.now() + 10 * 60 * 1000),
+      faction: faction && ["suits", "street", "grid"].includes(faction) ? faction : null,
+      referralCode: refCode,
+      referredBy: referralCode || null,
+    });
+
+    // Referral bonus
+    if (referralCode) {
+      const referrer = await User.findOne({ referralCode });
+      if (referrer) {
+        referrer.dc += 500;
+        referrer.xp += 200;
+        levelUp(referrer);
+        referrer.referralCount += 1;
+        await referrer.save();
+      }
+    }
+
+    sendOtpEmail(user.email, otp).catch(() => {});
+    res.status(201).json({ message: "Account created. Check your email for the verification code.", userId: user._id });
+  } catch (err: any) {
+    req.log.error({ err }, "register error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/auth/verify-email
+router.post("/verify-email", async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const user = await User.findOne({ email: email?.toLowerCase().trim() });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.isEmailVerified) return res.status(400).json({ message: "Email already verified" });
+    if (!user.emailOtp || user.emailOtp !== otp)
+      return res.status(400).json({ message: "Invalid verification code" });
+    if (!user.emailOtpExpiry || user.emailOtpExpiry < new Date())
+      return res.status(400).json({ message: "Code expired. Request a new one." });
+
+    user.isEmailVerified = true;
+    user.emailOtp = null;
+    user.emailOtpExpiry = null;
+    user.dc = (user.dc || 0) + 750;
+    await user.save();
+
+    const payload = { userId: String(user._id), username: user.username, role: user.role };
+    res.json({ accessToken: signAccess(payload), refreshToken: signRefresh(payload), user: safeUser(user) });
+  } catch (err: any) {
+    req.log.error({ err }, "verify-email error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/auth/resend-otp
+router.post("/resend-otp", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email: email?.toLowerCase().trim() });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.isEmailVerified) return res.status(400).json({ message: "Email already verified" });
+    const otp = generateOtp();
+    user.emailOtp = otp;
+    user.emailOtpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+    sendOtpEmail(user.email, otp).catch(() => {});
+    res.json({ message: "Verification code resent" });
+  } catch (err: any) {
+    req.log.error({ err }, "resend-otp error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/auth/login
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: "email and password required" });
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+    if (user.banned) return res.status(403).json({ message: `Banned: ${user.banReason ?? "policy violation"}` });
+    if (!user.isEmailVerified) return res.status(403).json({ message: "Email not verified", needsVerification: true, email: user.email });
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(401).json({ message: "Invalid credentials" });
+    user.lastLogin = new Date();
+    await user.save();
+    const payload = { userId: String(user._id), username: user.username, role: user.role };
+    res.json({ accessToken: signAccess(payload), refreshToken: signRefresh(payload), user: safeUser(user) });
+  } catch (err: any) {
+    req.log.error({ err }, "login error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/auth/refresh
+router.post("/refresh", async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(400).json({ message: "refreshToken required" });
+    const payload = verifyRefresh(refreshToken);
+    const user = await User.findById(payload.userId);
+    if (!user || user.banned) return res.status(401).json({ message: "Unauthorized" });
+    const newPayload = { userId: String(user._id), username: user.username, role: user.role };
+    res.json({ accessToken: signAccess(newPayload), refreshToken: signRefresh(newPayload) });
+  } catch {
+    res.status(401).json({ message: "Invalid refresh token" });
+  }
+});
+
+// POST /api/auth/logout
+router.post("/logout", requireAuth, async (_req, res) => {
+  res.json({ message: "Logged out" });
+});
+
+// POST /api/auth/forgot-password
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email: email?.toLowerCase().trim() });
+    if (user) {
+      const token = generateOtp();
+      user.resetToken = token;
+      user.resetTokenExpiry = new Date(Date.now() + 30 * 60 * 1000);
+      await user.save();
+      sendOtpEmail(user.email, token, "Password Reset").catch(() => {});
+    }
+    res.json({ message: "If that email exists, a reset code was sent." });
+  } catch (err: any) {
+    req.log.error({ err }, "forgot-password error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, token, password } = req.body;
+    const user = await User.findOne({ email: email?.toLowerCase().trim() });
+    if (!user || user.resetToken !== token || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+      return res.status(400).json({ message: "Invalid or expired reset code" });
+    }
+    if (!password || password.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+    user.passwordHash = await bcrypt.hash(password, 12);
+    user.resetToken = null;
+    user.resetTokenExpiry = null;
+    await user.save();
+    res.json({ message: "Password updated" });
+  } catch (err: any) {
+    req.log.error({ err }, "reset-password error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/auth/select-faction
+router.post("/select-faction", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { faction } = req.body;
+    if (!["suits", "street", "grid"].includes(faction)) return res.status(400).json({ message: "Invalid faction" });
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.faction) return res.status(400).json({ message: "Faction already chosen. This is permanent." });
+    user.faction = faction;
+    await user.save();
+    res.json({ message: `Welcome to ${faction}`, faction, user: safeUser(user) });
+  } catch (err: any) {
+    req.log.error({ err }, "select-faction error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/auth/me
+router.get("/me", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    applyRegen(user);
+    await user.save();
+    res.json(safeUser(user));
+  } catch (err: any) {
+    req.log.error({ err }, "me error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

@@ -4,37 +4,62 @@ export interface IItem extends Document {
   _id: mongoose.Types.ObjectId;
   owner: mongoose.Types.ObjectId;
   name: string;
-  type: "weapon" | "armor" | "consumable" | "misc";
-  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary";
-  damage: number;
-  defense: number;
+  type: "weapon" | "armor" | "clothing" | "vehicle" | "consumable" | "material" | "badge" | "card" | "misc";
+  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythic" | "event";
+  strengthBonus: number;
+  charismaBonus: number;
+  intelligenceBonus: number;
+  streetCredBonus: number;
+  defenseBonus: number;
+  travelEnergyReduction: number;
   effect: string | null;
   description: string;
-  price: number;
+  basePrice: number;
+  quantity: number;
   equipped: boolean;
-  slot: "weapon" | "armor" | null;
+  slot: "weapon" | "armor" | "clothing" | "vehicle" | null;
   marketListed: boolean;
   marketPrice: number | null;
+  marketListedAt: Date | null;
+  blackMarket: boolean;
   createdAt: Date;
 }
 
 const ItemSchema = new Schema<IItem>(
   {
-    owner: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    owner: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     name: { type: String, required: true },
-    type: { type: String, enum: ["weapon", "armor", "consumable", "misc"], required: true },
-    rarity: { type: String, enum: ["common", "uncommon", "rare", "epic", "legendary"], default: "common" },
-    damage: { type: Number, default: 0 },
-    defense: { type: Number, default: 0 },
+    type: {
+      type: String,
+      enum: ["weapon", "armor", "clothing", "vehicle", "consumable", "material", "badge", "card", "misc"],
+      required: true,
+    },
+    rarity: {
+      type: String,
+      enum: ["common", "uncommon", "rare", "epic", "legendary", "mythic", "event"],
+      default: "common",
+    },
+    strengthBonus: { type: Number, default: 0 },
+    charismaBonus: { type: Number, default: 0 },
+    intelligenceBonus: { type: Number, default: 0 },
+    streetCredBonus: { type: Number, default: 0 },
+    defenseBonus: { type: Number, default: 0 },
+    travelEnergyReduction: { type: Number, default: 0 },
     effect: { type: String, default: null },
     description: { type: String, default: "" },
-    price: { type: Number, default: 0 },
+    basePrice: { type: Number, default: 0 },
+    quantity: { type: Number, default: 1, min: 0 },
     equipped: { type: Boolean, default: false },
-    slot: { type: String, enum: ["weapon", "armor", null], default: null },
+    slot: { type: String, enum: ["weapon", "armor", "clothing", "vehicle", null], default: null },
     marketListed: { type: Boolean, default: false },
     marketPrice: { type: Number, default: null },
+    marketListedAt: { type: Date, default: null },
+    blackMarket: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
+
+ItemSchema.index({ owner: 1, type: 1 });
+ItemSchema.index({ marketListed: 1, createdAt: -1 });
 
 export default mongoose.model<IItem>("Item", ItemSchema);
