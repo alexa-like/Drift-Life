@@ -3,20 +3,35 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: DriftLife API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: auth
+  - name: user
+  - name: jobs
+  - name: crimes
+  - name: combat
+  - name: market
+  - name: bank
+  - name: hospital
+  - name: daily
+  - name: feed
+  - name: districts
+  - name: leaderboard
+  - name: notifications
+  - name: inventory
+  - name: owner
+  - name: dev
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,7 +39,1540 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── AUTH ────────────────────────────────────────────────────────────────
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Registered; OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/verify-otp:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Verify email OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpInput"
+      responses:
+        "200":
+          description: Verified and logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshInput"
+      responses:
+        "200":
+          description: New tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Send password reset email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+      responses:
+        "200":
+          description: Reset email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Reset password with token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── USER ────────────────────────────────────────────────────────────────
+  /user/me:
+    get:
+      operationId: getMe
+      tags: [user]
+      summary: Get current player profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Player profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateMe
+      tags: [user]
+      summary: Update profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+
+  /user/by-tag/{tag}:
+    get:
+      operationId: getPlayerByTag
+      tags: [user]
+      summary: Get player by tag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tag
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Player profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicPlayer"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /user/{userId}/follow:
+    post:
+      operationId: followPlayer
+      tags: [user]
+      summary: Follow a player
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Followed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /user/{userId}/unfollow:
+    post:
+      operationId: unfollowPlayer
+      tags: [user]
+      summary: Unfollow a player
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Unfollowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /user/me/avatar:
+    post:
+      operationId: generateAvatar
+      tags: [user]
+      summary: Generate AI avatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AvatarInput"
+      responses:
+        "200":
+          description: Avatar URL generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvatarResponse"
+
+  # ─── DISTRICTS ───────────────────────────────────────────────────────────
+  /districts:
+    get:
+      operationId: getDistricts
+      tags: [districts]
+      summary: Get all districts with live data
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: District list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/District"
+
+  /districts/{districtId}/travel:
+    post:
+      operationId: travelToDistrict
+      tags: [districts]
+      summary: Travel to a district
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: districtId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Travelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TravelResponse"
+        "400":
+          description: Not enough energy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── JOBS ────────────────────────────────────────────────────────────────
+  /jobs:
+    get:
+      operationId: getJobs
+      tags: [jobs]
+      summary: Get available jobs for current district
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Job list with cooldown status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobWithStatus"
+
+  /jobs/{jobId}/work:
+    post:
+      operationId: doJob
+      tags: [jobs]
+      summary: Work a job
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobResult"
+        "400":
+          description: Not enough energy or on cooldown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── CRIMES ──────────────────────────────────────────────────────────────
+  /crimes:
+    get:
+      operationId: getCrimes
+      tags: [crimes]
+      summary: Get available crimes
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Crime list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CrimeWithStatus"
+
+  /crimes/{crimeId}/commit:
+    post:
+      operationId: commitCrime
+      tags: [crimes]
+      summary: Commit a crime
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: crimeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Crime result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrimeResult"
+        "400":
+          description: Not enough nerve or level requirement not met
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── COMBAT ──────────────────────────────────────────────────────────────
+  /combat/npcs:
+    get:
+      operationId: getCombatNpcs
+      tags: [combat]
+      summary: Get NPCs in current district
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: NPC list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CombatNpc"
+
+  /combat/npcs/{npcId}/fight:
+    post:
+      operationId: fightNpc
+      tags: [combat]
+      summary: Fight an NPC
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: npcId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Combat result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CombatResult"
+        "400":
+          description: Cannot fight (hospitalized, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /combat/pvp/targets:
+    get:
+      operationId: getPvpTargets
+      tags: [combat]
+      summary: Get eligible PvP targets in current district
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Target list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PvpTarget"
+
+  /combat/pvp/{targetId}/attack:
+    post:
+      operationId: attackPlayer
+      tags: [combat]
+      summary: Attack another player
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: targetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PvP result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PvpResult"
+        "400":
+          description: Cannot attack
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── INVENTORY ───────────────────────────────────────────────────────────
+  /inventory:
+    get:
+      operationId: getInventory
+      tags: [inventory]
+      summary: Get player inventory
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Inventory items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryItem"
+
+  /inventory/{itemId}/use:
+    post:
+      operationId: useItem
+      tags: [inventory]
+      summary: Use a consumable item
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Item used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemUseResult"
+        "400":
+          description: Cannot use item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /inventory/{itemId}/equip:
+    post:
+      operationId: equipItem
+      tags: [inventory]
+      summary: Equip or unequip an item
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Item equipped/unequipped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /inventory/{itemId}/salvage:
+    post:
+      operationId: salvageItem
+      tags: [inventory]
+      summary: Salvage item for DC
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Salvaged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalvageResult"
+
+  /inventory/salvage-commons:
+    post:
+      operationId: salvageAllCommons
+      tags: [inventory]
+      summary: Salvage all common items
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Commons salvaged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalvageResult"
+
+  # ─── MARKET ──────────────────────────────────────────────────────────────
+  /market/listings:
+    get:
+      operationId: getMarketListings
+      tags: [market]
+      summary: Get market listings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: rarity
+          in: query
+          schema:
+            type: string
+        - name: minPrice
+          in: query
+          schema:
+            type: integer
+        - name: maxPrice
+          in: query
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MarketListing"
+    post:
+      operationId: createMarketListing
+      tags: [market]
+      summary: List item on market
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarketListingInput"
+      responses:
+        "201":
+          description: Listed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketListing"
+        "400":
+          description: Cannot list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /market/listings/{listingId}:
+    delete:
+      operationId: cancelMarketListing
+      tags: [market]
+      summary: Cancel a listing
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /market/listings/{listingId}/buy:
+    post:
+      operationId: buyMarketListing
+      tags: [market]
+      summary: Buy a market listing
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Bought
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Not enough DC or listing gone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /market/my-listings:
+    get:
+      operationId: getMyListings
+      tags: [market]
+      summary: Get my active listings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: My listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MarketListing"
+
+  # ─── BANK ────────────────────────────────────────────────────────────────
+  /bank/deposit:
+    post:
+      operationId: bankDeposit
+      tags: [bank]
+      summary: Deposit DC to bank
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BankTransferInput"
+      responses:
+        "200":
+          description: Deposited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankBalance"
+        "400":
+          description: Insufficient funds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bank/withdraw:
+    post:
+      operationId: bankWithdraw
+      tags: [bank]
+      summary: Withdraw DC from bank
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BankTransferInput"
+      responses:
+        "200":
+          description: Withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankBalance"
+        "400":
+          description: Insufficient bank balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bank/balance:
+    get:
+      operationId: getBankBalance
+      tags: [bank]
+      summary: Get bank and wallet balances
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Balances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankBalance"
+
+  # ─── HOSPITAL ────────────────────────────────────────────────────────────
+  /hospital/status:
+    get:
+      operationId: getHospitalStatus
+      tags: [hospital]
+      summary: Get hospitalization status
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Hospital status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HospitalStatus"
+
+  /hospital/discharge:
+    post:
+      operationId: hospitalDischarge
+      tags: [hospital]
+      summary: Early paid discharge
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Discharged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Not hospitalized or not enough DC
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── DAILY REWARD ────────────────────────────────────────────────────────
+  /daily/status:
+    get:
+      operationId: getDailyStatus
+      tags: [daily]
+      summary: Get daily reward status
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Daily reward status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyStatus"
+
+  /daily/claim:
+    post:
+      operationId: claimDaily
+      tags: [daily]
+      summary: Claim daily reward
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Reward claimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyClaimResult"
+        "400":
+          description: Already claimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── FEED ────────────────────────────────────────────────────────────────
+  /feed:
+    get:
+      operationId: getFeed
+      tags: [feed]
+      summary: Get social feed
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: string
+            enum: [all, faction, following]
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Feed posts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedPage"
+    post:
+      operationId: createPost
+      tags: [feed]
+      summary: Create a manual post
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostInput"
+      responses:
+        "201":
+          description: Post created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedPost"
+
+  /feed/{postId}/react:
+    post:
+      operationId: reactToPost
+      tags: [feed]
+      summary: React to a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReactionInput"
+      responses:
+        "200":
+          description: Reacted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /feed/{postId}/comments:
+    get:
+      operationId: getPostComments
+      tags: [feed]
+      summary: Get comments on a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comment"
+    post:
+      operationId: addComment
+      tags: [feed]
+      summary: Comment on a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentInput"
+      responses:
+        "201":
+          description: Comment added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+
+  # ─── LEADERBOARD ─────────────────────────────────────────────────────────
+  /leaderboard/wealth:
+    get:
+      operationId: getWealthLeaderboard
+      tags: [leaderboard]
+      summary: Wealthiest players
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /leaderboard/level:
+    get:
+      operationId: getLevelLeaderboard
+      tags: [leaderboard]
+      summary: Highest level players
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /leaderboard/pvp:
+    get:
+      operationId: getPvpLeaderboard
+      tags: [leaderboard]
+      summary: Most dangerous players (weekly PvP wins)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /leaderboard/crime:
+    get:
+      operationId: getCrimeLeaderboard
+      tags: [leaderboard]
+      summary: Top crime lords (monthly)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /leaderboard/faction:
+    get:
+      operationId: getFactionLeaderboard
+      tags: [leaderboard]
+      summary: Faction power ranking
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Faction rankings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FactionRank"
+
+  # ─── NOTIFICATIONS ───────────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: Get notifications
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /notifications/{notifId}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: notifId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Marked read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ─── OWNER PANEL ─────────────────────────────────────────────────────────
+  /owner/stats:
+    get:
+      operationId: getOwnerStats
+      tags: [owner]
+      summary: Game stats dashboard
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerStats"
+
+  /owner/players:
+    get:
+      operationId: searchPlayers
+      tags: [owner]
+      summary: Search players
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Players
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerSearchResult"
+
+  /owner/players/{userId}/adjust:
+    post:
+      operationId: adjustPlayer
+      tags: [owner]
+      summary: Adjust player DC, NC, level
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayerAdjustInput"
+      responses:
+        "200":
+          description: Adjusted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/players/{userId}/ban:
+    post:
+      operationId: banPlayer
+      tags: [owner]
+      summary: Ban a player
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BanInput"
+      responses:
+        "200":
+          description: Banned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/players/{userId}/unban:
+    post:
+      operationId: unbanPlayer
+      tags: [owner]
+      summary: Unban a player
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Unbanned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/players/{userId}/mute:
+    post:
+      operationId: mutePlayer
+      tags: [owner]
+      summary: Mute a player
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MuteInput"
+      responses:
+        "200":
+          description: Muted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/patch-notes:
+    get:
+      operationId: getPatchNotes
+      tags: [owner]
+      summary: Get all patch notes
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Patch notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PatchNote"
+    post:
+      operationId: createPatchNote
+      tags: [owner]
+      summary: Create patch note
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchNoteInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatchNote"
+
+  # ─── DEV TOOLBAR ─────────────────────────────────────────────────────────
+  /dev/add-dc:
+    post:
+      operationId: devAddDc
+      tags: [dev]
+      summary: "Dev: Add DC to wallet"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DevAddDcInput"
+      responses:
+        "200":
+          description: DC added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /dev/set-level:
+    post:
+      operationId: devSetLevel
+      tags: [dev]
+      summary: "Dev: Set player level"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DevSetLevelInput"
+      responses:
+        "200":
+          description: Level set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /dev/fill-resources:
+    post:
+      operationId: devFillResources
+      tags: [dev]
+      summary: "Dev: Fill energy and nerve to max"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Resources filled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /dev/heal:
+    post:
+      operationId: devHeal
+      tags: [dev]
+      summary: "Dev: Clear hospitalization and restore health"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Healed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /dev/clear-wanted:
+    post:
+      operationId: devClearWanted
+      tags: [dev]
+      summary: "Dev: Clear wanted level"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Wanted cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ─── PHASE 2 STUBS ───────────────────────────────────────────────────────
+  /crafting/recipes:
+    get:
+      operationId: getCraftingRecipes
+      tags: [crafting]
+      summary: "[Phase 2] Crafting recipes"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Coming soon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComingSoon"
+
+  /skills/trees:
+    get:
+      operationId: getSkillTrees
+      tags: [skills]
+      summary: "[Phase 2] Skill trees"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Coming soon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComingSoon"
+
+  /guilds:
+    get:
+      operationId: getGuilds
+      tags: [guilds]
+      summary: "[Phase 2] Guilds"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Coming soon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComingSoon"
+
+  /properties:
+    get:
+      operationId: getProperties
+      tags: [properties]
+      summary: "[Phase 2] Properties"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Coming soon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComingSoon"
+
+  /npc/roster:
+    get:
+      operationId: getNpcRoster
+      tags: [npc]
+      summary: "[Phase 2] NPC roster"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Coming soon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComingSoon"
+
+  /messages/conversations:
+    get:
+      operationId: getConversations
+      tags: [messages]
+      summary: "[Phase 2] DM conversations"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Coming soon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComingSoon"
+
+  /frames:
+    get:
+      operationId: getFrames
+      tags: [frames]
+      summary: "[Phase 2] Frames store"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Coming soon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComingSoon"
+
+  /auction/listings:
+    get:
+      operationId: getAuctionListings
+      tags: [auction]
+      summary: "[Phase 2] Auction listings"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Coming soon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComingSoon"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +1582,933 @@ components:
       required:
         - status
 
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    ComingSoon:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    # ─── AUTH SCHEMAS ──────────────────────────────────────────────────
+    RegisterInput:
+      type: object
+      required: [email, username, password, faction]
+      properties:
+        email:
+          type: string
+        username:
+          type: string
+          minLength: 3
+          maxLength: 20
+        password:
+          type: string
+          minLength: 8
+        faction:
+          type: string
+          enum: [suits, street, grid]
+        referralCode:
+          type: string
+
+    OtpInput:
+      type: object
+      required: [email, otp]
+      properties:
+        email:
+          type: string
+        otp:
+          type: string
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    RefreshInput:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    ForgotPasswordInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+
+    ResetPasswordInput:
+      type: object
+      required: [token, password]
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [accessToken, refreshToken, player]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        player:
+          $ref: "#/components/schemas/Player"
+
+    # ─── PLAYER SCHEMAS ────────────────────────────────────────────────
+    Player:
+      type: object
+      required: [id, username, tag, faction, level, xp, xpToNext, dc, nc, bankBalance, strength, charisma, intelligence, streetCred, energy, maxEnergy, nerve, maxNerve, health, maxHealth, wantedLevel, hospitalized, currentDistrict, avatar, role, devMode]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        tag:
+          type: string
+        email:
+          type: string
+        faction:
+          type: string
+        level:
+          type: integer
+        xp:
+          type: integer
+        xpToNext:
+          type: integer
+        prestige:
+          type: integer
+        skillPoints:
+          type: integer
+        dc:
+          type: integer
+        nc:
+          type: integer
+        bankBalance:
+          type: integer
+        strength:
+          type: integer
+        charisma:
+          type: integer
+        intelligence:
+          type: integer
+        streetCred:
+          type: integer
+        energy:
+          type: integer
+        maxEnergy:
+          type: integer
+        nerve:
+          type: integer
+        maxNerve:
+          type: integer
+        health:
+          type: integer
+        maxHealth:
+          type: integer
+        wantedLevel:
+          type: integer
+        hospitalized:
+          type: boolean
+        hospitalReleaseAt:
+          type: ["string", "null"]
+        currentDistrict:
+          type: string
+        avatar:
+          type: integer
+        avatarUrl:
+          type: ["string", "null"]
+        bio:
+          type: ["string", "null"]
+        equippedTitle:
+          type: ["string", "null"]
+        equippedFrame:
+          type: ["string", "null"]
+        equippedFrameRarity:
+          type: ["string", "null"]
+        equippedWeaponId:
+          type: ["string", "null"]
+        equippedClothingId:
+          type: ["string", "null"]
+        equippedVehicleId:
+          type: ["string", "null"]
+        role:
+          type: string
+        devMode:
+          type: boolean
+        titles:
+          type: array
+          items:
+            type: string
+        attacksToday:
+          type: integer
+        lastLoginAt:
+          type: ["string", "null"]
+        referralCode:
+          type: string
+        referralCount:
+          type: integer
+
+    PublicPlayer:
+      type: object
+      required: [id, username, tag, faction, level, currentDistrict, avatar]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        tag:
+          type: string
+        faction:
+          type: string
+        level:
+          type: integer
+        xp:
+          type: integer
+        xpToNext:
+          type: integer
+        prestige:
+          type: integer
+        strength:
+          type: integer
+        charisma:
+          type: integer
+        intelligence:
+          type: integer
+        streetCred:
+          type: integer
+        currentDistrict:
+          type: string
+        avatar:
+          type: integer
+        avatarUrl:
+          type: ["string", "null"]
+        bio:
+          type: ["string", "null"]
+        equippedTitle:
+          type: ["string", "null"]
+        equippedFrame:
+          type: ["string", "null"]
+        equippedFrameRarity:
+          type: ["string", "null"]
+        titles:
+          type: array
+          items:
+            type: string
+
+    ProfileUpdate:
+      type: object
+      properties:
+        bio:
+          type: string
+        equippedTitle:
+          type: string
+        equippedFrame:
+          type: string
+        avatarUrl:
+          type: string
+
+    AvatarInput:
+      type: object
+      required: [description]
+      properties:
+        description:
+          type: string
+
+    AvatarResponse:
+      type: object
+      required: [avatarUrl]
+      properties:
+        avatarUrl:
+          type: string
+
+    # ─── DISTRICT SCHEMAS ──────────────────────────────────────────────
+    District:
+      type: object
+      required: [id, name, faction, danger, travelEnergyCost, playerCount, jobCount]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        faction:
+          type: string
+        danger:
+          type: integer
+        travelEnergyCost:
+          type: integer
+        playerCount:
+          type: integer
+        jobCount:
+          type: integer
+        description:
+          type: string
+
+    TravelResponse:
+      type: object
+      required: [message, district, energyRemaining]
+      properties:
+        message:
+          type: string
+        district:
+          type: string
+        energyRemaining:
+          type: integer
+
+    # ─── JOB SCHEMAS ──────────────────────────────────────────────────
+    JobWithStatus:
+      type: object
+      required: [id, name, district, minLevel, energy, dcMin, dcMax, cooldownMinutes, onCooldown]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        district:
+          type: string
+        minLevel:
+          type: integer
+        energy:
+          type: integer
+        dcMin:
+          type: integer
+        dcMax:
+          type: integer
+        cooldownMinutes:
+          type: integer
+        onCooldown:
+          type: boolean
+        cooldownEndsAt:
+          type: ["string", "null"]
+
+    JobResult:
+      type: object
+      required: [dc, xp, narrative, miniGameTriggered]
+      properties:
+        dc:
+          type: integer
+        xp:
+          type: integer
+        narrative:
+          type: string
+        miniGameTriggered:
+          type: boolean
+        miniGameType:
+          type: ["string", "null"]
+
+    # ─── CRIME SCHEMAS ────────────────────────────────────────────────
+    CrimeWithStatus:
+      type: object
+      required: [id, name, minLevel, nerve, baseSuccess, dcMin, dcMax, wantedGain, hospitalRisk, available]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        flavorText:
+          type: string
+        minLevel:
+          type: integer
+        nerve:
+          type: integer
+        baseSuccess:
+          type: number
+        dcMin:
+          type: integer
+        dcMax:
+          type: integer
+        wantedGain:
+          type: integer
+        hospitalRisk:
+          type: number
+        available:
+          type: boolean
+        requirementReason:
+          type: ["string", "null"]
+
+    CrimeResult:
+      type: object
+      required: [success, narrative]
+      properties:
+        success:
+          type: boolean
+        dc:
+          type: integer
+        xp:
+          type: integer
+        narrative:
+          type: string
+        wantedLevel:
+          type: integer
+        hospitalized:
+          type: boolean
+        hospitalDuration:
+          type: integer
+
+    # ─── COMBAT SCHEMAS ───────────────────────────────────────────────
+    CombatNpc:
+      type: object
+      required: [id, name, district, level, hp, strength, dcMin, dcMax, xp, dropChance, dropRarity]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        district:
+          type: string
+        level:
+          type: integer
+        hp:
+          type: integer
+        strength:
+          type: integer
+        dcMin:
+          type: integer
+        dcMax:
+          type: integer
+        xp:
+          type: integer
+        dropChance:
+          type: number
+        dropRarity:
+          type: string
+
+    CombatResult:
+      type: object
+      required: [won, narrative, playerAttack, npcDefense]
+      properties:
+        won:
+          type: boolean
+        narrative:
+          type: string
+        playerAttack:
+          type: integer
+        npcDefense:
+          type: integer
+        dc:
+          type: integer
+        xp:
+          type: integer
+        itemDrop:
+          type: ["string", "null"]
+        healthRemaining:
+          type: integer
+        hospitalized:
+          type: boolean
+
+    PvpTarget:
+      type: object
+      required: [id, username, tag, faction, level, currentDistrict, avatar, onCooldown]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        tag:
+          type: string
+        faction:
+          type: string
+        level:
+          type: integer
+        currentDistrict:
+          type: string
+        avatar:
+          type: integer
+        avatarUrl:
+          type: ["string", "null"]
+        equippedFrame:
+          type: ["string", "null"]
+        equippedFrameRarity:
+          type: ["string", "null"]
+        onCooldown:
+          type: boolean
+        cooldownEndsAt:
+          type: ["string", "null"]
+
+    PvpResult:
+      type: object
+      required: [won, narrative, attackerRoll, defenderRoll]
+      properties:
+        won:
+          type: boolean
+        narrative:
+          type: string
+        attackerRoll:
+          type: integer
+        defenderRoll:
+          type: integer
+        dcStolen:
+          type: integer
+        xp:
+          type: integer
+        hospitalized:
+          type: boolean
+
+    # ─── INVENTORY SCHEMAS ────────────────────────────────────────────
+    InventoryItem:
+      type: object
+      required: [id, itemId, name, category, rarity, quantity, basePrice, equipped]
+      properties:
+        id:
+          type: string
+        itemId:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        rarity:
+          type: string
+        quantity:
+          type: integer
+        basePrice:
+          type: integer
+        equipped:
+          type: boolean
+        effect:
+          type: ["string", "null"]
+
+    ItemUseResult:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        energyGained:
+          type: integer
+        nerveGained:
+          type: integer
+        hospitalReduced:
+          type: integer
+
+    SalvageResult:
+      type: object
+      required: [dc, message]
+      properties:
+        dc:
+          type: integer
+        message:
+          type: string
+
+    # ─── MARKET SCHEMAS ───────────────────────────────────────────────
+    MarketListing:
+      type: object
+      required: [id, itemId, itemName, category, rarity, quantity, price, sellerId, sellerUsername, sellerTag, expiresAt, createdAt]
+      properties:
+        id:
+          type: string
+        itemId:
+          type: string
+        itemName:
+          type: string
+        category:
+          type: string
+        rarity:
+          type: string
+        quantity:
+          type: integer
+        price:
+          type: integer
+        sellerId:
+          type: string
+        sellerUsername:
+          type: string
+        sellerTag:
+          type: string
+        sellerFrame:
+          type: ["string", "null"]
+        sellerFrameRarity:
+          type: ["string", "null"]
+        expiresAt:
+          type: string
+        createdAt:
+          type: string
+
+    MarketListingInput:
+      type: object
+      required: [inventoryItemId, price]
+      properties:
+        inventoryItemId:
+          type: string
+        price:
+          type: integer
+        quantity:
+          type: integer
+
+    # ─── BANK SCHEMAS ─────────────────────────────────────────────────
+    BankTransferInput:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: integer
+
+    BankBalance:
+      type: object
+      required: [wallet, bank]
+      properties:
+        wallet:
+          type: integer
+        bank:
+          type: integer
+
+    # ─── HOSPITAL SCHEMAS ─────────────────────────────────────────────
+    HospitalStatus:
+      type: object
+      required: [hospitalized]
+      properties:
+        hospitalized:
+          type: boolean
+        releaseAt:
+          type: ["string", "null"]
+        remainingMinutes:
+          type: ["integer", "null"]
+        dischargeCost:
+          type: ["integer", "null"]
+
+    # ─── DAILY SCHEMAS ────────────────────────────────────────────────
+    DailyStatus:
+      type: object
+      required: [canClaim, streak, todayReward]
+      properties:
+        canClaim:
+          type: boolean
+        streak:
+          type: integer
+        todayReward:
+          $ref: "#/components/schemas/DailyReward"
+        nextClaimAt:
+          type: ["string", "null"]
+        weekCalendar:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayReward"
+
+    DailyReward:
+      type: object
+      required: [day, dc]
+      properties:
+        day:
+          type: integer
+        dc:
+          type: integer
+        item:
+          type: ["string", "null"]
+        itemRarity:
+          type: ["string", "null"]
+
+    DayReward:
+      type: object
+      required: [day, dc, claimed, isToday, locked]
+      properties:
+        day:
+          type: integer
+        dc:
+          type: integer
+        claimed:
+          type: boolean
+        isToday:
+          type: boolean
+        locked:
+          type: boolean
+        item:
+          type: ["string", "null"]
+
+    DailyClaimResult:
+      type: object
+      required: [dc, streak, message]
+      properties:
+        dc:
+          type: integer
+        streak:
+          type: integer
+        message:
+          type: string
+        item:
+          type: ["string", "null"]
+        itemRarity:
+          type: ["string", "null"]
+
+    # ─── FEED SCHEMAS ─────────────────────────────────────────────────
+    FeedPost:
+      type: object
+      required: [id, type, authorId, authorUsername, authorTag, authorFaction, authorAvatar, content, reactions, commentCount, createdAt]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        authorId:
+          type: string
+        authorUsername:
+          type: string
+        authorTag:
+          type: string
+        authorFaction:
+          type: string
+        authorAvatar:
+          type: integer
+        authorAvatarUrl:
+          type: ["string", "null"]
+        authorFrame:
+          type: ["string", "null"]
+        authorFrameRarity:
+          type: ["string", "null"]
+        authorTitle:
+          type: ["string", "null"]
+        content:
+          type: string
+        reactions:
+          $ref: "#/components/schemas/ReactionCounts"
+        myReaction:
+          type: ["string", "null"]
+        commentCount:
+          type: integer
+        createdAt:
+          type: string
+
+    FeedPage:
+      type: object
+      required: [posts, hasMore, total]
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeedPost"
+        hasMore:
+          type: boolean
+        total:
+          type: integer
+
+    ReactionCounts:
+      type: object
+      properties:
+        like:
+          type: integer
+        laugh:
+          type: integer
+        shock:
+          type: integer
+        respect:
+          type: integer
+
+    PostInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          maxLength: 280
+
+    ReactionInput:
+      type: object
+      required: [reaction]
+      properties:
+        reaction:
+          type: string
+          enum: [like, laugh, shock, respect]
+
+    Comment:
+      type: object
+      required: [id, authorId, authorUsername, authorTag, authorFaction, authorAvatar, content, createdAt]
+      properties:
+        id:
+          type: string
+        authorId:
+          type: string
+        authorUsername:
+          type: string
+        authorTag:
+          type: string
+        authorFaction:
+          type: string
+        authorAvatar:
+          type: integer
+        authorAvatarUrl:
+          type: ["string", "null"]
+        content:
+          type: string
+        createdAt:
+          type: string
+
+    CommentInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          maxLength: 280
+
+    # ─── LEADERBOARD SCHEMAS ──────────────────────────────────────────
+    LeaderboardEntry:
+      type: object
+      required: [rank, userId, username, tag, faction, level, avatar, score]
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: string
+        username:
+          type: string
+        tag:
+          type: string
+        faction:
+          type: string
+        level:
+          type: integer
+        avatar:
+          type: integer
+        avatarUrl:
+          type: ["string", "null"]
+        equippedFrame:
+          type: ["string", "null"]
+        equippedFrameRarity:
+          type: ["string", "null"]
+        equippedTitle:
+          type: ["string", "null"]
+        score:
+          type: integer
+
+    FactionRank:
+      type: object
+      required: [faction, score, districtControl, memberCount]
+      properties:
+        faction:
+          type: string
+        score:
+          type: integer
+        districtControl:
+          type: integer
+        memberCount:
+          type: integer
+
+    # ─── NOTIFICATION SCHEMAS ─────────────────────────────────────────
+    Notification:
+      type: object
+      required: [id, type, message, read, createdAt]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        message:
+          type: string
+        read:
+          type: boolean
+        link:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    # ─── OWNER SCHEMAS ────────────────────────────────────────────────
+    OwnerStats:
+      type: object
+      required: [totalPlayers, activePlayers, totalDcInEconomy, totalCrimesToday, totalFightsToday]
+      properties:
+        totalPlayers:
+          type: integer
+        activePlayers:
+          type: integer
+        totalDcInEconomy:
+          type: integer
+        totalCrimesToday:
+          type: integer
+        totalFightsToday:
+          type: integer
+
+    PlayerSearchResult:
+      type: object
+      required: [players, total, page]
+      properties:
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/Player"
+        total:
+          type: integer
+        page:
+          type: integer
+
+    PlayerAdjustInput:
+      type: object
+      properties:
+        dc:
+          type: integer
+        nc:
+          type: integer
+        level:
+          type: integer
+
+    BanInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+
+    MuteInput:
+      type: object
+      required: [durationMinutes]
+      properties:
+        durationMinutes:
+          type: integer
+
+    PatchNote:
+      type: object
+      required: [id, title, content, createdAt]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+
+    PatchNoteInput:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+
+    # ─── DEV SCHEMAS ──────────────────────────────────────────────────
+    DevAddDcInput:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: integer
+
+    DevSetLevelInput:
+      type: object
+      required: [level]
+      properties:
+        level:
+          type: integer
