@@ -4,6 +4,7 @@ import FeedEvent from "../models/FeedEvent";
 import { requireStaff, requireOwner, AuthRequest } from "../middlewares/auth";
 import { levelUp, xpForLevel } from "../models/User";
 import { SHOP_ITEMS, PRICE_OVERRIDES } from "./market";
+import { FRAME_CATALOG, FRAME_PRICE_OVERRIDES } from "./frames";
 
 const router = Router();
 router.use(requireStaff as any);
@@ -295,6 +296,44 @@ router.delete("/shop-items/:id/price", requireOwner as any, async (req: AuthRequ
   if (!item) return res.status(404).json({ message: "Item not found" });
   PRICE_OVERRIDES.delete(item.id);
   res.json({ message: `${item.name} price reset to default (${item.basePrice.toLocaleString()} DC)`, price: item.basePrice });
+});
+
+// GET /api/owner/frames — list all frames with current (possibly overridden) prices
+router.get("/frames", async (_req, res) => {
+  res.json(FRAME_CATALOG.map(f => ({
+    frameId: f.frameId,
+    displayName: f.displayName,
+    rarity: f.rarity,
+    currency: f.currency,
+    basePrice: f.price,
+    currentPrice: FRAME_PRICE_OVERRIDES.get(f.frameId) ?? f.price,
+    overridden: FRAME_PRICE_OVERRIDES.has(f.frameId),
+    isFree: f.isFree,
+    description: f.description,
+  })));
+});
+
+// POST /api/owner/frames/:frameId/price — set a custom frame price
+router.post("/frames/:frameId/price", requireOwner as any, async (req: AuthRequest, res) => {
+  const frame = FRAME_CATALOG.find(f => f.frameId === req.params.frameId);
+  if (!frame) return res.status(404).json({ message: "Frame not found" });
+  const price = Math.floor(Number(req.body.price));
+  if (isNaN(price) || price < 0) return res.status(400).json({ message: "Invalid price" });
+  if (price === 0 && frame.price !== 0) {
+    FRAME_PRICE_OVERRIDES.delete(frame.frameId);
+    return res.json({ message: `${frame.displayName} price reset to default (${frame.price} ${frame.currency.toUpperCase()})`, price: frame.price });
+  }
+  FRAME_PRICE_OVERRIDES.set(frame.frameId, price);
+  req.log.info({ frameId: frame.frameId, oldPrice: frame.price, newPrice: price }, "owner set frame price");
+  res.json({ message: `${frame.displayName} price set to ${price} ${frame.currency.toUpperCase()}`, price });
+});
+
+// DELETE /api/owner/frames/:frameId/price — reset frame price to default
+router.delete("/frames/:frameId/price", requireOwner as any, async (req: AuthRequest, res) => {
+  const frame = FRAME_CATALOG.find(f => f.frameId === req.params.frameId);
+  if (!frame) return res.status(404).json({ message: "Frame not found" });
+  FRAME_PRICE_OVERRIDES.delete(frame.frameId);
+  res.json({ message: `${frame.displayName} price reset to default (${frame.price} ${frame.currency.toUpperCase()})`, price: frame.price });
 });
 
 export default router;

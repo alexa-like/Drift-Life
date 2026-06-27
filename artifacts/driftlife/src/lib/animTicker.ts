@@ -6,9 +6,15 @@ let rafId: number | null = null;
 let globalT = 0;
 let lastTs = 0;
 
+// Pre-seeded random table — avoids Math.random() in hot animation paths
+const RAND_TABLE: number[] = Array.from({ length: 256 }, () => Math.random());
+export function seededRand(i: number): number {
+  return RAND_TABLE[i & 255];
+}
+
 function tick(ts: number) {
   rafId = requestAnimationFrame(tick);
-  if (ts - lastTs < 33) return; // ~30 fps cap
+  if (ts - lastTs < 40) return; // ~24 fps cap — reduces CPU load
   lastTs = ts;
   globalT++;
   cbs.forEach(cb => { try { cb(globalT); } catch (_) {} });

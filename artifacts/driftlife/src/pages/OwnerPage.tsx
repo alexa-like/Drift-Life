@@ -60,7 +60,7 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "frames";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -93,6 +93,12 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [itemPriceEdit, setItemPriceEdit] = useState<string | null>(null);
   const [itemPriceVal, setItemPriceVal] = useState("");
   const [itemPriceFilter, setItemPriceFilter] = useState<string>("all");
+  // Frames tab
+  const [framesList, setFramesList] = useState<{ frameId: string; displayName: string; rarity: string; currency: string; basePrice: number; currentPrice: number; overridden: boolean; isFree: boolean; description: string }[]>([]);
+  const [framesLoading, setFramesLoading] = useState(false);
+  const [framePriceEdit, setFramePriceEdit] = useState<string | null>(null);
+  const [framePriceVal, setFramePriceVal] = useState("");
+  const [framesRarityFilter, setFramesRarityFilter] = useState<string>("all");
 
   const loadStats = useCallback(async () => {
     try {
@@ -137,11 +143,21 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     finally { setItemsLoading(false); }
   }, []);
 
+  const loadFrames = useCallback(async () => {
+    setFramesLoading(true);
+    try {
+      const frames = await api.get<any[]>("/owner/frames");
+      setFramesList(frames);
+    } catch { /* silent */ }
+    finally { setFramesLoading(false); }
+  }, []);
+
   useEffect(() => { loadStats(); }, [loadStats]);
   useEffect(() => { if (tab === "users") loadUsers(1); }, [tab, loadUsers]);
   useEffect(() => { if (tab === "activity") loadRecentFeed(); }, [tab, loadRecentFeed]);
   useEffect(() => { if (tab === "patch-notes") loadPatchNotes(); }, [tab, loadPatchNotes]);
   useEffect(() => { if (tab === "items") loadShopItems(); }, [tab, loadShopItems]);
+  useEffect(() => { if (tab === "frames") loadFrames(); }, [tab, loadFrames]);
 
   async function banUser(userId: string) {
     if (!banReason.trim()) { addToast("Enter a ban reason", "error"); return; }
@@ -237,6 +253,25 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     } catch (e: any) { addToast(e.message, "error"); }
   }
 
+  async function setFramePrice(frameId: string) {
+    const price = Number(framePriceVal);
+    if (isNaN(price) || price < 0) { addToast("Enter a valid price (0 to reset)", "error"); return; }
+    try {
+      const res = await api.post<{ message: string; price: number }>(`/owner/frames/${frameId}/price`, { price });
+      addToast(res.message, "success");
+      setFramePriceEdit(null); setFramePriceVal("");
+      loadFrames();
+    } catch (e: any) { addToast(e.message, "error"); }
+  }
+
+  async function resetFramePrice(frameId: string) {
+    try {
+      const res = await api.delete<{ message: string }>(`/owner/frames/${frameId}/price`);
+      addToast(res.message, "success");
+      loadFrames();
+    } catch (e: any) { addToast(e.message, "error"); }
+  }
+
   async function setItemPrice(itemId: string) {
     const price = Number(itemPriceVal);
     if (isNaN(price) || price < 0) { addToast("Enter a valid price (0 to reset)", "error"); return; }
@@ -265,6 +300,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     { id: "activity", label: "Activity" },
     { id: "patch-notes", label: "Patch Notes" },
     { id: "items", label: "Items" },
+    { id: "frames", label: "Frames" },
   ];
 
   const s = { background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 };
@@ -594,6 +630,92 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                   );
                 })
               }
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* FRAMES TAB */}
+      {tab === "frames" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+              Set frame prices. Enter 0 to reset to default. Prices survive only until server restart.
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(["all", "common", "uncommon", "rare", "epic", "legendary", "mythic"] as string[]).map(r => (
+                <button key={r} onClick={() => setFramesRarityFilter(r)}
+                  className="px-2.5 py-1 rounded font-mono capitalize"
+                  style={{ fontSize: 11, background: framesRarityFilter === r ? "#a855f718" : "transparent", color: framesRarityFilter === r ? "#a855f7" : "#475569", border: `1px solid ${framesRarityFilter === r ? "#a855f740" : "#1e1e2e"}` }}>
+                  {r}
+                </button>
+              ))}
+              <button onClick={loadFrames} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}>Refresh</button>
+            </div>
+          </div>
+
+          {framesLoading ? (
+            <div className="text-center py-8 font-mono text-xs" style={{ color: "#475569" }}>Loading...</div>
+          ) : (
+            <div className="space-y-2">
+              {framesList
+                .filter(f => framesRarityFilter === "all" || f.rarity === framesRarityFilter)
+                .map(frame => {
+                  const RARITY_CLR: Record<string, string> = { common: "#9ca3af", uncommon: "#4ade80", rare: "#60a5fa", epic: "#c084fc", legendary: "#fbbf24", mythic: "#00ff41" };
+                  const rc = RARITY_CLR[frame.rarity] ?? "#9ca3af";
+                  return (
+                    <div key={frame.frameId} style={{ background: "#111118", border: `1px solid ${frame.overridden ? "#f59e0b30" : "#1e1e2e"}`, borderRadius: 8, padding: 12 }}>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{frame.displayName}</span>
+                            <span className="font-mono text-xs px-1.5 py-0.5 rounded capitalize" style={{ color: rc, background: rc + "15", border: `1px solid ${rc}30` }}>{frame.rarity}</span>
+                            <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>{frame.currency.toUpperCase()}</span>
+                            {frame.isFree && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#39d353", background: "#39d35315", border: "1px solid #39d35330" }}>FREE</span>}
+                            {frame.overridden && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#f59e0b", background: "#f59e0b15", border: "1px solid #f59e0b30" }}>custom price</span>}
+                          </div>
+                          <div className="font-mono mt-0.5" style={{ fontSize: 11, color: "#475569" }}>{frame.description}</div>
+                        </div>
+
+                        {!frame.isFree && (
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="text-right">
+                              <div className="font-mono text-sm font-bold" style={{ color: frame.currency === "nc" ? "#a855f7" : "#f59e0b" }}>
+                                {frame.currentPrice} {frame.currency.toUpperCase()}
+                              </div>
+                              {frame.overridden && (
+                                <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>default: {frame.basePrice}</div>
+                              )}
+                            </div>
+
+                            {isOwner && framePriceEdit === frame.frameId ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  value={framePriceVal}
+                                  onChange={e => setFramePriceVal(e.target.value)}
+                                  type="number"
+                                  min={0}
+                                  placeholder="New price"
+                                  autoFocus
+                                  className="font-mono text-xs px-2 py-1 rounded"
+                                  style={{ background: "#0a0a0f", border: "1px solid #f59e0b40", color: "#e2e8f0", width: 90 }}
+                                  onKeyDown={e => { if (e.key === "Enter") setFramePrice(frame.frameId); if (e.key === "Escape") { setFramePriceEdit(null); setFramePriceVal(""); } }}
+                                />
+                                <button onClick={() => setFramePrice(frame.frameId)} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}>Set</button>
+                                {frame.overridden && (
+                                  <button onClick={() => resetFramePrice(frame.frameId)} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Reset to default">↺</button>
+                                )}
+                                <button onClick={() => { setFramePriceEdit(null); setFramePriceVal(""); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>✕</button>
+                              </div>
+                            ) : isOwner ? (
+                              <button onClick={() => { setFramePriceEdit(frame.frameId); setFramePriceVal(String(frame.currentPrice)); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#f59e0b", border: "1px solid #f59e0b30" }}>Edit</button>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </div>
