@@ -1,2 +1,4 @@
 - [DriftLife Stack](driftlife-stack.md) — MongoDB+Mongoose (NOT Postgres/Drizzle), bcryptjs (not native bcrypt), nodemailer externalized in build.mjs
 - [DriftLife Auth Flow](driftlife-auth.md) — custom JWT + bcrypt + email OTP; access token 15min, refresh 30d; email OTP 10min expiry
+- [DriftLife Item Model](driftlife-item-model.md) — Items use strengthBonus/charismaBonus/intelligenceBonus/streetCredBonus/defenseBonus NOT damage/defense
+- [DriftLife TS Config](driftlife-ts-config.md) — api-server tsconfig needs noImplicitReturns:false; Express route handlers trigger TS7030 otherwise

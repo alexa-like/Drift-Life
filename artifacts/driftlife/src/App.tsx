@@ -10,11 +10,16 @@ import { CombatPage } from "./pages/CombatPage";
 import { BankPage } from "./pages/BankPage";
 import { MarketPage } from "./pages/MarketPage";
 import { DistrictPage } from "./pages/DistrictPage";
+import { MapPage } from "./pages/MapPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { FeedPage } from "./pages/FeedPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { HospitalPage } from "./pages/HospitalPage";
+import { ProfilePage } from "./pages/ProfilePage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { DailyPage } from "./pages/DailyPage";
+import { FactionSelectPage } from "./pages/FactionSelectPage";
 import { NavBar } from "./components/NavBar";
 import { ToastContainer } from "./components/ToastContainer";
 import { api } from "./lib/api";
@@ -25,8 +30,18 @@ const queryClient = new QueryClient();
 function GameApp() {
   const { user, loading, login, logout, refreshUser } = useAuth();
   const { toasts, addToast, removeToast } = useToast();
-  const [page, setPage] = useState("dashboard");
+  const [page, setPage] = useState("feed");
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [showFactionSelect, setShowFactionSelect] = useState(false);
+
+  // Show faction selection for users without a faction
+  useEffect(() => {
+    if (user && !user.faction) {
+      setShowFactionSelect(true);
+    } else {
+      setShowFactionSelect(false);
+    }
+  }, [user]);
 
   // Poll notifications count
   useEffect(() => {
@@ -42,7 +57,7 @@ function GameApp() {
 
   const handleLogout = useCallback(async () => {
     await logout();
-    setPage("dashboard");
+    setPage("feed");
   }, [logout]);
 
   if (loading) {
@@ -64,27 +79,44 @@ function GameApp() {
     );
   }
 
-  const pageProps = { user, refreshUser, addToast };
+  // Faction onboarding gate
+  if (showFactionSelect) {
+    return (
+      <>
+        <FactionSelectPage
+          onComplete={() => { refreshUser(); setShowFactionSelect(false); }}
+          addToast={addToast}
+        />
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
+      </>
+    );
+  }
+
+  const pageProps = { user: user!, refreshUser, addToast };
 
   function renderPage() {
     switch (page) {
       case "dashboard": return <Dashboard {...pageProps} onNav={setPage} />;
+      case "feed": return <FeedPage user={user!} />;
       case "crimes": return <CrimesPage {...pageProps} />;
       case "jobs": return <JobsPage {...pageProps} />;
       case "combat": return <CombatPage {...pageProps} />;
       case "bank": return <BankPage {...pageProps} />;
       case "market": return <MarketPage {...pageProps} />;
       case "district": return <DistrictPage {...pageProps} />;
+      case "map": return <MapPage {...pageProps} />;
       case "inventory": return <InventoryPage {...pageProps} />;
       case "leaderboard": return <LeaderboardPage />;
-      case "feed": return <FeedPage />;
       case "hospital": return <HospitalPage {...pageProps} />;
+      case "profile": return <ProfilePage {...pageProps} />;
+      case "settings": return <SettingsPage {...pageProps} onLogout={handleLogout} />;
+      case "daily": return <DailyPage {...pageProps} onNav={setPage} />;
       case "notifications":
-        return (
-          <NotificationsPage
-            onUnreadChange={setUnreadNotifs}
-          />
-        );
+        return <NotificationsPage onUnreadChange={setUnreadNotifs} />;
+      case "owner":
+        return (user!.role === "owner" || user!.role === "admin")
+          ? <OwnerRedirect onNav={setPage} />
+          : <Dashboard {...pageProps} onNav={setPage} />;
       default: return <Dashboard {...pageProps} onNav={setPage} />;
     }
   }
@@ -104,6 +136,12 @@ function GameApp() {
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
+}
+
+// Simple owner redirect component
+function OwnerRedirect({ onNav }: { onNav: (p: string) => void }) {
+  useEffect(() => { onNav("dashboard"); }, []);
+  return null;
 }
 
 function App() {

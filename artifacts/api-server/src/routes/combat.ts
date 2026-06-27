@@ -136,34 +136,59 @@ router.post("/npc/:npcId", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+type DropType = "weapon" | "armor" | "clothing" | "vehicle" | "consumable" | "material" | "badge" | "card" | "misc";
+type DropRarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
+type DropSlot = "weapon" | "armor" | "clothing" | "vehicle" | null;
+
+interface DropTemplate {
+  name: string;
+  rarity: DropRarity;
+  type: DropType;
+  basePrice: number;
+  strengthBonus: number;
+  slot: DropSlot;
+}
+
 async function grantNpcDrop(userId: string, dropRarity: string): Promise<void> {
-  const rarityPool: Array<{ name: string; rarity: string; type: string; basePrice: number; strengthBonus: number }> = [
-    { name: "Scrap Metal", rarity: "common", type: "material", basePrice: 100, strengthBonus: 0 },
-    { name: "Bandage", rarity: "common", type: "consumable", basePrice: 300, strengthBonus: 0 },
-    { name: "Combat Knife", rarity: "common", type: "weapon", basePrice: 1200, strengthBonus: 2 },
-    { name: "Pistol", rarity: "uncommon", type: "weapon", basePrice: 15000, strengthBonus: 5 },
-    { name: "First Aid Kit", rarity: "common", type: "consumable", basePrice: 1000, strengthBonus: 0 },
-    { name: "Leather Jacket", rarity: "uncommon", type: "clothing", basePrice: 8000, strengthBonus: 0 },
-    { name: "Katana", rarity: "rare", type: "weapon", basePrice: 80000, strengthBonus: 8 },
-    { name: "Tactical Vest", rarity: "rare", type: "armor", basePrice: 40000, strengthBonus: 3 },
-    { name: "Plasma Pistol", rarity: "epic", type: "weapon", basePrice: 800000, strengthBonus: 15 },
-    { name: "Plasma Cannon", rarity: "legendary", type: "weapon", basePrice: 25000000, strengthBonus: 30 },
+  const rarityPool: DropTemplate[] = [
+    { name: "Scrap Metal", rarity: "common", type: "material", basePrice: 100, strengthBonus: 0, slot: null },
+    { name: "Bandage", rarity: "common", type: "consumable", basePrice: 300, strengthBonus: 0, slot: null },
+    { name: "Combat Knife", rarity: "common", type: "weapon", basePrice: 1200, strengthBonus: 2, slot: "weapon" },
+    { name: "Pistol", rarity: "uncommon", type: "weapon", basePrice: 15000, strengthBonus: 5, slot: "weapon" },
+    { name: "First Aid Kit", rarity: "common", type: "consumable", basePrice: 1000, strengthBonus: 0, slot: null },
+    { name: "Leather Jacket", rarity: "uncommon", type: "clothing", basePrice: 8000, strengthBonus: 0, slot: "clothing" },
+    { name: "Katana", rarity: "rare", type: "weapon", basePrice: 80000, strengthBonus: 8, slot: "weapon" },
+    { name: "Tactical Vest", rarity: "rare", type: "armor", basePrice: 40000, strengthBonus: 3, slot: "armor" },
+    { name: "Plasma Pistol", rarity: "epic", type: "weapon", basePrice: 800000, strengthBonus: 15, slot: "weapon" },
+    { name: "Plasma Cannon", rarity: "legendary", type: "weapon", basePrice: 25000000, strengthBonus: 30, slot: "weapon" },
   ];
 
-  // Determine drop roll
   const roll = Math.random();
-  let rarity: string;
+  let rarity: DropRarity | null = null;
   if (dropRarity.includes("legendary") && roll < 0.01) rarity = "legendary";
   else if (dropRarity.includes("epic") && roll < 0.04) rarity = "epic";
   else if (dropRarity.includes("rare") && roll < 0.10) rarity = "rare";
   else if (dropRarity.includes("uncommon") && roll < 0.25) rarity = "uncommon";
   else if (roll < 0.60) rarity = "common";
-  else return; // no drop
+  else return;
 
   const pool = rarityPool.filter(i => i.rarity === rarity);
   if (!pool.length) return;
   const template = pool[Math.floor(Math.random() * pool.length)];
-  await Item.create({ ...template, owner: userId, quantity: 1, slot: template.type === "weapon" ? "weapon" : template.type === "armor" || template.type === "clothing" ? "armor" : null });
+  await Item.create({
+    owner: userId,
+    name: template.name,
+    type: template.type,
+    rarity: template.rarity,
+    strengthBonus: template.strengthBonus,
+    charismaBonus: 0,
+    intelligenceBonus: 0,
+    streetCredBonus: 0,
+    defenseBonus: 0,
+    basePrice: template.basePrice,
+    quantity: 1,
+    slot: template.slot,
+  });
 }
 
 // GET /api/combat/targets

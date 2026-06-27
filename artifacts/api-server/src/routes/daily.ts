@@ -6,13 +6,13 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 const router = Router();
 
 const STREAK_REWARDS = [
-  { dc: 200, xp: 20 },  // Day 1
-  { dc: 300, xp: 30 },  // Day 2
-  { dc: 400, xp: 40 },  // Day 3
-  { dc: 500, xp: 50 },  // Day 4
-  { dc: 600, xp: 60 },  // Day 5
-  { dc: 750, xp: 75 },  // Day 6
-  { dc: 1000, xp: 100 }, // Day 7
+  { dc: 1000, xp: 50, bonus: null },   // Day 1
+  { dc: 2000, xp: 100, bonus: null },  // Day 2
+  { dc: 3000, xp: 150, bonus: "10 Energy" }, // Day 3
+  { dc: 5000, xp: 250, bonus: "5 Nerve" },   // Day 4
+  { dc: 8000, xp: 400, bonus: "HP Full" },   // Day 5
+  { dc: 12000, xp: 600, bonus: "2x DC Bonus" }, // Day 6
+  { dc: 20000, xp: 1000, bonus: "Rare Loot Drop" }, // Day 7
 ];
 
 function isSameDay(a: Date, b: Date) {
@@ -64,27 +64,53 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
 
     const rewardIdx = Math.min((user.dailyStreak - 1) % 7, 6);
     const reward = STREAK_REWARDS[rewardIdx];
-    user.dc += reward.dc;
+
+    // Day 5: full heal bonus
+    if (reward.bonus === "HP Full") {
+      user.health = user.maxHealth;
+    }
+    // Day 3: energy bonus
+    if (reward.bonus === "10 Energy") {
+      user.energy = Math.min(user.maxEnergy, user.energy + 10);
+    }
+    // Day 4: nerve bonus
+    if (reward.bonus === "5 Nerve") {
+      user.nerve = Math.min(user.maxNerve, user.nerve + 5);
+    }
+    // Day 6: 2x DC bonus (already doubled in the reward table, just flag it)
+
+    let totalDc = reward.dc;
+    // Day 7: rare loot drop - extra DC as placeholder
+    if (reward.bonus === "Rare Loot Drop") {
+      totalDc += 5000;
+    }
+
+    user.dc += totalDc;
     user.xp += reward.xp;
     user.lastDailyReward = now;
     await user.save();
 
     await FeedEvent.create({
-      type: "system",
+      type: "daily",
       actor: user.username,
       actorId: user._id,
-      message: `${user.username} claimed their day ${user.dailyStreak} daily reward: +${reward.dc} DC`,
-      dc: reward.dc,
+      message: `${user.username} claimed Day ${user.dailyStreak} daily reward: +${totalDc.toLocaleString()} DC`,
+      dc: totalDc,
       xp: reward.xp,
     });
+
+    const nextClaimAt = new Date();
+    nextClaimAt.setHours(24, 0, 0, 0);
 
     res.json({
       claimed: true,
       streak: user.dailyStreak,
-      dcGained: reward.dc,
+      dcGained: totalDc,
       xpGained: reward.xp,
+      bonus: reward.bonus,
       dc: user.dc,
       xp: user.xp,
+      nextClaimAt: nextClaimAt.toISOString(),
     });
   } catch (err: any) {
     req.log.error({ err }, "daily claim error");

@@ -8,10 +8,13 @@ interface Props {
   addToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
 }
 
+const RISK_COLOR: Record<string, string> = { low: "#39d353", medium: "#f59e0b", high: "#ff6b35", extreme: "#ff2d55" };
+
 export function CrimesPage({ user, refreshUser, addToast }: Props) {
   const [crimes, setCrimes] = useState<Crime[]>([]);
   const [committing, setCommitting] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<any>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     api.get<Crime[]>("/crimes").then(setCrimes).catch(() => {});
@@ -22,11 +25,11 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
     setLastResult(null);
     try {
       const data = await api.post<any>(`/crimes/${crimeId}/commit`);
-      setLastResult(data);
+      setLastResult({ ...data, crimeId });
       if (data.success) {
-        addToast(data.message, "success");
+        addToast(`${crimes.find(c => c.id === crimeId)?.name} — success! +${data.dcGained} DC`, "success");
       } else {
-        addToast(data.message, data.jailed ? "error" : "warning");
+        addToast(data.hospitalized ? "Hospitalized!" : "Failed. No DC.", data.hospitalized ? "error" : "warning");
       }
       await refreshUser();
     } catch (err: any) {
@@ -36,102 +39,110 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
     }
   }
 
-  const isHospitalized = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
+  const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
 
-  const RARITY_COLORS = ["#39d353", "#00d4ff", "#a855f7", "#f59e0b", "#ff2d55"];
-
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+    <div className="max-w-2xl mx-auto space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-mono font-bold" style={{ color: "#ff2d55" }}>Crime Board</h2>
-        <div className="flex gap-4 text-xs font-mono">
+        <h2 className="font-mono font-bold text-lg" style={{ color: "#ff2d55" }}>CRIME BOARD</h2>
+        <div className="flex gap-4 font-mono text-xs">
           <span style={{ color: "#ff6b35" }}>Nerve: <strong style={{ color: "#e2e8f0" }}>{user.nerve}/{user.maxNerve}</strong></span>
-          <span style={{ color: "#94a3b8" }}>Level: <strong style={{ color: "#e2e8f0" }}>{user.level}</strong></span>
+          <span style={{ color: "#64748b" }}>Level: <strong style={{ color: "#e2e8f0" }}>{user.level}</strong></span>
         </div>
       </div>
 
-      {(isHospitalized || isJailed) && (
-        <div className="p-3 rounded text-sm font-mono" style={{
-          background: isHospitalized ? "#ff2d5510" : "#f59e0b10",
-          border: `1px solid ${isHospitalized ? "#ff2d5540" : "#f59e0b40"}`,
-          color: isHospitalized ? "#ff2d55" : "#f59e0b",
+      {(isHosp || isJailed) && (
+        <div className="p-3 rounded font-mono text-xs" style={{
+          background: isHosp ? "#ff2d5510" : "#f59e0b10",
+          border: `1px solid ${isHosp ? "#ff2d5540" : "#f59e0b40"}`,
+          color: isHosp ? "#ff2d55" : "#f59e0b",
         }}>
-          {isHospitalized ? "You are hospitalized. Visit the hospital to recover." : "You are in jail. Wait for release."}
+          {isHosp ? "You are hospitalized. Visit the hospital to recover early." : "You are in jail. Wait for release or bribe your way out."}
         </div>
       )}
 
       {lastResult && (
-        <div
-          className="p-4 rounded-lg font-mono"
-          style={{
-            background: lastResult.success ? "#39d35310" : "#ff2d5510",
-            border: `1px solid ${lastResult.success ? "#39d35340" : "#ff2d5540"}`,
-          }}
-        >
-          <div className="text-sm font-bold mb-1" style={{ color: lastResult.success ? "#39d353" : "#ff2d55" }}>
-            {lastResult.message}
+        <div className="p-4 rounded font-mono" style={{
+          background: lastResult.success ? "#39d35310" : "#ff2d5510",
+          border: `1px solid ${lastResult.success ? "#39d35340" : "#ff2d5540"}`,
+        }}>
+          <div className="font-bold text-sm mb-1" style={{ color: lastResult.success ? "#39d353" : "#ff2d55" }}>
+            {lastResult.success ? "SUCCESS" : lastResult.hospitalized ? "HOSPITALIZED" : "FAILED"}
           </div>
-          <div className="flex gap-4 text-xs">
-            {lastResult.dcGained > 0 && <span style={{ color: "#f59e0b" }}>+{lastResult.dcGained} DC</span>}
+          <p className="text-xs mb-2" style={{ color: "#94a3b8", fontStyle: "italic" }}>{lastResult.narrative}</p>
+          <div className="flex gap-4 text-xs flex-wrap">
+            {lastResult.dcGained > 0 && <span style={{ color: "#f59e0b" }}>+{lastResult.dcGained.toLocaleString()} DC</span>}
             {lastResult.xpGained > 0 && <span style={{ color: "#a855f7" }}>+{lastResult.xpGained} XP</span>}
-            {lastResult.leveled && <span style={{ color: "#00d4ff" }}>LEVEL UP! Now Lv.{lastResult.newLevel}</span>}
+            {lastResult.leveled && <span style={{ color: "#00d4ff" }}>LEVEL UP! Lv.{lastResult.newLevel}</span>}
+            {lastResult.hospitalized && <span style={{ color: "#ff2d55" }}>Hospital time</span>}
           </div>
         </div>
       )}
 
-      <div className="grid gap-3">
-        {crimes.map((crime, idx) => {
-          const canAfford = user.nerve >= crime.nerveCost;
+      <div className="space-y-2">
+        {crimes.map(crime => {
           const meetsLevel = user.level >= crime.minLevel;
-          const available = canAfford && meetsLevel && !isHospitalized && !isJailed;
-          const busyThis = committing === crime.id;
+          const canAfford = user.nerve >= crime.nerveCost;
+          const available = meetsLevel && canAfford && !isHosp && !isJailed;
+          const rc = RISK_COLOR[crime.riskLevel] || "#94a3b8";
+          const isExpanded = expanded === crime.id;
 
           return (
-            <div
-              key={crime.id}
-              className="rounded-lg p-4 flex items-center gap-4"
-              style={{
-                background: "#111118",
-                border: `1px solid ${available ? "#1e1e2e" : "#0f0f18"}`,
-                opacity: meetsLevel ? 1 : 0.5,
-              }}
-            >
-              <div
-                className="w-2 h-12 rounded-full flex-shrink-0"
-                style={{ background: RARITY_COLORS[Math.min(idx, 4)], opacity: 0.7 }}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>
-                    {crime.name}
-                  </span>
-                  {!meetsLevel && (
-                    <span className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: "#ff2d5510", color: "#ff2d55" }}>
-                      Lv.{crime.minLevel}
+            <div key={crime.id} style={{
+              background: "#111118",
+              border: `1px solid ${isExpanded ? rc + "50" : "#1e1e2e"}`,
+              borderRadius: 8,
+              opacity: meetsLevel ? 1 : 0.5,
+            }}>
+              <div className="flex items-center gap-3 p-3">
+                {/* Risk indicator */}
+                <div style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: rc, flexShrink: 0 }} />
+
+                {/* Info */}
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpanded(isExpanded ? null : crime.id)}>
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{crime.name}</span>
+                    <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ background: rc + "20", color: rc }}>
+                      {crime.riskLevel.toUpperCase()}
                     </span>
-                  )}
+                    {!meetsLevel && (
+                      <span className="font-mono text-xs" style={{ color: "#ff2d55" }}>Lv.{crime.minLevel}</span>
+                    )}
+                  </div>
+                  <div className="flex gap-3 font-mono text-xs flex-wrap">
+                    <span style={{ color: "#ff6b35" }}>Nerve: {crime.nerveCost}</span>
+                    <span style={{ color: "#f59e0b" }}>{crime.dcRange[0].toLocaleString()}–{crime.dcRange[1].toLocaleString()} DC</span>
+                    <span style={{ color: "#a855f7" }}>+{crime.xp} XP</span>
+                    <span style={{ color: "#64748b" }}>{Math.round(crime.baseSuccess * 100)}% success</span>
+                  </div>
                 </div>
-                <p className="text-xs font-mono mb-2" style={{ color: "#475569" }}>{crime.description}</p>
-                <div className="flex gap-4 text-xs font-mono flex-wrap">
-                  <span style={{ color: "#ff6b35" }}>Nerve: {crime.nerveCost}</span>
-                  <span style={{ color: "#f59e0b" }}>DC: {crime.dcRange[0]}-{crime.dcRange[1]}</span>
-                  <span style={{ color: "#a855f7" }}>XP: +{crime.xp}</span>
-                  <span style={{ color: "#94a3b8" }}>Success: {Math.round(crime.successRate * 100)}%</span>
-                </div>
+
+                {/* Execute */}
+                <button
+                  onClick={() => commit(crime.id)}
+                  disabled={!available || committing !== null}
+                  className="px-3 py-1.5 rounded font-mono text-xs font-bold uppercase flex-shrink-0 transition-all"
+                  style={{
+                    background: available ? "#ff2d5518" : "#1e1e2e",
+                    color: available ? "#ff2d55" : "#475569",
+                    border: `1px solid ${available ? "#ff2d5540" : "#1e1e2e"}`,
+                  }}
+                >
+                  {committing === crime.id ? "..." : "Execute"}
+                </button>
               </div>
-              <button
-                onClick={() => commit(crime.id)}
-                disabled={!available || !!committing}
-                className="px-4 py-2 rounded text-xs font-mono font-bold uppercase flex-shrink-0 transition-all"
-                style={{
-                  background: available ? "#ff2d5518" : "#1e1e2e",
-                  color: available ? "#ff2d55" : "#475569",
-                  border: `1px solid ${available ? "#ff2d5540" : "#1e1e2e"}`,
-                }}
-              >
-                {busyThis ? "..." : "Execute"}
-              </button>
+
+              {/* Expanded details */}
+              {isExpanded && (
+                <div className="px-4 pb-3" style={{ borderTop: "1px solid #1e1e2e" }}>
+                  <p className="font-mono text-xs mt-2 mb-2" style={{ color: "#64748b" }}>{crime.description}</p>
+                  <div className="flex gap-4 font-mono text-xs flex-wrap">
+                    <span style={{ color: "#ff2d55" }}>Hospital risk: {Math.round(crime.hospitalRisk * 100)}%</span>
+                    <span style={{ color: "#f59e0b" }}>Wanted: +{crime.wantedIncrease}★</span>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

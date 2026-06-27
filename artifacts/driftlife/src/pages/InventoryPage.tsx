@@ -66,7 +66,7 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
         <h2 className="text-lg font-mono font-bold" style={{ color: "#94a3b8" }}>Inventory</h2>
         <div className="flex gap-3 text-xs font-mono">
           <span style={{ color: "#ff6b35" }}>STR: {user.strength}</span>
-          <span style={{ color: "#00d4ff" }}>DEF: {user.defense}</span>
+          <span style={{ color: "#a855f7" }}>CHA: {user.charisma}</span>
         </div>
       </div>
 
@@ -108,10 +108,16 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
                   )}
                 </div>
                 <p className="text-xs font-mono" style={{ color: "#475569" }}>{item.description}</p>
-                <div className="flex gap-3 mt-1 text-xs font-mono">
-                  {item.damage > 0 && <span style={{ color: "#ff6b35" }}>ATK +{item.damage}</span>}
-                  {item.defense > 0 && <span style={{ color: "#00d4ff" }}>DEF +{item.defense}</span>}
+                <div className="flex gap-3 mt-1 text-xs font-mono flex-wrap">
+                  {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR +{item.strengthBonus}</span>}
+                  {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA +{item.charismaBonus}</span>}
+                  {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT +{item.intelligenceBonus}</span>}
+                  {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF +{item.defenseBonus}</span>}
+                  {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP +{item.streetCredBonus}</span>}
                   {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
+                  {(item.type === "consumable" || item.type === "material") && item.quantity > 1 && (
+                    <span style={{ color: "#64748b" }}>x{item.quantity}</span>
+                  )}
                 </div>
               </div>
               {item.slot && !item.marketListed && (

@@ -134,9 +134,9 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: "STR", val: user.strength, color: "#ff6b35" },
-              { label: "DEF", val: user.defense, color: "#00d4ff" },
-              { label: "SPD", val: user.speed, color: "#39d353" },
-              { label: "STL", val: user.stealth, color: "#a855f7" },
+              { label: "CHA", val: user.charisma, color: "#a855f7" },
+              { label: "INT", val: user.intelligence, color: "#00d4ff" },
+              { label: "REP", val: user.streetCred, color: "#f59e0b" },
             ].map(s => (
               <div key={s.label} className="text-center">
                 <div className="text-xs font-mono" style={{ color: "#475569" }}>{s.label}</div>

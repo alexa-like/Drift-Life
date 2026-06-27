@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { User, Job } from "../lib/types";
 import { api } from "../lib/api";
+import { MiniGameModal } from "../components/MiniGameModal";
 
 interface Props {
   user: User;
@@ -8,14 +9,39 @@ interface Props {
   addToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
 }
 
+function Cooldown({ until }: { until: string }) {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const calc = () => {
+      const diff = Math.max(0, Math.floor((new Date(until).getTime() - Date.now()) / 1000));
+      setSecs(diff);
+    };
+    calc();
+    const t = setInterval(calc, 1000);
+    return () => clearInterval(t);
+  }, [until]);
+  if (secs === 0) return null;
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return <span style={{ color: "#f59e0b" }}>{m}:{String(s).padStart(2, "0")}</span>;
+}
+
 export function JobsPage({ user, refreshUser, addToast }: Props) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [working, setWorking] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<any>(null);
+  const [miniGame, setMiniGame] = useState<{ type: "typing" | "pattern" | "timing" | "rhythm" } | null>(null);
+  const [filterDistrict, setFilterDistrict] = useState<"all" | "here" | "any">("all");
 
-  useEffect(() => {
+  const loadJobs = useCallback(() => {
     api.get<Job[]>("/jobs").then(setJobs).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    loadJobs();
+    const t = setInterval(loadJobs, 30000);
+    return () => clearInterval(t);
+  }, [loadJobs]);
 
   async function work(jobId: string) {
     setWorking(jobId);
@@ -23,8 +49,12 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
     try {
       const data = await api.post<any>(`/jobs/${jobId}/work`);
       setLastResult(data);
-      addToast(`Earned ${data.dcGained} DC${data.leveled ? ` + LEVEL UP!` : ""}`, "success");
+      addToast(`${jobs.find(j => j.id === jobId)?.name} — +${data.dcGained} DC${data.leveled ? " + LEVEL UP!" : ""}`, "success");
       await refreshUser();
+      loadJobs(); // refresh cooldowns
+      if (data.miniGameTriggered && data.miniGameType) {
+        setMiniGame({ type: data.miniGameType });
+      }
     } catch (err: any) {
       addToast(err.message, "error");
     } finally {
@@ -32,81 +62,142 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
     }
   }
 
-  const isHospitalized = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
+  async function handleMiniGameComplete(multiplier: number) {
+    setMiniGame(null);
+    if (multiplier > 1.0) {
+      try {
+        const r = await api.post<any>("/jobs/minigame/complete", { multiplier });
+        if (r.bonus > 0) {
+          addToast(`Mini-game bonus: +${r.bonus} DC`, "success");
+          await refreshUser();
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
 
+  const filtered = jobs.filter(j => {
+    if (filterDistrict === "here") return j.districtMatch;
+    if (filterDistrict === "any") return j.district === "any";
+    return true;
+  });
+
+  const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
+  const fc = user.faction ? FACTION_COLOR[user.faction] : "#94a3b8";
+
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-mono font-bold" style={{ color: "#39d353" }}>Jobs</h2>
-        <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>
-          Energy: <strong style={{ color: "#00d4ff" }}>{user.energy}/{user.maxEnergy}</strong>
-        </span>
+    <div className="max-w-2xl mx-auto space-y-4">
+      {miniGame && (
+        <MiniGameModal
+          type={miniGame.type}
+          onComplete={handleMiniGameComplete}
+          onSkip={() => setMiniGame(null)}
+        />
+      )}
+
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <h2 className="font-mono font-bold text-lg" style={{ color: "#39d353" }}>JOBS</h2>
+        <div className="flex gap-2 items-center font-mono text-xs">
+          <span style={{ color: "#00d4ff" }}>Energy: <strong style={{ color: "#e2e8f0" }}>{user.energy}/{user.maxEnergy}</strong></span>
+          <span style={{ color: "#64748b" }}>District: <strong style={{ color: "#94a3b8" }}>{user.district.replace(/-/g, " ")}</strong></span>
+        </div>
       </div>
 
-      {(isHospitalized || isJailed) && (
-        <div className="p-3 rounded text-sm font-mono" style={{
+      {/* Faction bonus info */}
+      {user.faction && (
+        <div className="px-3 py-2 rounded font-mono text-xs" style={{ background: fc + "10", border: `1px solid ${fc}30`, color: fc }}>
+          {user.faction === "suits" && "Suits: +10% DC on all jobs"}
+          {user.faction === "street" && "Street: Standard job rates"}
+          {user.faction === "grid" && "Grid: -10% Energy cost on jobs"}
+        </div>
+      )}
+
+      {(isHosp || isJailed) && (
+        <div className="p-3 rounded font-mono text-xs" style={{
           background: "#ff2d5510", border: "1px solid #ff2d5540", color: "#ff2d55"
         }}>
-          {isHospitalized ? "Hospitalized — cannot work." : "Jailed — cannot work."}
+          {isHosp ? "Hospitalized — cannot work." : "Jailed — cannot work."}
         </div>
       )}
 
       {lastResult && (
-        <div className="p-4 rounded-lg font-mono" style={{ background: "#39d35310", border: "1px solid #39d35340" }}>
-          <div className="text-sm font-bold mb-1" style={{ color: "#39d353" }}>Job Complete</div>
-          <div className="flex gap-4 text-xs">
-            <span style={{ color: "#f59e0b" }}>+{lastResult.dcGained} DC</span>
+        <div className="p-3 rounded font-mono" style={{ background: "#39d35310", border: "1px solid #39d35340" }}>
+          <div className="font-bold text-sm mb-1" style={{ color: "#39d353" }}>Job Complete</div>
+          <div className="flex gap-4 text-xs flex-wrap">
+            <span style={{ color: "#f59e0b" }}>+{lastResult.dcGained.toLocaleString()} DC</span>
             <span style={{ color: "#a855f7" }}>+{lastResult.xpGained} XP</span>
             {lastResult.leveled && <span style={{ color: "#00d4ff" }}>LEVEL UP! Lv.{lastResult.newLevel}</span>}
+            {lastResult.miniGameTriggered && <span style={{ color: "#a855f7" }}>Mini-game triggered!</span>}
           </div>
         </div>
       )}
 
-      <div className="grid gap-3">
-        {jobs.map(job => {
-          const canAfford = user.energy >= job.energyCost;
-          const meetsLevel = user.level >= job.minLevel;
-          const available = canAfford && meetsLevel && !isHospitalized && !isJailed;
+      {/* Filters */}
+      <div className="flex gap-2">
+        {([["all", "All Jobs"], ["here", "Available Here"], ["any", "Any District"]] as const).map(([v, l]) => (
+          <button key={v} onClick={() => setFilterDistrict(v)}
+            className="font-mono text-xs px-2 py-1 rounded"
+            style={{
+              background: filterDistrict === v ? "#39d35318" : "transparent",
+              color: filterDistrict === v ? "#39d353" : "#64748b",
+              border: filterDistrict === v ? "1px solid #39d35340" : "1px solid #1e1e2e",
+            }}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        {filtered.map(job => {
+          const canEnergy = user.energy >= job.energyCost;
+          const available = job.available && canEnergy && !isHosp && !isJailed;
+          const busyThis = working === job.id;
 
           return (
-            <div
-              key={job.id}
-              className="rounded-lg p-4 flex items-center gap-4"
-              style={{
-                background: "#111118",
-                border: "1px solid #1e1e2e",
-                opacity: meetsLevel ? 1 : 0.5,
-              }}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{job.name}</span>
-                  {!meetsLevel && (
-                    <span className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: "#ff2d5510", color: "#ff2d55" }}>
-                      Lv.{job.minLevel}
-                    </span>
-                  )}
+            <div key={job.id} style={{
+              background: "#111118",
+              border: `1px solid ${available ? "#1e1e2e" : "#0a0a0f"}`,
+              borderRadius: 8,
+              opacity: job.districtMatch || job.district === "any" ? 1 : 0.45,
+            }}>
+              <div className="flex items-center gap-3 p-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{job.name}</span>
+                    {!job.districtMatch && job.district !== "any" && (
+                      <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ background: "#f59e0b10", color: "#f59e0b" }}>
+                        {job.district.replace(/-/g, " ")}
+                      </span>
+                    )}
+                    {user.level < job.minLevel && (
+                      <span className="font-mono text-xs" style={{ color: "#ff2d55" }}>Lv.{job.minLevel}</span>
+                    )}
+                  </div>
+                  <p className="font-mono text-xs mb-1" style={{ color: "#475569" }}>{job.description}</p>
+                  <div className="flex gap-3 font-mono text-xs flex-wrap">
+                    <span style={{ color: "#00d4ff" }}>Energy: {job.energyCost}</span>
+                    <span style={{ color: "#f59e0b" }}>{job.dcMin.toLocaleString()}–{job.dcMax.toLocaleString()} DC</span>
+                    <span style={{ color: "#a855f7" }}>+{job.xpPerJob} XP</span>
+                    {job.onCooldown && job.cooldownUntil && (
+                      <span style={{ color: "#64748b" }}>CD: <Cooldown until={job.cooldownUntil} /></span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs font-mono mb-2" style={{ color: "#475569" }}>{job.description}</p>
-                <div className="flex gap-4 text-xs font-mono flex-wrap">
-                  <span style={{ color: "#00d4ff" }}>Energy: {job.energyCost}</span>
-                  <span style={{ color: "#f59e0b" }}>DC: {job.dcMin}-{job.dcMax}</span>
-                  <span style={{ color: "#a855f7" }}>XP: +{job.xp}</span>
-                </div>
+                <button
+                  onClick={() => work(job.id)}
+                  disabled={!available || working !== null}
+                  className="px-3 py-1.5 rounded font-mono text-xs font-bold uppercase flex-shrink-0 transition-all"
+                  style={{
+                    background: available ? "#39d35318" : "#1e1e2e",
+                    color: available ? "#39d353" : "#475569",
+                    border: `1px solid ${available ? "#39d35340" : "#1e1e2e"}`,
+                  }}
+                >
+                  {busyThis ? "..." : job.onCooldown ? "CD" : "Work"}
+                </button>
               </div>
-              <button
-                onClick={() => work(job.id)}
-                disabled={!available || !!working}
-                className="px-4 py-2 rounded text-xs font-mono font-bold uppercase flex-shrink-0 transition-all"
-                style={{
-                  background: available ? "#39d35318" : "#1e1e2e",
-                  color: available ? "#39d353" : "#475569",
-                  border: `1px solid ${available ? "#39d35340" : "#1e1e2e"}`,
-                }}
-              >
-                {working === job.id ? "..." : "Work"}
-              </button>
             </div>
           );
         })}

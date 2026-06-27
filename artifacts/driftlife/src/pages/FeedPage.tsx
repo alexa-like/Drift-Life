@@ -1,85 +1,187 @@
-import { useState, useEffect } from "react";
-import { FeedEvent } from "../lib/types";
+import { useState, useEffect, useRef } from "react";
+import { FeedEvent, User } from "../lib/types";
 import { api } from "../lib/api";
 
 const TYPE_COLORS: Record<string, string> = {
-  crime: "#ff2d55",
-  fight: "#ff6b35",
-  job: "#39d353",
-  market: "#00d4ff",
-  bank: "#f59e0b",
-  system: "#a855f7",
-  level_up: "#f59e0b",
-  hospital: "#ff2d55",
+  crime: "#ff2d55", fight: "#ff6b35", job: "#39d353",
+  market: "#00d4ff", bank: "#f59e0b", system: "#a855f7",
+  level_up: "#f59e0b", hospital: "#ff2d55", post: "#94a3b8",
 };
+const REACTIONS = ["like", "laugh", "shock", "respect"] as const;
+const REACTION_EMOJI: Record<string, string> = { like: "👍", laugh: "😂", shock: "😱", respect: "🫡" };
 
-export function FeedPage() {
+interface Props { user?: User; }
+
+export function FeedPage({ user }: Props) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [postContent, setPostContent] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [commentOpen, setCommentOpen] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState("");
 
   const load = () => {
     setLoading(true);
     api.get<FeedEvent[]>("/feed?limit=50")
-      .then(setEvents)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then(setEvents).catch(() => {}).finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 10000);
+    const interval = setInterval(load, 15000);
     return () => clearInterval(interval);
   }, []);
 
+  async function sendPost() {
+    if (!postContent.trim()) return;
+    setPosting(true);
+    try {
+      await api.post("/feed", { content: postContent.trim() });
+      setPostContent("");
+      load();
+    } catch { /* ignore */ } finally {
+      setPosting(false);
+    }
+  }
+
+  async function react(eventId: string, reaction: string) {
+    try {
+      await api.post(`/feed/${eventId}/react`, { reaction });
+      setEvents(prev => prev.map(e => {
+        if (e.id !== eventId) return e;
+        const r = { ...e.reactions };
+        r[reaction as keyof typeof r] = (r[reaction as keyof typeof r] || 0) + 1;
+        return { ...e, reactions: r };
+      }));
+    } catch { /* ignore */ }
+  }
+
+  async function sendComment(eventId: string) {
+    if (!commentText.trim()) return;
+    try {
+      await api.post(`/feed/${eventId}/comment`, { content: commentText.trim() });
+      setCommentText("");
+      load();
+      setCommentOpen(null);
+    } catch { /* ignore */ }
+  }
+
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+    <div className="max-w-2xl mx-auto space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-mono font-bold" style={{ color: "#94a3b8" }}>City Feed</h2>
-        <button
-          onClick={load}
-          className="text-xs font-mono px-2 py-1 rounded"
-          style={{ color: "#475569", border: "1px solid #1e1e2e" }}
-        >
+        <h2 className="font-mono font-bold text-lg" style={{ color: "#94a3b8" }}>CITY FEED</h2>
+        <button onClick={load} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>
           Refresh
         </button>
       </div>
 
+      {/* Post composer */}
+      <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 16 }}>
+        <textarea
+          value={postContent}
+          onChange={e => setPostContent(e.target.value)}
+          maxLength={280}
+          rows={2}
+          placeholder="What's happening in New Vanta..."
+          className="w-full font-mono text-xs p-2 rounded mb-2"
+          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none", resize: "none" }}
+        />
+        <div className="flex justify-between items-center">
+          <span className="font-mono text-xs" style={{ color: "#64748b" }}>{postContent.length}/280</span>
+          <button
+            onClick={sendPost}
+            disabled={posting || !postContent.trim()}
+            className="font-mono text-xs px-3 py-1 rounded"
+            style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff30" }}
+          >
+            {posting ? "Posting..." : "Post"}
+          </button>
+        </div>
+      </div>
+
       {loading && events.length === 0 ? (
-        <div className="text-center py-12 text-xs font-mono" style={{ color: "#1e1e2e" }}>Loading...</div>
+        <div className="text-center py-12 font-mono text-xs" style={{ color: "#1e1e2e" }}>Loading feed...</div>
       ) : events.length === 0 ? (
-        <div className="text-center py-12 text-xs font-mono" style={{ color: "#475569" }}>
+        <div className="text-center py-12 font-mono text-xs" style={{ color: "#475569" }}>
           No events yet. Start playing to fill the feed.
         </div>
       ) : (
-        <div className="rounded-lg overflow-hidden" style={{ border: "1px solid #1e1e2e" }}>
-          {events.map((ev, i) => (
-            <div
-              key={ev.id}
-              className="flex items-start gap-3 px-4 py-3"
-              style={{
-                background: i % 2 === 0 ? "#111118" : "#0d0d15",
-                borderBottom: "1px solid #1e1e2e",
-              }}
-            >
-              <div
-                className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
-                style={{
-                  background: TYPE_COLORS[ev.type] ?? "#94a3b8",
-                  boxShadow: `0 0 4px ${TYPE_COLORS[ev.type] ?? "#94a3b8"}`,
-                }}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-mono" style={{ color: "#e2e8f0" }}>{ev.message}</p>
-                <div className="flex gap-3 mt-0.5">
-                  {ev.dc > 0 && <span className="text-xs font-mono" style={{ color: "#f59e0b" }}>+{ev.dc} DC</span>}
-                  {ev.xp > 0 && <span className="text-xs font-mono" style={{ color: "#a855f7" }}>+{ev.xp} XP</span>}
+        <div className="space-y-2">
+          {events.map(ev => {
+            const tc = TYPE_COLORS[ev.type] ?? "#94a3b8";
+            const isCommentOpen = commentOpen === ev.id;
+            const reactions = ev.reactions || { like: 0, laugh: 0, shock: 0, respect: 0 };
+            const comments = ev.comments || [];
+            const totalReactions = Object.values(reactions).reduce((a, b) => a + b, 0);
+
+            return (
+              <div key={ev.id} style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8 }}>
+                <div className="flex items-start gap-3 px-4 py-3">
+                  <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: tc, boxShadow: `0 0 4px ${tc}` }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{ev.message}</p>
+                    <div className="flex gap-3 mt-0.5 flex-wrap">
+                      {ev.dc > 0 && <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>+{ev.dc.toLocaleString()} DC</span>}
+                      {ev.xp > 0 && <span className="font-mono text-xs" style={{ color: "#a855f7" }}>+{ev.xp} XP</span>}
+                    </div>
+                  </div>
+                  <span className="font-mono text-xs flex-shrink-0" style={{ color: "#334155" }}>
+                    {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
                 </div>
+
+                {/* Reactions + comments bar */}
+                <div className="flex items-center gap-3 px-4 pb-2 flex-wrap" style={{ borderTop: "1px solid #1e1e2e08" }}>
+                  <div className="flex gap-1">
+                    {REACTIONS.map(r => (
+                      <button
+                        key={r}
+                        onClick={() => react(ev.id, r)}
+                        className="font-mono rounded px-1.5 py-0.5 transition-all"
+                        style={{ fontSize: 12, background: reactions[r] > 0 ? "#1e1e2e" : "transparent", border: "1px solid transparent" }}
+                        title={r}
+                      >
+                        {REACTION_EMOJI[r]}{reactions[r] > 0 && <span style={{ fontSize: 10, color: "#64748b", marginLeft: 2 }}>{reactions[r]}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setCommentOpen(isCommentOpen ? null : ev.id)}
+                    className="font-mono text-xs"
+                    style={{ color: "#64748b" }}
+                  >
+                    {comments.length > 0 ? `${comments.length} comment${comments.length > 1 ? "s" : ""}` : "Reply"}
+                  </button>
+                </div>
+
+                {/* Comments */}
+                {(isCommentOpen || comments.length > 0) && (
+                  <div style={{ borderTop: "1px solid #1e1e2e", padding: "8px 16px" }}>
+                    {comments.slice(-3).map((c, i) => (
+                      <div key={i} className="font-mono text-xs mb-1">
+                        <span style={{ color: "#00d4ff" }}>{c.username}:</span>{" "}
+                        <span style={{ color: "#94a3b8" }}>{c.content}</span>
+                      </div>
+                    ))}
+                    {isCommentOpen && (
+                      <div className="flex gap-2 mt-2">
+                        <input
+                          value={commentText}
+                          onChange={e => setCommentText(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && sendComment(ev.id)}
+                          placeholder="Reply..."
+                          maxLength={280}
+                          className="flex-1 px-2 py-1 rounded font-mono text-xs"
+                          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                        />
+                        <button onClick={() => sendComment(ev.id)} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#1e1e2e", color: "#94a3b8" }}>Send</button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <span className="text-xs font-mono flex-shrink-0" style={{ color: "#334155" }}>
-                {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
