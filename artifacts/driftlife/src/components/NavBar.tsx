@@ -3,6 +3,27 @@ import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
 import { formatDC } from "../lib/format";
 
+function RollingNC({ value }: { value: number }) {
+  const [display, setDisplay] = useState(value);
+  const prevRef = useRef(value);
+  const animRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (value === prevRef.current) return;
+    const start = prevRef.current, end = value, dur = 600, t0 = performance.now();
+    function step(now: number) {
+      const t = Math.min((now - t0) / dur, 1);
+      const e = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      setDisplay(Math.round(start + (end - start) * e));
+      if (t < 1) animRef.current = requestAnimationFrame(step);
+      else prevRef.current = end;
+    }
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    animRef.current = requestAnimationFrame(step);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [value]);
+  return <span className="font-mono tabular-nums" style={{ color: "#a855f7", fontSize: 11, fontWeight: "bold" }}>{formatDC(display)}</span>;
+}
+
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
@@ -124,7 +145,9 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
         <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
           <RollingNumber value={user.dc} color="#f59e0b" /> DC
         </span>
-        {/* NC (NeoCoins) hidden from player nav — owner/admin-only visibility */}
+        <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
+          <RollingNC value={user.nc} /> UC
+        </span>
       </div>
 
       {/* Nav row */}
