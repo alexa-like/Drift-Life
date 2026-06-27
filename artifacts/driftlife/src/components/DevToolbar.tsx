@@ -1,21 +1,27 @@
 import { useState } from "react";
 import { api } from "../lib/api";
+import { User } from "../lib/types";
 
 interface Props {
+  user: User;
   onRefresh: () => void;
   addToast: (msg: string, t?: string) => void;
 }
 
-export function DevToolbar({ onRefresh, addToast }: Props) {
+export function DevToolbar({ user, onRefresh, addToast }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dcAmount, setDcAmount] = useState("10000");
+  const [ncAmount, setNcAmount] = useState("100");
+
+  const isOwner = user.role === "owner";
 
   async function action(path: string, body?: object) {
     setLoading(true);
     try {
-      await api.post(path, body);
+      const res = await api.post<{ message: string }>(path, body);
       onRefresh();
-      addToast("Dev action applied", "success");
+      addToast(res.message || "Done", "success");
     } catch (e: any) {
       addToast(e.message, "error");
     } finally {
@@ -33,14 +39,15 @@ export function DevToolbar({ onRefresh, addToast }: Props) {
             borderRadius: 8,
             padding: 12,
             marginBottom: 8,
-            width: 190,
+            width: 210,
             boxShadow: "0 0 20px #ff6b3520",
           }}
         >
           <div className="font-mono text-xs mb-3" style={{ color: "#ff6b35", borderBottom: "1px solid #1e1e2e", paddingBottom: 6 }}>
-            ⚙ DEV (staff only)
+            ⚙ DEV ({isOwner ? "owner" : "staff"})
           </div>
-          <div className="flex gap-1.5 flex-wrap">
+
+          <div className="flex gap-1.5 flex-wrap mb-3">
             <button
               onClick={() => action("/dev/heal")}
               disabled={loading}
@@ -58,9 +65,57 @@ export function DevToolbar({ onRefresh, addToast }: Props) {
               🚨 Clear Wanted
             </button>
           </div>
-          <div className="font-mono mt-3" style={{ fontSize: 9, color: "#334155" }}>
-            Economy adjustments via Owner Panel
-          </div>
+
+          {/* Owner-only: currency injection */}
+          {isOwner && (
+            <div style={{ borderTop: "1px solid #1e1e2e", paddingTop: 10 }}>
+              <div className="font-mono mb-2" style={{ fontSize: 9, color: "#f59e0b", letterSpacing: "0.08em" }}>
+                💰 OWNER — CURRENCY INJECT
+              </div>
+
+              {/* Add DC */}
+              <div className="flex items-center gap-1 mb-2">
+                <input
+                  value={dcAmount}
+                  onChange={e => setDcAmount(e.target.value)}
+                  type="number"
+                  min={1}
+                  className="font-mono rounded px-1.5 py-1 flex-1 min-w-0"
+                  style={{ fontSize: 10, background: "#0a0a0f", border: "1px solid #f59e0b30", color: "#f59e0b" }}
+                  placeholder="DC amount"
+                />
+                <button
+                  onClick={() => action("/dev/add-dc", { amount: Number(dcAmount) })}
+                  disabled={loading || !dcAmount}
+                  className="px-2 py-1 font-mono rounded flex-shrink-0"
+                  style={{ fontSize: 10, background: "#f59e0b20", color: "#f59e0b", border: "1px solid #f59e0b40" }}
+                >
+                  +DC
+                </button>
+              </div>
+
+              {/* Add NC */}
+              <div className="flex items-center gap-1">
+                <input
+                  value={ncAmount}
+                  onChange={e => setNcAmount(e.target.value)}
+                  type="number"
+                  min={1}
+                  className="font-mono rounded px-1.5 py-1 flex-1 min-w-0"
+                  style={{ fontSize: 10, background: "#0a0a0f", border: "1px solid #a855f730", color: "#a855f7" }}
+                  placeholder="UC amount"
+                />
+                <button
+                  onClick={() => action("/dev/give-nc", { amount: Number(ncAmount) })}
+                  disabled={loading || !ncAmount}
+                  className="px-2 py-1 font-mono rounded flex-shrink-0"
+                  style={{ fontSize: 10, background: "#a855f720", color: "#a855f7", border: "1px solid #a855f740" }}
+                >
+                  +UC
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

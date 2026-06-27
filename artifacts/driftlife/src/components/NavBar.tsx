@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
+import { formatDC } from "../lib/format";
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
@@ -50,7 +51,7 @@ function RollingNumber({ value, color }: { value: number; color: string }) {
 
   return (
     <span className="font-mono tabular-nums" style={{ color, fontSize: 11, fontWeight: "bold" }}>
-      {display.toLocaleString()}
+      {formatDC(display)}
     </span>
   );
 }
@@ -123,11 +124,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
         <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
           <RollingNumber value={user.dc} color="#f59e0b" /> DC
         </span>
-        {user.nc > 0 && (
-          <span className="font-mono flex-shrink-0">
-            <RollingNumber value={user.nc} color="#a855f7" /> NC
-          </span>
-        )}
+        {/* NC (NeoCoins) hidden from player nav — owner/admin-only visibility */}
       </div>
 
       {/* Nav row */}

@@ -151,7 +151,7 @@ function GameApp() {
         </main>
         <ToastContainer toasts={toasts} removeToast={removeToast} />
         {user!.devMode && (
-          <DevToolbar onRefresh={refreshUser} addToast={addToast} />
+          <DevToolbar user={user!} onRefresh={refreshUser} addToast={addToast} />
         )}
         {inspectUserId && (
           <PlayerInspectModal

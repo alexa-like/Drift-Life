@@ -452,7 +452,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                 return (
                   <FrameCardWrapper
                     key={frame.id}
-                    frameId={isEquipped ? frame.id : undefined}
+                    frameId={frame.id}
                     colorOverride={isEquipped ? equippedColor : null}
                     borderRadius={6}
                   >
