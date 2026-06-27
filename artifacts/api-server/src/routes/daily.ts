@@ -1,19 +1,39 @@
 import { Router } from "express";
 import User from "../models/User";
+import Item from "../models/Item";
 import FeedEvent from "../models/FeedEvent";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 
-const STREAK_REWARDS = [
-  { dc: 1000, xp: 50, bonus: null },   // Day 1
-  { dc: 2000, xp: 100, bonus: null },  // Day 2
-  { dc: 3000, xp: 150, bonus: "10 Energy" }, // Day 3
-  { dc: 5000, xp: 250, bonus: "5 Nerve" },   // Day 4
-  { dc: 8000, xp: 400, bonus: "HP Full" },   // Day 5
-  { dc: 12000, xp: 600, bonus: "2x DC Bonus" }, // Day 6
-  { dc: 20000, xp: 1000, bonus: "Rare Loot Drop" }, // Day 7
-];
+interface DayReward {
+  dc: number;
+  xp: number;
+  itemRarity?: "common" | "uncommon" | "rare" | "epic";
+  bonus?: string;
+}
+
+const STREAK_REWARDS: Record<number, DayReward> = {
+  1:  { dc: 100,  xp: 20 },
+  2:  { dc: 150,  xp: 30 },
+  3:  { dc: 200,  xp: 40 },
+  4:  { dc: 250,  xp: 50 },
+  5:  { dc: 300,  xp: 60 },
+  6:  { dc: 400,  xp: 80 },
+  7:  { dc: 500,  xp: 100, itemRarity: "common",   bonus: "Common Item Drop" },
+  14: { dc: 1000, xp: 200, itemRarity: "uncommon", bonus: "Uncommon Item Drop" },
+  21: { dc: 1500, xp: 300, itemRarity: "rare",     bonus: "Rare Item Drop" },
+  30: { dc: 2000, xp: 500, itemRarity: "epic",     bonus: "Epic Item Drop" },
+};
+
+function getDayReward(streak: number): DayReward {
+  if (streak >= 30 && streak % 30 === 0) return STREAK_REWARDS[30];
+  if (streak >= 21 && streak % 21 === 0) return STREAK_REWARDS[21];
+  if (streak >= 14 && streak % 14 === 0) return STREAK_REWARDS[14];
+  if (streak >= 7 && streak % 7 === 0) return STREAK_REWARDS[7];
+  const dayInCycle = ((streak - 1) % 7) + 1;
+  return STREAK_REWARDS[dayInCycle] || STREAK_REWARDS[1];
+}
 
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() &&
@@ -27,13 +47,41 @@ function isYesterday(date: Date) {
   return isSameDay(date, yesterday);
 }
 
+const DROP_POOLS: Record<string, string[]> = {
+  common:   ["Bandage", "Street Food", "Energy Drink", "Painkillers", "Fabric", "Scrap Metal"],
+  uncommon: ["First Aid Kit", "Nerve Tonic", "Stimulant Pack", "Leather Jacket", "Pistol"],
+  rare:     ["Medical Kit", "Super Stimulant", "Katana", "Tactical Vest", "Sports Car"],
+  epic:     ["Nano Repair", "Plasma Pistol", "Nano Suit"],
+};
+
+async function grantDailyItem(userId: string, rarity: "common" | "uncommon" | "rare" | "epic"): Promise<string | null> {
+  const pool = DROP_POOLS[rarity];
+  if (!pool?.length) return null;
+  const name = pool[Math.floor(Math.random() * pool.length)];
+  await Item.create({
+    owner: userId,
+    name,
+    type: "consumable",
+    rarity,
+    strengthBonus: 0,
+    charismaBonus: 0,
+    intelligenceBonus: 0,
+    streetCredBonus: 0,
+    defenseBonus: 0,
+    basePrice: 0,
+    quantity: 1,
+  });
+  return name;
+}
+
 // GET /api/daily/status
 router.get("/status", requireAuth, async (req: AuthRequest, res) => {
   const user = await User.findById(req.userId).select("lastDailyReward dailyStreak").lean();
   if (!user) return res.status(404).json({ message: "Not found" });
 
   const claimed = user.lastDailyReward && isSameDay(user.lastDailyReward, new Date());
-  const nextReward = STREAK_REWARDS[Math.min((user.dailyStreak) % 7, 6)];
+  const nextStreak = (user.dailyStreak || 0) + 1;
+  const nextReward = getDayReward(nextStreak);
 
   res.json({
     claimed: !!claimed,
@@ -42,6 +90,7 @@ router.get("/status", requireAuth, async (req: AuthRequest, res) => {
     nextClaimAt: claimed
       ? new Date(new Date().setHours(24, 0, 0, 0)).toISOString()
       : null,
+    rewardSchedule: [1, 2, 3, 4, 5, 6, 7].map(d => ({ day: d, ...STREAK_REWARDS[d] })),
   });
 });
 
@@ -55,49 +104,33 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
     if (user.lastDailyReward && isSameDay(user.lastDailyReward, now))
       return res.status(400).json({ message: "Already claimed today" });
 
-    // Check streak continuity
     if (user.lastDailyReward && isYesterday(user.lastDailyReward)) {
       user.dailyStreak += 1;
     } else {
       user.dailyStreak = 1;
     }
 
-    const rewardIdx = Math.min((user.dailyStreak - 1) % 7, 6);
-    const reward = STREAK_REWARDS[rewardIdx];
+    const reward = getDayReward(user.dailyStreak);
 
-    // Day 5: full heal bonus
-    if (reward.bonus === "HP Full") {
-      user.health = user.maxHealth;
-    }
-    // Day 3: energy bonus
-    if (reward.bonus === "10 Energy") {
-      user.energy = Math.min(user.maxEnergy, user.energy + 10);
-    }
-    // Day 4: nerve bonus
-    if (reward.bonus === "5 Nerve") {
-      user.nerve = Math.min(user.maxNerve, user.nerve + 5);
-    }
-    // Day 6: 2x DC bonus (already doubled in the reward table, just flag it)
-
-    let totalDc = reward.dc;
-    // Day 7: rare loot drop - extra DC as placeholder
-    if (reward.bonus === "Rare Loot Drop") {
-      totalDc += 5000;
-    }
-
-    user.dc += totalDc;
+    user.dc += reward.dc;
     user.xp += reward.xp;
     user.lastDailyReward = now;
+
+    let itemGranted: string | null = null;
+    if (reward.itemRarity) {
+      itemGranted = await grantDailyItem(String(user._id), reward.itemRarity);
+    }
+
     await user.save();
 
     await FeedEvent.create({
       type: "daily",
       actor: user.username,
       actorId: user._id,
-      message: `${user.username} claimed Day ${user.dailyStreak} daily reward: +${totalDc.toLocaleString()} DC`,
-      dc: totalDc,
+      message: `${user.username} claimed Day ${user.dailyStreak} daily reward: +${reward.dc.toLocaleString()} DC${itemGranted ? ` + ${itemGranted}` : ""}`,
+      dc: reward.dc,
       xp: reward.xp,
-    });
+    }).catch(() => {});
 
     const nextClaimAt = new Date();
     nextClaimAt.setHours(24, 0, 0, 0);
@@ -105,9 +138,10 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
     res.json({
       claimed: true,
       streak: user.dailyStreak,
-      dcGained: totalDc,
+      dcGained: reward.dc,
       xpGained: reward.xp,
-      bonus: reward.bonus,
+      bonus: reward.bonus ?? null,
+      itemGranted,
       dc: user.dc,
       xp: user.xp,
       nextClaimAt: nextClaimAt.toISOString(),

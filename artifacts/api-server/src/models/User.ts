@@ -15,6 +15,11 @@ export interface IUser extends Document {
   xpToNext: number;
   prestige: number;
   skillPoints: number;
+  unlockedSkills: string[];
+  skillTree: string | null;
+  secondarySkill: string | null;
+  seasonXp: number;
+  craftingXp: number;
   dc: number;
   nc: number;
   bankBalance: number;
@@ -49,6 +54,7 @@ export interface IUser extends Document {
   lastDailyReward: Date | null;
   dailyStreak: number;
   telegramId: string | null;
+  telegramNotifications: boolean;
   isEmailVerified: boolean;
   emailOtp: string | null;
   emailOtpExpiry: Date | null;
@@ -58,12 +64,17 @@ export interface IUser extends Document {
   banned: boolean;
   banReason: string | null;
   mutedUntil: Date | null;
+  mutedUsers: string[];
+  blockedUsers: string[];
+  following: string[];
   devMode: boolean;
+  battlePassPremium: boolean;
   equippedWeapon: mongoose.Types.ObjectId | null;
   equippedArmor: mongoose.Types.ObjectId | null;
   equippedClothing: mongoose.Types.ObjectId | null;
   equippedVehicle: mongoose.Types.ObjectId | null;
   equippedFrame: string | null;
+  equippedFrameRarity: string | null;
   equippedTitle: string | null;
   titles: string[];
   ownedFrames: string[];
@@ -91,6 +102,11 @@ const UserSchema = new Schema<IUser>(
     xpToNext: { type: Number, default: 500 },
     prestige: { type: Number, default: 0 },
     skillPoints: { type: Number, default: 0 },
+    unlockedSkills: [{ type: String }],
+    skillTree: { type: String, default: null },
+    secondarySkill: { type: String, default: null },
+    seasonXp: { type: Number, default: 0 },
+    craftingXp: { type: Number, default: 0 },
     dc: { type: Number, default: 750 },
     nc: { type: Number, default: 0 },
     bankBalance: { type: Number, default: 0 },
@@ -125,6 +141,7 @@ const UserSchema = new Schema<IUser>(
     lastDailyReward: { type: Date, default: null },
     dailyStreak: { type: Number, default: 0 },
     telegramId: { type: String, default: null },
+    telegramNotifications: { type: Boolean, default: false },
     isEmailVerified: { type: Boolean, default: false },
     emailOtp: { type: String, default: null },
     emailOtpExpiry: { type: Date, default: null },
@@ -134,12 +151,17 @@ const UserSchema = new Schema<IUser>(
     banned: { type: Boolean, default: false },
     banReason: { type: String, default: null },
     mutedUntil: { type: Date, default: null },
+    mutedUsers: [{ type: String }],
+    blockedUsers: [{ type: String }],
+    following: [{ type: String }],
     devMode: { type: Boolean, default: false },
+    battlePassPremium: { type: Boolean, default: false },
     equippedWeapon: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedArmor: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedClothing: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedVehicle: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedFrame: { type: String, default: "ghostFrame" },
+    equippedFrameRarity: { type: String, default: "common" },
     equippedTitle: { type: String, default: "New in Town" },
     titles: [{ type: String }],
     ownedFrames: [{ type: String }],

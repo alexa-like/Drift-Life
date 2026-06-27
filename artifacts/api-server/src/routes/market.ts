@@ -236,6 +236,22 @@ router.post("/listings", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/market/cancel/:id — cancel listing (alias)
+router.post("/cancel/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const item = await Item.findOne({ _id: req.params.id, owner: req.userId, marketListed: true });
+    if (!item) return res.status(404).json({ message: "Listing not found" });
+    item.marketListed = false;
+    item.marketPrice = null;
+    item.marketListedAt = null;
+    await item.save();
+    res.json({ message: `${item.name} delisted` });
+  } catch (err: any) {
+    req.log.error({ err }, "cancel listing error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // DELETE /api/market/listings/:id — cancel listing
 router.delete("/listings/:id", requireAuth, async (req: AuthRequest, res) => {
   try {

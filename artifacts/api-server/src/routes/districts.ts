@@ -93,9 +93,19 @@ export const DISTRICTS = [
   },
 ];
 
-// GET /api/districts
+// GET /api/districts — includes live player count per district
 router.get("/", requireAuth, async (_req, res) => {
-  res.json(DISTRICTS);
+  try {
+    const counts = await User.aggregate([
+      { $match: { banned: false, isEmailVerified: true } },
+      { $group: { _id: "$district", count: { $sum: 1 } } },
+    ]);
+    const countMap: Record<string, number> = {};
+    for (const c of counts) if (c._id) countMap[c._id] = c.count;
+    res.json(DISTRICTS.map(d => ({ ...d, population: countMap[d.id] || 0 })));
+  } catch {
+    res.json(DISTRICTS.map(d => ({ ...d, population: 0 })));
+  }
 });
 
 // GET /api/districts/:id

@@ -54,8 +54,12 @@ router.post("/npc/:npcId", requireAuth, async (req: AuthRequest, res) => {
     if (user.district !== npc.district) return res.status(400).json({ message: `${npc.name} is only found in ${npc.district.replace(/-/g, " ")}` });
     if (user.level < npc.level - 10) return res.status(400).json({ message: `You are too low-level for this encounter (need level ${Math.max(1, npc.level - 10)})` });
 
-    // Combat formula per spec
-    const weaponBonus = user.equippedWeapon ? 5 : 0; // simplified; real bonus from item
+    // Combat formula per spec — load actual weapon strengthBonus
+    let weaponBonus = 0;
+    if (user.equippedWeapon) {
+      const weapon = await Item.findById(user.equippedWeapon).select("strengthBonus").lean();
+      weaponBonus = weapon?.strengthBonus ?? 0;
+    }
     const playerAttack = (user.strength * 1.5) + Math.floor(Math.random() * 30) + weaponBonus;
     const npcDefense = npc.strength + Math.floor(Math.random() * 20);
 
@@ -285,11 +289,17 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
       attacker.attackCooldowns.push({ targetId, until: newUntil });
     }
 
-    // PvP formula per spec
-    const aWpnBonus = attacker.equippedWeapon ? 5 : 0;
-    const dWpnBonus = defender.equippedWeapon ? 5 : 0;
+    // PvP formula per spec — load actual weapon strengthBonus and armor defenseBonus
+    const [aWpn, dWpn, dArmor] = await Promise.all([
+      attacker.equippedWeapon ? Item.findById(attacker.equippedWeapon).select("strengthBonus").lean() : null,
+      defender.equippedWeapon ? Item.findById(defender.equippedWeapon).select("strengthBonus").lean() : null,
+      defender.equippedArmor ? Item.findById(defender.equippedArmor).select("defenseBonus").lean() : null,
+    ]);
+    const aWpnBonus = aWpn?.strengthBonus ?? 0;
+    const dWpnBonus = dWpn?.strengthBonus ?? 0;
+    const dArmorBonus = dArmor?.defenseBonus ?? 0;
     const attackerRoll = (attacker.strength + Math.floor(Math.random() * 10)) + aWpnBonus;
-    const defenderRoll = (defender.strength + Math.floor(Math.random() * 10)) + dWpnBonus;
+    const defenderRoll = (defender.strength + Math.floor(Math.random() * 10)) + dWpnBonus + dArmorBonus;
 
     const attackerWins = attackerRoll > defenderRoll;
     attacker.totalFights += 1;

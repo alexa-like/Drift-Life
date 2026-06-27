@@ -284,4 +284,38 @@ router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/crimes/bribe — bribe Chief Ralston to clear wanted level
+router.post("/bribe", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    applyRegen(user);
+
+    if (user.wantedLevel === 0) return res.status(400).json({ message: "You have no wanted level to clear" });
+
+    // Cost: wantedLevel² × 1,000 DC
+    const cost = Math.pow(user.wantedLevel, 2) * 1000;
+
+    if (user.dc < cost) {
+      return res.status(400).json({ message: `Bribe costs ${cost.toLocaleString()} DC (wanted level ${user.wantedLevel})`, cost });
+    }
+
+    user.dc -= cost;
+    user.wantedLevel = 0;
+    user.wantedDecayAt = new Date();
+    await user.save();
+
+    res.json({
+      message: `Chief Ralston pockets ${cost.toLocaleString()} DC without making eye contact. Your record is clean.`,
+      cost,
+      dc: user.dc,
+      wantedLevel: 0,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "bribe error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

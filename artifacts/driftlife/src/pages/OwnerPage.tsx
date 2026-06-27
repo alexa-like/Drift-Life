@@ -46,6 +46,10 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [banTargetId, setBanTargetId] = useState<string | null>(null);
   const [roleTargetId, setRoleTargetId] = useState<string | null>(null);
   const [newRole, setNewRole] = useState("player");
+  const [searchQ, setSearchQ] = useState("");
+  const [adjustTargetId, setAdjustTargetId] = useState<string | null>(null);
+  const [adjustField, setAdjustField] = useState<"dc" | "nc" | "level">("dc");
+  const [adjustValue, setAdjustValue] = useState("");
 
   const loadStats = useCallback(async () => {
     try {
@@ -56,10 +60,11 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     }
   }, [addToast]);
 
-  const loadUsers = useCallback(async (p = 1) => {
+  const loadUsers = useCallback(async (p = 1, q = "") => {
     setLoading(true);
     try {
-      const res = await api.get<{ users: PlayerRow[]; total: number; pages: number }>(`/owner/users?page=${p}&limit=20`);
+      const qs = q.trim() ? `&q=${encodeURIComponent(q.trim())}` : "";
+      const res = await api.get<{ users: PlayerRow[]; total: number; pages: number }>(`/owner/users?page=${p}&limit=20${qs}`);
       setUsers(res.users);
       setTotal(res.total);
       setPages(res.pages);
@@ -101,6 +106,26 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
       const res = await api.post<{ message: string }>("/owner/unban", { userId });
       addToast(res.message, "success");
       loadUsers(page);
+    } catch (e: any) {
+      addToast(e.message, "error");
+    } finally {
+      setActionId(null);
+    }
+  }
+
+  async function adjustPlayer(userId: string) {
+    if (!adjustValue.trim()) { addToast("Enter a value", "error"); return; }
+    setActionId(userId);
+    try {
+      const endpoint = adjustField === "level" ? "/owner/set-level" : adjustField === "nc" ? "/owner/adjust-nc" : "/owner/adjust-dc";
+      const body = adjustField === "level"
+        ? { userId, level: Number(adjustValue) }
+        : { userId, amount: Number(adjustValue) };
+      const res = await api.post<{ message: string }>(endpoint, body);
+      addToast(res.message, "success");
+      setAdjustTargetId(null);
+      setAdjustValue("");
+      loadUsers(page, searchQ);
     } catch (e: any) {
       addToast(e.message, "error");
     } finally {
@@ -209,6 +234,29 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
       {/* Users Tab */}
       {tab === "users" && (
         <div className="space-y-3">
+          {/* Search bar */}
+          <div className="flex gap-2">
+            <input
+              value={searchQ}
+              onChange={e => setSearchQ(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && loadUsers(1, searchQ)}
+              placeholder="Search by username, email, or tag..."
+              className="flex-1 px-3 py-2 rounded font-mono text-xs"
+              style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+            />
+            <button
+              onClick={() => loadUsers(1, searchQ)}
+              className="px-3 py-2 rounded font-mono text-xs"
+              style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}
+            >
+              Search
+            </button>
+            {searchQ && (
+              <button onClick={() => { setSearchQ(""); loadUsers(1, ""); }} className="px-3 py-2 rounded font-mono text-xs" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>
+                Clear
+              </button>
+            )}
+          </div>
           {loading ? (
             <div className="text-center py-8 font-mono text-xs" style={{ color: "#475569" }}>Loading...</div>
           ) : (
@@ -301,6 +349,57 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                                   style={{ color: "#a855f7", border: "1px solid #a855f730" }}
                                 >
                                   Role
+                                </button>
+                              )}
+                            </>
+                          )}
+
+                          {/* Adjust DC/NC/Level */}
+                          {user.role === "owner" && (
+                            <>
+                              {adjustTargetId === u._id ? (
+                                <div className="flex gap-1 items-center flex-wrap">
+                                  <select
+                                    value={adjustField}
+                                    onChange={e => setAdjustField(e.target.value as any)}
+                                    className="font-mono text-xs px-2 py-1 rounded"
+                                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }}
+                                  >
+                                    <option value="dc">DC</option>
+                                    <option value="nc">NC</option>
+                                    <option value="level">Level</option>
+                                  </select>
+                                  <input
+                                    value={adjustValue}
+                                    onChange={e => setAdjustValue(e.target.value)}
+                                    placeholder={adjustField === "level" ? "New level" : "±amount"}
+                                    type="number"
+                                    className="font-mono text-xs px-2 py-1 rounded"
+                                    style={{ background: "#0a0a0f", border: "1px solid #00d4ff40", color: "#e2e8f0", width: 90 }}
+                                  />
+                                  <button
+                                    onClick={() => adjustPlayer(u._id)}
+                                    disabled={actionId === u._id}
+                                    className="font-mono text-xs px-2 py-1 rounded"
+                                    style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}
+                                  >
+                                    {actionId === u._id ? "..." : "Apply"}
+                                  </button>
+                                  <button
+                                    onClick={() => { setAdjustTargetId(null); setAdjustValue(""); }}
+                                    className="font-mono text-xs px-2 py-1 rounded"
+                                    style={{ color: "#475569", border: "1px solid #1e1e2e" }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setAdjustTargetId(u._id); setAdjustField("dc"); setAdjustValue(""); }}
+                                  className="font-mono text-xs px-2 py-1 rounded"
+                                  style={{ color: "#00d4ff", border: "1px solid #00d4ff30" }}
+                                >
+                                  Adjust
                                 </button>
                               )}
                             </>

@@ -182,6 +182,9 @@ router.post("/:id/use", requireAuth, async (req: AuthRequest, res) => {
 // POST /api/inventory/:id/salvage
 router.post("/:id/salvage", requireAuth, async (req: AuthRequest, res) => {
   try {
+    const { confirm } = req.body;
+    if (!confirm) return res.status(400).json({ message: "confirm:true required to salvage" });
+
     const item = await Item.findOne({ _id: req.params.id, owner: req.userId });
     if (!item) return res.status(404).json({ message: "Item not found" });
     if (item.equipped) return res.status(400).json({ message: "Unequip the item before salvaging" });
@@ -197,6 +200,81 @@ router.post("/:id/salvage", requireAuth, async (req: AuthRequest, res) => {
     res.json({ message: `Salvaged ${item.name} for ${salvageValue} DC`, dcGained: salvageValue, newDc: user.dc });
   } catch (err: any) {
     req.log.error({ err }, "salvage error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/inventory/salvage-all-commons — salvage all common rarity items at once
+router.post("/salvage-all-commons", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const items = await Item.find({ owner: req.userId, rarity: "common", equipped: false, marketListed: false });
+    if (!items.length) return res.status(400).json({ message: "No common items to salvage" });
+
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    let totalDc = 0;
+    const ids = items.map(i => { totalDc += Math.floor((i.basePrice || 0) * 0.15); return i._id; });
+
+    user.dc += totalDc;
+    await user.save();
+    await Item.deleteMany({ _id: { $in: ids } });
+
+    res.json({ message: `Salvaged ${items.length} common items for ${totalDc} DC`, count: items.length, dcGained: totalDc, newDc: user.dc });
+  } catch (err: any) {
+    req.log.error({ err }, "salvage-all-commons error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/inventory/:id/list — list item on market
+router.post("/:id/list", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { price } = req.body;
+    const listPrice = Math.floor(Number(price));
+    if (!listPrice || listPrice <= 0) return res.status(400).json({ message: "Valid price required" });
+
+    const item = await Item.findOne({ _id: req.params.id, owner: req.userId });
+    if (!item) return res.status(404).json({ message: "Item not found" });
+    if (item.equipped) return res.status(400).json({ message: "Unequip before listing" });
+    if (item.marketListed) return res.status(400).json({ message: "Already listed on market" });
+
+    item.marketListed = true;
+    item.marketPrice = listPrice;
+    item.marketListedAt = new Date();
+    await item.save();
+
+    res.json({ message: `${item.name} listed for ${listPrice.toLocaleString()} DC` });
+  } catch (err: any) {
+    req.log.error({ err }, "list item error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/inventory/trade — send item to another player by tag
+router.post("/trade", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { itemId, targetTag } = req.body;
+    if (!itemId || !targetTag) return res.status(400).json({ message: "itemId and targetTag required" });
+
+    const [item, recipient] = await Promise.all([
+      Item.findOne({ _id: itemId, owner: req.userId }),
+      User.findOne({ tag: targetTag }),
+    ]);
+
+    if (!item) return res.status(404).json({ message: "Item not found" });
+    if (!recipient) return res.status(404).json({ message: "Player not found" });
+    if (String(recipient._id) === req.userId) return res.status(400).json({ message: "Cannot trade with yourself" });
+    if (item.equipped) return res.status(400).json({ message: "Unequip before trading" });
+    if (item.marketListed) return res.status(400).json({ message: "Cancel market listing before trading" });
+
+    item.owner = recipient._id;
+    item.equipped = false;
+    await item.save();
+
+    res.json({ message: `${item.name} sent to ${recipient.username}` });
+  } catch (err: any) {
+    req.log.error({ err }, "trade error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

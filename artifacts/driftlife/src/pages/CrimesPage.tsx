@@ -15,6 +15,7 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
   const [committing, setCommitting] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<any>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [bribing, setBribing] = useState(false);
 
   useEffect(() => {
     api.get<Crime[]>("/crimes").then(setCrimes).catch(() => {});
@@ -39,8 +40,22 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
     }
   }
 
+  async function bribe() {
+    setBribing(true);
+    try {
+      const data = await api.post<any>("/crimes/bribe");
+      addToast(data.message, "success");
+      await refreshUser();
+    } catch (err: any) {
+      addToast(err.message, "error");
+    } finally {
+      setBribing(false);
+    }
+  }
+
   const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
+  const bribeCost = user.wantedLevel > 0 ? Math.pow(user.wantedLevel, 2) * 1000 : 0;
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
@@ -62,6 +77,33 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
         </div>
       )}
 
+      {user.wantedLevel > 0 && (
+        <div className="p-3 rounded font-mono" style={{ background: "#ff6b3510", border: "1px solid #ff6b3540" }}>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <div className="text-xs font-bold mb-0.5" style={{ color: "#ff6b35" }}>
+                WANTED LEVEL {user.wantedLevel} {"★".repeat(Math.min(5, user.wantedLevel))}
+              </div>
+              <div className="text-xs" style={{ color: "#64748b" }}>
+                Bribe Chief Ralston to clear your record — costs {bribeCost.toLocaleString()} DC
+              </div>
+            </div>
+            <button
+              onClick={bribe}
+              disabled={bribing || user.dc < bribeCost}
+              className="px-3 py-1.5 rounded font-mono text-xs font-bold"
+              style={{
+                background: user.dc >= bribeCost ? "#f59e0b18" : "#1e1e2e",
+                color: user.dc >= bribeCost ? "#f59e0b" : "#475569",
+                border: `1px solid ${user.dc >= bribeCost ? "#f59e0b40" : "#1e1e2e"}`,
+              }}
+            >
+              {bribing ? "..." : `Bribe (${bribeCost.toLocaleString()} DC)`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {lastResult && (
         <div className="p-4 rounded font-mono" style={{
           background: lastResult.success ? "#39d35310" : "#ff2d5510",
@@ -75,7 +117,7 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
             {lastResult.dcGained > 0 && <span style={{ color: "#f59e0b" }}>+{lastResult.dcGained.toLocaleString()} DC</span>}
             {lastResult.xpGained > 0 && <span style={{ color: "#a855f7" }}>+{lastResult.xpGained} XP</span>}
             {lastResult.leveled && <span style={{ color: "#00d4ff" }}>LEVEL UP! Lv.{lastResult.newLevel}</span>}
-            {lastResult.hospitalized && <span style={{ color: "#ff2d55" }}>Hospital time</span>}
+            {lastResult.hospitalized && <span style={{ color: "#ff2d55" }}>Hospitalized</span>}
           </div>
         </div>
       )}
@@ -96,10 +138,7 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
               opacity: meetsLevel ? 1 : 0.5,
             }}>
               <div className="flex items-center gap-3 p-3">
-                {/* Risk indicator */}
                 <div style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: rc, flexShrink: 0 }} />
-
-                {/* Info */}
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpanded(isExpanded ? null : crime.id)}>
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
                     <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{crime.name}</span>
@@ -117,8 +156,6 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
                     <span style={{ color: "#64748b" }}>{Math.round(crime.baseSuccess * 100)}% success</span>
                   </div>
                 </div>
-
-                {/* Execute */}
                 <button
                   onClick={() => commit(crime.id)}
                   disabled={!available || committing !== null}
@@ -133,13 +170,12 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
                 </button>
               </div>
 
-              {/* Expanded details */}
               {isExpanded && (
                 <div className="px-4 pb-3" style={{ borderTop: "1px solid #1e1e2e" }}>
                   <p className="font-mono text-xs mt-2 mb-2" style={{ color: "#64748b" }}>{crime.description}</p>
                   <div className="flex gap-4 font-mono text-xs flex-wrap">
                     <span style={{ color: "#ff2d55" }}>Hospital risk: {Math.round(crime.hospitalRisk * 100)}%</span>
-                    <span style={{ color: "#f59e0b" }}>Wanted: +{crime.wantedIncrease}★</span>
+                    <span style={{ color: "#f59e0b" }}>Wanted: +{crime.wantedIncrease}</span>
                   </div>
                 </div>
               )}

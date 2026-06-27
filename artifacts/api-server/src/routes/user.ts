@@ -140,8 +140,15 @@ router.post("/equip-frame", requireAuth, async (req: AuthRequest, res) => {
       }
     }
     (user as any).equippedFrame = frameId ?? null;
+    if (frameId) {
+      const { FRAME_CATALOG } = await import("./frames");
+      const frame = FRAME_CATALOG.find((f: any) => f.frameId === frameId);
+      if (frame) (user as any).equippedFrameRarity = frame.rarity;
+    } else {
+      (user as any).equippedFrameRarity = null;
+    }
     await user.save();
-    res.json({ equippedFrame: (user as any).equippedFrame });
+    res.json({ equippedFrame: (user as any).equippedFrame, equippedFrameRarity: (user as any).equippedFrameRarity });
   } catch (err: any) {
     req.log.error({ err }, "equip frame error");
     res.status(500).json({ message: "Internal server error" });

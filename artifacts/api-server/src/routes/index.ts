@@ -16,6 +16,8 @@ import inventoryRouter from "./inventory";
 import marketRouter from "./market";
 import devRouter from "./dev";
 import ownerRouter from "./owner";
+import framesRouter from "./frames";
+import phase2Router from "./phase2";
 
 const router: IRouter = Router();
 
@@ -34,7 +36,9 @@ router.use("/notifications", notificationsRouter);
 router.use("/districts", districtsRouter);
 router.use("/inventory", inventoryRouter);
 router.use("/market", marketRouter);
+router.use("/frames", framesRouter);
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);
+router.use(phase2Router);
 
 export default router;

@@ -16,6 +16,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       type: n.type,
       message: n.message,
       read: n.read,
+      link: (n as any).link ?? null,
       createdAt: n.createdAt,
     })));
   } catch (err: any) {

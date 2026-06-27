@@ -21,6 +21,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { DailyPage } from "./pages/DailyPage";
 import { FactionSelectPage } from "./pages/FactionSelectPage";
 import { OwnerPage } from "./pages/OwnerPage";
+import { FramesStorePage } from "./pages/FramesStorePage";
 import { NavBar } from "./components/NavBar";
 import { ToastContainer } from "./components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
@@ -125,6 +126,7 @@ function GameApp() {
       case "settings":     return <SettingsPage {...pageProps} onLogout={handleLogout} />;
       case "daily":        return <DailyPage {...pageProps} onNav={setPage} />;
       case "notifications":return <NotificationsPage onUnreadChange={setUnreadNotifs} />;
+      case "frames":       return <FramesStorePage {...pageProps} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />

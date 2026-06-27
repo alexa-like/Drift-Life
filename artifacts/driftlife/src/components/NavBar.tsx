@@ -6,17 +6,18 @@ const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", g
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
 const NAV = [
-  { id: "feed",        label: "Feed",    icon: "📡" },
-  { id: "map",         label: "Map",     icon: "🗺" },
-  { id: "crimes",      label: "Crime",   icon: "🎭" },
-  { id: "jobs",        label: "Jobs",    icon: "💼" },
-  { id: "combat",      label: "Combat",  icon: "⚔️" },
-  { id: "inventory",   label: "Gear",    icon: "🎒" },
-  { id: "market",      label: "Market",  icon: "🏪" },
-  { id: "bank",        label: "Bank",    icon: "🏦" },
-  { id: "daily",       label: "Daily",   icon: "🎁" },
-  { id: "leaderboard", label: "Board",   icon: "📊" },
-  { id: "profile",     label: "Profile", icon: "👤" },
+  { id: "feed",        label: "Feed" },
+  { id: "map",         label: "Map" },
+  { id: "crimes",      label: "Crime" },
+  { id: "jobs",        label: "Jobs" },
+  { id: "combat",      label: "Combat" },
+  { id: "inventory",   label: "Gear" },
+  { id: "market",      label: "Market" },
+  { id: "bank",        label: "Bank" },
+  { id: "daily",       label: "Daily" },
+  { id: "frames",      label: "Frames" },
+  { id: "leaderboard", label: "Board" },
+  { id: "profile",     label: "Profile" },
 ];
 
 function RollingNumber({ value, color }: { value: number; color: string }) {

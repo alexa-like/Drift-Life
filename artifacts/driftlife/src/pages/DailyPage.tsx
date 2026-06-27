@@ -9,15 +9,18 @@ interface Props {
   onNav: (page: string) => void;
 }
 
-// Daily rewards per day in cycle (1-7)
+// Daily rewards per day in cycle (1-7) — matches server STREAK_REWARDS
 const DAILY_REWARDS = [
-  { day: 1, dc: 1000, xp: 50, bonus: null, label: "Day 1" },
-  { day: 2, dc: 2000, xp: 100, bonus: null, label: "Day 2" },
-  { day: 3, dc: 3000, xp: 150, bonus: "10 Energy", label: "Day 3" },
-  { day: 4, dc: 5000, xp: 250, bonus: "5 Nerve", label: "Day 4" },
-  { day: 5, dc: 8000, xp: 400, bonus: "HP Full", label: "Day 5" },
-  { day: 6, dc: 12000, xp: 600, bonus: "2x DC Bonus", label: "Day 6" },
-  { day: 7, dc: 20000, xp: 1000, bonus: "Rare Loot Drop", label: "Day 7 ★", special: true },
+  { day: 1, dc: 100,  xp: 20,  bonus: null,               label: "Day 1" },
+  { day: 2, dc: 150,  xp: 30,  bonus: null,               label: "Day 2" },
+  { day: 3, dc: 200,  xp: 40,  bonus: null,               label: "Day 3" },
+  { day: 4, dc: 250,  xp: 50,  bonus: null,               label: "Day 4" },
+  { day: 5, dc: 300,  xp: 60,  bonus: null,               label: "Day 5" },
+  { day: 6, dc: 400,  xp: 80,  bonus: null,               label: "Day 6" },
+  { day: 7, dc: 500,  xp: 100, bonus: "Common Item Drop",  label: "Day 7 ★", special: true },
+  { day: 14, dc: 1000, xp: 200, bonus: "Uncommon Item Drop", label: "Day 14 ★★", special: true },
+  { day: 21, dc: 1500, xp: 300, bonus: "Rare Item Drop",   label: "Day 21 ★★★", special: true },
+  { day: 30, dc: 2000, xp: 500, bonus: "Epic Item Drop",   label: "Day 30 ★★★★", special: true },
 ];
 
 export function DailyPage({ user, refreshUser, addToast, onNav }: Props) {

@@ -44,10 +44,21 @@ export interface User {
   gang: string | null;
   isEmailVerified: boolean;
   equippedFrame: string | null;
+  equippedFrameRarity: string | null;
   equippedTitle: string | null;
   titles: string[];
   ownedFrames: string[];
   devMode: boolean;
+  battlePassPremium: boolean;
+  telegramNotifications: boolean;
+  unlockedSkills: string[];
+  skillTree: string | null;
+  secondarySkill: string | null;
+  seasonXp: number;
+  craftingXp: number;
+  mutedUsers: string[];
+  blockedUsers: string[];
+  following: string[];
   referralCode: string;
   createdAt: string;
 }
@@ -138,23 +149,45 @@ export interface Notification {
   type: string;
   message: string;
   read: boolean;
+  link: string | null;
   createdAt: string;
+}
+
+export interface Frame {
+  frameId: string;
+  displayName: string;
+  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythic";
+  glowColor: string;
+  animationType: "static" | "shimmer" | "pulse" | "rotate" | "flicker" | "matrix";
+  price: number;
+  currency: "dc" | "nc";
+  isFree: boolean;
+  description: string;
+  owned: boolean;
+  equipped: boolean;
 }
 
 export interface LeaderboardEntry {
   rank: number;
   id: string;
   username: string;
+  tag?: string;
   avatar: string;
+  avatarUrl?: string | null;
   faction: string | null;
   level: number;
   rankTitle: string;
+  equippedFrame?: string | null;
+  equippedFrameRarity?: string | null;
+  equippedTitle?: string | null;
   dc: number;
   bankBalance: number;
+  totalWealth?: number;
   wins: number;
   losses: number;
   crimes: number;
   district: string;
+  metric?: string;
 }
 
 export interface NPC {
