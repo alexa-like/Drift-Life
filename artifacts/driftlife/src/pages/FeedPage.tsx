@@ -13,9 +13,9 @@ const TYPE_COLORS: Record<string, string> = {
 const REACTIONS = ["like", "laugh", "shock", "respect"] as const;
 const REACTION_EMOJI: Record<string, string> = { like: "👍", laugh: "😂", shock: "😱", respect: "🫡" };
 
-interface Props { user?: User; }
+interface Props { user?: User; onInspectPlayer?: (id: string) => void; }
 
-export function FeedPage({ user }: Props) {
+export function FeedPage({ user, onInspectPlayer }: Props) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [postContent, setPostContent] = useState("");
@@ -149,12 +149,13 @@ export function FeedPage({ user }: Props) {
                     <div className="flex-1 min-w-0">
                       {ev.actor && (
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <span
-                            className="font-mono text-xs font-bold"
-                            style={{ color: evFrameDef ? (evFrameColor || evFrameDef.glowColor) : "#94a3b8" }}
+                          <button
+                            className="font-mono text-xs font-bold hover:underline text-left"
+                            style={{ color: evFrameDef ? (evFrameColor || evFrameDef.glowColor) : "#94a3b8", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                            onClick={() => ev.actorId && onInspectPlayer?.(ev.actorId)}
                           >
                             {ev.actor}
-                          </span>
+                          </button>
                           {evFrameDef && (
                             <span
                               className="font-mono px-1 rounded"

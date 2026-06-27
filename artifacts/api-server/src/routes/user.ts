@@ -127,6 +127,7 @@ router.get("/profile/:id", requireAuth, async (req: AuthRequest, res) => {
       totalCrimes: user.totalCrimes,
       successfulCrimes: user.successfulCrimes,
       equippedFrame: user.equippedFrame,
+      equippedFrameColor: (user as any).equippedFrameColor ?? null,
       equippedTitle: user.equippedTitle,
       titles: user.titles,
       equippedItems,

@@ -7,9 +7,9 @@ import { FrameRectBubble, ChatMessage } from "../components/FrameRectBubble";
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff", neutral: "#39d353", uncontrolled: "#ff2d55" };
 const FACTION_LABEL: Record<string, string> = { suits: "The Suits", street: "The Street", grid: "The Grid", neutral: "Neutral", uncontrolled: "Uncontrolled" };
 
-interface Props { user: User; refreshUser: () => void; addToast: (msg: string, t?: string) => void; }
+interface Props { user: User; refreshUser: () => void; addToast: (msg: string, t?: string) => void; onInspectPlayer?: (id: string) => void; }
 
-export function MapPage({ user, refreshUser, addToast }: Props) {
+export function MapPage({ user, refreshUser, addToast, onInspectPlayer }: Props) {
   const [districts, setDistricts] = useState<District[]>([]);
   const [populations, setPopulations] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -162,7 +162,12 @@ export function MapPage({ user, refreshUser, addToast }: Props) {
               <div className="font-mono text-xs" style={{ color: "#334155" }}>Global chat is quiet...</div>
             ) : (
               globalChat.map(m => (
-                <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} />
+                <FrameRectBubble
+                  key={m.id}
+                  message={m}
+                  isOwn={m.userId === user.id}
+                  onUsernameClick={(userId) => onInspectPlayer?.(userId)}
+                />
               ))
             )}
           </div>
@@ -309,7 +314,12 @@ export function MapPage({ user, refreshUser, addToast }: Props) {
                         style={{ maxHeight: 160, minHeight: 80 }}
                       >
                         {(chat[dist.id] || []).map(m => (
-                          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} />
+                          <FrameRectBubble
+                            key={m.id}
+                            message={m}
+                            isOwn={m.userId === user.id}
+                            onUsernameClick={(userId) => onInspectPlayer?.(userId)}
+                          />
                         ))}
                         {(chat[dist.id] || []).length === 0 && (
                           <div className="font-mono text-xs" style={{ color: "#334155" }}>Zone chat is quiet...</div>

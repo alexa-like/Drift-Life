@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { AvatarWithFrame } from "./AvatarWithFrame";
-import { EmblemRow } from "./EmblemBadge";
+import { FrameCardWrapper } from "./FrameCardWrapper";
+import { getFrame, RARITY_COLOR } from "../lib/frames";
 import { User } from "../lib/types";
 
 interface PublicProfile {
@@ -21,6 +22,7 @@ interface PublicProfile {
   intelligence: number;
   streetCred: number;
   equippedFrame: string | null;
+  equippedFrameColor: string | null;
   equippedTitle: string | null;
   titles: string[];
   wins: number;
@@ -49,6 +51,7 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
   useEffect(() => {
     if (!targetId) return;
     setLoading(true);
+    setProfile(null);
     api.get<PublicProfile>(`/user/profile/${targetId}`)
       .then(setProfile)
       .catch(() => setProfile(null))
@@ -57,6 +60,9 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
 
   if (!targetId) return null;
 
+  const frameId = profile?.equippedFrame || null;
+  const frameDef = frameId ? getFrame(frameId) : null;
+  const frameColor = profile?.equippedFrameColor || frameDef?.glowColor || null;
   const fc = profile?.faction ? FACTION_COLOR[profile.faction] || "#64748b" : "#64748b";
   const xpPct = profile ? Math.min(100, Math.round((profile.xp / profile.xpToNext) * 100)) : 0;
   const isOwn = profile?.id === currentUser.id;
@@ -90,129 +96,143 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
       }}
       onClick={onClose}
     >
-      <div
-        style={{
-          background: "#111118",
-          border: `1px solid ${fc}40`,
-          borderRadius: 12,
-          padding: 20,
-          maxWidth: 360,
-          width: "100%",
-          boxShadow: `0 0 40px ${fc}20`,
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {loading ? (
-          <div className="font-mono text-xs text-center py-8" style={{ color: "#64748b" }}>
-            Accessing records...
-          </div>
-        ) : !profile ? (
-          <div className="font-mono text-xs text-center py-8" style={{ color: "#ff2d55" }}>
-            Profile not found
-          </div>
-        ) : (
-          <>
-            {/* Header */}
-            <div className="flex items-start gap-4 mb-4">
-              <AvatarWithFrame
-                username={profile.username}
-                avatarUrl={profile.avatarUrl}
-                frameId={profile.equippedFrame}
-                size="xl"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="font-mono font-bold text-base" style={{ color: "#e2e8f0" }}>
-                  {profile.username}
-                </div>
-                <div className="font-mono text-xs" style={{ color: "#475569" }}>{profile.tag}</div>
-                {profile.equippedTitle && (
-                  <div className="font-mono text-xs mt-0.5" style={{ color: "#a855f7" }}>
-                    [{profile.equippedTitle}]
-                  </div>
-                )}
-                {profile.faction && (
-                  <div className="font-mono text-xs mt-1" style={{ color: fc }}>
-                    {FACTION_EMOJI[profile.faction]} {profile.faction.toUpperCase()}
-                  </div>
-                )}
-                <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>
-                  Lv.{profile.level} {profile.prestige > 0 ? `✦${profile.prestige}` : ""} · {profile.rank}
-                </div>
+      <div onClick={e => e.stopPropagation()} style={{ maxWidth: 380, width: "100%" }}>
+        <FrameCardWrapper
+          frameId={frameId}
+          colorOverride={frameColor}
+          borderRadius={12}
+          style={{ background: "#111118" }}
+        >
+          <div style={{ borderRadius: 12, padding: 20 }}>
+            {loading ? (
+              <div className="font-mono text-xs text-center py-8" style={{ color: "#64748b" }}>
+                Accessing records...
               </div>
-              <button
-                onClick={onClose}
-                className="font-mono text-lg"
-                style={{ color: "#475569", lineHeight: 1 }}
-              >
-                ×
-              </button>
-            </div>
-
-            {/* XP bar */}
-            <div style={{ background: "#1e1e2e", borderRadius: 4, height: 4, marginBottom: 12, overflow: "hidden" }}>
-              <div style={{ width: `${xpPct}%`, height: "100%", background: fc, transition: "width 0.5s" }} />
-            </div>
-
-            {/* Stats grid */}
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              {[
-                { label: "STR", val: profile.strength },
-                { label: "CHA", val: profile.charisma },
-                { label: "INT", val: profile.intelligence },
-                { label: "CRED", val: profile.streetCred },
-                { label: "WINS", val: profile.wins },
-                { label: "CRIMES", val: profile.totalCrimes },
-              ].map(s => (
-                <div key={s.label} style={{ background: "#0d0d15", borderRadius: 6, padding: "6px 10px" }}>
-                  <div className="font-mono" style={{ color: "#475569", fontSize: 10 }}>{s.label}</div>
-                  <div className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{s.val}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Bio */}
-            {profile.bio && (
-              <div className="font-mono text-xs mb-4 px-2 py-2 rounded" style={{ color: "#94a3b8", background: "#0d0d15", border: "1px solid #1e1e2e" }}>
-                {profile.bio}
+            ) : !profile ? (
+              <div className="font-mono text-xs text-center py-8" style={{ color: "#ff2d55" }}>
+                Profile not found
               </div>
-            )}
-
-            {/* District */}
-            <div className="font-mono text-xs mb-4" style={{ color: "#475569" }}>
-              📍 {profile.district.replace(/-/g, " ")}
-            </div>
-
-            {/* Actions */}
-            {!isOwn && (
-              <div className="flex gap-2 flex-wrap">
-                {currentUser.level >= 10 && (
+            ) : (
+              <>
+                {/* Close button */}
+                <div className="flex justify-end mb-2">
                   <button
-                    onClick={attackPlayer}
-                    disabled={attacking}
-                    className="px-3 py-1.5 font-mono text-xs rounded font-bold transition-all"
-                    style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}
+                    onClick={onClose}
+                    className="font-mono text-lg"
+                    style={{ color: "#475569", lineHeight: 1, background: "none", border: "none", cursor: "pointer" }}
                   >
-                    {attacking ? "Attacking..." : "⚔️ Attack"}
+                    ×
                   </button>
+                </div>
+
+                {/* Header */}
+                <div className="flex items-start gap-4 mb-4">
+                  <AvatarWithFrame
+                    username={profile.username}
+                    avatarUrl={profile.avatarUrl}
+                    frameId={frameId}
+                    size="xl"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono font-bold text-base" style={{ color: frameColor || "#e2e8f0" }}>
+                      {profile.username}
+                    </div>
+                    {profile.tag && (
+                      <div className="font-mono text-xs" style={{ color: "#475569" }}>{profile.tag}</div>
+                    )}
+                    {profile.equippedTitle && (
+                      <div className="font-mono text-xs mt-0.5" style={{ color: "#a855f7" }}>
+                        [{profile.equippedTitle}]
+                      </div>
+                    )}
+                    {frameDef && (
+                      <div
+                        className="font-mono text-xs mt-0.5 px-1.5 py-0.5 rounded inline-block"
+                        style={{
+                          background: (frameColor || frameDef.glowColor) + "20",
+                          color: frameColor || frameDef.glowColor,
+                          border: `1px solid ${(frameColor || frameDef.glowColor)}40`,
+                          textTransform: "capitalize",
+                          fontSize: 10,
+                        }}
+                      >
+                        {frameDef.name} · {frameDef.rarity}
+                      </div>
+                    )}
+                    {profile.faction && (
+                      <div className="font-mono text-xs mt-1" style={{ color: fc }}>
+                        {FACTION_EMOJI[profile.faction]} {profile.faction.toUpperCase()}
+                      </div>
+                    )}
+                    <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>
+                      Lv.{profile.level}{profile.prestige > 0 ? ` ✦${profile.prestige}` : ""} · {profile.rank}
+                    </div>
+                    <div className="font-mono text-xs" style={{ color: "#475569" }}>
+                      📍 {profile.district.replace(/-/g, " ")}
+                    </div>
+                  </div>
+                </div>
+
+                {/* XP bar */}
+                <div style={{ background: "#1e1e2e", borderRadius: 4, height: 4, marginBottom: 12, overflow: "hidden" }}>
+                  <div style={{ width: `${xpPct}%`, height: "100%", background: frameColor || fc, transition: "width 0.5s" }} />
+                </div>
+
+                {/* Bio */}
+                {profile.bio && (
+                  <div
+                    className="font-mono text-xs mb-4 px-3 py-2 rounded"
+                    style={{
+                      color: "#94a3b8",
+                      background: "#0d0d15",
+                      border: `1px solid ${frameColor || "#1e1e2e"}30`,
+                    }}
+                  >
+                    "{profile.bio}"
+                  </div>
                 )}
-                <button
-                  className="px-3 py-1.5 font-mono text-xs rounded transition-all"
-                  style={{ background: "#00d4ff20", color: "#00d4ff", border: "1px solid #00d4ff40" }}
-                  onClick={onClose}
-                >
-                  💬 Message
-                </button>
-                <button
-                  className="px-3 py-1.5 font-mono text-xs rounded transition-all"
-                  style={{ background: "#1e1e2e", color: "#64748b", border: "1px solid #1e1e2e" }}
-                  onClick={onClose}
-                >
-                  👤 Follow
-                </button>
-              </div>
+
+                {/* Stats grid */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {[
+                    { label: "STR",    val: profile.strength,    color: "#ff6b35" },
+                    { label: "CHA",    val: profile.charisma,    color: "#a855f7" },
+                    { label: "INT",    val: profile.intelligence, color: "#00d4ff" },
+                    { label: "CRED",   val: profile.streetCred,  color: "#f59e0b" },
+                    { label: "WINS",   val: profile.wins,        color: "#39d353" },
+                    { label: "CRIMES", val: profile.totalCrimes, color: "#ff2d55" },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: "#0d0d15", borderRadius: 6, padding: "6px 10px", border: "1px solid #1e1e2e" }}>
+                      <div className="font-mono" style={{ color: "#475569", fontSize: 9 }}>{s.label}</div>
+                      <div className="font-mono font-bold text-sm" style={{ color: s.color }}>{s.val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Actions */}
+                {!isOwn && (
+                  <div className="flex gap-2 flex-wrap">
+                    {currentUser.level >= 10 && (
+                      <button
+                        onClick={attackPlayer}
+                        disabled={attacking}
+                        className="px-3 py-1.5 font-mono text-xs rounded font-bold transition-all"
+                        style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}
+                      >
+                        {attacking ? "Attacking..." : "⚔️ Attack"}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {isOwn && (
+                  <div className="font-mono text-xs text-center" style={{ color: "#475569" }}>
+                    This is your profile
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
+          </div>
+        </FrameCardWrapper>
       </div>
     </div>
   );

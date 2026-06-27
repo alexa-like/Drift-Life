@@ -111,14 +111,14 @@ function GameApp() {
   function renderPage() {
     switch (page) {
       case "dashboard":    return <Dashboard {...pageProps} onNav={setPage} />;
-      case "feed":         return <FeedPage user={user!} />;
+      case "feed":         return <FeedPage user={user!} onInspectPlayer={setInspectUserId} />;
       case "crimes":       return <CrimesPage {...pageProps} />;
       case "jobs":         return <JobsPage {...pageProps} />;
       case "combat":       return <CombatPage {...pageProps} />;
       case "bank":         return <BankPage {...pageProps} />;
       case "market":       return <MarketPage {...pageProps} />;
       case "district":     return <DistrictPage {...pageProps} />;
-      case "map":          return <MapPage {...pageProps} />;
+      case "map":          return <MapPage {...pageProps} onInspectPlayer={setInspectUserId} />;
       case "inventory":    return <InventoryPage {...pageProps} />;
       case "leaderboard":  return <LeaderboardPage />;
       case "hospital":     return <HospitalPage {...pageProps} />;
