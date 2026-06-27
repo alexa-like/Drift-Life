@@ -20,6 +20,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { DailyPage } from "./pages/DailyPage";
 import { FactionSelectPage } from "./pages/FactionSelectPage";
+import { OwnerPage } from "./pages/OwnerPage";
 import { NavBar } from "./components/NavBar";
 import { ToastContainer } from "./components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
@@ -126,7 +127,7 @@ function GameApp() {
       case "notifications":return <NotificationsPage onUnreadChange={setUnreadNotifs} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
-          ? <OwnerRedirect onNav={setPage} />
+          ? <OwnerPage {...pageProps} onNav={setPage} />
           : <Dashboard {...pageProps} onNav={setPage} />;
       default:             return <Dashboard {...pageProps} onNav={setPage} />;
     }
@@ -163,11 +164,6 @@ function GameApp() {
   );
 }
 
-// Simple owner redirect component
-function OwnerRedirect({ onNav }: { onNav: (p: string) => void }) {
-  useEffect(() => { onNav("dashboard"); }, []);
-  return null;
-}
 
 function App() {
   return (

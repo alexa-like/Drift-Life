@@ -196,13 +196,22 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
           >
             🔔{unreadNotifs > 0 ? ` ${unreadNotifs}` : ""}
           </button>
+          <button
+            onClick={() => onNav("settings")}
+            className="font-mono px-1.5 py-0.5 rounded"
+            style={{ fontSize: 11, color: "#475569", border: "1px solid #1e1e2e" }}
+            title="Settings"
+          >
+            ⚙
+          </button>
           {(user.role === "owner" || user.role === "admin") && (
             <button
               onClick={() => onNav("owner")}
               className="font-mono px-1.5 py-0.5 rounded"
               style={{ fontSize: 11, color: "#a855f7", border: "1px solid #a855f730" }}
+              title="Owner Panel"
             >
-              ⚙
+              ★
             </button>
           )}
           <button
