@@ -39,7 +39,8 @@ export interface User {
   jailUntil: string | null;
   lastDailyReward: string | null;
   dailyStreak: number;
-  role: "player" | "admin" | "owner";
+  role: "player" | "admin" | "staff" | "owner";
+  mutedUntil?: string | null;
   bankBalance: number;
   gang: string | null;
   isEmailVerified: boolean;

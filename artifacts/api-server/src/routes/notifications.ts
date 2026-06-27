@@ -25,7 +25,19 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// PATCH /api/notifications/:id/read
+// POST /api/notifications/:id/read (also PATCH for compatibility)
+router.post("/:id/read", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    await Notification.updateOne(
+      { _id: req.params.id, userId: req.userId },
+      { $set: { read: true } }
+    );
+    res.json({ message: "Marked as read" });
+  } catch (err: any) {
+    req.log.error({ err }, "mark read error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 router.patch("/:id/read", requireAuth, async (req: AuthRequest, res) => {
   try {
     await Notification.updateOne(
@@ -39,7 +51,16 @@ router.patch("/:id/read", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// PATCH /api/notifications/read-all
+// POST /api/notifications/read-all (also PATCH)
+router.post("/read-all", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    await Notification.updateMany({ userId: req.userId, read: false }, { $set: { read: true } });
+    res.json({ message: "All notifications marked as read" });
+  } catch (err: any) {
+    req.log.error({ err }, "read-all error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 router.patch("/read-all", requireAuth, async (req: AuthRequest, res) => {
   try {
     await Notification.updateMany({ userId: req.userId, read: false }, { $set: { read: true } });

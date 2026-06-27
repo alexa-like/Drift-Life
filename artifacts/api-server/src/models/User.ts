@@ -60,7 +60,7 @@ export interface IUser extends Document {
   emailOtpExpiry: Date | null;
   resetToken: string | null;
   resetTokenExpiry: Date | null;
-  role: "player" | "admin" | "owner";
+  role: "player" | "admin" | "staff" | "owner";
   banned: boolean;
   banReason: string | null;
   mutedUntil: Date | null;
@@ -147,7 +147,7 @@ const UserSchema = new Schema<IUser>(
     emailOtpExpiry: { type: Date, default: null },
     resetToken: { type: String, default: null },
     resetTokenExpiry: { type: Date, default: null },
-    role: { type: String, enum: ["player", "admin", "owner"], default: "player" },
+    role: { type: String, enum: ["player", "admin", "staff", "owner"], default: "player" },
     banned: { type: Boolean, default: false },
     banReason: { type: String, default: null },
     mutedUntil: { type: Date, default: null },
