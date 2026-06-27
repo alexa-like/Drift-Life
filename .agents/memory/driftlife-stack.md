@@ -1,14 +1,31 @@
 ---
-name: DriftLife Stack
-description: Key tech choices and gotchas for the DriftLife RPG project
+name: DriftLife stack
+description: Key architecture decisions and environment setup for the DriftLife cyberpunk RPG project.
 ---
 
-MongoDB + Mongoose (NOT Drizzle/PostgreSQL). The workspace template includes drizzle deps — ignore them for this project, they are not used.
+# DriftLife Stack
 
-bcryptjs (pure JS) is used instead of native `bcrypt`. The build.mjs already externalizes `nodemailer` and native `bcrypt` — bcryptjs bundles fine.
+**Why:** Record decisions so future sessions don't re-investigate.
 
-Socket.io path is `/api/socket.io` to go through the shared proxy.
+## Structure
+- pnpm monorepo at workspace root
+- `artifacts/api-server` — Express 5 backend, port 8080
+- `artifacts/driftlife` — React + Vite frontend, port 24576
+- Workflows: "API Server" (port 8080) and "Start application" (port 24576)
+- Duplicate artifact-specific workflows exist but should remain FAILED (ports conflict intentionally)
 
-**Why:** User confirmed MongoDB, no Postgres. bcryptjs avoids native module build issues on Replit.
+## Database
+- MongoDB (user-provided MONGODB_URI secret, NOT the built-in Replit PostgreSQL)
+- All game data (jobs, crimes, NPCs, frames) is hardcoded statically in route files — no DB seeding needed
 
-**How to apply:** Never import from `@workspace/db`. Always use `artifacts/api-server/src/lib/db.ts` (Mongoose). Install new deps with `pnpm --filter @workspace/api-server add <pkg>`.
+## Auth
+- Custom JWT auth (not Replit Auth) — `requireAuth`, `requireOwner`, `requireStaff`, `requireDev` in `artifacts/api-server/src/middlewares/auth.ts`
+- JWT_SECRET and JWT_REFRESH_SECRET have dev fallbacks; only MONGODB_URI is required
+
+## Email
+- nodemailer via Gmail (GMAIL_USER + GMAIL_PASS secrets) — optional for dev
+
+## Phase 2 stubs
+- All in `artifacts/api-server/src/routes/phase2.ts` — return `{ message: "coming soon" }`
+
+**How to apply:** When adding new routes, check phase2.ts for stubs first before creating new route files.
