@@ -26,6 +26,13 @@ function Cooldown({ until }: { until: string }) {
   return <span style={{ color: "#f59e0b" }}>{m}:{String(s).padStart(2, "0")}</span>;
 }
 
+const MINI_GAME_LABELS: Record<string, { label: string; color: string }> = {
+  typing:  { label: "TYPING",  color: "#00d4ff" },
+  pattern: { label: "PATTERN", color: "#a855f7" },
+  timing:  { label: "TIMING",  color: "#f59e0b" },
+  rhythm:  { label: "RHYTHM",  color: "#39d353" },
+};
+
 export function JobsPage({ user, refreshUser, addToast }: Props) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [working, setWorking] = useState<string | null>(null);
@@ -51,7 +58,7 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
       setLastResult(data);
       addToast(`${jobs.find(j => j.id === jobId)?.name} — +${data.dcGained} DC${data.leveled ? " + LEVEL UP!" : ""}`, "success");
       await refreshUser();
-      loadJobs(); // refresh cooldowns
+      loadJobs();
       if (data.miniGameTriggered && data.miniGameType) {
         setMiniGame({ type: data.miniGameType });
       }
@@ -105,7 +112,6 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
         </div>
       </div>
 
-      {/* Faction bonus info */}
       {user.faction && (
         <div className="px-3 py-2 rounded font-mono text-xs" style={{ background: fc + "10", border: `1px solid ${fc}30`, color: fc }}>
           {user.faction === "suits" && "Suits: +10% DC on all jobs"}
@@ -154,6 +160,7 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
           const canEnergy = user.energy >= job.energyCost;
           const available = job.available && canEnergy && !isHosp && !isJailed;
           const busyThis = working === job.id;
+          const mg = MINI_GAME_LABELS[job.miniGame];
 
           return (
             <div key={job.id} style={{
@@ -166,6 +173,18 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
                     <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{job.name}</span>
+                    {/* Mini-game type badge */}
+                    {mg && (
+                      <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{
+                        background: mg.color + "15",
+                        color: mg.color,
+                        border: `1px solid ${mg.color}30`,
+                        fontSize: "0.6rem",
+                        letterSpacing: "0.05em",
+                      }}>
+                        {mg.label}
+                      </span>
+                    )}
                     {!job.districtMatch && job.district !== "any" && (
                       <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ background: "#f59e0b10", color: "#f59e0b" }}>
                         {job.district.replace(/-/g, " ")}

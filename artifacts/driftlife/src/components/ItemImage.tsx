@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 
 interface Props {
   itemId: string;
+  imageUrl?: string | null;
   size?: number;
   className?: string;
 }
@@ -353,8 +354,28 @@ function FallbackIcon({ type = "misc", size }: FallbackProps) {
   );
 }
 
-export function ItemImage({ itemId, size = 48, className }: Props) {
+export function ItemImage({ itemId, imageUrl, size = 48, className }: Props) {
   const renderer = ITEM_SVGS[itemId];
+
+  // If we have a Pollinations URL and no built-in SVG, show the AI image
+  if (!renderer && imageUrl) {
+    return (
+      <div
+        className={className}
+        style={{ width: size, height: size, flexShrink: 0, borderRadius: 4, overflow: "hidden", background: "#0a0a0f" }}
+      >
+        <img
+          src={imageUrl}
+          alt={itemId}
+          width={size}
+          height={size}
+          style={{ width: size, height: size, objectFit: "cover", display: "block" }}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+        />
+      </div>
+    );
+  }
+
   if (!renderer) return <FallbackIcon size={size} type={itemId.includes("weapon") ? "weapon" : "misc"} />;
   return (
     <div

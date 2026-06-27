@@ -4,6 +4,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { connectDB } from "./lib/db";
 import { startKeepAlive, stopKeepAlive } from "./lib/keepAlive";
+import { seed } from "./lib/seed";
 import User from "./models/User";
 
 const rawPort = process.env["PORT"] ?? "3000";
@@ -216,6 +217,7 @@ process.on("SIGINT",  () => shutdown("SIGINT"));
 
 async function start() {
   await connectDB();
+  await seed();
   httpServer.listen(port, () => {
     logger.info({ port }, "Server listening");
     startKeepAlive();

@@ -22,6 +22,7 @@ export interface IItem extends Document {
   marketPrice: number | null;
   marketListedAt: Date | null;
   blackMarket: boolean;
+  imageUrl: string | null;
   createdAt: Date;
 }
 
@@ -55,6 +56,7 @@ const ItemSchema = new Schema<IItem>(
     marketPrice: { type: Number, default: null },
     marketListedAt: { type: Date, default: null },
     blackMarket: { type: Boolean, default: false },
+    imageUrl: { type: String, default: null },
   },
   { timestamps: true }
 );

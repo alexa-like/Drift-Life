@@ -92,6 +92,7 @@ export interface Job {
   xpPerJob: number;
   cooldownMin: number;
   description: string;
+  miniGame: "typing" | "pattern" | "timing" | "rhythm";
   available: boolean;
   onCooldown: boolean;
   cooldownUntil: string | null;
