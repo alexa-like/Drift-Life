@@ -25,5 +25,7 @@ router.get("/events/{*splat}",       requireAuth, (_r, res) => res.json(cs));
 router.get("/seasons",               requireAuth, (_r, res) => res.json(cs));
 router.get("/seasons/{*splat}",      requireAuth, (_r, res) => res.json(cs));
 router.post("/telegram/link",        requireAuth, (_r, res) => res.json(cs));
+router.get("/market/black",          requireAuth, (_r, res) => res.json(cs));
+router.get("/market/black/{*splat}", requireAuth, (_r, res) => res.json(cs));
 
 export default router;

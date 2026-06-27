@@ -35,6 +35,16 @@ export function requireOwner(req: AuthRequest, res: Response, next: NextFunction
   });
 }
 
+export function requireStaff(req: AuthRequest, res: Response, next: NextFunction): void {
+  requireAuth(req, res, () => {
+    if (req.role !== "owner" && req.role !== "admin" && req.role !== "staff") {
+      res.status(403).json({ message: "Forbidden" });
+      return;
+    }
+    next();
+  });
+}
+
 export function requireDev(req: AuthRequest, res: Response, next: NextFunction): void {
   if (process.env["NODE_ENV"] !== "development") {
     res.status(403).json({ message: "Dev-only endpoint" });

@@ -1,11 +1,14 @@
 import { Router } from "express";
 import User from "../models/User";
 import FeedEvent from "../models/FeedEvent";
-import { requireOwner, AuthRequest } from "../middlewares/auth";
+import { requireStaff, requireOwner, AuthRequest } from "../middlewares/auth";
 import { levelUp, xpForLevel } from "../models/User";
 
 const router = Router();
-router.use(requireOwner as any);
+router.use(requireStaff as any);
+
+interface PatchNote { id: string; title: string; content: string; publishedAt: string; scheduledFor: string | null; }
+const patchNotes: PatchNote[] = [];
 
 // GET /api/owner/stats
 router.get("/stats", async (req, res) => {
@@ -221,6 +224,39 @@ router.get("/feed/recent", async (req, res) => {
     req.log.error({ err }, "owner feed error");
     res.status(500).json({ message: "Internal server error" });
   }
+});
+
+// GET /api/owner/patch-notes — list all patch notes
+router.get("/patch-notes", async (_req, res) => {
+  res.json([...patchNotes].sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()));
+});
+
+// POST /api/owner/patch-notes — create and publish (or schedule) a patch note
+router.post("/patch-notes", async (req: AuthRequest, res) => {
+  try {
+    const { title, content, scheduledFor } = req.body;
+    if (!title || !content) return res.status(400).json({ message: "title and content required" });
+    const note: PatchNote = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      title: String(title).slice(0, 120),
+      content: String(content).slice(0, 5000),
+      publishedAt: new Date().toISOString(),
+      scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : null,
+    };
+    patchNotes.push(note);
+    res.status(201).json(note);
+  } catch (err: any) {
+    req.log.error({ err }, "patch-notes create error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// DELETE /api/owner/patch-notes/:id — remove a patch note
+router.delete("/patch-notes/:id", requireOwner as any, async (req, res) => {
+  const idx = patchNotes.findIndex(n => n.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ message: "Patch note not found" });
+  patchNotes.splice(idx, 1);
+  res.json({ message: "Deleted" });
 });
 
 export default router;
