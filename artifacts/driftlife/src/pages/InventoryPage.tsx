@@ -260,76 +260,76 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
               return (
                 <div
                   key={item.id}
-                  className="rounded-lg p-4 flex items-center gap-3"
+                  className="rounded-lg p-3 flex flex-col gap-2"
                   style={{
                     background: "#111118",
                     border: `1px solid ${item.equipped ? rarityColor + "60" : rarityColor + "20"}`,
                   }}
                 >
-                  <div
-                    className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden relative"
-                    style={{
-                      width: 60, height: 60,
-                      background: `${rarityColor}08`,
-                      border: `1px solid ${item.equipped ? rarityColor + "60" : rarityColor + "25"}`,
-                    }}
-                  >
-                    <ItemImage itemId={item.name.toLowerCase().replace(/ /g, "-")} size={48} />
-                    {item.equipped && (
-                      <div
-                        className="absolute bottom-0 left-0 right-0 text-center font-mono"
-                        style={{ fontSize: 8, background: `${rarityColor}90`, color: "#fff", paddingBottom: 1 }}
-                      >
-                        EQ
-                      </div>
-                    )}
-                    {item.marketListed && (
-                      <div
-                        className="absolute top-0 left-0 right-0 text-center font-mono"
-                        style={{ fontSize: 7, background: "#a855f790", color: "#fff", paddingTop: 1 }}
-                      >
-                        LISTED
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{item.name}</span>
-                      <span className="text-xs font-mono px-1 rounded" style={{ color: rarityColor, background: `${rarityColor}15` }}>
-                        {item.rarity}
-                      </span>
+                  {/* Top row: image + info */}
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden relative"
+                      style={{
+                        width: 52, height: 52,
+                        background: `${rarityColor}08`,
+                        border: `1px solid ${item.equipped ? rarityColor + "60" : rarityColor + "25"}`,
+                      }}
+                    >
+                      <ItemImage itemId={item.name.toLowerCase().replace(/ /g, "-")} size={44} />
                       {item.equipped && (
-                        <span className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: "#39d35320", color: "#39d353" }}>
-                          equipped
-                        </span>
+                        <div
+                          className="absolute bottom-0 left-0 right-0 text-center font-mono"
+                          style={{ fontSize: 8, background: `${rarityColor}90`, color: "#fff", paddingBottom: 1 }}
+                        >
+                          EQ
+                        </div>
                       )}
                       {item.marketListed && (
-                        <span className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: "#a855f720", color: "#a855f7" }}>
-                          listed
-                        </span>
+                        <div
+                          className="absolute top-0 left-0 right-0 text-center font-mono"
+                          style={{ fontSize: 7, background: "#a855f790", color: "#fff", paddingTop: 1 }}
+                        >
+                          LISTED
+                        </div>
                       )}
                     </div>
-                    <p className="text-xs font-mono mb-1" style={{ color: "#475569" }}>{item.description}</p>
-                    <div className="flex gap-3 text-xs font-mono flex-wrap">
-                      {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR +{item.strengthBonus}</span>}
-                      {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA +{item.charismaBonus}</span>}
-                      {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT +{item.intelligenceBonus}</span>}
-                      {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF +{item.defenseBonus}</span>}
-                      {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP +{item.streetCredBonus}</span>}
-                      {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
-                      {(item.type === "consumable" || item.type === "material") && item.quantity > 1 && (
-                        <span style={{ color: "#64748b" }}>×{item.quantity}</span>
-                      )}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                        <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{item.name}</span>
+                        <span className="text-xs font-mono px-1 rounded" style={{ color: rarityColor, background: `${rarityColor}15` }}>
+                          {item.rarity}
+                        </span>
+                        {item.equipped && (
+                          <span className="text-xs px-1 rounded font-mono" style={{ background: "#39d35320", color: "#39d353" }}>eq</span>
+                        )}
+                        {item.marketListed && (
+                          <span className="text-xs px-1 rounded font-mono" style={{ background: "#a855f720", color: "#a855f7" }}>listed</span>
+                        )}
+                      </div>
+                      <p className="text-xs font-mono" style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.description}</p>
+                      <div className="flex gap-2 text-xs font-mono flex-wrap mt-0.5">
+                        {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR+{item.strengthBonus}</span>}
+                        {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA+{item.charismaBonus}</span>}
+                        {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT+{item.intelligenceBonus}</span>}
+                        {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF+{item.defenseBonus}</span>}
+                        {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP+{item.streetCredBonus}</span>}
+                        {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
+                        {(item.type === "consumable" || item.type === "material") && item.quantity > 1 && (
+                          <span style={{ color: "#64748b" }}>×{item.quantity}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-1 flex-shrink-0">
+                  {/* Bottom row: action buttons */}
+                  <div className="flex gap-2 flex-wrap">
                     {item.slot && !item.marketListed && (
                       <button
                         onClick={() => item.equipped ? unequip(item.id) : equip(item.id)}
                         disabled={acting === item.id}
-                        className="px-3 py-1.5 rounded text-xs font-mono font-bold"
+                        className="flex-1 py-1.5 rounded text-xs font-mono font-bold"
                         style={{
                           background: item.equipped ? "#ff2d5518" : "#39d35318",
                           color: item.equipped ? "#ff2d55" : "#39d353",
@@ -343,7 +343,7 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
                       <button
                         onClick={() => useItem(item.id)}
                         disabled={acting === item.id}
-                        className="px-3 py-1.5 rounded text-xs font-mono font-bold"
+                        className="flex-1 py-1.5 rounded text-xs font-mono font-bold"
                         style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}
                       >
                         {acting === item.id ? "..." : "Use"}
@@ -353,7 +353,7 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
                       <button
                         onClick={() => salvage(item.id, item.name)}
                         disabled={acting === item.id}
-                        className="px-3 py-1.5 rounded text-xs font-mono"
+                        className="flex-1 py-1.5 rounded text-xs font-mono"
                         style={{ background: "#1e1e2e", color: "#475569", border: "1px solid #1e1e2e" }}
                       >
                         {acting === item.id ? "..." : "Salvage"}

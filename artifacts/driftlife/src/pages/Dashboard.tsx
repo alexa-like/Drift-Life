@@ -51,9 +51,9 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
   const rankColor = RANK_COLORS[user.rank] ?? "#94a3b8";
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {/* Left — Player Card */}
-      <div className="lg:col-span-1 flex flex-col gap-4">
+      <div className="md:col-span-1 flex flex-col gap-4">
         <div className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
           <div className="flex items-start justify-between mb-4">
             <div>
@@ -185,7 +185,7 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
       </div>
 
       {/* Right — Feed + Quick actions */}
-      <div className="lg:col-span-2 flex flex-col gap-4">
+      <div className="md:col-span-2 flex flex-col gap-4">
         {/* Quick actions */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[

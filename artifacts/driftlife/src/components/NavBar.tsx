@@ -91,7 +91,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
       {/* Status strip */}
       <div
         className="flex items-center gap-2 px-3 py-1 overflow-x-auto"
-        style={{ borderBottom: "1px solid #0d0d15", fontSize: 10 }}
+        style={{ borderBottom: "1px solid #0d0d15", fontSize: 10, scrollbarWidth: "none" }}
       >
         <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
           {user.tag}
@@ -128,7 +128,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
       </div>
 
       {/* Nav row */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 overflow-x-auto">
+      <div className="flex items-center gap-0.5 px-2 py-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
         {/* Brand */}
         <button
           className="font-mono font-bold text-sm mr-2 flex-shrink-0 tracking-widest"

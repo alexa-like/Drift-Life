@@ -146,7 +146,7 @@ function GameApp() {
           unreadNotifs={unreadNotifs}
         />
         {/* Account for taller nav (2 rows now) */}
-        <main className="pt-24 pb-8 px-4 max-w-5xl mx-auto">
+        <main className="pt-[76px] pb-8 px-3 sm:px-4 max-w-5xl mx-auto w-full">
           {renderPage()}
         </main>
         <ToastContainer toasts={toasts} removeToast={removeToast} />

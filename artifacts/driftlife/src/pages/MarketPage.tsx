@@ -91,50 +91,42 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
     const rarityColor = RARITY_COLORS[item.rarity] ?? "#94a3b8";
     return (
       <div
-        className="rounded-lg p-4 flex gap-3"
-        style={{
-          background: "#111118",
-          border: `1px solid ${rarityColor}20`,
-          transition: "border-color 0.2s",
-        }}
+        className="rounded-lg p-3 flex flex-col gap-2"
+        style={{ background: "#111118", border: `1px solid ${rarityColor}20` }}
       >
-        <div
-          className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
-          style={{
-            width: 64, height: 64,
-            background: `${rarityColor}08`,
-            border: `1px solid ${rarityColor}30`,
-          }}
-        >
-          <ItemImage itemId={item.id} imageUrl={item.imageUrl} size={52} />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{item.name}</span>
-            <span className="text-xs font-mono px-1 rounded" style={{ color: rarityColor, background: `${rarityColor}15` }}>
-              {item.rarity}
-            </span>
+        <div className="flex items-center gap-3">
+          <div
+            className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
+            style={{ width: 52, height: 52, background: `${rarityColor}08`, border: `1px solid ${rarityColor}30` }}
+          >
+            <ItemImage itemId={item.id} imageUrl={item.imageUrl} size={44} />
           </div>
-          <p className="text-xs font-mono mb-2" style={{ color: "#475569" }}>{item.description}</p>
-          <div className="flex gap-3 text-xs font-mono flex-wrap">
-            {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR +{item.strengthBonus}</span>}
-            {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA +{item.charismaBonus}</span>}
-            {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT +{item.intelligenceBonus}</span>}
-            {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF +{item.defenseBonus}</span>}
-            {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP +{item.streetCredBonus}</span>}
-            {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+              <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{item.name}</span>
+              <span className="text-xs font-mono px-1 rounded" style={{ color: rarityColor, background: `${rarityColor}15` }}>
+                {item.rarity}
+              </span>
+            </div>
+            <p className="text-xs font-mono" style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.description}</p>
+            <div className="flex gap-2 text-xs font-mono flex-wrap mt-0.5">
+              {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR+{item.strengthBonus}</span>}
+              {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA+{item.charismaBonus}</span>}
+              {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT+{item.intelligenceBonus}</span>}
+              {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF+{item.defenseBonus}</span>}
+              {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP+{item.streetCredBonus}</span>}
+              {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
+            </div>
           </div>
         </div>
-
-        <div className="flex flex-col items-end justify-between flex-shrink-0">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>
             {item.basePrice.toLocaleString()} DC
           </span>
           <button
             onClick={onBuy}
             disabled={busy || !canAfford}
-            className="px-3 py-1.5 rounded text-xs font-mono font-bold"
+            className="px-4 py-1.5 rounded text-xs font-mono font-bold"
             style={{
               background: canAfford ? "#f59e0b18" : "#1e1e2e",
               color: canAfford ? "#f59e0b" : "#475569",
@@ -151,27 +143,29 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
   function ListingCard({ listing, onBuy, busy, canAfford }: { listing: Listing; onBuy: () => void; busy: boolean; canAfford: boolean }) {
     const rarityColor = RARITY_COLORS[listing.rarity] ?? "#94a3b8";
     return (
-      <div className="rounded-lg p-4 flex gap-3" style={{ background: "#111118", border: `1px solid ${rarityColor}20` }}>
-        <div
-          className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
-          style={{ width: 64, height: 64, background: `${rarityColor}08`, border: `1px solid ${rarityColor}30` }}
-        >
-          <ItemImage itemId={listing.name.toLowerCase().replace(/ /g, "-")} size={52} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{listing.name}</span>
-            <span className="text-xs font-mono" style={{ color: rarityColor }}>[{listing.rarity}]</span>
+      <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: "#111118", border: `1px solid ${rarityColor}20` }}>
+        <div className="flex items-center gap-3">
+          <div
+            className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
+            style={{ width: 52, height: 52, background: `${rarityColor}08`, border: `1px solid ${rarityColor}30` }}
+          >
+            <ItemImage itemId={listing.name.toLowerCase().replace(/ /g, "-")} size={44} />
           </div>
-          <p className="text-xs font-mono mb-1" style={{ color: "#475569" }}>{listing.description}</p>
-          <span className="text-xs font-mono" style={{ color: "#64748b" }}>Seller: {listing.seller}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+              <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{listing.name}</span>
+              <span className="text-xs font-mono px-1 rounded" style={{ color: rarityColor, background: `${rarityColor}15` }}>{listing.rarity}</span>
+            </div>
+            <p className="text-xs font-mono" style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{listing.description}</p>
+            <span className="text-xs font-mono" style={{ color: "#64748b" }}>via {listing.seller}</span>
+          </div>
         </div>
-        <div className="flex flex-col items-end justify-between flex-shrink-0">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>{listing.price.toLocaleString()} DC</span>
           <button
             onClick={onBuy}
             disabled={busy || !canAfford}
-            className="px-3 py-1.5 rounded text-xs font-mono font-bold"
+            className="px-4 py-1.5 rounded text-xs font-mono font-bold"
             style={{
               background: canAfford ? "#f59e0b18" : "#1e1e2e",
               color: canAfford ? "#f59e0b" : "#475569",
