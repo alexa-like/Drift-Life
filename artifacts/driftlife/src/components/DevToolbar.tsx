@@ -8,9 +8,6 @@ interface Props {
 
 export function DevToolbar({ onRefresh, addToast }: Props) {
   const [open, setOpen] = useState(false);
-  const [dcAmount, setDcAmount] = useState("10000");
-  const [levelVal, setLevelVal] = useState("10");
-  const [frameId, setFrameId] = useState("electricArc");
   const [loading, setLoading] = useState(false);
 
   async function action(path: string, body?: object) {
@@ -32,102 +29,37 @@ export function DevToolbar({ onRefresh, addToast }: Props) {
         <div
           style={{
             background: "#0d0d15",
-            border: "1px solid #00d4ff40",
+            border: "1px solid #ff6b3540",
             borderRadius: 8,
             padding: 12,
             marginBottom: 8,
-            width: 220,
-            boxShadow: "0 0 20px #00d4ff20",
+            width: 190,
+            boxShadow: "0 0 20px #ff6b3520",
           }}
         >
-          <div className="font-mono text-xs mb-3" style={{ color: "#00d4ff", borderBottom: "1px solid #1e1e2e", paddingBottom: 6 }}>
-            ⚡ DEV TOOLBAR
+          <div className="font-mono text-xs mb-3" style={{ color: "#ff6b35", borderBottom: "1px solid #1e1e2e", paddingBottom: 6 }}>
+            ⚙ DEV (staff only)
           </div>
-
-          {/* Add DC */}
-          <div className="flex gap-1 mb-2">
-            <input
-              type="number"
-              value={dcAmount}
-              onChange={e => setDcAmount(e.target.value)}
-              className="flex-1 px-2 py-1 font-mono text-xs rounded"
-              style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none", width: 80 }}
-            />
-            <button
-              onClick={() => action("/dev/add-dc", { amount: parseInt(dcAmount) || 10000 })}
-              disabled={loading}
-              className="px-2 py-1 font-mono text-xs rounded"
-              style={{ background: "#f59e0b20", color: "#f59e0b", border: "1px solid #f59e0b40" }}
-            >
-              +DC
-            </button>
-          </div>
-
-          {/* Set Level */}
-          <div className="flex gap-1 mb-2">
-            <input
-              type="number"
-              value={levelVal}
-              onChange={e => setLevelVal(e.target.value)}
-              className="flex-1 px-2 py-1 font-mono text-xs rounded"
-              style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none", width: 80 }}
-            />
-            <button
-              onClick={() => action("/dev/set-level", { level: parseInt(levelVal) || 10 })}
-              disabled={loading}
-              className="px-2 py-1 font-mono text-xs rounded"
-              style={{ background: "#00d4ff20", color: "#00d4ff", border: "1px solid #00d4ff40" }}
-            >
-              Lvl Up
-            </button>
-          </div>
-
-          {/* Give frame */}
-          <div className="flex gap-1 mb-2">
-            <input
-              type="text"
-              value={frameId}
-              onChange={e => setFrameId(e.target.value)}
-              placeholder="frameId"
-              className="flex-1 px-2 py-1 font-mono text-xs rounded"
-              style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-            />
-            <button
-              onClick={() => action("/dev/give-frame", { frameId })}
-              disabled={loading}
-              className="px-2 py-1 font-mono text-xs rounded"
-              style={{ background: "#a855f720", color: "#a855f7", border: "1px solid #a855f740" }}
-            >
-              🖼️
-            </button>
-          </div>
-
-          {/* Row of quick actions */}
-          <div className="flex gap-1 flex-wrap">
-            <button
-              onClick={() => action("/dev/fill-resources")}
-              disabled={loading}
-              className="px-2 py-1 font-mono rounded"
-              style={{ fontSize: 10, background: "#39d35320", color: "#39d353", border: "1px solid #39d35340" }}
-            >
-              ⚡ Fill
-            </button>
+          <div className="flex gap-1.5 flex-wrap">
             <button
               onClick={() => action("/dev/heal")}
               disabled={loading}
-              className="px-2 py-1 font-mono rounded"
-              style={{ fontSize: 10, background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}
+              className="px-2.5 py-1.5 font-mono rounded"
+              style={{ fontSize: 10, background: "#39d35320", color: "#39d353", border: "1px solid #39d35340" }}
             >
               🏥 Heal
             </button>
             <button
               onClick={() => action("/dev/clear-wanted")}
               disabled={loading}
-              className="px-2 py-1 font-mono rounded"
+              className="px-2.5 py-1.5 font-mono rounded"
               style={{ fontSize: 10, background: "#a855f720", color: "#a855f7", border: "1px solid #a855f740" }}
             >
-              🚨 Clear
+              🚨 Clear Wanted
             </button>
+          </div>
+          <div className="font-mono mt-3" style={{ fontSize: 9, color: "#334155" }}>
+            Economy adjustments via Owner Panel
           </div>
         </div>
       )}
@@ -135,17 +67,17 @@ export function DevToolbar({ onRefresh, addToast }: Props) {
       <button
         onClick={() => setOpen(o => !o)}
         style={{
-          width: 44,
-          height: 44,
+          width: 40,
+          height: 40,
           borderRadius: "50%",
-          background: open ? "#00d4ff20" : "#0d0d15",
-          border: "1px solid #00d4ff60",
-          color: "#00d4ff",
-          fontSize: 20,
+          background: open ? "#ff6b3520" : "#0d0d15",
+          border: "1px solid #ff6b3550",
+          color: "#ff6b35",
+          fontSize: 16,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          boxShadow: open ? "0 0 16px #00d4ff40" : "none",
+          boxShadow: open ? "0 0 12px #ff6b3530" : "none",
           cursor: "pointer",
           transition: "all 0.2s",
         }}

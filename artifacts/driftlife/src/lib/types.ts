@@ -168,6 +168,7 @@ export interface Frame {
   currency: "dc" | "nc";
   isFree: boolean;
   description: string;
+  earnedBy?: string;
   owned: boolean;
   equipped: boolean;
 }
