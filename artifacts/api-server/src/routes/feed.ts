@@ -15,19 +15,42 @@ router.get("/", requireAuth, async (req, res) => {
       .skip(skip)
       .limit(limit)
       .lean();
-    res.json(events.map(e => ({
-      id: e._id,
-      type: e.type,
-      actor: e.actor,
-      actorId: e.actorId,
-      target: e.target,
-      message: e.message,
-      dc: e.dc,
-      xp: e.xp,
-      reactions: (e as any).reactions || { like: 0, laugh: 0, shock: 0, respect: 0 },
-      comments: (e as any).comments || [],
-      createdAt: e.createdAt,
-    })));
+
+    // Batch-fetch actor frame data for events that have an actorId
+    const actorIds = [...new Set(events.map(e => e.actorId).filter(Boolean))];
+    const actorMap: Record<string, { equippedFrame?: string | null; equippedFrameColor?: string | null; avatarUrl?: string | null }> = {};
+    if (actorIds.length > 0) {
+      const actors = await User.find({ _id: { $in: actorIds } })
+        .select("_id equippedFrame equippedFrameColor avatarUrl")
+        .lean();
+      for (const a of actors) {
+        actorMap[String(a._id)] = {
+          equippedFrame: (a as any).equippedFrame ?? null,
+          equippedFrameColor: (a as any).equippedFrameColor ?? null,
+          avatarUrl: (a as any).avatarUrl ?? null,
+        };
+      }
+    }
+
+    res.json(events.map(e => {
+      const actorData = e.actorId ? actorMap[String(e.actorId)] : undefined;
+      return {
+        id: e._id,
+        type: e.type,
+        actor: e.actor,
+        actorId: e.actorId,
+        actorFrame: actorData?.equippedFrame ?? (e as any).actorFrame ?? null,
+        actorFrameColor: actorData?.equippedFrameColor ?? (e as any).actorFrameColor ?? null,
+        actorAvatarUrl: actorData?.avatarUrl ?? (e as any).actorAvatarUrl ?? null,
+        target: e.target,
+        message: e.message,
+        dc: e.dc,
+        xp: e.xp,
+        reactions: (e as any).reactions || { like: 0, laugh: 0, shock: 0, respect: 0 },
+        comments: (e as any).comments || [],
+        createdAt: e.createdAt,
+      };
+    }));
   } catch (err: any) {
     req.log.error({ err }, "feed error");
     res.status(500).json({ message: "Internal server error" });

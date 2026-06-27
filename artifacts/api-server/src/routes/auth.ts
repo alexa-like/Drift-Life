@@ -55,6 +55,7 @@ export function safeUser(user: InstanceType<typeof User>) {
     isEmailVerified: user.isEmailVerified,
     equippedFrame: user.equippedFrame,
     equippedFrameRarity: (user as any).equippedFrameRarity ?? "common",
+    equippedFrameColor: (user as any).equippedFrameColor ?? null,
     equippedTitle: user.equippedTitle,
     titles: user.titles,
     ownedFrames: (user as any).ownedFrames || [],

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, ReactNode } from "react";
 import { getFrame } from "../lib/frames";
 import { AvatarWithFrame } from "./AvatarWithFrame";
 
@@ -8,6 +8,7 @@ export interface ChatMessage {
   username: string;
   faction: string | null;
   frame?: string | null;
+  frameColor?: string | null;
   frameRarity?: string;
   title?: string | null;
   content: string;
@@ -28,123 +29,209 @@ interface Props {
   onUsernameClick?: (userId: string, username: string) => void;
 }
 
-export function FrameRectBubble({ message, isOwn, onUsernameClick }: Props) {
-  const frame = getFrame(message.frame);
+function ChatFrameCanvas({ frameId, colorOverride }: { frameId: string | null | undefined; colorOverride?: string | null }) {
+  const frame = getFrame(frameId);
+  const color = colorOverride || frame.glowColor;
+  const rarity = frame.rarity;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const animRef = useRef<number>(0);
 
   useEffect(() => {
+    if (!frameId || rarity === "common") return;
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    const rarity = frame.rarity;
-    if (rarity === "common") return; // No animation for common
-
-    let animId: number;
     let t = 0;
+    const r = 6;
+
+    function resize() {
+      if (!canvas || !container) return;
+      canvas.width = container.offsetWidth;
+      canvas.height = container.offsetHeight;
+    }
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(container);
 
     function draw() {
-      const w = canvas!.width = container!.offsetWidth;
-      const h = canvas!.height = container!.offsetHeight;
-      const ctx = canvas!.getContext("2d");
-      if (!ctx) return;
-
+      if (!canvas || !ctx) return;
+      const w = canvas.width;
+      const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
+      const lw = 1.5;
+      const inset = lw / 2;
 
       if (rarity === "uncommon") {
+        const phase = (t / 180) * Math.PI * 2;
         const grad = ctx.createLinearGradient(
-          w * (0.5 + 0.5 * Math.cos((t / 100) * Math.PI * 2)),
-          0,
-          w * (0.5 - 0.5 * Math.cos((t / 100) * Math.PI * 2)),
-          h
+          w * (0.5 + 0.5 * Math.cos(phase)), 0,
+          w * (0.5 - 0.5 * Math.cos(phase)), h
         );
-        grad.addColorStop(0, frame.glowColor + "20");
-        grad.addColorStop(0.5, frame.glowColor + "60");
-        grad.addColorStop(1, frame.glowColor + "20");
+        grad.addColorStop(0, color + "20");
+        grad.addColorStop(0.5, color + "99");
+        grad.addColorStop(1, color + "20");
         ctx.strokeStyle = grad;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = lw;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 4;
         ctx.beginPath();
-        ctx.roundRect(0.75, 0.75, w - 1.5, h - 1.5, 6);
+        ctx.roundRect(inset, inset, w - lw, h - lw, r);
         ctx.stroke();
+        ctx.shadowBlur = 0;
       } else if (rarity === "rare") {
-        const pulse = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin((t / 50) * Math.PI * 2));
-        ctx.strokeStyle = frame.glowColor;
-        ctx.lineWidth = 1.5;
-        ctx.shadowColor = frame.glowColor;
-        ctx.shadowBlur = 6 * pulse;
-        ctx.globalAlpha = 0.4 + 0.6 * pulse;
+        const pulse = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin((t / 45) * Math.PI * 2));
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lw;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10 * pulse;
+        ctx.globalAlpha = 0.5 + 0.5 * pulse;
         ctx.beginPath();
-        ctx.roundRect(0.75, 0.75, w - 1.5, h - 1.5, 6);
+        ctx.roundRect(inset, inset, w - lw, h - lw, r);
         ctx.stroke();
         ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
       } else if (rarity === "epic") {
-        const angle = (t / 120) * Math.PI * 2;
+        const angle = (t / 100) * Math.PI * 2;
         const grad = ctx.createConicGradient(angle, w / 2, h / 2);
-        grad.addColorStop(0, frame.glowColor);
-        grad.addColorStop(0.5, frame.glowColor + "40");
-        grad.addColorStop(1, frame.glowColor);
+        grad.addColorStop(0, color);
+        grad.addColorStop(0.25, color + "30");
+        grad.addColorStop(0.5, color);
+        grad.addColorStop(0.75, color + "30");
+        grad.addColorStop(1, color);
         ctx.strokeStyle = grad;
-        ctx.lineWidth = 1.5;
-        ctx.shadowColor = frame.glowColor;
+        ctx.lineWidth = lw;
+        ctx.shadowColor = color;
         ctx.shadowBlur = 8;
         ctx.beginPath();
-        ctx.roundRect(0.75, 0.75, w - 1.5, h - 1.5, 6);
+        ctx.roundRect(inset, inset, w - lw, h - lw, r);
         ctx.stroke();
-      } else if (rarity === "legendary" || rarity === "mythic") {
-        ctx.strokeStyle = frame.glowColor;
-        ctx.lineWidth = 1.5;
-        ctx.shadowColor = frame.glowColor;
+        ctx.shadowBlur = 0;
+      } else if (rarity === "legendary") {
+        ctx.strokeStyle = color + "40";
+        ctx.lineWidth = 5;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.roundRect(inset - 2, inset - 2, w - lw + 4, h - lw + 4, r + 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lw;
         ctx.shadowBlur = 10;
         ctx.beginPath();
-        ctx.roundRect(0.75, 0.75, w - 1.5, h - 1.5, 6);
+        ctx.roundRect(inset, inset, w - lw, h - lw, r);
         ctx.stroke();
-        if (t % 12 === 0) {
+        ctx.shadowBlur = 0;
+
+        if (t % 8 === 0) {
           for (let i = 0; i < 2; i++) {
             const side = Math.floor(Math.random() * 4);
-            let x = side === 0 || side === 2 ? Math.random() * w : side === 1 ? w : 0;
-            let y = side === 1 || side === 3 ? Math.random() * h : side === 0 ? 0 : h;
+            let x1: number, y1: number;
+            if (side === 0) { x1 = Math.random() * w; y1 = inset; }
+            else if (side === 1) { x1 = w - inset; y1 = Math.random() * h; }
+            else if (side === 2) { x1 = Math.random() * w; y1 = h - inset; }
+            else { x1 = inset; y1 = Math.random() * h; }
             ctx.strokeStyle = "#fff";
             ctx.lineWidth = 1;
+            ctx.shadowColor = color;
             ctx.shadowBlur = 4;
+            ctx.globalAlpha = 0.7 + Math.random() * 0.3;
             ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + (Math.random() - 0.5) * 10, y + (Math.random() - 0.5) * 10);
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x1 + (Math.random() - 0.5) * 12, y1 + (Math.random() - 0.5) * 12);
             ctx.stroke();
+            ctx.globalAlpha = 1;
           }
+          ctx.shadowBlur = 0;
         }
+      } else if (rarity === "mythic") {
+        ctx.fillStyle = "#0a0a0f06";
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = color + "30";
+        ctx.lineWidth = 6;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.roundRect(inset - 2, inset - 2, w - lw + 4, h - lw + 4, r + 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lw;
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.roundRect(inset, inset, w - lw, h - lw, r);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        const chars = "01#!アイ@$";
+        ctx.font = "6px monospace";
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 5;
+        for (let x = 4; x < w - 4; x += 9) {
+          const ci = Math.floor((t + x) / 5) % chars.length;
+          const alpha = 0.2 + 0.8 * Math.abs(Math.sin((t + x) / 18));
+          ctx.globalAlpha = alpha;
+          ctx.fillText(chars[ci], x, inset + 5);
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
       }
 
       t++;
-      animId = requestAnimationFrame(draw);
+      animRef.current = requestAnimationFrame(draw);
     }
 
     draw();
-    return () => { if (animId) cancelAnimationFrame(animId); };
-  }, [frame.id, frame.rarity]);
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      ro.disconnect();
+    };
+  }, [frameId, rarity, color]);
 
+  return (
+    <div ref={containerRef} style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1 }}>
+      <canvas
+        ref={canvasRef}
+        style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", borderRadius: 6 }}
+      />
+    </div>
+  );
+}
+
+export function FrameRectBubble({ message, isOwn, onUsernameClick }: Props) {
+  const frame = getFrame(message.frame);
+  const color = message.frameColor || frame.glowColor;
+  const rarity = frame.rarity;
   const factionColor = FACTION_COLOR[message.faction || "neutral"] || "#64748b";
+
+  const hasEffect = !!message.frame && rarity !== "common";
+  const borderColor = message.frame
+    ? (rarity === "common" ? color + "40" : "transparent")
+    : "#1e1e2e";
+  const boxShadow = hasEffect
+    ? `0 0 ${rarity === "mythic" ? 16 : rarity === "legendary" ? 12 : rarity === "epic" ? 8 : rarity === "rare" ? 6 : 3}px ${color}25`
+    : "none";
 
   return (
     <div
-      ref={containerRef}
       style={{
         position: "relative",
         background: isOwn ? "#111118" : "#0d0d15",
         borderRadius: 6,
         padding: "6px 10px",
         marginBottom: 4,
-        border: `1px solid ${frame.rarity === "common" ? frame.glowColor + "30" : "transparent"}`,
-        boxShadow: frame.rarity !== "common" ? `0 0 8px ${frame.glowColor}20` : "none",
+        border: `1px solid ${borderColor}`,
+        boxShadow,
       }}
     >
-      {/* Canvas overlay for animated border */}
-      {frame.rarity !== "common" && (
-        <canvas
-          ref={canvasRef}
-          style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 1, borderRadius: 6 }}
-        />
-      )}
+      {message.frame && <ChatFrameCanvas frameId={message.frame} colorOverride={message.frameColor} />}
+
       <div style={{ position: "relative", zIndex: 2 }}>
         <div className="flex items-start gap-2">
           <AvatarWithFrame
@@ -156,11 +243,25 @@ export function FrameRectBubble({ message, isOwn, onUsernameClick }: Props) {
             <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
               <button
                 className="font-mono text-xs font-bold hover:underline"
-                style={{ color: factionColor }}
+                style={{ color: message.frame ? color : factionColor }}
                 onClick={() => onUsernameClick?.(message.userId, message.username)}
               >
                 {message.username}
               </button>
+              {message.frame && rarity !== "common" && (
+                <span
+                  className="font-mono px-1 rounded"
+                  style={{
+                    fontSize: 9,
+                    background: color + "20",
+                    color,
+                    border: `1px solid ${color}40`,
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {frame.name}
+                </span>
+              )}
               {message.title && (
                 <span className="font-mono" style={{ color: "#475569", fontSize: 10 }}>
                   [{message.title}]

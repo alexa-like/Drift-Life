@@ -103,7 +103,7 @@ io.on("connection", (socket) => {
     }
     try {
       const user = await User.findById(authedUserId)
-        .select("mutedUntil faction equippedFrame equippedTitle")
+        .select("mutedUntil faction equippedFrame equippedFrameColor equippedTitle")
         .lean();
       if (user?.mutedUntil && new Date(user.mutedUntil) > new Date()) {
         socket.emit("chat_error", "You are muted.");
@@ -116,6 +116,7 @@ io.on("connection", (socket) => {
         username: authedUsername,
         faction: user?.faction || authedFaction,
         frame: user?.equippedFrame || authedFrame || "ghostFrame",
+        frameColor: (user as any)?.equippedFrameColor || null,
         title: user?.equippedTitle || authedTitle || null,
         content: trimmed,
         at: new Date().toISOString(),
@@ -138,7 +139,7 @@ io.on("connection", (socket) => {
     }
     try {
       const user = await User.findById(authedUserId)
-        .select("mutedUntil faction equippedFrame equippedTitle")
+        .select("mutedUntil faction equippedFrame equippedFrameColor equippedTitle")
         .lean();
       if (user?.mutedUntil && new Date(user.mutedUntil) > new Date()) {
         socket.emit("chat_error", "You are muted.");
@@ -150,6 +151,7 @@ io.on("connection", (socket) => {
         username: authedUsername,
         faction: user?.faction || authedFaction,
         frame: equippedFrame || user?.equippedFrame || authedFrame || "ghostFrame",
+        frameColor: (user as any)?.equippedFrameColor || null,
         frameRarity: equippedFrameRarity || "common",
         title: user?.equippedTitle || authedTitle || null,
         content: trimmed,

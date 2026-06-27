@@ -27,7 +27,7 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-    const { avatar, avatarUrl, bio, equippedFrame, equippedTitle } = req.body;
+    const { avatar, avatarUrl, bio, equippedFrame, equippedTitle, equippedFrameColor } = req.body;
     if (avatar !== undefined) user.avatar = String(avatar);
     if (avatarUrl !== undefined) {
       // Only allow Pollinations AI URLs or null
@@ -42,6 +42,15 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
     if (bio !== undefined) user.bio = String(bio).slice(0, 300);
     if (equippedFrame !== undefined) user.equippedFrame = equippedFrame;
     if (equippedTitle !== undefined && user.titles.includes(equippedTitle)) user.equippedTitle = equippedTitle;
+    if (equippedFrameColor !== undefined) {
+      if (equippedFrameColor === null) {
+        (user as any).equippedFrameColor = null;
+      } else if (typeof equippedFrameColor === "string" && /^#[0-9a-fA-F]{3,8}$/.test(equippedFrameColor)) {
+        (user as any).equippedFrameColor = equippedFrameColor;
+      } else {
+        return res.status(400).json({ message: "Invalid color format. Use hex (#RRGGBB)" });
+      }
+    }
     await user.save();
     res.json(safeUser(user));
   } catch (err: any) {

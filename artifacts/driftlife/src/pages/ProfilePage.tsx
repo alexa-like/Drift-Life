@@ -4,7 +4,8 @@ import { api } from "../lib/api";
 import { WantedStars } from "../components/WantedStars";
 import { StatBar } from "../components/StatBar";
 import { AvatarWithFrame } from "../components/AvatarWithFrame";
-import { FRAME_CATALOG as FRAMES, FrameDef, RARITY_COLOR } from "../lib/frames";
+import { FrameCardWrapper } from "../components/FrameCardWrapper";
+import { FRAME_CATALOG as FRAMES, FrameDef, RARITY_COLOR, getFrame } from "../lib/frames";
 
 const FACTION_LABEL: Record<string, string> = { suits: "The Suits", street: "The Street", grid: "The Grid" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
@@ -13,6 +14,13 @@ const FACTION_DESC: Record<string, string> = {
   street: "+10% DC from PvP wins, +5% Robbery/Heist success, extra XP from combat",
   grid: "-10% Energy cost on all jobs, +5% Data Breach/Scam success, Grid market access",
 };
+
+// Preset palette colors players can pick from
+const COLOR_PRESETS = [
+  "#00d4ff", "#a855f7", "#f59e0b", "#39d353", "#ff2d55",
+  "#ff6b35", "#e879f9", "#00FF41", "#06B6D4", "#FBBF24",
+  "#DC2626", "#4ADE80", "#818CF8", "#F472B6", "#ffffff",
+];
 
 interface Props { user: User; refreshUser: () => void; addToast: (msg: string, t?: string) => void; }
 
@@ -24,8 +32,12 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
   const [equippingFrame, setEquippingFrame] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"stats" | "frames">("stats");
+  const [savingColor, setSavingColor] = useState(false);
 
   const xpPct = Math.min(100, Math.round((user.xp / user.xpToNext) * 100));
+  const equippedFrameId = user.equippedFrame || null;
+  const equippedColor = user.equippedFrameColor || null;
+  const equippedFrameDef = equippedFrameId ? getFrame(equippedFrameId) : null;
 
   async function saveBio() {
     setSavingBio(true);
@@ -82,103 +94,134 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
     }
   }
 
+  async function saveFrameColor(color: string | null) {
+    setSavingColor(true);
+    try {
+      await api.patch("/user/me", { equippedFrameColor: color });
+      addToast(color ? "Frame color updated!" : "Frame color reset", "success");
+      refreshUser();
+    } catch (e: any) {
+      addToast(e.message || "Failed to save color", "error");
+    } finally {
+      setSavingColor(false);
+    }
+  }
+
   const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const ownedFrames: FrameDef[] = FRAMES.filter(f => (user.ownedFrames || []).includes(f.id));
   const fc = user.faction ? FACTION_COLOR[user.faction] : "#94a3b8";
 
   return (
     <div className="space-y-5 max-w-2xl mx-auto">
-      {/* Profile header */}
-      <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 24 }}>
-        <div className="flex items-start gap-5">
-          {/* Avatar with frame */}
-          <div className="flex-shrink-0">
-            <AvatarWithFrame
-              username={user.username}
-              avatarUrl={user.avatarUrl}
-              frameId={(user as any).equippedFrame || null}
-              size="xl"
-            />
-          </div>
-
-          {/* Identity */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="font-mono font-bold text-xl" style={{ color: "#e2e8f0" }}>{user.username}</span>
-              {user.tag && <span className="font-mono text-xs" style={{ color: "#64748b" }}>{user.tag}</span>}
-              {user.faction && (
-                <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: fc + "20", color: fc, border: `1px solid ${fc}40` }}>
-                  {FACTION_LABEL[user.faction]}
-                </span>
-              )}
-              {isHosp && (
-                <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}>HOSPITALIZED</span>
-              )}
-            </div>
-            <div className="font-mono text-xs mt-1" style={{ color: "#f59e0b" }}>
-              {user.rank} · Level {user.level} · {user.equippedTitle || "New in Town"}
-            </div>
-            <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>
-              District: {user.district.replace(/-/g, " ")}
-            </div>
-
-            {/* XP Bar */}
-            <div className="mt-2">
-              <div className="flex justify-between font-mono" style={{ fontSize: 10, color: "#64748b" }}>
-                <span>XP</span><span>{user.xp.toLocaleString()}/{user.xpToNext.toLocaleString()}</span>
-              </div>
-              <div style={{ height: 4, background: "#1e1e2e", borderRadius: 2, marginTop: 2 }}>
-                <div style={{
-                  height: 4,
-                  width: `${xpPct}%`,
-                  background: "linear-gradient(90deg, #00d4ff, #a855f7)",
-                  borderRadius: 2,
-                  boxShadow: "0 0 6px #00d4ff60",
-                  transition: "width 0.4s ease",
-                }} />
-              </div>
-            </div>
-          </div>
-
-          <div className="text-right flex-shrink-0">
-            <WantedStars level={user.wantedLevel} />
-          </div>
-        </div>
-
-        {/* Bio */}
-        <div className="mt-4">
-          {editBio ? (
-            <div>
-              <textarea
-                value={bio}
-                onChange={e => setBio(e.target.value)}
-                maxLength={300}
-                rows={3}
-                className="w-full font-mono text-xs p-2 rounded"
-                style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none", resize: "vertical" }}
-                placeholder="Write your bio... (max 300 chars)"
+      {/* Profile header — wrapped in equipped frame */}
+      <FrameCardWrapper
+        frameId={equippedFrameId}
+        colorOverride={equippedColor}
+        borderRadius={8}
+      >
+        <div style={{ background: "#111118", borderRadius: 8, padding: 24 }}>
+          <div className="flex items-start gap-5">
+            {/* Avatar with frame */}
+            <div className="flex-shrink-0">
+              <AvatarWithFrame
+                username={user.username}
+                avatarUrl={user.avatarUrl}
+                frameId={equippedFrameId}
+                size="xl"
               />
-              <div className="flex gap-2 mt-2">
-                <button onClick={saveBio} disabled={savingBio} className="font-mono text-xs px-3 py-1 rounded" style={{ background: "#39d35320", color: "#39d353", border: "1px solid #39d35340" }}>
-                  {savingBio ? "Saving..." : "Save"}
-                </button>
-                <button onClick={() => { setEditBio(false); setBio(user.bio || ""); }} className="font-mono text-xs px-3 py-1 rounded" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>
-                  Cancel
-                </button>
+            </div>
+
+            {/* Identity */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="font-mono font-bold text-xl" style={{ color: "#e2e8f0" }}>{user.username}</span>
+                {user.tag && <span className="font-mono text-xs" style={{ color: "#64748b" }}>{user.tag}</span>}
+                {user.faction && (
+                  <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: fc + "20", color: fc, border: `1px solid ${fc}40` }}>
+                    {FACTION_LABEL[user.faction]}
+                  </span>
+                )}
+                {equippedFrameDef && (
+                  <span
+                    className="font-mono text-xs px-2 py-0.5 rounded"
+                    style={{
+                      background: (equippedColor || equippedFrameDef.glowColor) + "20",
+                      color: equippedColor || equippedFrameDef.glowColor,
+                      border: `1px solid ${(equippedColor || equippedFrameDef.glowColor)}40`,
+                    }}
+                  >
+                    {equippedFrameDef.name}
+                  </span>
+                )}
+                {isHosp && (
+                  <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}>HOSPITALIZED</span>
+                )}
+              </div>
+              <div className="font-mono text-xs mt-1" style={{ color: "#f59e0b" }}>
+                {user.rank} · Level {user.level} · {user.equippedTitle || "New in Town"}
+              </div>
+              <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>
+                District: {user.district.replace(/-/g, " ")}
+              </div>
+
+              {/* XP Bar */}
+              <div className="mt-2">
+                <div className="flex justify-between font-mono" style={{ fontSize: 10, color: "#64748b" }}>
+                  <span>XP</span><span>{user.xp.toLocaleString()}/{user.xpToNext.toLocaleString()}</span>
+                </div>
+                <div style={{ height: 4, background: "#1e1e2e", borderRadius: 2, marginTop: 2 }}>
+                  <div style={{
+                    height: 4,
+                    width: `${xpPct}%`,
+                    background: "linear-gradient(90deg, #00d4ff, #a855f7)",
+                    borderRadius: 2,
+                    boxShadow: "0 0 6px #00d4ff60",
+                    transition: "width 0.4s ease",
+                  }} />
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="flex items-start gap-2">
-              <p className="font-mono text-xs flex-1" style={{ color: user.bio ? "#94a3b8" : "#64748b", fontStyle: user.bio ? "normal" : "italic" }}>
-                {user.bio || "No bio set."}
-              </p>
-              <button onClick={() => setEditBio(true)} className="font-mono text-xs px-2 py-0.5 rounded flex-shrink-0" style={{ color: "#00d4ff", border: "1px solid #00d4ff30" }}>
-                Edit
-              </button>
+
+            <div className="text-right flex-shrink-0">
+              <WantedStars level={user.wantedLevel} />
             </div>
-          )}
+          </div>
+
+          {/* Bio */}
+          <div className="mt-4">
+            {editBio ? (
+              <div>
+                <textarea
+                  value={bio}
+                  onChange={e => setBio(e.target.value)}
+                  maxLength={300}
+                  rows={3}
+                  className="w-full font-mono text-xs p-2 rounded"
+                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none", resize: "vertical" }}
+                  placeholder="Write your bio... (max 300 chars)"
+                />
+                <div className="flex gap-2 mt-2">
+                  <button onClick={saveBio} disabled={savingBio} className="font-mono text-xs px-3 py-1 rounded" style={{ background: "#39d35320", color: "#39d353", border: "1px solid #39d35340" }}>
+                    {savingBio ? "Saving..." : "Save"}
+                  </button>
+                  <button onClick={() => { setEditBio(false); setBio(user.bio || ""); }} className="font-mono text-xs px-3 py-1 rounded" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2">
+                <p className="font-mono text-xs flex-1" style={{ color: user.bio ? "#94a3b8" : "#64748b", fontStyle: user.bio ? "normal" : "italic" }}>
+                  {user.bio || "No bio set."}
+                </p>
+                <button onClick={() => setEditBio(true)} className="font-mono text-xs px-2 py-0.5 rounded flex-shrink-0" style={{ color: "#00d4ff", border: "1px solid #00d4ff30" }}>
+                  Edit
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </FrameCardWrapper>
 
       {/* Tab switcher */}
       <div className="flex gap-2">
@@ -319,7 +362,65 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
 
       {activeTab === "frames" && (
         <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
-          <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>AVATAR FRAMES</div>
+          <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>YOUR FRAMES</div>
+
+          {/* Color customizer — shown when a frame is equipped */}
+          {equippedFrameDef && (
+            <div style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 6, padding: 14, marginBottom: 16 }}>
+              <div className="font-mono text-xs font-bold mb-2" style={{ color: "#94a3b8" }}>
+                FRAME COLOR — <span style={{ color: equippedColor || equippedFrameDef.glowColor }}>{equippedFrameDef.name}</span>
+              </div>
+              <p className="font-mono mb-3" style={{ fontSize: 10, color: "#475569" }}>
+                Pick a custom glow color. Animation and design stay the same — only the color changes.
+              </p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {COLOR_PRESETS.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => saveFrameColor(c)}
+                    disabled={savingColor}
+                    title={c}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: "50%",
+                      background: c,
+                      border: (equippedColor === c) ? "2px solid #fff" : "2px solid transparent",
+                      boxShadow: `0 0 6px ${c}80`,
+                      cursor: "pointer",
+                      flexShrink: 0,
+                    }}
+                  />
+                ))}
+                {/* Custom hex input */}
+                <input
+                  type="color"
+                  defaultValue={equippedColor || equippedFrameDef.glowColor}
+                  onChange={e => saveFrameColor(e.target.value)}
+                  title="Custom color"
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    border: "2px solid #334155",
+                    padding: 0,
+                    cursor: "pointer",
+                    background: "transparent",
+                  }}
+                />
+              </div>
+              {equippedColor && (
+                <button
+                  onClick={() => saveFrameColor(null)}
+                  disabled={savingColor}
+                  className="font-mono text-xs"
+                  style={{ color: "#475569" }}
+                >
+                  Reset to default color
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Remove frame option */}
           <div className="grid grid-cols-2 gap-3 mb-4">
@@ -328,9 +429,9 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
               disabled={equippingFrame !== null}
               className="p-3 rounded font-mono text-xs transition-all"
               style={{
-                background: !(user as any).equippedFrame ? "#39d35318" : "#0a0a0f",
-                border: `1px solid ${!(user as any).equippedFrame ? "#39d35340" : "#1e1e2e"}`,
-                color: !(user as any).equippedFrame ? "#39d353" : "#475569",
+                background: !equippedFrameId ? "#39d35318" : "#0a0a0f",
+                border: `1px solid ${!equippedFrameId ? "#39d35340" : "#1e1e2e"}`,
+                color: !equippedFrameId ? "#39d353" : "#475569",
               }}
             >
               {equippingFrame === "none" ? "Removing..." : "No Frame"}
@@ -345,44 +446,50 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
           ) : (
             <div className="grid grid-cols-2 gap-3">
               {ownedFrames.map(frame => {
-                const isEquipped = (user as any).equippedFrame === frame.id;
+                const isEquipped = equippedFrameId === frame.id;
                 const rc = RARITY_COLOR[frame.rarity] || "#94a3b8";
+                const displayColor = isEquipped ? (equippedColor || rc) : rc;
                 return (
-                  <button
+                  <FrameCardWrapper
                     key={frame.id}
-                    onClick={() => equipFrame(frame.id)}
-                    disabled={equippingFrame !== null}
-                    className="p-3 rounded text-left transition-all"
-                    style={{
-                      background: isEquipped ? rc + "15" : "#0a0a0f",
-                      border: `1px solid ${isEquipped ? rc + "60" : "#1e1e2e"}`,
-                      boxShadow: isEquipped ? `0 0 10px ${rc}20` : "none",
-                    }}
+                    frameId={isEquipped ? frame.id : undefined}
+                    colorOverride={isEquipped ? equippedColor : null}
+                    borderRadius={6}
                   >
-                    <div className="flex items-center gap-2">
-                      <AvatarWithFrame
-                        username={user.username}
-                        avatarUrl={user.avatarUrl}
-                        frameId={frame.id}
-                        size="sm"
-                      />
-                      <div>
-                        <div className="font-mono font-bold" style={{ fontSize: 11, color: rc }}>
-                          {frame.name}
-                          {isEquipped && <span style={{ color: "#39d353", marginLeft: 4 }}>✓</span>}
-                        </div>
-                        <div className="font-mono" style={{ fontSize: 10, color: "#64748b", textTransform: "capitalize" }}>
-                          {frame.rarity}
+                    <button
+                      onClick={() => equipFrame(frame.id)}
+                      disabled={equippingFrame !== null}
+                      className="p-3 rounded text-left transition-all w-full"
+                      style={{
+                        background: isEquipped ? displayColor + "15" : "#0a0a0f",
+                        borderRadius: 6,
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <AvatarWithFrame
+                          username={user.username}
+                          avatarUrl={user.avatarUrl}
+                          frameId={frame.id}
+                          size="sm"
+                        />
+                        <div>
+                          <div className="font-mono font-bold" style={{ fontSize: 11, color: displayColor }}>
+                            {frame.name}
+                            {isEquipped && <span style={{ color: "#39d353", marginLeft: 4 }}>✓</span>}
+                          </div>
+                          <div className="font-mono" style={{ fontSize: 10, color: "#64748b", textTransform: "capitalize" }}>
+                            {frame.rarity}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    {frame.earnedBy && (
-                      <p className="font-mono mt-1" style={{ fontSize: 10, color: "#475569" }}>🏆 {frame.earnedBy}</p>
-                    )}
-                    {equippingFrame === frame.id && (
-                      <span className="font-mono text-xs" style={{ color: rc }}>Equipping...</span>
-                    )}
-                  </button>
+                      {frame.earnedBy && (
+                        <p className="font-mono mt-1" style={{ fontSize: 10, color: "#475569" }}>🏆 {frame.earnedBy}</p>
+                      )}
+                      {equippingFrame === frame.id && (
+                        <span className="font-mono text-xs" style={{ color: rc }}>Equipping...</span>
+                      )}
+                    </button>
+                  </FrameCardWrapper>
                 );
               })}
             </div>

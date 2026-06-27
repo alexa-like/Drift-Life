@@ -46,6 +46,7 @@ export interface User {
   isEmailVerified: boolean;
   equippedFrame: string | null;
   equippedFrameRarity: string | null;
+  equippedFrameColor: string | null;
   equippedTitle: string | null;
   titles: string[];
   ownedFrames: string[];
@@ -69,6 +70,9 @@ export interface FeedEvent {
   type: string;
   actor: string;
   actorId?: string;
+  actorFrame?: string | null;
+  actorFrameColor?: string | null;
+  actorAvatarUrl?: string | null;
   target: string | null;
   message: string;
   dc: number;

@@ -1,6 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { FeedEvent, User } from "../lib/types";
 import { api } from "../lib/api";
+import { FrameCardWrapper } from "../components/FrameCardWrapper";
+import { AvatarWithFrame } from "../components/AvatarWithFrame";
+import { getFrame } from "../lib/frames";
 
 const TYPE_COLORS: Record<string, string> = {
   crime: "#ff2d55", fight: "#ff6b35", job: "#39d353",
@@ -66,6 +69,10 @@ export function FeedPage({ user }: Props) {
     } catch { /* ignore */ }
   }
 
+  // composer frame is the current user's equipped frame
+  const myFrame = user?.equippedFrame || null;
+  const myFrameColor = user?.equippedFrameColor || null;
+
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <div className="flex justify-between items-center">
@@ -75,29 +82,31 @@ export function FeedPage({ user }: Props) {
         </button>
       </div>
 
-      {/* Post composer */}
-      <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 16 }}>
-        <textarea
-          value={postContent}
-          onChange={e => setPostContent(e.target.value)}
-          maxLength={280}
-          rows={2}
-          placeholder="What's happening in New Vanta..."
-          className="w-full font-mono text-xs p-2 rounded mb-2"
-          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none", resize: "none" }}
-        />
-        <div className="flex justify-between items-center">
-          <span className="font-mono text-xs" style={{ color: "#64748b" }}>{postContent.length}/280</span>
-          <button
-            onClick={sendPost}
-            disabled={posting || !postContent.trim()}
-            className="font-mono text-xs px-3 py-1 rounded"
-            style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff30" }}
-          >
-            {posting ? "Posting..." : "Post"}
-          </button>
+      {/* Post composer — wrapped in user's own frame */}
+      <FrameCardWrapper frameId={myFrame} colorOverride={myFrameColor}>
+        <div style={{ background: "#111118", borderRadius: 8, padding: 16 }}>
+          <textarea
+            value={postContent}
+            onChange={e => setPostContent(e.target.value)}
+            maxLength={280}
+            rows={2}
+            placeholder="What's happening in New Vanta..."
+            className="w-full font-mono text-xs p-2 rounded mb-2"
+            style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none", resize: "none" }}
+          />
+          <div className="flex justify-between items-center">
+            <span className="font-mono text-xs" style={{ color: "#64748b" }}>{postContent.length}/280</span>
+            <button
+              onClick={sendPost}
+              disabled={posting || !postContent.trim()}
+              className="font-mono text-xs px-3 py-1 rounded"
+              style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff30" }}
+            >
+              {posting ? "Posting..." : "Post"}
+            </button>
+          </div>
         </div>
-      </div>
+      </FrameCardWrapper>
 
       {loading && events.length === 0 ? (
         <div className="text-center py-12 font-mono text-xs" style={{ color: "#1e1e2e" }}>Loading feed...</div>
@@ -112,74 +121,118 @@ export function FeedPage({ user }: Props) {
             const isCommentOpen = commentOpen === ev.id;
             const reactions = ev.reactions || { like: 0, laugh: 0, shock: 0, respect: 0 };
             const comments = ev.comments || [];
-            const totalReactions = Object.values(reactions).reduce((a, b) => a + b, 0);
+            const evFrame = ev.actorFrame || null;
+            const evFrameColor = ev.actorFrameColor || null;
+            const evFrameDef = evFrame ? getFrame(evFrame) : null;
 
             return (
-              <div key={ev.id} style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8 }}>
-                <div className="flex items-start gap-3 px-4 py-3">
-                  <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: tc, boxShadow: `0 0 4px ${tc}` }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{ev.message}</p>
-                    <div className="flex gap-3 mt-0.5 flex-wrap">
-                      {ev.dc > 0 && <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>+{ev.dc.toLocaleString()} DC</span>}
-                      {ev.xp > 0 && <span className="font-mono text-xs" style={{ color: "#a855f7" }}>+{ev.xp} XP</span>}
-                    </div>
-                  </div>
-                  <span className="font-mono text-xs flex-shrink-0" style={{ color: "#334155" }}>
-                    {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                </div>
-
-                {/* Reactions + comments bar */}
-                <div className="flex items-center gap-3 px-4 pb-2 flex-wrap" style={{ borderTop: "1px solid #1e1e2e08" }}>
-                  <div className="flex gap-1">
-                    {REACTIONS.map(r => (
-                      <button
-                        key={r}
-                        onClick={() => react(ev.id, r)}
-                        className="font-mono rounded px-1.5 py-0.5 transition-all"
-                        style={{ fontSize: 12, background: reactions[r] > 0 ? "#1e1e2e" : "transparent", border: "1px solid transparent" }}
-                        title={r}
-                      >
-                        {REACTION_EMOJI[r]}{reactions[r] > 0 && <span style={{ fontSize: 10, color: "#64748b", marginLeft: 2 }}>{reactions[r]}</span>}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setCommentOpen(isCommentOpen ? null : ev.id)}
-                    className="font-mono text-xs"
-                    style={{ color: "#64748b" }}
-                  >
-                    {comments.length > 0 ? `${comments.length} comment${comments.length > 1 ? "s" : ""}` : "Reply"}
-                  </button>
-                </div>
-
-                {/* Comments */}
-                {(isCommentOpen || comments.length > 0) && (
-                  <div style={{ borderTop: "1px solid #1e1e2e", padding: "8px 16px" }}>
-                    {comments.slice(-3).map((c, i) => (
-                      <div key={i} className="font-mono text-xs mb-1">
-                        <span style={{ color: "#00d4ff" }}>{c.username}:</span>{" "}
-                        <span style={{ color: "#94a3b8" }}>{c.content}</span>
-                      </div>
-                    ))}
-                    {isCommentOpen && (
-                      <div className="flex gap-2 mt-2">
-                        <input
-                          value={commentText}
-                          onChange={e => setCommentText(e.target.value)}
-                          onKeyDown={e => e.key === "Enter" && sendComment(ev.id)}
-                          placeholder="Reply..."
-                          maxLength={280}
-                          className="flex-1 px-2 py-1 rounded font-mono text-xs"
-                          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-                        />
-                        <button onClick={() => sendComment(ev.id)} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#1e1e2e", color: "#94a3b8" }}>Send</button>
-                      </div>
+              <FrameCardWrapper
+                key={ev.id}
+                frameId={evFrame}
+                colorOverride={evFrameColor}
+                borderRadius={8}
+              >
+                <div style={{ background: "#111118", borderRadius: 8 }}>
+                  <div className="flex items-start gap-3 px-4 py-3">
+                    {/* Actor avatar with frame */}
+                    {ev.actor && (
+                      <AvatarWithFrame
+                        username={ev.actor}
+                        avatarUrl={ev.actorAvatarUrl}
+                        frameId={evFrame}
+                        size="xs"
+                      />
                     )}
+                    {!ev.actor && (
+                      <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: tc, boxShadow: `0 0 4px ${tc}` }} />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      {ev.actor && (
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <span
+                            className="font-mono text-xs font-bold"
+                            style={{ color: evFrameDef ? (evFrameColor || evFrameDef.glowColor) : "#94a3b8" }}
+                          >
+                            {ev.actor}
+                          </span>
+                          {evFrameDef && (
+                            <span
+                              className="font-mono px-1 rounded"
+                              style={{
+                                fontSize: 9,
+                                background: (evFrameColor || evFrameDef.glowColor) + "20",
+                                color: evFrameColor || evFrameDef.glowColor,
+                                border: `1px solid ${(evFrameColor || evFrameDef.glowColor)}40`,
+                                textTransform: "capitalize",
+                              }}
+                            >
+                              {evFrameDef.name}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <p className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{ev.message}</p>
+                      <div className="flex gap-3 mt-0.5 flex-wrap">
+                        {ev.dc > 0 && <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>+{ev.dc.toLocaleString()} DC</span>}
+                        {ev.xp > 0 && <span className="font-mono text-xs" style={{ color: "#a855f7" }}>+{ev.xp} XP</span>}
+                      </div>
+                    </div>
+                    <span className="font-mono text-xs flex-shrink-0" style={{ color: "#334155" }}>
+                      {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
                   </div>
-                )}
-              </div>
+
+                  {/* Reactions + comments bar */}
+                  <div className="flex items-center gap-3 px-4 pb-2 flex-wrap" style={{ borderTop: "1px solid #1e1e2e08" }}>
+                    <div className="flex gap-1">
+                      {REACTIONS.map(r => (
+                        <button
+                          key={r}
+                          onClick={() => react(ev.id, r)}
+                          className="font-mono rounded px-1.5 py-0.5 transition-all"
+                          style={{ fontSize: 12, background: reactions[r] > 0 ? "#1e1e2e" : "transparent", border: "1px solid transparent" }}
+                          title={r}
+                        >
+                          {REACTION_EMOJI[r]}{reactions[r] > 0 && <span style={{ fontSize: 10, color: "#64748b", marginLeft: 2 }}>{reactions[r]}</span>}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setCommentOpen(isCommentOpen ? null : ev.id)}
+                      className="font-mono text-xs"
+                      style={{ color: "#64748b" }}
+                    >
+                      {comments.length > 0 ? `${comments.length} comment${comments.length > 1 ? "s" : ""}` : "Reply"}
+                    </button>
+                  </div>
+
+                  {/* Comments */}
+                  {(isCommentOpen || comments.length > 0) && (
+                    <div style={{ borderTop: "1px solid #1e1e2e", padding: "8px 16px" }}>
+                      {comments.slice(-3).map((c, i) => (
+                        <div key={i} className="font-mono text-xs mb-1">
+                          <span style={{ color: "#00d4ff" }}>{c.username}:</span>{" "}
+                          <span style={{ color: "#94a3b8" }}>{c.content}</span>
+                        </div>
+                      ))}
+                      {isCommentOpen && (
+                        <div className="flex gap-2 mt-2">
+                          <input
+                            value={commentText}
+                            onChange={e => setCommentText(e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && sendComment(ev.id)}
+                            placeholder="Reply..."
+                            maxLength={280}
+                            className="flex-1 px-2 py-1 rounded font-mono text-xs"
+                            style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                          />
+                          <button onClick={() => sendComment(ev.id)} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#1e1e2e", color: "#94a3b8" }}>Send</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </FrameCardWrapper>
             );
           })}
         </div>

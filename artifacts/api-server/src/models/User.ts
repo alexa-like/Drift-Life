@@ -75,6 +75,7 @@ export interface IUser extends Document {
   equippedVehicle: mongoose.Types.ObjectId | null;
   equippedFrame: string | null;
   equippedFrameRarity: string | null;
+  equippedFrameColor: string | null;
   equippedTitle: string | null;
   titles: string[];
   ownedFrames: string[];
@@ -162,6 +163,7 @@ const UserSchema = new Schema<IUser>(
     equippedVehicle: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedFrame: { type: String, default: "ghostFrame" },
     equippedFrameRarity: { type: String, default: "common" },
+    equippedFrameColor: { type: String, default: null },
     equippedTitle: { type: String, default: "New in Town" },
     titles: [{ type: String }],
     ownedFrames: [{ type: String }],
