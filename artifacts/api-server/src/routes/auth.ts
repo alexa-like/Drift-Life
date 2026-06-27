@@ -110,9 +110,34 @@ router.post("/register", async (req, res) => {
       }
     }
 
-    sendOtpEmail(user.email, otp).catch(() => {});
+    let autoVerified = false;
+    if (process.env["GMAIL_USER"] && process.env["GMAIL_PASS"]) {
+      sendOtpEmail(user.email, otp).catch(() => {});
+    } else {
+      // No email provider — auto-verify so players can always log in
+      user.isEmailVerified = true;
+      user.emailOtp = null;
+      user.emailOtpExpiry = null;
+      user.dc = (user.dc || 0) + 750;
+      await user.save();
+      autoVerified = true;
+    }
+
+    if (autoVerified) {
+      const payload = { userId: String(user._id), username: user.username, role: user.role };
+      return res.status(201).json({
+        message: "Account created. You can now log in.",
+        accessToken: signAccess(payload),
+        refreshToken: signRefresh(payload),
+        user: safeUser(user),
+        autoVerified: true,
+      });
+    }
     res.status(201).json({ message: "Account created. Check your email for the verification code.", userId: user._id });
   } catch (err: any) {
+    if ((err as any).code === 11000) {
+      return res.status(409).json({ message: "Email or username already registered. Try logging in instead." });
+    }
     req.log.error({ err }, "register error");
     res.status(500).json({ message: "Internal server error" });
   }
@@ -270,6 +295,65 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
     res.json(safeUser(user));
   } catch (err: any) {
     req.log.error({ err }, "me error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/auth/admin-setup — grants owner access; uses SETUP_KEY env or hardcoded dev key
+// No auth required — used for initial owner bootstrap
+router.post("/admin-setup", async (req, res) => {
+  try {
+    const { setupKey, email, username, password } = req.body;
+    const validKey = process.env["SETUP_KEY"] || "DRIFTLIFE_SETUP_2047";
+    if (setupKey !== validKey) return res.status(403).json({ message: "Invalid setup key" });
+    if (!email && !username) return res.status(400).json({ message: "email or username required" });
+
+    const emailLower = email?.toLowerCase().trim();
+    let user = emailLower
+      ? await User.findOne({ email: emailLower })
+      : await User.findOne({ username: new RegExp(`^${username}$`, "i") });
+
+    if (!user) {
+      // Create the owner account
+      if (!email || !username || !password) return res.status(400).json({ message: "email, username, and password required to create account" });
+      if (password.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+      const passwordHash = await bcrypt.hash(password, 12);
+      const tag = generateTag(username);
+      const refCode = generateReferralCode();
+      user = await User.create({
+        username,
+        email: emailLower,
+        tag,
+        passwordHash,
+        isEmailVerified: true,
+        role: "owner",
+        devMode: true,
+        dc: 1000000,
+        nc: 10000,
+        referralCode: refCode,
+      });
+    } else {
+      user.isEmailVerified = true;
+      user.role = "owner";
+      (user as any).devMode = true;
+      if (password && password.length >= 6) {
+        user.passwordHash = await bcrypt.hash(password, 12);
+      }
+      await user.save();
+    }
+
+    const payload = { userId: String(user._id), username: user.username, role: user.role };
+    res.json({
+      message: `Owner access granted to ${user.username}`,
+      accessToken: signAccess(payload),
+      refreshToken: signRefresh(payload),
+      user: safeUser(user),
+    });
+  } catch (err: any) {
+    if ((err as any).code === 11000) {
+      return res.status(409).json({ message: "Email or username already taken" });
+    }
+    req.log.error({ err }, "admin-setup error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

@@ -40,7 +40,11 @@ export function AuthPage({ onLogin }: Props) {
         }
         onLogin(data.accessToken, data.refreshToken, data.user);
       } else if (mode === "register") {
-        await api.post("/auth/register", { email, username, password });
+        const data = await api.post<any>("/auth/register", { email, username, password });
+        if (data.autoVerified) {
+          onLogin(data.accessToken, data.refreshToken, data.user);
+          return;
+        }
         setPendingEmail(email);
         setMode("verify");
       } else {

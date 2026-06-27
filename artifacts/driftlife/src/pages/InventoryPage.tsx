@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { User, Item } from "../lib/types";
 import { api } from "../lib/api";
+import { ItemImage } from "../components/ItemImage";
 
 interface Props {
   user: User;
@@ -53,13 +54,6 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
     }
   }
 
-  const TYPE_ICONS: Record<string, string> = {
-    weapon: "W",
-    armor: "A",
-    consumable: "C",
-    misc: "M",
-  };
-
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
       <div className="flex justify-between items-center">
@@ -67,6 +61,7 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
         <div className="flex gap-3 text-xs font-mono">
           <span style={{ color: "#ff6b35" }}>STR: {user.strength}</span>
           <span style={{ color: "#a855f7" }}>CHA: {user.charisma}</span>
+          <span style={{ color: "#00d4ff" }}>INT: {user.intelligence}</span>
         </div>
       </div>
 
@@ -76,66 +71,79 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
         </div>
       ) : (
         <div className="grid gap-3">
-          {items.map(item => (
-            <div
-              key={item.id}
-              className="rounded-lg p-4 flex items-center gap-4"
-              style={{
-                background: "#111118",
-                border: `1px solid ${item.equipped ? RARITY_COLORS[item.rarity] + "40" : "#1e1e2e"}`,
-              }}
-            >
+          {items.map(item => {
+            const rarityColor = RARITY_COLORS[item.rarity] ?? "#94a3b8";
+            return (
               <div
-                className="w-8 h-8 rounded flex items-center justify-center text-xs font-mono font-bold flex-shrink-0"
+                key={item.id}
+                className="rounded-lg p-4 flex items-center gap-3"
                 style={{
-                  background: item.equipped ? RARITY_COLORS[item.rarity] + "20" : "#0a0a0f",
-                  color: RARITY_COLORS[item.rarity],
-                  border: `1px solid ${RARITY_COLORS[item.rarity]}30`,
+                  background: "#111118",
+                  border: `1px solid ${item.equipped ? rarityColor + "60" : rarityColor + "20"}`,
                 }}
               >
-                {TYPE_ICONS[item.type]}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{item.name}</span>
-                  <span className="text-xs font-mono" style={{ color: RARITY_COLORS[item.rarity] }}>
-                    [{item.rarity}]
-                  </span>
-                  {item.equipped && (
-                    <span className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: "#39d35320", color: "#39d353" }}>
-                      equipped
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs font-mono" style={{ color: "#475569" }}>{item.description}</p>
-                <div className="flex gap-3 mt-1 text-xs font-mono flex-wrap">
-                  {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR +{item.strengthBonus}</span>}
-                  {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA +{item.charismaBonus}</span>}
-                  {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT +{item.intelligenceBonus}</span>}
-                  {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF +{item.defenseBonus}</span>}
-                  {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP +{item.streetCredBonus}</span>}
-                  {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
-                  {(item.type === "consumable" || item.type === "material") && item.quantity > 1 && (
-                    <span style={{ color: "#64748b" }}>x{item.quantity}</span>
-                  )}
-                </div>
-              </div>
-              {item.slot && !item.marketListed && (
-                <button
-                  onClick={() => item.equipped ? unequip(item.id) : equip(item.id)}
-                  disabled={acting === item.id}
-                  className="px-3 py-1.5 rounded text-xs font-mono font-bold flex-shrink-0"
+                <div
+                  className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden relative"
                   style={{
-                    background: item.equipped ? "#ff2d5518" : "#39d35318",
-                    color: item.equipped ? "#ff2d55" : "#39d353",
-                    border: `1px solid ${item.equipped ? "#ff2d5540" : "#39d35340"}`,
+                    width: 60, height: 60,
+                    background: `${rarityColor}08`,
+                    border: `1px solid ${item.equipped ? rarityColor + "60" : rarityColor + "25"}`,
                   }}
                 >
-                  {acting === item.id ? "..." : item.equipped ? "Unequip" : "Equip"}
-                </button>
-              )}
-            </div>
-          ))}
+                  <ItemImage itemId={item.name.toLowerCase().replace(/ /g, "-")} size={48} />
+                  {item.equipped && (
+                    <div
+                      className="absolute bottom-0 left-0 right-0 text-center font-mono"
+                      style={{ fontSize: 8, background: `${rarityColor}90`, color: "#fff", paddingBottom: 1 }}
+                    >
+                      EQ
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{item.name}</span>
+                    <span className="text-xs font-mono px-1 rounded" style={{ color: rarityColor, background: `${rarityColor}15` }}>
+                      {item.rarity}
+                    </span>
+                    {item.equipped && (
+                      <span className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: "#39d35320", color: "#39d353" }}>
+                        equipped
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-mono mb-1" style={{ color: "#475569" }}>{item.description}</p>
+                  <div className="flex gap-3 text-xs font-mono flex-wrap">
+                    {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR +{item.strengthBonus}</span>}
+                    {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA +{item.charismaBonus}</span>}
+                    {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT +{item.intelligenceBonus}</span>}
+                    {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF +{item.defenseBonus}</span>}
+                    {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP +{item.streetCredBonus}</span>}
+                    {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
+                    {(item.type === "consumable" || item.type === "material") && item.quantity > 1 && (
+                      <span style={{ color: "#64748b" }}>×{item.quantity}</span>
+                    )}
+                  </div>
+                </div>
+
+                {item.slot && !item.marketListed && (
+                  <button
+                    onClick={() => item.equipped ? unequip(item.id) : equip(item.id)}
+                    disabled={acting === item.id}
+                    className="px-3 py-1.5 rounded text-xs font-mono font-bold flex-shrink-0"
+                    style={{
+                      background: item.equipped ? "#ff2d5518" : "#39d35318",
+                      color: item.equipped ? "#ff2d55" : "#39d353",
+                      border: `1px solid ${item.equipped ? "#ff2d5540" : "#39d35340"}`,
+                    }}
+                  >
+                    {acting === item.id ? "..." : item.equipped ? "Unequip" : "Equip"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

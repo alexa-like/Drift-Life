@@ -1,18 +1,22 @@
 import { useState, useEffect } from "react";
-import { User, Item } from "../lib/types";
+import { User } from "../lib/types";
 import { api } from "../lib/api";
+import { ItemImage } from "../components/ItemImage";
 
 interface ShopItem {
   id: string;
   name: string;
   type: string;
   rarity: string;
-  damage: number;
-  defense: number;
   slot: string | null;
-  price: number;
+  strengthBonus: number;
+  charismaBonus: number;
+  intelligenceBonus: number;
+  streetCredBonus: number;
+  defenseBonus: number;
+  basePrice: number;
   description: string;
-  effect?: string;
+  effect?: string | null;
 }
 
 interface Listing {
@@ -20,8 +24,8 @@ interface Listing {
   name: string;
   type: string;
   rarity: string;
-  damage: number;
-  defense: number;
+  strengthBonus: number;
+  defenseBonus: number;
   description: string;
   price: number;
   seller: string;
@@ -82,26 +86,87 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
     }
   }
 
-  function ItemCard({ name, type, rarity, damage, defense, description, price, onBuy, busy, canAfford }: any) {
+  function ShopItemCard({ item, onBuy, busy, canAfford }: { item: ShopItem; onBuy: () => void; busy: boolean; canAfford: boolean }) {
+    const rarityColor = RARITY_COLORS[item.rarity] ?? "#94a3b8";
     return (
-      <div className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{name}</span>
-              <span className="text-xs font-mono" style={{ color: RARITY_COLORS[rarity] ?? "#94a3b8" }}>
-                [{rarity}]
-              </span>
-            </div>
-            <p className="text-xs font-mono mt-0.5" style={{ color: "#475569" }}>{description}</p>
+      <div
+        className="rounded-lg p-4 flex gap-3"
+        style={{
+          background: "#111118",
+          border: `1px solid ${rarityColor}20`,
+          transition: "border-color 0.2s",
+        }}
+      >
+        <div
+          className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
+          style={{
+            width: 64, height: 64,
+            background: `${rarityColor}08`,
+            border: `1px solid ${rarityColor}30`,
+          }}
+        >
+          <ItemImage itemId={item.id} size={52} />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{item.name}</span>
+            <span className="text-xs font-mono px-1 rounded" style={{ color: rarityColor, background: `${rarityColor}15` }}>
+              {item.rarity}
+            </span>
+          </div>
+          <p className="text-xs font-mono mb-2" style={{ color: "#475569" }}>{item.description}</p>
+          <div className="flex gap-3 text-xs font-mono flex-wrap">
+            {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR +{item.strengthBonus}</span>}
+            {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA +{item.charismaBonus}</span>}
+            {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT +{item.intelligenceBonus}</span>}
+            {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF +{item.defenseBonus}</span>}
+            {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP +{item.streetCredBonus}</span>}
+            {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
           </div>
         </div>
-        <div className="flex items-center justify-between mt-3">
-          <div className="flex gap-3 text-xs font-mono">
-            {damage > 0 && <span style={{ color: "#ff6b35" }}>ATK +{damage}</span>}
-            {defense > 0 && <span style={{ color: "#00d4ff" }}>DEF +{defense}</span>}
-            <span style={{ color: "#f59e0b" }}>{price.toLocaleString()} DC</span>
+
+        <div className="flex flex-col items-end justify-between flex-shrink-0">
+          <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>
+            {item.basePrice.toLocaleString()} DC
+          </span>
+          <button
+            onClick={onBuy}
+            disabled={busy || !canAfford}
+            className="px-3 py-1.5 rounded text-xs font-mono font-bold"
+            style={{
+              background: canAfford ? "#f59e0b18" : "#1e1e2e",
+              color: canAfford ? "#f59e0b" : "#475569",
+              border: `1px solid ${canAfford ? "#f59e0b40" : "#1e1e2e"}`,
+            }}
+          >
+            {busy ? "..." : canAfford ? "Buy" : "No funds"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function ListingCard({ listing, onBuy, busy, canAfford }: { listing: Listing; onBuy: () => void; busy: boolean; canAfford: boolean }) {
+    const rarityColor = RARITY_COLORS[listing.rarity] ?? "#94a3b8";
+    return (
+      <div className="rounded-lg p-4 flex gap-3" style={{ background: "#111118", border: `1px solid ${rarityColor}20` }}>
+        <div
+          className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
+          style={{ width: 64, height: 64, background: `${rarityColor}08`, border: `1px solid ${rarityColor}30` }}
+        >
+          <ItemImage itemId={listing.name.toLowerCase().replace(/ /g, "-")} size={52} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{listing.name}</span>
+            <span className="text-xs font-mono" style={{ color: rarityColor }}>[{listing.rarity}]</span>
           </div>
+          <p className="text-xs font-mono mb-1" style={{ color: "#475569" }}>{listing.description}</p>
+          <span className="text-xs font-mono" style={{ color: "#64748b" }}>Seller: {listing.seller}</span>
+        </div>
+        <div className="flex flex-col items-end justify-between flex-shrink-0">
+          <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>{listing.price.toLocaleString()} DC</span>
           <button
             onClick={onBuy}
             disabled={busy || !canAfford}
@@ -146,10 +211,10 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
       {tab === "shop" && (
         <div className="grid gap-3">
           {shopItems.map(item => (
-            <ItemCard
+            <ShopItemCard
               key={item.id}
-              {...item}
-              canAfford={user.dc >= item.price}
+              item={item}
+              canAfford={user.dc >= item.basePrice}
               busy={buying === item.id}
               onBuy={() => buyShopItem(item.id)}
             />
@@ -165,9 +230,9 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
             </div>
           ) : (
             listings.map(listing => (
-              <ItemCard
+              <ListingCard
                 key={listing.id}
-                {...listing}
+                listing={listing}
                 canAfford={user.dc >= listing.price}
                 busy={buying === listing.id}
                 onBuy={() => buyListing(listing.id)}
