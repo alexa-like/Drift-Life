@@ -1,6 +1,7 @@
 import { useEffect, useRef, ReactNode, CSSProperties } from "react";
 import { getFrame, FrameRarity } from "../lib/frames";
 import { FRAME_VARIANT } from "./PlayerFrame";
+import { registerAnim, unregisterAnim } from "../lib/animTicker";
 
 interface Props {
   frameId?: string | null;
@@ -494,7 +495,6 @@ export function FrameCardWrapper({
   const rarity = frame.rarity as FrameRarity;
   const variant = FRAME_VARIANT[frame.id] ?? 0;
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef = useRef<number>(0);
   const tRef = useRef(0);
 
   useEffect(() => {
@@ -506,30 +506,22 @@ export function FrameCardWrapper({
 
     const isStatic = rarity === "common";
 
-    function draw() {
+    const doRender = () => {
       if (!canvas || !ctx) return;
       drawFrame(canvas, ctx, tRef.current, rarity, color, borderRadius, variant);
-      tRef.current++;
-      if (!isStatic) {
-        animRef.current = requestAnimationFrame(draw);
-      }
-    }
-
-    animRef.current = requestAnimationFrame(draw);
-
-    let ro: ResizeObserver | null = null;
-    if (isStatic && canvas.parentElement) {
-      ro = new ResizeObserver(() => {
-        if (!canvas || !ctx) return;
-        drawFrame(canvas, ctx, 0, rarity, color, borderRadius, variant);
-      });
-      ro.observe(canvas.parentElement);
-    }
-
-    return () => {
-      cancelAnimationFrame(animRef.current);
-      ro?.disconnect();
     };
+
+    doRender();
+
+    if (isStatic) {
+      if (!canvas.parentElement) return;
+      const ro = new ResizeObserver(doRender);
+      ro.observe(canvas.parentElement);
+      return () => ro.disconnect();
+    }
+
+    const tickId = registerAnim(() => { tRef.current++; doRender(); });
+    return () => unregisterAnim(tickId);
   }, [frameId, rarity, color, borderRadius, variant]);
 
   const glow = frameId && rarity !== "common"

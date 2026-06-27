@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { getFrame, FrameRarity } from "../lib/frames";
+import { registerAnim, unregisterAnim } from "../lib/animTicker";
 
 export type FrameSize = "xs" | "sm" | "md" | "lg" | "xl";
 
@@ -432,12 +433,10 @@ export function PlayerFrame({ frameId, size = "md", children, style, className }
     const drawFn = drawMap[rarity] ?? drawCommon;
     const isStatic = rarity === "common";
 
-    function draw() {
-      drawFn();
-      if (!isStatic) animId = requestAnimationFrame(draw);
-    }
-    draw();
-    return () => { if (animId) cancelAnimationFrame(animId); };
+    drawFn();
+    if (isStatic) return;
+    const tickId = registerAnim(() => { t++; drawFn(); });
+    return () => unregisterAnim(tickId);
   }, [frame.id, rarity, idx, border, color]);
 
   return (
