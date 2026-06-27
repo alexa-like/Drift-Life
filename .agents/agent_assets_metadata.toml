@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "KoK75jT-xbBhHIwvZRq6X"
+uri = "file://render.yaml"
+type = "unspecified"
+title = "render.yaml — Render Deployment Config"
