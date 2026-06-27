@@ -35,7 +35,7 @@ app.use("/api", router);
 if (process.env["NODE_ENV"] === "production") {
   const clientBuild = path.resolve(process.cwd(), "artifacts/driftlife/dist/public");
   app.use(express.static(clientBuild));
-  app.get("*", (_req, res) => {
+  app.get("/{*splat}", (_req, res) => {
     res.sendFile(path.join(clientBuild, "index.html"));
   });
 }
