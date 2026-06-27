@@ -17,6 +17,7 @@ interface ShopItem {
   basePrice: number;
   description: string;
   effect?: string | null;
+  imageUrl?: string | null;
 }
 
 interface Listing {
@@ -105,7 +106,7 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
             border: `1px solid ${rarityColor}30`,
           }}
         >
-          <ItemImage itemId={item.id} size={52} />
+          <ItemImage itemId={item.id} imageUrl={item.imageUrl} size={52} />
         </div>
 
         <div className="flex-1 min-w-0">

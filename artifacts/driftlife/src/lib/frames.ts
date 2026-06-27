@@ -5,110 +5,83 @@ export interface FrameDef {
   name: string;
   rarity: FrameRarity;
   glowColor: string;
-  ncCost: number; // 0 = free
-  earnedBy?: string; // description if achievement-only
+  ncCost: number; // 0 = free / dc-priced
+  earnedBy?: string;
 }
 
+// IDs match the backend FRAME_CATALOG frameId values exactly
 export const FRAME_CATALOG: FrameDef[] = [
-  // COMMON — Static Border, Free
-  { id: "neonPulse",     name: "Neon Pulse",    rarity: "common",    glowColor: "#6B7280", ncCost: 0 },
-  { id: "ironBorder",    name: "Iron Border",   rarity: "common",    glowColor: "#78716C", ncCost: 0 },
-  { id: "copperRing",    name: "Copper Ring",   rarity: "common",    glowColor: "#B45309", ncCost: 0 },
-  { id: "stonewall",     name: "Stonewall",     rarity: "common",    glowColor: "#57534E", ncCost: 0 },
-  { id: "asphalt",       name: "Asphalt",       rarity: "common",    glowColor: "#44403C", ncCost: 0 },
-  { id: "coldSteel",     name: "Cold Steel",    rarity: "common",    glowColor: "#475569", ncCost: 0 },
-  { id: "graphene",      name: "Graphene",      rarity: "common",    glowColor: "#1E293B", ncCost: 0 },
-  { id: "sandDune",      name: "Sand Dune",     rarity: "common",    glowColor: "#92400E", ncCost: 0 },
-  { id: "rustBelt",      name: "Rust Belt",     rarity: "common",    glowColor: "#9A3412", ncCost: 0 },
-  { id: "voidRim",       name: "Void Rim",      rarity: "common",    glowColor: "#0F172A", ncCost: 0 },
-  { id: "ghostFrame",    name: "Ghost Frame",   rarity: "common",    glowColor: "#E2E8F0", ncCost: 0 },
-  { id: "concrete",      name: "Concrete",      rarity: "common",    glowColor: "#94A3B8", ncCost: 0 },
-  { id: "basicBlue",     name: "Basic Blue",    rarity: "common",    glowColor: "#2563EB", ncCost: 0 },
-  // COMMON — Paid
-  { id: "silverEdge",    name: "Silver Edge",   rarity: "common",    glowColor: "#9CA3AF", ncCost: 50 },
-  { id: "plainGold",     name: "Plain Gold",    rarity: "common",    glowColor: "#CA8A04", ncCost: 50 },
-  // UNCOMMON — Slow Shimmer, Free
-  { id: "gradientShift", name: "Gradient Shift",rarity: "uncommon",  glowColor: "#10B981", ncCost: 0 },
-  { id: "oceanBreeze",   name: "Ocean Breeze",  rarity: "uncommon",  glowColor: "#0EA5E9", ncCost: 0 },
-  { id: "midnightWave",  name: "Midnight Wave", rarity: "uncommon",  glowColor: "#1D4ED8", ncCost: 0 },
-  { id: "forestEdge",    name: "Forest Edge",   rarity: "uncommon",  glowColor: "#166534", ncCost: 0 },
-  { id: "iceBlue",       name: "Ice Blue",      rarity: "uncommon",  glowColor: "#BAE6FD", ncCost: 0 },
-  { id: "springMint",    name: "Spring Mint",   rarity: "uncommon",  glowColor: "#34D399", ncCost: 0 },
-  { id: "vintageCopper", name: "Vintage Copper",rarity: "uncommon",  glowColor: "#C2410C", ncCost: 0 },
-  // UNCOMMON — Paid
-  { id: "mossGlow",      name: "Moss Glow",     rarity: "uncommon",  glowColor: "#16A34A", ncCost: 75 },
-  { id: "roseGold",      name: "Rose Gold",     rarity: "uncommon",  glowColor: "#FB7185", ncCost: 75 },
-  { id: "amberGlow",     name: "Amber Glow",    rarity: "uncommon",  glowColor: "#D97706", ncCost: 75 },
-  { id: "lavenderMist",  name: "Lavender Mist", rarity: "uncommon",  glowColor: "#A78BFA", ncCost: 75 },
-  { id: "citrusBurst",   name: "Citrus Burst",  rarity: "uncommon",  glowColor: "#F97316", ncCost: 75 },
-  { id: "crimsonEdge",   name: "Crimson Edge",  rarity: "uncommon",  glowColor: "#DC2626", ncCost: 75 },
-  { id: "desertSun",     name: "Desert Sun",    rarity: "uncommon",  glowColor: "#FCD34D", ncCost: 75 },
-  { id: "duskPurple",    name: "Dusk Purple",   rarity: "uncommon",  glowColor: "#7C3AED", ncCost: 75 },
-  // RARE — Pulse Glow, Free
-  { id: "rippleRing",    name: "Ripple Ring",   rarity: "rare",      glowColor: "#38BDF8", ncCost: 0 },
-  { id: "glitchShake",   name: "Glitch Shake",  rarity: "rare",      glowColor: "#22D3EE", ncCost: 0 },
-  { id: "frostbite",     name: "Frostbite",     rarity: "rare",      glowColor: "#7DD3FC", ncCost: 0 },
-  { id: "bloodMoon",     name: "Blood Moon",    rarity: "rare",      glowColor: "#B91C1C", ncCost: 0 },
-  { id: "shadowPulse",   name: "Shadow Pulse",  rarity: "rare",      glowColor: "#6D28D9", ncCost: 0 },
-  { id: "cosmicDust",    name: "Cosmic Dust",   rarity: "rare",      glowColor: "#818CF8", ncCost: 0 },
-  { id: "stormCloud",    name: "Storm Cloud",   rarity: "rare",      glowColor: "#64748B", ncCost: 0 },
-  // RARE — Paid
-  { id: "cyberGlow",     name: "Cyber Glow",    rarity: "rare",      glowColor: "#00E5FF", ncCost: 150 },
-  { id: "plasmaRing",    name: "Plasma Ring",   rarity: "rare",      glowColor: "#E879F9", ncCost: 150 },
-  { id: "solarFlare",    name: "Solar Flare",   rarity: "rare",      glowColor: "#FB923C", ncCost: 150 },
-  { id: "acidGreen",     name: "Acid Green",    rarity: "rare",      glowColor: "#4ADE80", ncCost: 150 },
-  { id: "ultraviolet",   name: "Ultraviolet",   rarity: "rare",      glowColor: "#818CF8", ncCost: 150 },
-  { id: "crystalline",   name: "Crystalline",   rarity: "rare",      glowColor: "#93C5FD", ncCost: 150 },
-  { id: "venomDrip",     name: "Venom Drip",    rarity: "rare",      glowColor: "#65A30D", ncCost: 150 },
-  { id: "vortexEdge",    name: "Vortex Edge",   rarity: "rare",      glowColor: "#9333EA", ncCost: 150 },
-  // EPIC — Rotating Gradient, Free
-  { id: "scanLine",      name: "Scan Line",     rarity: "epic",      glowColor: "#8B5CF6", ncCost: 0 },
-  { id: "particleTrail", name: "Particle Trail",rarity: "epic",      glowColor: "#6366F1", ncCost: 0 },
-  { id: "auroraGlow",    name: "Aurora Glow",   rarity: "epic",      glowColor: "#34D399", ncCost: 0 },
-  { id: "nebularing",    name: "Nebula Ring",   rarity: "epic",      glowColor: "#C084FC", ncCost: 0 },
-  { id: "voidGate",      name: "Void Gate",     rarity: "epic",      glowColor: "#4C1D95", ncCost: 0 },
-  { id: "darkMatter",    name: "Dark Matter",   rarity: "epic",      glowColor: "#1E1B4B", ncCost: 0 },
-  { id: "glitchMatrix",  name: "Glitch Matrix", rarity: "epic",      glowColor: "#00FF41", ncCost: 0 },
-  { id: "stormBreaker",  name: "Storm Breaker", rarity: "epic",      glowColor: "#94A3B8", ncCost: 0 },
-  { id: "celestialArc",  name: "Celestial Arc", rarity: "epic",      glowColor: "#BAE6FD", ncCost: 0 },
-  { id: "abyssalRing",   name: "Abyssal Ring",  rarity: "epic",      glowColor: "#312E81", ncCost: 0 },
-  // EPIC — Paid
-  { id: "hologramFlicker",name:"Hologram Flicker",rarity:"epic",     glowColor: "#A78BFA", ncCost: 500 },
-  { id: "cosmicRing",    name: "Cosmic Ring",   rarity: "epic",      glowColor: "#6366F1", ncCost: 500 },
-  { id: "novaBlast",     name: "Nova Blast",    rarity: "epic",      glowColor: "#FDE68A", ncCost: 500 },
-  { id: "bioHazard",     name: "Bio Hazard",    rarity: "epic",      glowColor: "#84CC16", ncCost: 500 },
-  { id: "fireRing",      name: "Fire Ring",     rarity: "epic",      glowColor: "#EF4444", ncCost: 500 },
-  { id: "quantumField",  name: "Quantum Field", rarity: "epic",      glowColor: "#0EA5E9", ncCost: 500 },
-  { id: "solarWind",     name: "Solar Wind",    rarity: "epic",      glowColor: "#FCD34D", ncCost: 500 },
-  { id: "neonNights",    name: "Neon Nights",   rarity: "epic",      glowColor: "#F472B6", ncCost: 500 },
-  { id: "dragonScale",   name: "Dragon Scale",  rarity: "epic",      glowColor: "#DC2626", ncCost: 500 },
-  { id: "frostedGlass",  name: "Frosted Glass", rarity: "epic",      glowColor: "#E0F2FE", ncCost: 500 },
-  // LEGENDARY — Electric Flicker, Free (earned through gameplay)
-  { id: "electricArc",   name: "Electric Arc",  rarity: "legendary", glowColor: "#F59E0B", ncCost: 0, earnedBy: "Reach Prestige Rank 1" },
-  { id: "dataStream",    name: "Data Stream",   rarity: "legendary", glowColor: "#06B6D4", ncCost: 0, earnedBy: "Complete 500 Data crimes" },
-  { id: "factionCrest",  name: "Faction Crest", rarity: "legendary", glowColor: "#F59E0B", ncCost: 0, earnedBy: "Control 5 districts" },
-  { id: "thunderStrike", name: "Thunder Strike",rarity: "legendary", glowColor: "#FDE68A", ncCost: 0, earnedBy: "Win 1000 PvP fights" },
-  { id: "volcanicAsh",   name: "Volcanic Ash",  rarity: "legendary", glowColor: "#78350F", ncCost: 0, earnedBy: "Heist veteran" },
-  { id: "darkLord",      name: "Dark Lord",     rarity: "legendary", glowColor: "#7C3AED", ncCost: 0, earnedBy: "Reach Level 100" },
-  { id: "meteorShower",  name: "Meteor Shower", rarity: "legendary", glowColor: "#F97316", ncCost: 0, earnedBy: "Earn 10M DC in a week" },
-  { id: "nightKing",     name: "Night King",    rarity: "legendary", glowColor: "#93C5FD", ncCost: 0, earnedBy: "Rule The Outskirts" },
-  { id: "streetLegend",  name: "Street Legend", rarity: "legendary", glowColor: "#EF4444", ncCost: 0, earnedBy: "Max Street Cred" },
-  { id: "gridMaster",    name: "Grid Master",   rarity: "legendary", glowColor: "#00E5FF", ncCost: 0, earnedBy: "Max Intelligence" },
-  { id: "voidWalker",    name: "Void Walker",   rarity: "legendary", glowColor: "#4C1D95", ncCost: 0, earnedBy: "Complete The Outskirts all bosses" },
-  // LEGENDARY — Paid
-  { id: "cyberSpark",    name: "Cyber Spark",   rarity: "legendary", glowColor: "#22D3EE", ncCost: 1000 },
-  { id: "godRay",        name: "God Ray",       rarity: "legendary", glowColor: "#FBBF24", ncCost: 1000 },
-  { id: "plasmaBolt",    name: "Plasma Bolt",   rarity: "legendary", glowColor: "#D946EF", ncCost: 1000 },
-  { id: "ironClad",      name: "Iron Clad",     rarity: "legendary", glowColor: "#CBD5E1", ncCost: 1000 },
-  // MYTHIC — Achievement/Event only
-  { id: "matrixRain",    name: "Matrix Rain",   rarity: "mythic",    glowColor: "#00FF41", ncCost: 0, earnedBy: "Achievement: Hack the City" },
-  { id: "spectral",      name: "Spectral",      rarity: "mythic",    glowColor: "#F0F9FF", ncCost: 0, earnedBy: "Achievement: Ghost Protocol" },
-  { id: "voidCore",      name: "Void Core",     rarity: "mythic",    glowColor: "#7C3AED", ncCost: 0, earnedBy: "Achievement: Into the Void" },
-  { id: "hackerElite",   name: "Hacker Elite",  rarity: "mythic",    glowColor: "#00FF41", ncCost: 0, earnedBy: "Achievement: Breach God" },
-  { id: "shadowLord",    name: "Shadow Lord",   rarity: "mythic",    glowColor: "#1E1B4B", ncCost: 0, earnedBy: "Achievement: Shadow Sovereign" },
-  { id: "cosmicHorror",  name: "Cosmic Horror", rarity: "mythic",    glowColor: "#6B21A8", ncCost: 0, earnedBy: "Achievement: The Void Stares Back" },
-  { id: "theAbyss",      name: "The Abyss",     rarity: "mythic",    glowColor: "#0C0A09", ncCost: 0, earnedBy: "Achievement: Rock Bottom" },
-  { id: "deathCode",     name: "Death Code",    rarity: "mythic",    glowColor: "#EF4444", ncCost: 0, earnedBy: "Achievement: System Crash" },
+  // ── COMMON — static border ────────────────────────────────────────────────
+  { id: "ghostFrame",     name: "Ghost",           rarity: "common",    glowColor: "#64748b", ncCost: 0 },
+  { id: "basicWhite",     name: "Basic White",     rarity: "common",    glowColor: "#e2e8f0", ncCost: 0 },
+  { id: "basicGray",      name: "Basic Gray",      rarity: "common",    glowColor: "#94a3b8", ncCost: 0 },
+  { id: "neonBlue",       name: "Neon Blue",       rarity: "common",    glowColor: "#3b82f6", ncCost: 0 },
+  { id: "neonGreen",      name: "Neon Green",      rarity: "common",    glowColor: "#22c55e", ncCost: 0 },
+  { id: "neonRed",        name: "Neon Red",        rarity: "common",    glowColor: "#ef4444", ncCost: 0 },
+  { id: "corpGray",       name: "Corp Gray",       rarity: "common",    glowColor: "#6b7280", ncCost: 0 },
+  { id: "streetOrange",   name: "Street Orange",   rarity: "common",    glowColor: "#ff6b35", ncCost: 0 },
+  { id: "cyanPulse",      name: "Cyan Basic",      rarity: "common",    glowColor: "#00d4ff", ncCost: 0 },
+  { id: "goldBasic",      name: "Gold Basic",      rarity: "common",    glowColor: "#f59e0b", ncCost: 0 },
+
+  // ── UNCOMMON — shimmer sweep ──────────────────────────────────────────────
+  { id: "shimmerCyan",    name: "Shimmer Cyan",    rarity: "uncommon",  glowColor: "#00d4ff", ncCost: 0 },
+  { id: "shimmerPurple",  name: "Shimmer Purple",  rarity: "uncommon",  glowColor: "#a855f7", ncCost: 0 },
+  { id: "shimmerGold",    name: "Shimmer Gold",    rarity: "uncommon",  glowColor: "#f59e0b", ncCost: 0 },
+  { id: "shimmerRed",     name: "Shimmer Red",     rarity: "uncommon",  glowColor: "#ff2d55", ncCost: 0 },
+  { id: "shimmerGreen",   name: "Shimmer Green",   rarity: "uncommon",  glowColor: "#39d353", ncCost: 0 },
+  { id: "shimmerOrange",  name: "Shimmer Orange",  rarity: "uncommon",  glowColor: "#ff6b35", ncCost: 0 },
+  { id: "techShimmer",    name: "Tech Shimmer",    rarity: "uncommon",  glowColor: "#60a5fa", ncCost: 0 },
+  { id: "suitShimmer",    name: "Suit Shimmer",    rarity: "uncommon",  glowColor: "#e2e8f0", ncCost: 0 },
+  { id: "crimsonShimmer", name: "Crimson Shimmer", rarity: "uncommon",  glowColor: "#dc2626", ncCost: 0 },
+  { id: "iceShimmer",     name: "Ice Shimmer",     rarity: "uncommon",  glowColor: "#e0f2fe", ncCost: 0 },
+
+  // ── RARE — pulse glow ────────────────────────────────────────────────────
+  { id: "pulseCyan",      name: "Pulse Cyan",      rarity: "rare",      glowColor: "#00d4ff", ncCost: 0 },
+  { id: "pulsePurple",    name: "Pulse Purple",    rarity: "rare",      glowColor: "#a855f7", ncCost: 0 },
+  { id: "pulseGold",      name: "Pulse Gold",      rarity: "rare",      glowColor: "#f59e0b", ncCost: 0 },
+  { id: "pulseRed",       name: "Pulse Red",       rarity: "rare",      glowColor: "#ff2d55", ncCost: 0 },
+  { id: "pulseGreen",     name: "Pulse Green",     rarity: "rare",      glowColor: "#39d353", ncCost: 0 },
+  { id: "hackerPulse",    name: "Hacker Pulse",    rarity: "rare",      glowColor: "#4ade80", ncCost: 0 },
+  { id: "corePulse",      name: "Core Pulse",      rarity: "rare",      glowColor: "#818cf8", ncCost: 0 },
+  { id: "vaultPulse",     name: "Vault Pulse",     rarity: "rare",      glowColor: "#fbbf24", ncCost: 0 },
+  { id: "streetPulse",    name: "Street Pulse",    rarity: "rare",      glowColor: "#fb923c", ncCost: 0 },
+  { id: "spectralPulse",  name: "Spectral Pulse",  rarity: "rare",      glowColor: "#e879f9", ncCost: 0 },
+
+  // ── EPIC — rotating conic gradient ───────────────────────────────────────
+  { id: "epicCyan",       name: "Epic Cyan",       rarity: "epic",      glowColor: "#00d4ff", ncCost: 0 },
+  { id: "epicPurple",     name: "Epic Purple",     rarity: "epic",      glowColor: "#a855f7", ncCost: 0 },
+  { id: "epicGold",       name: "Epic Gold",       rarity: "epic",      glowColor: "#f59e0b", ncCost: 0 },
+  { id: "epicRed",        name: "Epic Red",        rarity: "epic",      glowColor: "#ff2d55", ncCost: 0 },
+  { id: "syndicate",      name: "Syndicate",       rarity: "epic",      glowColor: "#ff6b35", ncCost: 0 },
+  { id: "gridCore",       name: "Grid Core",       rarity: "epic",      glowColor: "#22d3ee", ncCost: 0 },
+  { id: "suitsFrame",     name: "The Suits",       rarity: "epic",      glowColor: "#94a3b8", ncCost: 0 },
+  { id: "epicVoid",       name: "Void",            rarity: "epic",      glowColor: "#7c3aed", ncCost: 0 },
+  { id: "epicInferno",    name: "Inferno",         rarity: "epic",      glowColor: "#ef4444", ncCost: 0 },
+  { id: "epicNova",       name: "Nova",            rarity: "epic",      glowColor: "#f0abfc", ncCost: 0 },
+
+  // ── LEGENDARY — electric flicker ────────────────────────────────────────
+  { id: "legendCyan",     name: "Lightning Cyan",  rarity: "legendary", glowColor: "#00d4ff", ncCost: 50 },
+  { id: "legendPurple",   name: "Lightning Purple",rarity: "legendary", glowColor: "#a855f7", ncCost: 75 },
+  { id: "legendGold",     name: "Lightning Gold",  rarity: "legendary", glowColor: "#f59e0b", ncCost: 100 },
+  { id: "legendRed",      name: "Lightning Red",   rarity: "legendary", glowColor: "#ff2d55", ncCost: 100 },
+  { id: "crimsonLord",    name: "Crimson Lord",    rarity: "legendary", glowColor: "#b91c1c", ncCost: 125 },
+  { id: "arcLight",       name: "Arc Light",       rarity: "legendary", glowColor: "#a5f3fc", ncCost: 125 },
+  { id: "plasmaBolt",     name: "Plasma Bolt",     rarity: "legendary", glowColor: "#d946ef", ncCost: 150 },
+  { id: "thunderClap",    name: "Thunderclap",     rarity: "legendary", glowColor: "#fde047", ncCost: 150 },
+  { id: "vantaLegend",    name: "Vanta Legend",    rarity: "legendary", glowColor: "#00d4ff", ncCost: 200 },
+  { id: "executioner",    name: "Executioner",     rarity: "legendary", glowColor: "#ff2d55", ncCost: 200 },
+
+  // ── MYTHIC — matrix cascade ──────────────────────────────────────────────
+  { id: "matrixGreen",    name: "Matrix",          rarity: "mythic",    glowColor: "#39d353", ncCost: 500 },
+  { id: "matrixBlue",     name: "Blue Code",       rarity: "mythic",    glowColor: "#00d4ff", ncCost: 500 },
+  { id: "matrixGold",     name: "Golden Code",     rarity: "mythic",    glowColor: "#f59e0b", ncCost: 600 },
+  { id: "matrixRed",      name: "Red Code",        rarity: "mythic",    glowColor: "#ff2d55", ncCost: 600 },
+  { id: "omega",          name: "Omega",           rarity: "mythic",    glowColor: "#a855f7", ncCost: 750 },
+  { id: "voidWalker",     name: "Void Walker",     rarity: "mythic",    glowColor: "#7c3aed", ncCost: 750 },
+  { id: "architect",      name: "Architect",       rarity: "mythic",    glowColor: "#e2e8f0", ncCost: 1000 },
+  { id: "nova2047",       name: "Nova 2047",       rarity: "mythic",    glowColor: "#f0abfc", ncCost: 1000 },
+  { id: "godMode",        name: "God Mode",        rarity: "mythic",    glowColor: "#fde047", ncCost: 2000 },
+  { id: "theOne",         name: "The One",         rarity: "mythic",    glowColor: "#00d4ff", ncCost: 5000 },
 ];
 
 export const FRAME_MAP = new Map<string, FrameDef>(
@@ -116,7 +89,7 @@ export const FRAME_MAP = new Map<string, FrameDef>(
 );
 
 export function getFrame(id: string | null | undefined): FrameDef {
-  return FRAME_MAP.get(id || "ghostFrame") || FRAME_CATALOG[10]; // fallback to ghostFrame
+  return FRAME_MAP.get(id || "ghostFrame") || FRAME_CATALOG[0]; // fallback to ghostFrame
 }
 
 export const RARITY_ORDER: Record<FrameRarity, number> = {
@@ -124,10 +97,10 @@ export const RARITY_ORDER: Record<FrameRarity, number> = {
 };
 
 export const RARITY_COLOR: Record<FrameRarity, string> = {
-  common: "#9CA3AF",
-  uncommon: "#4ADE80",
-  rare: "#60A5FA",
-  epic: "#C084FC",
+  common:    "#9CA3AF",
+  uncommon:  "#4ADE80",
+  rare:      "#60A5FA",
+  epic:      "#C084FC",
   legendary: "#FBBF24",
-  mythic: "#00FF41",
+  mythic:    "#00FF41",
 };

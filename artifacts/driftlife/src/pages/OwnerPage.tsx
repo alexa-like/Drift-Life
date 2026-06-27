@@ -60,7 +60,7 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -87,6 +87,12 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [noteContent, setNoteContent] = useState("");
   const [noteSchedule, setNoteSchedule] = useState("");
   const [publishingNote, setPublishingNote] = useState(false);
+  // Items tab
+  const [shopItems, setShopItems] = useState<{ id: string; name: string; type: string; rarity: string; basePrice: number; currentPrice: number; overridden: boolean; description: string }[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
+  const [itemPriceEdit, setItemPriceEdit] = useState<string | null>(null);
+  const [itemPriceVal, setItemPriceVal] = useState("");
+  const [itemPriceFilter, setItemPriceFilter] = useState<string>("all");
 
   const loadStats = useCallback(async () => {
     try {
@@ -122,10 +128,20 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     } catch { /* silent */ }
   }, []);
 
+  const loadShopItems = useCallback(async () => {
+    setItemsLoading(true);
+    try {
+      const items = await api.get<any[]>("/owner/shop-items");
+      setShopItems(items);
+    } catch { /* silent */ }
+    finally { setItemsLoading(false); }
+  }, []);
+
   useEffect(() => { loadStats(); }, [loadStats]);
   useEffect(() => { if (tab === "users") loadUsers(1); }, [tab, loadUsers]);
   useEffect(() => { if (tab === "activity") loadRecentFeed(); }, [tab, loadRecentFeed]);
   useEffect(() => { if (tab === "patch-notes") loadPatchNotes(); }, [tab, loadPatchNotes]);
+  useEffect(() => { if (tab === "items") loadShopItems(); }, [tab, loadShopItems]);
 
   async function banUser(userId: string) {
     if (!banReason.trim()) { addToast("Enter a ban reason", "error"); return; }
@@ -221,6 +237,25 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     } catch (e: any) { addToast(e.message, "error"); }
   }
 
+  async function setItemPrice(itemId: string) {
+    const price = Number(itemPriceVal);
+    if (isNaN(price) || price < 0) { addToast("Enter a valid price (0 to reset)", "error"); return; }
+    try {
+      const res = await api.post<{ message: string; price: number }>(`/owner/shop-items/${itemId}/price`, { price });
+      addToast(res.message, "success");
+      setItemPriceEdit(null); setItemPriceVal("");
+      loadShopItems();
+    } catch (e: any) { addToast(e.message, "error"); }
+  }
+
+  async function resetItemPrice(itemId: string) {
+    try {
+      const res = await api.delete<{ message: string }>(`/owner/shop-items/${itemId}/price`);
+      addToast(res.message, "success");
+      loadShopItems();
+    } catch (e: any) { addToast(e.message, "error"); }
+  }
+
   const isOwner = user.role === "owner";
   const isMuted = (u: PlayerRow) => u.mutedUntil && new Date(u.mutedUntil) > new Date();
 
@@ -229,6 +264,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     { id: "users", label: `Players (${total || "?"})` },
     { id: "activity", label: "Activity" },
     { id: "patch-notes", label: "Patch Notes" },
+    { id: "items", label: "Items" },
   ];
 
   const s = { background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 };
@@ -261,7 +297,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
             {t.label}
           </button>
         ))}
-        {["Items", "Economy", "Events", "VantaLog"].map(n => (
+        {["Economy", "Events", "VantaLog"].map(n => (
           <button key={n} className="px-4 py-2 rounded font-mono text-xs opacity-40 cursor-not-allowed"
             style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Coming soon — Phase 2">
             {n}
@@ -476,6 +512,88 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                   {e.message && <div className="font-mono mt-1" style={{ fontSize: 11, color: "#64748b" }}>{e.message}</div>}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ITEMS TAB */}
+      {tab === "items" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+              Set item prices for the Corp Shop. Enter 0 to reset to default.
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(["all","consumable","weapon","armor","clothing","vehicle","material","badge","card"] as string[]).map(t => (
+                <button key={t} onClick={() => setItemPriceFilter(t)}
+                  className="px-2.5 py-1 rounded font-mono capitalize"
+                  style={{ fontSize: 11, background: itemPriceFilter === t ? "#a855f718" : "transparent", color: itemPriceFilter === t ? "#a855f7" : "#475569", border: `1px solid ${itemPriceFilter === t ? "#a855f740" : "#1e1e2e"}` }}>
+                  {t}
+                </button>
+              ))}
+              <button onClick={loadShopItems} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}>Refresh</button>
+            </div>
+          </div>
+
+          {itemsLoading ? (
+            <div className="text-center py-8 font-mono text-xs" style={{ color: "#475569" }}>Loading...</div>
+          ) : (
+            <div className="space-y-2">
+              {shopItems
+                .filter(i => itemPriceFilter === "all" || i.type === itemPriceFilter)
+                .map(item => {
+                  const RARITY_CLR: Record<string,string> = { common:"#94a3b8",uncommon:"#39d353",rare:"#00d4ff",epic:"#a855f7",legendary:"#f59e0b",event:"#ff2d55" };
+                  const rc = RARITY_CLR[item.rarity] ?? "#94a3b8";
+                  return (
+                    <div key={item.id} style={{ background: "#111118", border: `1px solid ${item.overridden ? "#f59e0b30" : "#1e1e2e"}`, borderRadius: 8, padding: 12 }}>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{item.name}</span>
+                            <span className="font-mono text-xs px-1.5 py-0.5 rounded capitalize" style={{ color: rc, background: rc+"15", border: `1px solid ${rc}30` }}>{item.rarity}</span>
+                            <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>{item.type}</span>
+                            {item.overridden && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#f59e0b", background: "#f59e0b15", border: "1px solid #f59e0b30" }}>custom price</span>}
+                          </div>
+                          <div className="font-mono mt-0.5" style={{ fontSize: 11, color: "#475569" }}>{item.description}</div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="text-right">
+                            <div className="font-mono text-sm font-bold" style={{ color: "#f59e0b" }}>{item.currentPrice.toLocaleString()} DC</div>
+                            {item.overridden && (
+                              <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>default: {item.basePrice.toLocaleString()}</div>
+                            )}
+                          </div>
+
+                          {itemPriceEdit === item.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                value={itemPriceVal}
+                                onChange={e => setItemPriceVal(e.target.value)}
+                                type="number"
+                                min={0}
+                                placeholder="New price"
+                                autoFocus
+                                className="font-mono text-xs px-2 py-1 rounded"
+                                style={{ background: "#0a0a0f", border: "1px solid #f59e0b40", color: "#e2e8f0", width: 100 }}
+                                onKeyDown={e => { if (e.key === "Enter") setItemPrice(item.id); if (e.key === "Escape") { setItemPriceEdit(null); setItemPriceVal(""); } }}
+                              />
+                              <button onClick={() => setItemPrice(item.id)} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}>Set</button>
+                              {item.overridden && (
+                                <button onClick={() => resetItemPrice(item.id)} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Reset to default">↺</button>
+                              )}
+                              <button onClick={() => { setItemPriceEdit(null); setItemPriceVal(""); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>✕</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => { setItemPriceEdit(item.id); setItemPriceVal(String(item.currentPrice)); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#f59e0b", border: "1px solid #f59e0b30" }}>Edit</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              }
             </div>
           )}
         </div>

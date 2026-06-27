@@ -414,7 +414,7 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
               >
                 {/* Live animated frame preview */}
                 <div style={{ position: "relative" }}>
-                  <FrameLivePreview frameId={frame.frameId} />
+                  <FrameLivePreview frameId={frame.frameId} colorOverride={frame.glowColor} />
                   <button
                     onClick={() => setPreviewFrame(frame)}
                     title="Preview fullscreen"

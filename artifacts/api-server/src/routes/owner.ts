@@ -3,6 +3,7 @@ import User from "../models/User";
 import FeedEvent from "../models/FeedEvent";
 import { requireStaff, requireOwner, AuthRequest } from "../middlewares/auth";
 import { levelUp, xpForLevel } from "../models/User";
+import { SHOP_ITEMS, PRICE_OVERRIDES } from "./market";
 
 const router = Router();
 router.use(requireStaff as any);
@@ -257,6 +258,43 @@ router.delete("/patch-notes/:id", requireOwner as any, async (req, res) => {
   if (idx === -1) return res.status(404).json({ message: "Patch note not found" });
   patchNotes.splice(idx, 1);
   res.json({ message: "Deleted" });
+});
+
+// GET /api/owner/shop-items — list all shop items with current (possibly overridden) prices
+router.get("/shop-items", async (_req, res) => {
+  res.json(SHOP_ITEMS.map(i => ({
+    id: i.id,
+    name: i.name,
+    type: i.type,
+    rarity: i.rarity,
+    basePrice: i.basePrice,
+    currentPrice: PRICE_OVERRIDES.get(i.id) ?? i.basePrice,
+    overridden: PRICE_OVERRIDES.has(i.id),
+    description: i.description,
+  })));
+});
+
+// POST /api/owner/shop-items/:id/price — owner sets a new price for a shop item
+router.post("/shop-items/:id/price", requireOwner as any, async (req: AuthRequest, res) => {
+  const item = SHOP_ITEMS.find(i => i.id === req.params.id);
+  if (!item) return res.status(404).json({ message: "Item not found" });
+  const price = Math.floor(Number(req.body.price));
+  if (isNaN(price) || price < 0) return res.status(400).json({ message: "Invalid price" });
+  if (price === 0 && item.basePrice !== 0) {
+    PRICE_OVERRIDES.delete(item.id); // reset to default
+    return res.json({ message: `${item.name} price reset to default (${item.basePrice.toLocaleString()} DC)`, price: item.basePrice });
+  }
+  PRICE_OVERRIDES.set(item.id, price);
+  req.log.info({ itemId: item.id, oldPrice: item.basePrice, newPrice: price }, "owner set item price");
+  res.json({ message: `${item.name} price set to ${price.toLocaleString()} DC`, price });
+});
+
+// DELETE /api/owner/shop-items/:id/price — reset item price to default
+router.delete("/shop-items/:id/price", requireOwner as any, async (req: AuthRequest, res) => {
+  const item = SHOP_ITEMS.find(i => i.id === req.params.id);
+  if (!item) return res.status(404).json({ message: "Item not found" });
+  PRICE_OVERRIDES.delete(item.id);
+  res.json({ message: `${item.name} price reset to default (${item.basePrice.toLocaleString()} DC)`, price: item.basePrice });
 });
 
 export default router;

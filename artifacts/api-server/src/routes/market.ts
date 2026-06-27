@@ -8,13 +8,22 @@ const router = Router();
 
 const MARKET_FEE = 0.05;
 
+// Price overrides set by owner — in-memory, resets on restart
+export const PRICE_OVERRIDES: Map<string, number> = new Map();
+
+function strHash(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return (h % 89999) + 10000;
+}
+
 function img(prompt: string): string {
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(
     `cyberpunk New Vanta 2047 ${prompt}, neon glow dark background game item icon digital art`
-  )}?width=256&height=256&nologo=true&seed=42&model=turbo`;
+  )}?width=256&height=256&nologo=true&seed=${strHash(prompt)}&model=turbo`;
 }
 
-const SHOP_ITEMS: Array<{
+export const SHOP_ITEMS: Array<{
   id: string; name: string;
   type: "weapon" | "armor" | "clothing" | "vehicle" | "consumable" | "material" | "badge" | "card" | "misc";
   rarity: "common" | "uncommon" | "rare" | "epic" | "legendary" | "event";
@@ -122,7 +131,8 @@ router.get("/shop", requireAuth, async (_req, res) => {
     strengthBonus: i.strengthBonus, charismaBonus: i.charismaBonus,
     intelligenceBonus: i.intelligenceBonus, streetCredBonus: i.streetCredBonus,
     defenseBonus: i.defenseBonus, travelEnergyReduction: i.travelEnergyReduction,
-    basePrice: i.basePrice, description: i.description,
+    basePrice: PRICE_OVERRIDES.get(i.id) ?? i.basePrice,
+    description: i.description,
     effect: i.effect ?? null, imageUrl: i.imageUrl,
   })));
 });
@@ -135,7 +145,8 @@ router.post("/shop/buy", requireAuth, async (req: AuthRequest, res) => {
     if (!shopItem) return res.status(404).json({ message: "Item not found in shop" });
 
     const qty = Math.max(1, Math.min(99, Number(quantity)));
-    const totalCost = shopItem.basePrice * qty;
+    const effectivePrice = PRICE_OVERRIDES.get(shopItem.id) ?? shopItem.basePrice;
+    const totalCost = effectivePrice * qty;
 
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
