@@ -1,10 +1,12 @@
+import type { ReactElement } from "react";
+
 interface Props {
   itemId: string;
   size?: number;
   className?: string;
 }
 
-const ITEM_SVGS: Record<string, (size: number) => JSX.Element> = {
+const ITEM_SVGS: Record<string, (size: number) => ReactElement> = {
   "rusty-blade": (s) => (
     <svg width={s} height={s} viewBox="0 0 64 64" fill="none">
       <defs>

@@ -199,8 +199,7 @@ router.post("/login", async (req, res) => {
     if (!user.isEmailVerified) return res.status(403).json({ message: "Email not verified", needsVerification: true, email: user.email });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ message: "Invalid credentials" });
-    user.lastLogin = new Date();
-    await user.save();
+    await User.updateOne({ _id: user._id }, { $set: { lastLogin: new Date() } });
     const payload = { userId: String(user._id), username: user.username, role: user.role };
     res.json({ accessToken: signAccess(payload), refreshToken: signRefresh(payload), user: safeUser(user) });
   } catch (err: any) {
