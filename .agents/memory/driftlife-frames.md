@@ -1,25 +1,24 @@
 ---
 name: DriftLife Frames System
-description: Frame catalog, user model fields, and routes for the avatar frame system
+description: How frames are stored, catalogued, and rendered — critical sync requirement between backend and frontend catalogs.
 ---
 
-## Key facts
+## Rule
+Frontend `driftlife/src/lib/frames.ts` FRAME_CATALOG `id` fields must exactly match backend `api-server/src/routes/frames.ts` FRAME_CATALOG `frameId` fields. If a backend frameId is not in the frontend FRAME_MAP, `getFrame()` falls back to `ghostFrame` and the frame renders as empty/invisible.
 
-- `frames.ts` exports `FRAME_CATALOG` (array of FrameDef) — NOT `FRAMES`. Always import as `FRAME_CATALOG` or alias it.
-- Also exports: `FRAME_MAP`, `getFrame()`, `RARITY_ORDER`, `RARITY_COLOR`, `FrameDef`, `FrameRarity`
-- `FrameDef` has: `id`, `name`, `rarity`, `glowColor`, `ncCost`, `earnedBy?` — NO `description` field
+**Why:** The backend is the source of truth for what frames exist and can be purchased. The frontend only uses the catalog for color lookup and rendering. A mismatch means users see ghost frames even after purchasing/equipping real ones.
 
-## User model
-- `equippedFrame: string` (default: "ghostFrame") — already existed
-- `ownedFrames: string[]` — added; must be included in `safeUser()` via `(user as any).ownedFrames || []`
+**How to apply:** Any time a new frame is added to the backend catalog, add the matching entry to the frontend catalog with the same id, correct glowColor, and rarity.
 
-## Routes
-- `POST /api/user/equip-frame` — checks ownedFrames, sets equippedFrame
-- `POST /api/dev/give-frame` — dev-only, adds frameId to ownedFrames
+## Current IDs (backend frameId = frontend id)
+- Common (static): ghostFrame, basicWhite, basicGray, neonBlue, neonGreen, neonRed, corpGray, streetOrange, cyanPulse, goldBasic
+- Uncommon (shimmer): shimmerCyan, shimmerPurple, shimmerGold, shimmerRed, shimmerGreen, shimmerOrange, techShimmer, suitShimmer, crimsonShimmer, iceShimmer
+- Rare (pulse): pulseCyan, pulsePurple, pulseGold, pulseRed, pulseGreen, hackerPulse, corePulse, vaultPulse, streetPulse, spectralPulse
+- Epic (rotate): epicCyan, epicPurple, epicGold, epicRed, syndicate, gridCore, suitsFrame, epicVoid, epicInferno, epicNova
+- Legendary (flicker): legendCyan, legendPurple, legendGold, legendRed, crimsonLord, arcLight, plasmaBolt, thunderClap, vantaLegend, executioner
+- Mythic (matrix): matrixGreen, matrixBlue, matrixGold, matrixRed, omega, voidWalker, architect, nova2047, godMode, theOne
 
-## Components
-- `PlayerFrame` — canvas-based animated border per rarity (common=static, uncommon=shimmer, rare=pulse, epic=conic gradient, legendary=sparks, mythic=matrix rain)
-- `AvatarWithFrame` — wraps PlayerFrame + procedural SVG avatar fallback
-- `FrameRectBubble` — chat bubble with miniature frame; ChatMessage interface includes `districtId?`
-
-**Why:** `pick()` in avatar.ts must accept `readonly T[]` arrays — the `as const` tuples are readonly.
+## Other notes
+- ownedFrames + equippedFrame on User model; equip-frame route in user.ts; give-frame in dev.ts
+- FrameLivePreview in FramesStorePage: always pass `colorOverride={frame.glowColor}` so backend color is used directly, not re-derived from the frontend catalog
+- PRICE_OVERRIDES (Map) exported from market.ts — owner can set item prices via POST /api/owner/shop-items/:id/price (requireOwner); resets on server restart

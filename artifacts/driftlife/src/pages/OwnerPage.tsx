@@ -494,7 +494,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
             <button onClick={loadRecentFeed} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}>Refresh</button>
           </div>
           {recentFeed.length === 0 ? (
-            <div style={s} className="text-center font-mono text-xs" style2={{ color: "#475569" }}>
+            <div style={{ ...s, textAlign: "center" }} className="font-mono text-xs">
               <span style={{ color: "#475569" }}>No recent activity</span>
             </div>
           ) : (
@@ -566,7 +566,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                             )}
                           </div>
 
-                          {itemPriceEdit === item.id ? (
+                          {isOwner && itemPriceEdit === item.id ? (
                             <div className="flex items-center gap-1">
                               <input
                                 value={itemPriceVal}
@@ -585,9 +585,9 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                               )}
                               <button onClick={() => { setItemPriceEdit(null); setItemPriceVal(""); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>✕</button>
                             </div>
-                          ) : (
+                          ) : isOwner ? (
                             <button onClick={() => { setItemPriceEdit(item.id); setItemPriceVal(String(item.currentPrice)); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#f59e0b", border: "1px solid #f59e0b30" }}>Edit</button>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     </div>

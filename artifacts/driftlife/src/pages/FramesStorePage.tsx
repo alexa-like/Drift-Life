@@ -364,7 +364,7 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
           <div onClick={e => e.stopPropagation()} style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 12, padding: 24, minWidth: 280, textAlign: "center" }}>
             <div className="font-mono text-xs mb-4" style={{ color: "#64748b" }}>LIVE PREVIEW</div>
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-              <FrameLivePreview frameId={previewFrame.frameId} width={220} height={130} />
+              <FrameLivePreview frameId={previewFrame.frameId} colorOverride={previewFrame.glowColor} width={220} height={130} />
             </div>
             <div className="font-mono font-bold text-sm mb-1" style={{ color: "#e2e8f0" }}>{previewFrame.displayName}</div>
             <div className="font-mono text-xs mb-4 capitalize" style={{ color: RARITY_COLORS[previewFrame.rarity] }}>{previewFrame.rarity}</div>
