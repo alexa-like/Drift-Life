@@ -3,6 +3,7 @@ import { Server as SocketServer } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { connectDB } from "./lib/db";
+import { startKeepAlive, stopKeepAlive } from "./lib/keepAlive";
 import User from "./models/User";
 
 const rawPort = process.env["PORT"] ?? "3000";
@@ -201,10 +202,23 @@ io.on("connection", (socket) => {
 // Make io available to routes
 app.locals["io"] = io;
 
+function shutdown(signal: string) {
+  logger.info({ signal }, "Shutting down");
+  stopKeepAlive();
+  httpServer.close(() => {
+    logger.info("HTTP server closed");
+    process.exit(0);
+  });
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT",  () => shutdown("SIGINT"));
+
 async function start() {
   await connectDB();
   httpServer.listen(port, () => {
     logger.info({ port }, "Server listening");
+    startKeepAlive();
   });
 }
 
