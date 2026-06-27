@@ -10,6 +10,7 @@ export function DevToolbar({ onRefresh, addToast }: Props) {
   const [open, setOpen] = useState(false);
   const [dcAmount, setDcAmount] = useState("10000");
   const [levelVal, setLevelVal] = useState("10");
+  const [frameId, setFrameId] = useState("electricArc");
   const [loading, setLoading] = useState(false);
 
   async function action(path: string, body?: object) {
@@ -78,6 +79,26 @@ export function DevToolbar({ onRefresh, addToast }: Props) {
               style={{ background: "#00d4ff20", color: "#00d4ff", border: "1px solid #00d4ff40" }}
             >
               Lvl Up
+            </button>
+          </div>
+
+          {/* Give frame */}
+          <div className="flex gap-1 mb-2">
+            <input
+              type="text"
+              value={frameId}
+              onChange={e => setFrameId(e.target.value)}
+              placeholder="frameId"
+              className="flex-1 px-2 py-1 font-mono text-xs rounded"
+              style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+            />
+            <button
+              onClick={() => action("/dev/give-frame", { frameId })}
+              disabled={loading}
+              className="px-2 py-1 font-mono text-xs rounded"
+              style={{ background: "#a855f720", color: "#a855f7", border: "1px solid #a855f740" }}
+            >
+              🖼️
             </button>
           </div>
 

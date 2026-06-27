@@ -56,6 +56,7 @@ export function safeUser(user: InstanceType<typeof User>) {
     equippedFrame: user.equippedFrame,
     equippedTitle: user.equippedTitle,
     titles: user.titles,
+    ownedFrames: (user as any).ownedFrames || [],
     devMode: user.devMode,
     referralCode: user.referralCode,
     attacksToday: user.attacksToday,

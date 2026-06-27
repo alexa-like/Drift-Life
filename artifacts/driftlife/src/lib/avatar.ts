@@ -9,7 +9,7 @@ function hashStr(s: string): number {
   return Math.abs(h);
 }
 
-function pick<T>(arr: T[], seed: number, offset = 0): T {
+function pick<T>(arr: readonly T[], seed: number, offset = 0): T {
   return arr[(seed >> offset) % arr.length];
 }
 

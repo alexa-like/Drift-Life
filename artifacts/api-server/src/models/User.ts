@@ -66,6 +66,7 @@ export interface IUser extends Document {
   equippedFrame: string | null;
   equippedTitle: string | null;
   titles: string[];
+  ownedFrames: string[];
   gang: string | null;
   referralCode: string;
   referredBy: string | null;
@@ -141,6 +142,7 @@ const UserSchema = new Schema<IUser>(
     equippedFrame: { type: String, default: "ghostFrame" },
     equippedTitle: { type: String, default: "New in Town" },
     titles: [{ type: String }],
+    ownedFrames: [{ type: String }],
     gang: { type: String, default: null },
     referralCode: { type: String, unique: true, sparse: true },
     referredBy: { type: String, default: null },

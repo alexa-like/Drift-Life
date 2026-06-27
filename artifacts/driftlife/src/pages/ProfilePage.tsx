@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { WantedStars } from "../components/WantedStars";
 import { StatBar } from "../components/StatBar";
 import { AvatarWithFrame } from "../components/AvatarWithFrame";
-import { FRAMES, FrameDef, RARITY_COLOR } from "../lib/frames";
+import { FRAME_CATALOG as FRAMES, FrameDef, RARITY_COLOR } from "../lib/frames";
 
 const FACTION_LABEL: Record<string, string> = { suits: "The Suits", street: "The Street", grid: "The Grid" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
@@ -376,8 +376,8 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                         </div>
                       </div>
                     </div>
-                    {frame.description && (
-                      <p className="font-mono mt-1" style={{ fontSize: 10, color: "#475569" }}>{frame.description}</p>
+                    {frame.earnedBy && (
+                      <p className="font-mono mt-1" style={{ fontSize: 10, color: "#475569" }}>🏆 {frame.earnedBy}</p>
                     )}
                     {equippingFrame === frame.id && (
                       <span className="font-mono text-xs" style={{ color: rc }}>Equipping...</span>

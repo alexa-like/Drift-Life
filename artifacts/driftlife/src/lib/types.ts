@@ -46,6 +46,7 @@ export interface User {
   equippedFrame: string | null;
   equippedTitle: string | null;
   titles: string[];
+  ownedFrames: string[];
   devMode: boolean;
   referralCode: string;
   createdAt: string;

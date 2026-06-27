@@ -134,7 +134,7 @@ function GameApp() {
 
   return (
     <SocketProvider userId={user!.id}>
-      <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e2e8f0" }}>
+      <div className="scanlines" style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e2e8f0" }}>
         <NavBar
           user={user!}
           active={page}

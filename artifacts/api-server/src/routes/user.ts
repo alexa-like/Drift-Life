@@ -128,6 +128,26 @@ router.get("/profile/:id", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/user/equip-frame
+router.post("/equip-frame", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const { frameId } = req.body;
+    if (frameId !== null && frameId !== undefined) {
+      if (!(user as any).ownedFrames?.includes(frameId)) {
+        return res.status(403).json({ message: "You don't own that frame" });
+      }
+    }
+    (user as any).equippedFrame = frameId ?? null;
+    await user.save();
+    res.json({ equippedFrame: (user as any).equippedFrame });
+  } catch (err: any) {
+    req.log.error({ err }, "equip frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // GET /api/user/:username
 router.get("/:username", requireAuth, async (req: AuthRequest, res) => {
   try {

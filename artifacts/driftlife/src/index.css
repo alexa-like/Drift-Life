@@ -17,62 +17,141 @@ html, body {
   scroll-behavior: smooth;
 }
 
-/* Scrollbars */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+/* ── Neon glow keyframes ── */
+@keyframes neon-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
+  20%, 24%, 55% { opacity: 0.4; }
 }
-::-webkit-scrollbar-track {
-  background: #0a0a0f;
+@keyframes scan-line {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
 }
-::-webkit-scrollbar-thumb {
-  background: #1e1e2e;
-  border-radius: 2px;
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px currentColor; }
+  50%       { box-shadow: 0 0 14px currentColor, 0 0 28px currentColor; }
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #00d4ff30;
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes roll-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes electric-arc {
+  0%   { filter: hue-rotate(0deg)   brightness(1);   }
+  25%  { filter: hue-rotate(30deg)  brightness(1.4); }
+  50%  { filter: hue-rotate(-20deg) brightness(0.9); }
+  75%  { filter: hue-rotate(15deg)  brightness(1.2); }
+  100% { filter: hue-rotate(0deg)   brightness(1);   }
+}
+@keyframes matrix-drop {
+  0%   { opacity: 0; transform: translateY(-20px); }
+  10%  { opacity: 1; }
+  90%  { opacity: 0.8; }
+  100% { opacity: 0; transform: translateY(100px); }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-4px); }
 }
 
-/* Input base */
+/* ── Utility animation classes ── */
+.animate-fade-in-up  { animation: fade-in-up  0.3s ease both; }
+.animate-roll-up     { animation: roll-up     0.25s ease both; }
+.animate-neon-flicker{ animation: neon-flicker 4s infinite; }
+.animate-pulse-glow  { animation: pulse-glow  2s ease-in-out infinite; }
+.animate-shimmer     { animation: shimmer     2.4s linear infinite; }
+.animate-spin-slow   { animation: spin-slow   8s linear infinite; }
+.animate-float       { animation: float       3s ease-in-out infinite; }
+.animate-electric    { animation: electric-arc 1.2s ease-in-out infinite; }
+
+/* ── Scan-line overlay (applied to .scanlines wrapper) ── */
+.scanlines {
+  position: relative;
+}
+.scanlines::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 212, 255, 0.012) 2px,
+    rgba(0, 212, 255, 0.012) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── CRT vignette ── */
+.scanlines::after {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 60%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* ── Neon text helpers ── */
+.neon-cyan  { color: #00d4ff; text-shadow: 0 0 8px #00d4ff, 0 0 20px #00d4ff40; }
+.neon-amber { color: #f59e0b; text-shadow: 0 0 8px #f59e0b, 0 0 20px #f59e0b40; }
+.neon-purple{ color: #a855f7; text-shadow: 0 0 8px #a855f7, 0 0 20px #a855f740; }
+.neon-green { color: #39d353; text-shadow: 0 0 8px #39d353, 0 0 20px #39d35340; }
+.neon-red   { color: #ff2d55; text-shadow: 0 0 8px #ff2d55, 0 0 20px #ff2d5540; }
+.neon-orange{ color: #ff6b35; text-shadow: 0 0 8px #ff6b35, 0 0 20px #ff6b3540; }
+
+/* ── Scrollbars ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0a0a0f; }
+::-webkit-scrollbar-thumb { background: #1e1e2e; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #00d4ff30; }
+
+/* ── Input base ── */
 input, textarea, select {
   background: #0a0a0f;
   color: #e2e8f0;
   border: 1px solid #1e1e2e;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 input:focus, textarea:focus, select:focus {
   border-color: #00d4ff40;
+  box-shadow: 0 0 8px #00d4ff15;
 }
-input::placeholder, textarea::placeholder {
-  color: #334155;
-}
+input::placeholder, textarea::placeholder { color: #334155; }
 
-/* Button resets */
+/* ── Button resets ── */
 button {
   cursor: pointer;
   font-family: inherit;
-  transition: opacity 0.15s, transform 0.1s;
+  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
 }
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-button:not(:disabled):active {
-  transform: scale(0.97);
-}
+button:disabled { cursor: not-allowed; opacity: 0.5; }
+button:not(:disabled):active { transform: scale(0.97); }
 
-/* Selection */
-::selection {
-  background: #00d4ff20;
-  color: #00d4ff;
-}
+/* ── Selection ── */
+::selection { background: #00d4ff20; color: #00d4ff; }
 
-/* Number inputs - hide arrows */
+/* ── Number inputs — hide arrows ── */
 input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-}
-input[type=number] {
-  -moz-appearance: textfield;
-}
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+input[type=number] { -moz-appearance: textfield; }
