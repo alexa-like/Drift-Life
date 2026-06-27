@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { User, FeedEvent } from "../lib/types";
 import { api } from "../lib/api";
+import { formatDC } from "../lib/format";
 import { StatBar } from "../components/StatBar";
 import { WantedStars } from "../components/WantedStars";
 
@@ -112,11 +113,11 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
           <div className="flex flex-col gap-2">
             <div className="flex justify-between">
               <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>Wallet</span>
-              <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>{user.dc.toLocaleString()} DC</span>
+              <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>{formatDC(user.dc)} DC</span>
             </div>
             <div className="flex justify-between">
               <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>Bank</span>
-              <span className="text-sm font-mono font-bold" style={{ color: "#39d353" }}>{user.bankBalance.toLocaleString()} DC</span>
+              <span className="text-sm font-mono font-bold" style={{ color: "#39d353" }}>{formatDC(user.bankBalance)} DC</span>
             </div>
           </div>
           <button

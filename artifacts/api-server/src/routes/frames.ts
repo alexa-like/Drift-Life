@@ -131,6 +131,7 @@ router.post("/purchase/:frameId", requireAuth, async (req: AuthRequest, res) => 
 
     owned.push(frame.frameId);
     (user as any).ownedFrames = owned;
+    user.markModified("ownedFrames");
     await user.save();
 
     res.json({ message: `${frame.displayName} frame purchased`, frameId: frame.frameId, ownedFrames: owned });

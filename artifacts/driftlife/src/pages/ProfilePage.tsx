@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { User } from "../lib/types";
+import { useState, useEffect } from "react";
+import { User, Frame } from "../lib/types";
 import { api } from "../lib/api";
+import { formatDC } from "../lib/format";
 import { WantedStars } from "../components/WantedStars";
 import { StatBar } from "../components/StatBar";
 import { AvatarWithFrame } from "../components/AvatarWithFrame";
@@ -33,11 +34,17 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const [equippingFrame, setEquippingFrame] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"stats" | "frames">("stats");
   const [savingColor, setSavingColor] = useState(false);
+  const [apiFrames, setApiFrames] = useState<Frame[]>([]);
+
+  useEffect(() => {
+    api.get<Frame[]>("/frames").then(setApiFrames).catch(() => {});
+  }, [user.ownedFrames]);
 
   const xpPct = Math.min(100, Math.round((user.xp / user.xpToNext) * 100));
   const equippedFrameId = user.equippedFrame || null;
   const equippedColor = user.equippedFrameColor || null;
   const equippedFrameDef = equippedFrameId ? getFrame(equippedFrameId) : null;
+  const isElevated = user.role === "owner" || user.role === "admin";
 
   async function saveBio() {
     setSavingBio(true);
@@ -108,7 +115,11 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   }
 
   const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
-  const ownedFrames: FrameDef[] = FRAMES.filter(f => (user.ownedFrames || []).includes(f.id));
+  const ownedFrames: FrameDef[] = FRAMES.filter(f =>
+    apiFrames.length > 0
+      ? apiFrames.find(af => af.frameId === f.id)?.owned
+      : (user.ownedFrames || []).includes(f.id)
+  );
   const fc = user.faction ? FACTION_COLOR[user.faction] : "#94a3b8";
 
   return (
@@ -272,15 +283,15 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
           {/* Finances */}
           <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
             <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>FINANCES</div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className={`grid gap-4 ${isElevated ? "grid-cols-3" : "grid-cols-2"}`}>
               {[
-                { label: "WALLET", value: user.dc, color: "#f59e0b" },
-                { label: "BANK", value: user.bankBalance, color: "#39d353" },
-                { label: "NOVA CREDITS", value: user.nc, color: "#a855f7" },
-              ].map(f => (
+                { label: "WALLET", value: user.dc, color: "#f59e0b", show: true },
+                { label: "BANK", value: user.bankBalance, color: "#39d353", show: true },
+                { label: "UC", value: user.nc, color: "#a855f7", show: isElevated },
+              ].filter(f => f.show).map(f => (
                 <div key={f.label} style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
                   <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>{f.label}</div>
-                  <div className="font-mono font-bold" style={{ color: f.color }}>{f.value.toLocaleString()}</div>
+                  <div className="font-mono font-bold" style={{ color: f.color }}>{formatDC(f.value)}</div>
                 </div>
               ))}
             </div>

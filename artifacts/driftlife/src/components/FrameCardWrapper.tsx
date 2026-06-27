@@ -88,130 +88,162 @@ function drawFrame(
     ctx.roundRect(inset, inset, w - inset * 2, h - inset * 2, Math.max(0, r - inset));
   };
 
-  // ── COMMON ───────────────────────────────────────────────────────────────
+  // ── COMMON — 10 unique static designs ────────────────────────────────────
   if (rarity === "common") {
-    if (variant === 1) {
-      // Square corners + glowing corner dots
-      ctx.strokeStyle = color + "90"; ctx.lineWidth = 1.5;
-      ctx.shadowColor = color; ctx.shadowBlur = 6;
-      ctx.beginPath(); ctx.rect(inset, inset, w - inset * 2, h - inset * 2); ctx.stroke();
-      ctx.shadowBlur = 12;
-      for (const [cx, cy] of [[inset, inset],[w-inset, inset],[inset, h-inset],[w-inset, h-inset]] as const) {
-        ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-        ctx.fillStyle = color; ctx.fill();
-      }
-      ctx.shadowBlur = 0;
-    } else if (variant === 2) {
-      // Chamfered / octagon corners
-      const cut = Math.min(16, Math.min(w, h) * 0.14);
-      ctx.strokeStyle = color + "90"; ctx.lineWidth = 1.5;
-      ctx.shadowColor = color; ctx.shadowBlur = 6;
-      ctx.beginPath();
-      ctx.moveTo(inset + cut, inset); ctx.lineTo(w - inset - cut, inset);
-      ctx.lineTo(w - inset, inset + cut); ctx.lineTo(w - inset, h - inset - cut);
-      ctx.lineTo(w - inset - cut, h - inset); ctx.lineTo(inset + cut, h - inset);
-      ctx.lineTo(inset, h - inset - cut); ctx.lineTo(inset, inset + cut);
-      ctx.closePath(); ctx.stroke();
-      ctx.shadowBlur = 0;
-    } else {
-      // v0: Rounded rect + L-corner accent marks (original)
-      ctx.strokeStyle = color + "90"; ctx.lineWidth = 1.5;
-      ctx.shadowColor = color; ctx.shadowBlur = 6;
-      path(); ctx.stroke(); ctx.shadowBlur = 0;
-      const acs = 8;
-      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.shadowColor = color; ctx.shadowBlur = 8;
-      for (const [cx, cy, sx, sy] of [
-        [inset, inset, 1, 1],[w-inset, inset, -1, 1],[inset, h-inset, 1, -1],[w-inset, h-inset, -1, -1],
-      ] as const) {
+    ctx.shadowColor = color; ctx.strokeStyle = color;
+    const acs = 10;
+    switch (variant) {
+      case 0: // Rounded + L-corner arms
+        ctx.strokeStyle = color + "90"; ctx.lineWidth = 1.5; ctx.shadowBlur = 6;
+        path(); ctx.stroke(); ctx.shadowBlur = 0;
+        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.shadowBlur = 8;
+        for (const [cx, cy, sx, sy] of [
+          [inset,inset,1,1],[w-inset,inset,-1,1],[inset,h-inset,1,-1],[w-inset,h-inset,-1,-1],
+        ] as const) {
+          ctx.beginPath(); ctx.moveTo(cx+sx*acs,cy); ctx.lineTo(cx,cy); ctx.lineTo(cx,cy+sy*acs); ctx.stroke();
+        }
+        ctx.shadowBlur = 0; break;
+      case 1: // Square + glowing corner dots
+        ctx.strokeStyle = color + "90"; ctx.lineWidth = 1.5; ctx.shadowBlur = 6;
+        ctx.beginPath(); ctx.rect(inset,inset,w-inset*2,h-inset*2); ctx.stroke();
+        ctx.shadowBlur = 12;
+        for (const [cx,cy] of [[inset,inset],[w-inset,inset],[inset,h-inset],[w-inset,h-inset]] as const) {
+          ctx.beginPath(); ctx.arc(cx,cy,4,0,Math.PI*2); ctx.fillStyle = color; ctx.fill();
+        }
+        ctx.shadowBlur = 0; break;
+      case 2: // Chamfered octagon
+      { const cut = Math.min(16, Math.min(w,h)*0.14);
+        ctx.strokeStyle = color + "90"; ctx.lineWidth = 1.5; ctx.shadowBlur = 6;
         ctx.beginPath();
-        ctx.moveTo(cx + sx * acs, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + sy * acs);
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
+        ctx.moveTo(inset+cut,inset); ctx.lineTo(w-inset-cut,inset);
+        ctx.lineTo(w-inset,inset+cut); ctx.lineTo(w-inset,h-inset-cut);
+        ctx.lineTo(w-inset-cut,h-inset); ctx.lineTo(inset+cut,h-inset);
+        ctx.lineTo(inset,h-inset-cut); ctx.lineTo(inset,inset+cut);
+        ctx.closePath(); ctx.stroke(); ctx.shadowBlur = 0; break; }
+      case 3: // Double concentric borders
+        ctx.strokeStyle = color + "90"; ctx.lineWidth = 1.5; ctx.shadowBlur = 6;
+        path(); ctx.stroke();
+        ctx.lineWidth = 1; ctx.shadowBlur = 3; ctx.globalAlpha = 0.4;
+        ctx.beginPath(); ctx.roundRect(inset+5,inset+5,w-inset*2-10,h-inset*2-10,Math.max(0,r-5)); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0; break;
+      case 4: // Dashed border
+        ctx.setLineDash([8,5]); ctx.strokeStyle = color + "90"; ctx.lineWidth = 1.5; ctx.shadowBlur = 6;
+        path(); ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur = 0; break;
+      case 5: // Thick glow band + thin border
+        ctx.strokeStyle = color + "28"; ctx.lineWidth = 10; ctx.shadowBlur = 2;
+        path(); ctx.stroke();
+        ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.shadowBlur = 8;
+        path(); ctx.stroke(); ctx.shadowBlur = 0; break;
+      case 6: // Corner brackets only (no sides)
+      { const arm = Math.min(20, Math.min(w,h)*0.22);
+        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.shadowBlur = 9;
+        for (const [cx,cy,sx,sy] of [
+          [inset,inset,1,1],[w-inset,inset,-1,1],[inset,h-inset,1,-1],[w-inset,h-inset,-1,-1],
+        ] as const) {
+          ctx.beginPath(); ctx.moveTo(cx+sx*arm,cy); ctx.lineTo(cx,cy); ctx.lineTo(cx,cy+sy*arm); ctx.stroke();
+        }
+        ctx.shadowBlur = 0; break; }
+      case 7: // Inner ring + perimeter dots
+      { ctx.strokeStyle = color + "80"; ctx.lineWidth = 1; ctx.shadowBlur = 5;
+        ctx.beginPath(); ctx.roundRect(inset+7,inset+7,w-inset*2-14,h-inset*2-14,Math.max(0,r-7)); ctx.stroke();
+        ctx.fillStyle = color; ctx.shadowBlur = 8;
+        const step = Math.max(10, w/8);
+        for (let xi = inset; xi <= w-inset; xi += step) {
+          for (const yy of [inset, h-inset]) { ctx.beginPath(); ctx.arc(xi,yy,2.5,0,Math.PI*2); ctx.fill(); }
+        }
+        for (let yi = inset+step; yi < h-inset; yi += step) {
+          for (const xx of [inset, w-inset]) { ctx.beginPath(); ctx.arc(xx,yi,2.5,0,Math.PI*2); ctx.fill(); }
+        }
+        ctx.shadowBlur = 0; break; }
+      case 8: // Diagonal X marks at corners
+        ctx.strokeStyle = color + "50"; ctx.lineWidth = 1; ctx.shadowBlur = 4;
+        path(); ctx.stroke();
+        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.shadowBlur = 10;
+      { const sz = Math.min(14, Math.min(w,h)*0.12);
+        for (const [cx,cy] of [[inset,inset],[w-inset,inset],[inset,h-inset],[w-inset,h-inset]] as const) {
+          ctx.beginPath(); ctx.moveTo(cx-sz*0.6,cy-sz*0.6); ctx.lineTo(cx+sz*0.6,cy+sz*0.6); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(cx+sz*0.6,cy-sz*0.6); ctx.lineTo(cx-sz*0.6,cy+sz*0.6); ctx.stroke();
+        }
+        ctx.shadowBlur = 0; break; }
+      default: // 9: Thick outer + thin inner rings
+        ctx.strokeStyle = color + "60"; ctx.lineWidth = 3.5; ctx.shadowBlur = 3;
+        path(); ctx.stroke();
+        ctx.lineWidth = 0.8; ctx.shadowBlur = 8; ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.roundRect(inset+8,inset+8,w-inset*2-16,h-inset*2-16,Math.max(0,r-8)); ctx.stroke();
+        ctx.shadowBlur = 0; break;
     }
     return;
   }
 
-  // ── UNCOMMON ─────────────────────────────────────────────────────────────
+  // ── UNCOMMON — parameterized by variant (0-9) ─────────────────────────────
   if (rarity === "uncommon") {
-    if (variant === 1) {
-      // Dual opposing comets
-      const pts = perimeterPoints(w, h, r, 200);
-      const total = pts.length;
-      ctx.strokeStyle = color + "25"; ctx.lineWidth = 1.5; path(); ctx.stroke();
-      for (let c = 0; c < 2; c++) {
-        const dir = c === 0 ? 1 : -1;
-        const offset = c === 0 ? 0 : total / 2;
-        const headIdx = Math.floor(((t * 2 * dir) + offset * dir + total * 200) % total);
-        for (let i = 0; i < 35; i++) {
-          const idx = ((headIdx - dir * i) + total * 100) % total;
-          const pt = pts[idx];
-          const alpha = (1 - i / 35) ** 1.5;
-          ctx.beginPath();
-          ctx.arc(pt[0], pt[1], 1.2 + (1 - i / 35), 0, Math.PI * 2);
-          ctx.fillStyle = color + Math.floor(alpha * 200).toString(16).padStart(2, "0");
-          ctx.shadowColor = color; ctx.shadowBlur = alpha * 10; ctx.fill();
-        }
-        const head = pts[((headIdx) + total) % total];
-        ctx.beginPath(); ctx.arc(head[0], head[1], 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 14; ctx.fill();
-      }
-      ctx.shadowBlur = 0;
-    } else if (variant === 2) {
-      // Marching dashes
-      ctx.setLineDash([8, 5]); ctx.lineDashOffset = -(t * 0.8) % 13;
+    const U_SPEED  = [3, 2, 0, 3.5, 1.5, 2.5, 2.2, 0, 4, 1];
+    const U_DIR    = [1, 1, 1,  1,  -1,   1,   1, -1,  1,  1];
+    const U_CNT    = [1, 2, 0,  1,   1,   3,   1,  0,  2,  1];
+    const U_TAIL   = [40, 35, 0, 20, 50, 18, 35, 0, 14, 55];
+    const U_DASHSP = [0, 0, 0.8, 0, 0, 0, 0, 1.2, 0, 0];
+    const uspd = U_SPEED[variant] ?? 3;
+    const udir = U_DIR[variant] ?? 1;
+    const ucnt = U_CNT[variant] ?? 1;
+    const utail = U_TAIL[variant] ?? 40;
+    const dashSp = U_DASHSP[variant] ?? 0;
+    ctx.strokeStyle = color + "25"; ctx.lineWidth = 1.5; path(); ctx.stroke();
+    if (dashSp > 0) {
+      ctx.setLineDash([8, 5]); ctx.lineDashOffset = -(t * dashSp) % 13;
       ctx.strokeStyle = color; ctx.lineWidth = 1.5;
-      ctx.shadowColor = color; ctx.shadowBlur = 6;
-      path(); ctx.stroke();
+      ctx.shadowColor = color; ctx.shadowBlur = 6; path(); ctx.stroke();
       ctx.setLineDash([]); ctx.shadowBlur = 0;
     } else {
-      // v0: Single comet clockwise (original)
-      const perim = 2 * (w + h);
-      const cometPos = (t * 3) % perim;
-      ctx.strokeStyle = color + "25"; ctx.lineWidth = 1.5; path(); ctx.stroke();
-      const pts = perimeterPoints(w, h, r, 180);
+      const pts = perimeterPoints(w, h, r, 200);
       const total = pts.length;
-      const headIdx = Math.floor((cometPos / perim) * total) % total;
-      for (let i = 0; i < 40; i++) {
-        const idx = (headIdx - i + total) % total;
-        const pt = pts[idx];
-        const alpha = (1 - i / 40) ** 1.5;
-        ctx.beginPath();
-        ctx.arc(pt[0], pt[1], 1.5 + (1 - i / 40) * 1.5, 0, Math.PI * 2);
-        ctx.fillStyle = color + Math.floor(alpha * 255).toString(16).padStart(2, "0");
-        ctx.shadowColor = color; ctx.shadowBlur = alpha * 12; ctx.fill();
+      for (let c = 0; c < ucnt; c++) {
+        const offset = ucnt > 1 ? (c / ucnt) * total : 0;
+        const headIdx = Math.floor(((t * uspd * udir) + offset + total * 200) % total);
+        for (let i = 0; i < utail; i++) {
+          const vi = ((headIdx - udir * i) + total * 100) % total;
+          const pt = pts[vi];
+          const alpha = (1 - i / utail) ** 1.5;
+          ctx.beginPath();
+          ctx.arc(pt[0], pt[1], 1.5 + (1 - i / utail) * 1.5, 0, Math.PI * 2);
+          ctx.fillStyle = color + Math.floor(alpha * 230).toString(16).padStart(2, "0");
+          ctx.shadowColor = color; ctx.shadowBlur = alpha * 12; ctx.fill();
+        }
+        const head = pts[((headIdx) + total) % total];
+        ctx.beginPath(); ctx.arc(head[0], head[1], 3, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 16; ctx.fill();
       }
-      const head = pts[headIdx];
-      ctx.beginPath(); ctx.arc(head[0], head[1], 3, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 16; ctx.fill();
       ctx.shadowBlur = 0;
     }
     return;
   }
 
-  // ── RARE ──────────────────────────────────────────────────────────────────
+  // ── RARE — parameterized by variant (0-9) ─────────────────────────────────
   if (rarity === "rare") {
-    if (variant === 1) {
-      // Dual breathing rings, out of phase
-      const p1 = 0.5 + 0.5 * Math.sin((t / 40) * Math.PI * 2);
-      const p2 = 0.5 + 0.5 * Math.sin((t / 40) * Math.PI * 2 + Math.PI);
+    const R_FREQ  = [40, 32, 48, 36, 44, 28, 55, 60, 38, 50];
+    const R_STYLE = [0,  1,  0,  2,  0,  1,  0,  2,  1,  2];
+    const rfreq = R_FREQ[variant] ?? 40;
+    const rstyle = R_STYLE[variant] ?? 0;
+    if (rstyle === 1) {
+      // Dual breathing rings out of phase
+      const p1 = 0.5 + 0.5 * Math.sin((t / rfreq) * Math.PI * 2);
+      const p2 = 0.5 + 0.5 * Math.sin((t / rfreq) * Math.PI * 2 + Math.PI);
       ctx.strokeStyle = color; ctx.lineWidth = 4 + p1 * 4;
       ctx.shadowColor = color; ctx.shadowBlur = 14 * p1; ctx.globalAlpha = 0.2 + 0.5 * p1;
       path(); ctx.stroke();
-      ctx.lineWidth = 2 + p2 * 3;
-      ctx.shadowBlur = 10 * p2; ctx.globalAlpha = 0.3 + 0.5 * p2;
+      ctx.lineWidth = 2 + p2 * 3; ctx.shadowBlur = 10 * p2; ctx.globalAlpha = 0.3 + 0.5 * p2;
       const i2 = 5;
       ctx.beginPath(); ctx.roundRect(i2, i2, w - i2 * 2, h - i2 * 2, Math.max(0, r - i2)); ctx.stroke();
       ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-    } else if (variant === 2) {
+    } else if (rstyle === 2) {
       // Traveling bright spot along perimeter
       const pts = perimeterPoints(w, h, r, 200);
       const total = pts.length;
+      const rspd = 1.5 + (variant % 5) * 0.4;
       ctx.strokeStyle = color + "40"; ctx.lineWidth = 1.5; path(); ctx.stroke();
-      const headIdx = Math.floor((t * 2) % total);
+      const headIdx = Math.floor((t * rspd) % total);
       for (let i = 0; i < 16; i++) {
-        const idx = (headIdx - i + total) % total;
-        const pt = pts[idx];
+        const vi = (headIdx - i + total) % total;
+        const pt = pts[vi];
         const alpha = (1 - i / 16) ** 2;
         ctx.beginPath(); ctx.arc(pt[0], pt[1], 2.5 + 1.5 * alpha, 0, Math.PI * 2);
         ctx.fillStyle = color + Math.floor(alpha * 255).toString(16).padStart(2, "0");
@@ -222,15 +254,15 @@ function drawFrame(
       ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 18; ctx.fill();
       ctx.shadowBlur = 0;
     } else {
-      // v0: Pulsing double-layer glow + ripple (original)
-      const pulse = 0.5 + 0.5 * Math.sin((t / 40) * Math.PI * 2);
+      // Pulsing double-layer glow + ripple, freq varies by variant
+      const pulse = 0.5 + 0.5 * Math.sin((t / rfreq) * Math.PI * 2);
       ctx.strokeStyle = color + Math.floor((0.1 + 0.2 * pulse) * 255).toString(16).padStart(2, "0");
       ctx.lineWidth = 6 + pulse * 4; ctx.shadowColor = color; ctx.shadowBlur = 18 * pulse;
       path(); ctx.stroke();
       ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.shadowBlur = 10 * pulse;
       ctx.globalAlpha = 0.6 + 0.4 * pulse; path(); ctx.stroke();
       ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-      const ripplePhase = (t % 80) / 80;
+      const ripplePhase = (t % (rfreq * 2)) / (rfreq * 2);
       if (ripplePhase < 0.6) {
         ctx.strokeStyle = color + Math.floor((1 - ripplePhase / 0.6) * 80).toString(16).padStart(2, "0");
         ctx.lineWidth = 1; ctx.globalAlpha = 1 - ripplePhase / 0.6;
@@ -242,39 +274,42 @@ function drawFrame(
     return;
   }
 
-  // ── EPIC ──────────────────────────────────────────────────────────────────
+  // ── EPIC — parameterized by variant (0-9) ─────────────────────────────────
   if (rarity === "epic") {
-    if (variant === 1) {
-      // Plasma scan line sweeping top to bottom
+    const E_SPEED = [80, 65, 95, 55, 40, 100, 70, 45, 85, 60];
+    const E_STYLE = [0,  0,  1,  0,  1,  2,   0,  1,  2,  0];
+    const espd = E_SPEED[variant] ?? 80;
+    const estyle = E_STYLE[variant] ?? 0;
+    const angle = (t / espd) * Math.PI * 2;
+    if (estyle === 1) {
+      // Plasma scan line
       ctx.strokeStyle = color + "60"; ctx.lineWidth = 2;
-      ctx.shadowColor = color; ctx.shadowBlur = 10;
-      path(); ctx.stroke();
-      ctx.strokeStyle = color + "30"; ctx.lineWidth = 8; ctx.shadowBlur = 20;
-      path(); ctx.stroke(); ctx.shadowBlur = 0;
-      const scanY = ((t * 2) % (h + 30)) - 15;
+      ctx.shadowColor = color; ctx.shadowBlur = 10; path(); ctx.stroke();
+      ctx.strokeStyle = color + "30"; ctx.lineWidth = 8; ctx.shadowBlur = 20; path(); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const scanY = ((t * (1.5 + (variant % 4) * 0.5)) % (h + 30)) - 15;
       const sg = ctx.createLinearGradient(0, scanY - 6, 0, scanY + 6);
       sg.addColorStop(0, color + "00"); sg.addColorStop(0.5, color + "ee"); sg.addColorStop(1, color + "00");
       ctx.fillStyle = sg;
       ctx.fillRect(inset, Math.max(inset, scanY - 6), w - inset * 2, 12);
-    } else if (variant === 2) {
-      // Orbiting diamond markers at each corner
-      const angle = (t / 80) * Math.PI * 2;
+    } else if (estyle === 2) {
+      // Orbiting diamond markers
       ctx.strokeStyle = color + "50"; ctx.lineWidth = 2; ctx.shadowColor = color; ctx.shadowBlur = 10;
       path(); ctx.stroke();
       ctx.strokeStyle = color + "30"; ctx.lineWidth = 8; ctx.shadowBlur = 20; path(); ctx.stroke();
       ctx.shadowBlur = 0;
-      const corners: [number, number][] = [[inset, inset],[w-inset, inset],[w-inset, h-inset],[inset, h-inset]];
+      const corners: [number, number][] = [[inset,inset],[w-inset,inset],[w-inset,h-inset],[inset,h-inset]];
+      const rad = 6 + (variant % 4) * 2;
       corners.forEach(([cx, cy], i) => {
-        const ph = angle + (i * Math.PI / 2), rad = 8;
+        const ph = angle + (i * Math.PI / 2);
         const px = cx + Math.cos(ph) * rad, py = cy + Math.sin(ph) * rad;
         ctx.save(); ctx.translate(px, py); ctx.rotate(ph);
-        ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(5, 0); ctx.lineTo(0, 5); ctx.lineTo(-5, 0); ctx.closePath();
+        ctx.beginPath(); ctx.moveTo(0,-5); ctx.lineTo(5,0); ctx.lineTo(0,5); ctx.lineTo(-5,0); ctx.closePath();
         ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 12; ctx.fill(); ctx.restore();
       });
       ctx.shadowBlur = 0;
     } else {
-      // v0: Conic gradient spin + orbiting corner sparks (original)
-      const angle = (t / 80) * Math.PI * 2;
+      // Conic gradient spin + corner sparks
       const cx2 = w / 2, cy2 = h / 2;
       const grad = ctx.createConicGradient(angle, cx2, cy2);
       grad.addColorStop(0, color); grad.addColorStop(0.15, "#ffffff");
@@ -284,10 +319,10 @@ function drawFrame(
       path(); ctx.stroke(); ctx.shadowBlur = 0;
       ctx.strokeStyle = color + "30"; ctx.lineWidth = 8; ctx.shadowColor = color; ctx.shadowBlur = 20;
       path(); ctx.stroke(); ctx.shadowBlur = 0;
-      const corners2: [number, number][] = [[inset, inset],[w-inset, inset],[w-inset, h-inset],[inset, h-inset]];
+      const corners2: [number, number][] = [[inset,inset],[w-inset,inset],[w-inset,h-inset],[inset,h-inset]];
       corners2.forEach(([cx3, cy3], i) => {
-        const phase = angle + (i * Math.PI) / 2;
-        const ox = Math.cos(phase) * 6, oy = Math.sin(phase) * 6;
+        const ph = angle + (i * Math.PI) / 2;
+        const ox = Math.cos(ph) * 6, oy = Math.sin(ph) * 6;
         ctx.beginPath(); ctx.arc(cx3 + ox, cy3 + oy, 2, 0, Math.PI * 2);
         ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 10; ctx.fill();
       });
@@ -296,80 +331,70 @@ function drawFrame(
     return;
   }
 
-  // ── LEGENDARY ─────────────────────────────────────────────────────────────
+  // ── LEGENDARY — parameterized by variant (0-9) ────────────────────────────
   if (rarity === "legendary") {
-    if (variant === 1) {
+    const L_STYLE = [0, 1, 2, 0, 1, 2, 0, 1, 2, 0];
+    const L_FREQ  = [5, 12, 18, 4, 10, 8, 3, 9, 14, 6];
+    const lstyle = L_STYLE[variant] ?? 0;
+    const lfreq = L_FREQ[variant] ?? 5;
+    ctx.strokeStyle = color + "18"; ctx.lineWidth = 12;
+    ctx.shadowColor = color; ctx.shadowBlur = 30; path(); ctx.stroke();
+    ctx.strokeStyle = color + "35"; ctx.lineWidth = 5; ctx.shadowBlur = 18; path(); ctx.stroke();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.shadowBlur = 14; path(); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#ffffff50"; ctx.lineWidth = 0.5;
+    const li2 = 4; ctx.beginPath(); ctx.roundRect(li2,li2,w-li2*2,h-li2*2,Math.max(0,r-li2)); ctx.stroke();
+    if (lstyle === 1) {
       // Corner-to-corner chain lightning
-      ctx.strokeStyle = color + "18"; ctx.lineWidth = 12;
-      ctx.shadowColor = color; ctx.shadowBlur = 30; path(); ctx.stroke();
-      ctx.strokeStyle = color + "35"; ctx.lineWidth = 5; ctx.shadowBlur = 18; path(); ctx.stroke();
-      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.shadowBlur = 14; path(); ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#ffffff50"; ctx.lineWidth = 0.5;
-      const i2 = 4; ctx.beginPath(); ctx.roundRect(i2, i2, w - i2 * 2, h - i2 * 2, Math.max(0, r - i2)); ctx.stroke();
-      if (t % 12 < 5) {
-        const corners: [number, number][] = [[inset, inset],[w-inset, inset],[w-inset, h-inset],[inset, h-inset]];
-        const c1 = Math.floor(t / 12) % 4, c2 = (c1 + 1 + ((Math.floor(t / 12) >> 1) % 2)) % 4;
-        const [x1, y1] = corners[c1], [x2, y2] = corners[c2];
+      if (t % lfreq < Math.ceil(lfreq * 0.4)) {
+        const lc: [number,number][] = [[inset,inset],[w-inset,inset],[w-inset,h-inset],[inset,h-inset]];
+        const c1 = Math.floor(t / lfreq) % 4, c2 = (c1+1+((Math.floor(t/lfreq)>>1)%2))%4;
+        const [x1,y1] = lc[c1], [x2,y2] = lc[c2];
         ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.5;
-        ctx.shadowColor = color; ctx.shadowBlur = 16; ctx.globalAlpha = 0.9 * (1 - (t % 12) / 5);
+        ctx.shadowColor = color; ctx.shadowBlur = 16;
+        ctx.globalAlpha = 0.9 * (1 - (t % lfreq) / (lfreq * 0.4));
         ctx.beginPath(); ctx.moveTo(x1, y1);
         let lx = x1, ly = y1;
         for (let s = 0; s < 6; s++) {
-          lx += (x2 - x1) / 6 + (Math.random() - 0.5) * 20;
-          ly += (y2 - y1) / 6 + (Math.random() - 0.5) * 20;
+          lx += (x2-x1)/6 + (Math.random()-0.5)*20; ly += (y2-y1)/6 + (Math.random()-0.5)*20;
           ctx.lineTo(lx, ly);
         }
         ctx.lineTo(x2, y2); ctx.stroke(); ctx.globalAlpha = 1;
       }
-      ctx.shadowBlur = 0;
-    } else if (variant === 2) {
-      // Glitch/stutter border
-      const glitch = t % 18 < 3;
-      const ox = glitch ? (Math.random() - 0.5) * 6 : 0;
-      const oy = glitch ? (Math.random() - 0.5) * 6 : 0;
-      ctx.strokeStyle = color + "18"; ctx.lineWidth = 12;
-      ctx.shadowColor = color; ctx.shadowBlur = 30; path(); ctx.stroke();
+    } else if (lstyle === 2) {
+      // Glitch/stutter
+      const glitch = t % lfreq < 3;
+      const ox = glitch ? (Math.random()-0.5)*6 : 0;
+      const oy = glitch ? (Math.random()-0.5)*6 : 0;
       ctx.strokeStyle = glitch ? "#ffffff" : color; ctx.lineWidth = 2;
       ctx.shadowBlur = glitch ? 20 : 14; ctx.globalAlpha = glitch ? 0.65 : 1;
-      ctx.beginPath(); ctx.roundRect(inset + ox, inset + oy, w - inset * 2, h - inset * 2, Math.max(0, r - inset)); ctx.stroke();
+      ctx.beginPath(); ctx.roundRect(inset+ox, inset+oy, w-inset*2, h-inset*2, Math.max(0,r-inset)); ctx.stroke();
       if (glitch) {
         ctx.strokeStyle = color + "70"; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.roundRect(inset - ox * 2, inset - oy * 2, w - inset * 2, h - inset * 2, Math.max(0, r - inset)); ctx.stroke();
+        ctx.beginPath(); ctx.roundRect(inset-ox*2,inset-oy*2,w-inset*2,h-inset*2,Math.max(0,r-inset)); ctx.stroke();
       }
       ctx.globalAlpha = 1; ctx.shadowBlur = 0;
     } else {
-      // v0: Electric arcs + triple bloom (original)
-      ctx.strokeStyle = color + "18"; ctx.lineWidth = 12;
-      ctx.shadowColor = color; ctx.shadowBlur = 30; path(); ctx.stroke();
-      ctx.strokeStyle = color + "35"; ctx.lineWidth = 5; ctx.shadowBlur = 18; path(); ctx.stroke();
-      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.shadowBlur = 14; path(); ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#ffffff50"; ctx.lineWidth = 0.5;
-      const i2 = 4; ctx.beginPath(); ctx.roundRect(i2, i2, w - i2 * 2, h - i2 * 2, Math.max(0, r - i2)); ctx.stroke();
+      // Electric arcs with varying frequency
       const orn = 12; ctx.strokeStyle = "#ffffff90"; ctx.lineWidth = 1.5; ctx.shadowColor = color; ctx.shadowBlur = 8;
-      for (const [x, y, sx, sy] of [
-        [inset, inset, 1, 1],[w-inset, inset, -1, 1],[inset, h-inset, 1, -1],[w-inset, h-inset, -1, -1],
-      ] as const) {
-        ctx.beginPath(); ctx.moveTo(x + sx * orn, y); ctx.lineTo(x, y); ctx.lineTo(x, y + sy * orn); ctx.stroke();
+      for (const [x,y,sx,sy] of [[inset,inset,1,1],[w-inset,inset,-1,1],[inset,h-inset,1,-1],[w-inset,h-inset,-1,-1]] as const) {
+        ctx.beginPath(); ctx.moveTo(x+sx*orn,y); ctx.lineTo(x,y); ctx.lineTo(x,y+sy*orn); ctx.stroke();
       }
       ctx.shadowBlur = 0;
-      if (t % 5 === 0) {
+      if (t % lfreq === 0) {
         const numArcs = 2 + Math.floor(Math.random() * 3);
         for (let i = 0; i < numArcs; i++) {
           const side = Math.floor(Math.random() * 4);
           let x1: number, y1: number;
-          if (side === 0) { x1 = Math.random() * w; y1 = inset; }
-          else if (side === 1) { x1 = w - inset; y1 = Math.random() * h; }
-          else if (side === 2) { x1 = Math.random() * w; y1 = h - inset; }
-          else { x1 = inset; y1 = Math.random() * h; }
+          if (side === 0) { x1 = Math.random()*w; y1 = inset; }
+          else if (side === 1) { x1 = w-inset; y1 = Math.random()*h; }
+          else if (side === 2) { x1 = Math.random()*w; y1 = h-inset; }
+          else { x1 = inset; y1 = Math.random()*h; }
           ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
-          ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.globalAlpha = 0.5 + Math.random() * 0.5;
+          ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.globalAlpha = 0.5+Math.random()*0.5;
           ctx.beginPath(); ctx.moveTo(x1, y1);
           let lx = x1, ly = y1;
-          for (let s = 0; s < 4; s++) {
-            lx += (Math.random() - 0.5) * 14; ly += (Math.random() - 0.5) * 14; ctx.lineTo(lx, ly);
-          }
+          for (let s = 0; s < 4; s++) { lx += (Math.random()-0.5)*14; ly += (Math.random()-0.5)*14; ctx.lineTo(lx, ly); }
           ctx.stroke(); ctx.globalAlpha = 1;
         }
         ctx.shadowBlur = 0;
@@ -399,78 +424,62 @@ function drawFrame(
       });
     };
 
-    if (variant === 1) {
-      // All 4 edges matrix + deeper cycling + bigger surge
-      const hShift = (t / 2) % 360;
-      const cc = hslToHex(hShift, 100, 62);
-      ctx.strokeStyle = cc + "22"; ctx.lineWidth = 18;
-      ctx.shadowColor = cc; ctx.shadowBlur = 38; path(); ctx.stroke();
-      ctx.strokeStyle = color + "50"; ctx.lineWidth = 6; ctx.shadowBlur = 22; path(); ctx.stroke();
+    const M_HUE   = [3, 2, 5, 2, 6, 3.5, 4.5, 7, 2.5, 1.5];
+    const M_STYLE = [0, 1, 2, 1, 0, 2, 1, 0, 2, 1]; // 0=matrix-topbot,1=all4,2=void
+    const M_SAT   = [100, 100, 80, 100, 100, 90, 100, 100, 80, 100];
+    const mHueSpd = M_HUE[variant] ?? 3;
+    const mstyle = M_STYLE[variant] ?? 0;
+    const mSat = M_SAT[variant] ?? 100;
+    const mSurgePer = [120, 100, 90, 130, 80, 110, 95, 140, 85, 75][variant] ?? 120;
+    const hShift = (t / mHueSpd) % 360;
+    const cc = hslToHex(hShift, mSat, mstyle === 2 ? 55 : 62);
+    const bloomW = mstyle === 1 ? 18 : mstyle === 2 ? 20 : 16;
+    const bloomBlur = mstyle === 1 ? 38 : mstyle === 2 ? 42 : 35;
+    ctx.strokeStyle = cc + (mstyle === 2 ? "28" : mstyle === 1 ? "22" : "20");
+    ctx.lineWidth = bloomW; ctx.shadowColor = cc; ctx.shadowBlur = bloomBlur; path(); ctx.stroke();
+    ctx.strokeStyle = color + (mstyle === 2 ? "60" : "50");
+    ctx.lineWidth = 6; ctx.shadowBlur = mstyle === 2 ? 24 : 20; path(); ctx.stroke();
+    if (mstyle !== 2) {
       const flick = 0.7 + 0.3 * Math.abs(Math.sin((t / 8) * Math.PI));
       ctx.strokeStyle = cc; ctx.lineWidth = 2; ctx.globalAlpha = flick;
-      ctx.shadowColor = cc; ctx.shadowBlur = 18; path(); ctx.stroke();
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#ffffff30"; ctx.lineWidth = 0.5;
-      const mi = 5; ctx.beginPath(); ctx.roundRect(mi, mi, w - mi * 2, h - mi * 2, Math.max(0, r - mi)); ctx.stroke();
-      ctx.font = "bold 7px monospace"; ctx.shadowColor = cc; ctx.shadowBlur = 8;
-      const topPos = Array.from({ length: Math.floor(w / 9) }, (_, i) => i * 9 + 4);
-      const leftPos = Array.from({ length: Math.floor(h / 9) }, (_, i) => i * 9 + 4);
-      drawEdgeChars(topPos, p => [p, inset + 7], 0, cc);
-      drawEdgeChars(topPos, p => [p, h - inset - 2], 30, cc);
-      drawEdgeChars(leftPos, p => [inset + 2, p], 15, cc);
-      drawEdgeChars(leftPos, p => [w - inset - 9, p], 45, cc);
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-      const surge = t % 100;
-      if (surge < 10) {
-        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2.5; ctx.globalAlpha = (1 - surge / 10) * 0.9;
-        ctx.shadowColor = cc; ctx.shadowBlur = 40; path(); ctx.stroke(); ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-      }
-    } else if (variant === 2) {
-      // Void/cosmic — dense perimeter sparks + inner accent
-      const hShift = (t / 3) % 360;
-      const cc = hslToHex(hShift, 80, 55);
-      ctx.strokeStyle = cc + "28"; ctx.lineWidth = 20;
-      ctx.shadowColor = cc; ctx.shadowBlur = 42; path(); ctx.stroke();
-      ctx.strokeStyle = color + "60"; ctx.lineWidth = 6; ctx.shadowBlur = 24; path(); ctx.stroke();
+      ctx.shadowColor = cc; ctx.shadowBlur = mstyle === 1 ? 18 : 16; path(); ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else {
       ctx.strokeStyle = cc; ctx.lineWidth = 2; ctx.shadowColor = cc; ctx.shadowBlur = 18; path(); ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#ffffff30"; ctx.lineWidth = 0.5;
-      const mi2 = 5; ctx.beginPath(); ctx.roundRect(mi2, mi2, w - mi2 * 2, h - mi2 * 2, Math.max(0, r - mi2)); ctx.stroke();
-      // Dense perimeter sparks
+    }
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#ffffff30"; ctx.lineWidth = 0.5;
+    const mi = 5; ctx.beginPath(); ctx.roundRect(mi,mi,w-mi*2,h-mi*2,Math.max(0,r-mi)); ctx.stroke();
+    if (mstyle === 2) {
+      // Void/cosmic — perimeter sparks
       const pts = perimeterPoints(w, h, r, 200);
-      for (let i = 0; i < 8; i++) {
-        const idx = Math.floor((t * 2.5 + i * (200 / 8)) % 200);
-        const pt = pts[idx];
+      const sparkCnt = 6 + (variant % 4) * 2;
+      for (let i = 0; i < sparkCnt; i++) {
+        const vi = Math.floor((t * (2 + (variant % 3) * 0.5) + i * (200 / sparkCnt)) % 200);
+        const pt = pts[vi];
         ctx.beginPath(); ctx.arc(pt[0], pt[1], 1.5 + Math.random() * 1.5, 0, Math.PI * 2);
         ctx.fillStyle = "#ffffff"; ctx.shadowColor = cc; ctx.shadowBlur = 14; ctx.fill();
       }
       ctx.shadowBlur = 0;
     } else {
-      // v0: Matrix rain + cosmic bloom + hue shift (original)
-      const hShift = (t / 3) % 360;
-      const cc = hslToHex(hShift, 100, 60);
-      ctx.strokeStyle = cc + "20"; ctx.lineWidth = 16;
-      ctx.shadowColor = cc; ctx.shadowBlur = 35; path(); ctx.stroke();
-      ctx.strokeStyle = color + "50"; ctx.lineWidth = 6; ctx.shadowBlur = 20; path(); ctx.stroke();
-      const flick = 0.7 + 0.3 * Math.abs(Math.sin((t / 8) * Math.PI));
-      ctx.strokeStyle = cc; ctx.lineWidth = 2; ctx.globalAlpha = flick;
-      ctx.shadowColor = cc; ctx.shadowBlur = 16; path(); ctx.stroke();
+      // Matrix edge chars — topbot (style 0) or all4 (style 1)
+      const charStep = 7 + (variant % 3) * 2;
+      ctx.font = `bold ${charStep}px monospace`; ctx.shadowColor = cc; ctx.shadowBlur = 8;
+      const topPos = Array.from({ length: Math.floor(w / (charStep + 2)) }, (_, i) => i * (charStep + 2) + 4);
+      drawEdgeChars(topPos, p => [p, inset + charStep], 0, cc);
+      drawEdgeChars(topPos, p => [p, h - inset - 2], 30, cc);
+      if (mstyle === 1) {
+        const leftPos = Array.from({ length: Math.floor(h / (charStep + 2)) }, (_, i) => i * (charStep + 2) + 4);
+        drawEdgeChars(leftPos, p => [inset + 2, p], 15, cc);
+        drawEdgeChars(leftPos, p => [w - inset - charStep - 2, p], 45, cc);
+      }
       ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#ffffff30"; ctx.lineWidth = 0.5;
-      const mi3 = 5; ctx.beginPath(); ctx.roundRect(mi3, mi3, w - mi3 * 2, h - mi3 * 2, Math.max(0, r - mi3)); ctx.stroke();
-      ctx.font = "bold 7px monospace"; ctx.shadowColor = cc; ctx.shadowBlur = 8;
-      const topPos2 = Array.from({ length: Math.floor(w / 9) }, (_, i) => i * 9 + 4);
-      const leftPos2 = Array.from({ length: Math.floor(h / 9) }, (_, i) => i * 9 + 4);
-      drawEdgeChars(topPos2, p => [p, inset + 7], 0, cc);
-      drawEdgeChars(topPos2, p => [p, h - inset - 2], 30, cc);
-      drawEdgeChars(leftPos2, p => [inset + 2, p], 15, cc);
-      drawEdgeChars(leftPos2, p => [w - inset - 9, p], 45, cc);
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-      const surgePhase = t % 120;
-      if (surgePhase < 8) {
-        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.5;
-        ctx.globalAlpha = (1 - surgePhase / 8) * 0.8;
-        ctx.shadowColor = cc; ctx.shadowBlur = 30; path(); ctx.stroke();
+      const surgePhase = t % mSurgePer;
+      const surgeDur = Math.max(8, Math.floor(mSurgePer * 0.07));
+      if (surgePhase < surgeDur) {
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = mstyle === 1 ? 2.5 : 1.5;
+        ctx.globalAlpha = (1 - surgePhase / surgeDur) * (mstyle === 1 ? 0.9 : 0.8);
+        ctx.shadowColor = cc; ctx.shadowBlur = mstyle === 1 ? 40 : 30; path(); ctx.stroke();
         ctx.globalAlpha = 1; ctx.shadowBlur = 0;
       }
     }
