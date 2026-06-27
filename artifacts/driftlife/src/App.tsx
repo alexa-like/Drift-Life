@@ -22,6 +22,9 @@ import { DailyPage } from "./pages/DailyPage";
 import { FactionSelectPage } from "./pages/FactionSelectPage";
 import { NavBar } from "./components/NavBar";
 import { ToastContainer } from "./components/ToastContainer";
+import { DevToolbar } from "./components/DevToolbar";
+import { PlayerInspectModal } from "./components/PlayerInspectModal";
+import { SocketProvider } from "./context/SocketContext";
 import { api } from "./lib/api";
 import { Notification } from "./lib/types";
 
@@ -33,6 +36,7 @@ function GameApp() {
   const [page, setPage] = useState("feed");
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [showFactionSelect, setShowFactionSelect] = useState(false);
+  const [inspectUserId, setInspectUserId] = useState<string | null>(null);
 
   // Show faction selection for users without a faction
   useEffect(() => {
@@ -63,8 +67,16 @@ function GameApp() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a0a0f" }}>
-        <div className="font-mono text-xs" style={{ color: "#1e1e2e" }}>
-          Connecting to New Vanta...
+        <div style={{ textAlign: "center" }}>
+          <div
+            className="font-mono font-bold text-2xl tracking-widest mb-4"
+            style={{ color: "#00d4ff", textShadow: "0 0 20px #00d4ff" }}
+          >
+            DRIFTLIFE
+          </div>
+          <div className="font-mono text-xs" style={{ color: "#334155" }}>
+            Connecting to New Vanta...
+          </div>
         </div>
       </div>
     );
@@ -96,45 +108,58 @@ function GameApp() {
 
   function renderPage() {
     switch (page) {
-      case "dashboard": return <Dashboard {...pageProps} onNav={setPage} />;
-      case "feed": return <FeedPage user={user!} />;
-      case "crimes": return <CrimesPage {...pageProps} />;
-      case "jobs": return <JobsPage {...pageProps} />;
-      case "combat": return <CombatPage {...pageProps} />;
-      case "bank": return <BankPage {...pageProps} />;
-      case "market": return <MarketPage {...pageProps} />;
-      case "district": return <DistrictPage {...pageProps} />;
-      case "map": return <MapPage {...pageProps} />;
-      case "inventory": return <InventoryPage {...pageProps} />;
-      case "leaderboard": return <LeaderboardPage />;
-      case "hospital": return <HospitalPage {...pageProps} />;
-      case "profile": return <ProfilePage {...pageProps} />;
-      case "settings": return <SettingsPage {...pageProps} onLogout={handleLogout} />;
-      case "daily": return <DailyPage {...pageProps} onNav={setPage} />;
-      case "notifications":
-        return <NotificationsPage onUnreadChange={setUnreadNotifs} />;
+      case "dashboard":    return <Dashboard {...pageProps} onNav={setPage} />;
+      case "feed":         return <FeedPage user={user!} />;
+      case "crimes":       return <CrimesPage {...pageProps} />;
+      case "jobs":         return <JobsPage {...pageProps} />;
+      case "combat":       return <CombatPage {...pageProps} />;
+      case "bank":         return <BankPage {...pageProps} />;
+      case "market":       return <MarketPage {...pageProps} />;
+      case "district":     return <DistrictPage {...pageProps} />;
+      case "map":          return <MapPage {...pageProps} />;
+      case "inventory":    return <InventoryPage {...pageProps} />;
+      case "leaderboard":  return <LeaderboardPage />;
+      case "hospital":     return <HospitalPage {...pageProps} />;
+      case "profile":      return <ProfilePage {...pageProps} />;
+      case "settings":     return <SettingsPage {...pageProps} onLogout={handleLogout} />;
+      case "daily":        return <DailyPage {...pageProps} onNav={setPage} />;
+      case "notifications":return <NotificationsPage onUnreadChange={setUnreadNotifs} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerRedirect onNav={setPage} />
           : <Dashboard {...pageProps} onNav={setPage} />;
-      default: return <Dashboard {...pageProps} onNav={setPage} />;
+      default:             return <Dashboard {...pageProps} onNav={setPage} />;
     }
   }
 
   return (
-    <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e2e8f0" }}>
-      <NavBar
-        user={user}
-        active={page}
-        onNav={setPage}
-        onLogout={handleLogout}
-        unreadNotifs={unreadNotifs}
-      />
-      <main className="pt-16 pb-8 px-4 max-w-5xl mx-auto">
-        {renderPage()}
-      </main>
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
-    </div>
+    <SocketProvider userId={user!.id}>
+      <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e2e8f0" }}>
+        <NavBar
+          user={user!}
+          active={page}
+          onNav={setPage}
+          onLogout={handleLogout}
+          unreadNotifs={unreadNotifs}
+        />
+        {/* Account for taller nav (2 rows now) */}
+        <main className="pt-24 pb-8 px-4 max-w-5xl mx-auto">
+          {renderPage()}
+        </main>
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
+        {user!.devMode && (
+          <DevToolbar onRefresh={refreshUser} addToast={addToast} />
+        )}
+        {inspectUserId && (
+          <PlayerInspectModal
+            targetId={inspectUserId}
+            currentUser={user!}
+            onClose={() => setInspectUserId(null)}
+            addToast={addToast}
+          />
+        )}
+      </div>
+    </SocketProvider>
   );
 }
 

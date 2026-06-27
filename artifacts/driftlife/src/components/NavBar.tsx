@@ -1,22 +1,58 @@
+import { useEffect, useRef, useState } from "react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
 
-const FACTION_EMOJI: Record<string, string> = { suits: "[S]", street: "[ST]", grid: "[G]" };
+const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
 const NAV = [
-  { id: "feed", label: "Feed" },
-  { id: "map", label: "Map" },
-  { id: "crimes", label: "Crime" },
-  { id: "jobs", label: "Jobs" },
-  { id: "combat", label: "Combat" },
-  { id: "inventory", label: "Gear" },
-  { id: "market", label: "Market" },
-  { id: "bank", label: "Bank" },
-  { id: "daily", label: "Daily" },
-  { id: "leaderboard", label: "Board" },
-  { id: "profile", label: "Profile" },
+  { id: "feed",        label: "Feed",    icon: "📡" },
+  { id: "map",         label: "Map",     icon: "🗺" },
+  { id: "crimes",      label: "Crime",   icon: "🎭" },
+  { id: "jobs",        label: "Jobs",    icon: "💼" },
+  { id: "combat",      label: "Combat",  icon: "⚔️" },
+  { id: "inventory",   label: "Gear",    icon: "🎒" },
+  { id: "market",      label: "Market",  icon: "🏪" },
+  { id: "bank",        label: "Bank",    icon: "🏦" },
+  { id: "daily",       label: "Daily",   icon: "🎁" },
+  { id: "leaderboard", label: "Board",   icon: "📊" },
+  { id: "profile",     label: "Profile", icon: "👤" },
 ];
+
+function RollingNumber({ value, color }: { value: number; color: string }) {
+  const [display, setDisplay] = useState(value);
+  const prevRef = useRef(value);
+  const animRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (value === prevRef.current) return;
+    const start = prevRef.current;
+    const end = value;
+    const duration = 600;
+    const startTime = performance.now();
+
+    function step(now: number) {
+      const t = Math.min((now - startTime) / duration, 1);
+      const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      setDisplay(Math.round(start + (end - start) * eased));
+      if (t < 1) {
+        animRef.current = requestAnimationFrame(step);
+      } else {
+        prevRef.current = end;
+      }
+    }
+
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    animRef.current = requestAnimationFrame(step);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [value]);
+
+  return (
+    <span className="font-mono tabular-nums" style={{ color, fontSize: 11, fontWeight: "bold" }}>
+      {display.toLocaleString()}
+    </span>
+  );
+}
 
 interface Props {
   user: User;
@@ -30,79 +66,135 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
   const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
   const xpPct = Math.min(100, Math.round((user.xp / user.xpToNext) * 100));
+  const fc = user.faction ? FACTION_COLOR[user.faction] : "#64748b";
 
   return (
     <nav
       className="fixed top-0 left-0 right-0 z-40"
-      style={{ background: "#0a0a0fef", borderBottom: "1px solid #1e1e2e", backdropFilter: "blur(8px)" }}
+      style={{ background: "#0a0a0ff0", borderBottom: "1px solid #1e1e2e", backdropFilter: "blur(12px)" }}
     >
-      {/* XP bar */}
-      <div style={{ height: 2, background: "#1e1e2e" }}>
-        <div style={{ height: 2, width: `${xpPct}%`, background: "#00d4ff", transition: "width 0.5s" }} />
+      {/* XP bar — animated glow */}
+      <div style={{ height: 2, background: "#1e1e2e", position: "relative", overflow: "hidden" }}>
+        <div
+          style={{
+            height: 2,
+            width: `${xpPct}%`,
+            background: `linear-gradient(90deg, ${fc}80, ${fc})`,
+            boxShadow: `0 0 8px ${fc}`,
+            transition: "width 0.8s ease",
+          }}
+        />
       </div>
 
-      <div className="flex items-center gap-1 px-3 py-2 overflow-x-auto">
+      {/* Status strip */}
+      <div
+        className="flex items-center gap-2 px-3 py-1 overflow-x-auto"
+        style={{ borderBottom: "1px solid #0d0d15", fontSize: 10 }}
+      >
+        <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
+          {user.tag}
+        </span>
+        {user.faction && (
+          <span className="font-mono flex-shrink-0" style={{ color: fc }}>
+            {FACTION_EMOJI[user.faction]} {user.faction.toUpperCase()}
+          </span>
+        )}
+        {user.equippedTitle && (
+          <span className="font-mono flex-shrink-0" style={{ color: "#a855f7" }}>
+            [{user.equippedTitle}]
+          </span>
+        )}
+        {isHosp && (
+          <span className="font-mono flex-shrink-0 px-1.5 rounded" style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}>
+            🏥 HOSPITALIZED
+          </span>
+        )}
+        {isJailed && (
+          <span className="font-mono flex-shrink-0 px-1.5 rounded" style={{ background: "#f59e0b20", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
+            🔒 JAILED
+          </span>
+        )}
+        <div className="flex-1" />
+        <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
+          Lv.<span style={{ color: "#e2e8f0", fontWeight: "bold" }}>{user.level}</span>
+          {user.prestige > 0 && <span style={{ color: "#f59e0b" }}> ✦{user.prestige}</span>}
+        </span>
+        <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
+          <RollingNumber value={user.dc} color="#f59e0b" /> DC
+        </span>
+        {user.nc > 0 && (
+          <span className="font-mono flex-shrink-0">
+            <RollingNumber value={user.nc} color="#a855f7" /> NC
+          </span>
+        )}
+      </div>
+
+      {/* Nav row */}
+      <div className="flex items-center gap-0.5 px-2 py-1.5 overflow-x-auto">
         {/* Brand */}
         <button
-          className="font-mono font-bold text-sm mr-2 flex-shrink-0"
-          style={{ color: "#00d4ff", textShadow: "0 0 8px #00d4ff60" }}
+          className="font-mono font-bold text-sm mr-2 flex-shrink-0 tracking-widest"
+          style={{ color: "#00d4ff", textShadow: "0 0 12px #00d4ff80" }}
           onClick={() => onNav("dashboard")}
         >
           DRIFT
         </button>
 
-        {/* Status pills */}
-        {isHosp && (
-          <span className="text-xs px-1.5 py-0.5 rounded font-mono flex-shrink-0" style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540", fontSize: 10 }}>
-            HOSP
-          </span>
-        )}
-        {isJailed && (
-          <span className="text-xs px-1.5 py-0.5 rounded font-mono flex-shrink-0" style={{ background: "#f59e0b20", color: "#f59e0b", border: "1px solid #f59e0b40", fontSize: 10 }}>
-            JAIL
-          </span>
-        )}
-
         {/* Nav links */}
-        <div className="flex gap-0.5 flex-1 overflow-x-auto">
-          {NAV.map(item => (
-            <button
-              key={item.id}
-              onClick={() => onNav(item.id)}
-              className="px-2 py-1 rounded font-mono flex-shrink-0 transition-all"
-              style={{
-                fontSize: 11,
-                background: active === item.id ? "#00d4ff18" : "transparent",
-                color: active === item.id ? "#00d4ff" : "#64748b",
-                border: active === item.id ? "1px solid #00d4ff30" : "1px solid transparent",
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        {NAV.map(item => (
+          <button
+            key={item.id}
+            onClick={() => onNav(item.id)}
+            className="px-2 py-1 rounded font-mono flex-shrink-0 transition-all relative"
+            style={{
+              fontSize: 11,
+              background: active === item.id ? `${fc}18` : "transparent",
+              color: active === item.id ? fc : "#475569",
+              border: active === item.id ? `1px solid ${fc}40` : "1px solid transparent",
+              boxShadow: active === item.id ? `0 0 8px ${fc}20` : "none",
+            }}
+          >
+            {item.label}
+            {item.id === "notifications" && unreadNotifs > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: -4,
+                  right: -4,
+                  background: "#ff2d55",
+                  color: "#fff",
+                  borderRadius: "50%",
+                  width: 14,
+                  height: 14,
+                  fontSize: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: "bold",
+                }}
+              >
+                {unreadNotifs}
+              </span>
+            )}
+          </button>
+        ))}
+
+        <div className="flex-1" />
 
         {/* Right side */}
-        <div className="flex items-center gap-2 flex-shrink-0 ml-1">
-          {user.faction && (
-            <span className="font-mono" style={{ fontSize: 11, color: FACTION_COLOR[user.faction] }}>
-              {FACTION_EMOJI[user.faction]}
-            </span>
-          )}
+        <div className="flex items-center gap-1 flex-shrink-0">
           <WantedStars level={user.wantedLevel} />
-          <span className="font-mono" style={{ fontSize: 11, color: "#f59e0b" }}>
-            {user.dc.toLocaleString()} DC
-          </span>
-          {user.nc > 0 && (
-            <span className="font-mono" style={{ fontSize: 11, color: "#a855f7" }}>{user.nc} NC</span>
-          )}
-          <span className="font-mono" style={{ fontSize: 11, color: "#94a3b8" }}>Lv.{user.level}</span>
           <button
             onClick={() => onNav("notifications")}
             className="relative font-mono px-1.5 py-0.5 rounded"
-            style={{ fontSize: 11, color: unreadNotifs > 0 ? "#ff2d55" : "#64748b", border: "1px solid #1e1e2e" }}
+            style={{
+              fontSize: 11,
+              color: unreadNotifs > 0 ? "#ff2d55" : "#475569",
+              border: `1px solid ${unreadNotifs > 0 ? "#ff2d5540" : "#1e1e2e"}`,
+              boxShadow: unreadNotifs > 0 ? "0 0 8px #ff2d5540" : "none",
+            }}
           >
-            [{unreadNotifs || 0}]
+            🔔{unreadNotifs > 0 ? ` ${unreadNotifs}` : ""}
           </button>
           {(user.role === "owner" || user.role === "admin") && (
             <button
@@ -110,13 +202,13 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
               className="font-mono px-1.5 py-0.5 rounded"
               style={{ fontSize: 11, color: "#a855f7", border: "1px solid #a855f730" }}
             >
-              [O]
+              ⚙
             </button>
           )}
           <button
             onClick={onLogout}
             className="font-mono px-1.5 py-0.5 rounded"
-            style={{ fontSize: 11, color: "#64748b", border: "1px solid #1e1e2e" }}
+            style={{ fontSize: 11, color: "#475569", border: "1px solid #1e1e2e" }}
           >
             exit
           </button>

@@ -89,6 +89,45 @@ router.get("/search", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/user/profile/:id — by ObjectId (for PlayerInspectModal)
+router.get("/profile/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.params.id).where({ banned: false });
+    if (!user) return res.status(404).json({ message: "Player not found" });
+    const equippedItems = await Item.find({ owner: user._id, equipped: true }).lean();
+    res.json({
+      id: user._id,
+      username: user.username,
+      tag: user.tag,
+      avatar: user.avatar,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      faction: user.faction,
+      level: user.level,
+      xp: user.xp,
+      xpToNext: user.xpToNext,
+      prestige: user.prestige,
+      rank: user.rank,
+      district: user.district,
+      strength: user.strength,
+      charisma: user.charisma,
+      intelligence: user.intelligence,
+      streetCred: user.streetCred,
+      wins: user.wins,
+      losses: user.losses,
+      totalCrimes: user.totalCrimes,
+      successfulCrimes: user.successfulCrimes,
+      equippedFrame: user.equippedFrame,
+      equippedTitle: user.equippedTitle,
+      titles: user.titles,
+      equippedItems,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "get profile by id error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // GET /api/user/:username
 router.get("/:username", requireAuth, async (req: AuthRequest, res) => {
   try {
