@@ -3,6 +3,7 @@ import User from "../models/User";
 import FeedEvent from "../models/FeedEvent";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp } from "../lib/regen";
+import { checkAchievements } from "./achievements";
 
 const router = Router();
 
@@ -247,6 +248,7 @@ router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
     }
 
     await user.save();
+    checkAchievements(String(req.userId)).catch(() => {});
 
     // Feed post
     await FeedEvent.create({

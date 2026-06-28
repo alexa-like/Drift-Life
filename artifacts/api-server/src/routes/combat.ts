@@ -5,6 +5,7 @@ import Notification from "../models/Notification";
 import Item, { IItem } from "../models/Item";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp } from "../lib/regen";
+import { checkAchievements } from "./achievements";
 
 const router = Router();
 
@@ -101,6 +102,7 @@ router.post("/npc/:npcId", requireAuth, async (req: AuthRequest, res) => {
     }
 
     await user.save();
+    checkAchievements(String(req.userId)).catch(() => {});
 
     await FeedEvent.create({
       type: "fight",
@@ -371,6 +373,7 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
     }
 
     await Promise.all([attacker.save(), defender.save()]);
+    checkAchievements(String(req.userId)).catch(() => {});
 
     await FeedEvent.create({
       type: "fight",

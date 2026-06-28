@@ -32,13 +32,20 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const [avatarPrompt, setAvatarPrompt] = useState("");
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
   const [equippingFrame, setEquippingFrame] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"stats" | "frames">("stats");
+  const [activeTab, setActiveTab] = useState<"overview" | "achievements" | "frames" | "combat-log">("overview");
+  const [achievements, setAchievements] = useState<any[]>([]);
   const [savingColor, setSavingColor] = useState(false);
   const [apiFrames, setApiFrames] = useState<Frame[]>([]);
 
   useEffect(() => {
     api.get<Frame[]>("/frames").then(setApiFrames).catch(() => {});
   }, [user.ownedFrames]);
+
+  useEffect(() => {
+    if (activeTab === "achievements") {
+      api.get<any[]>("/achievements").then(setAchievements).catch(() => {});
+    }
+  }, [activeTab]);
 
   const xpPct = Math.min(100, Math.round((user.xp / user.xpToNext) * 100));
   const equippedFrameId = user.equippedFrame || null;
@@ -235,10 +242,12 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
       </FrameCardWrapper>
 
       {/* Tab switcher */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {[
-          { id: "stats" as const, label: "📊 Stats" },
-          { id: "frames" as const, label: `🖼️ Frames (${ownedFrames.length})` },
+          { id: "overview"    as const, label: "Overview" },
+          { id: "achievements" as const, label: `Achievements` },
+          { id: "frames"      as const, label: `Frames (${ownedFrames.length})` },
+          { id: "combat-log"  as const, label: "Combat Log" },
         ].map(tab => (
           <button
             key={tab.id}
@@ -255,7 +264,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
         ))}
       </div>
 
-      {activeTab === "stats" && (
+      {activeTab === "overview" && (
         <>
           {/* Stats */}
           <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
@@ -369,6 +378,80 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
             <p className="font-mono mt-1" style={{ fontSize: 10, color: "#64748b" }}>Earn 500 DC + 200 XP per successful referral</p>
           </div>
         </>
+      )}
+
+      {activeTab === "achievements" && (
+        <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
+          <div className="font-mono text-xs font-bold mb-1" style={{ color: "#64748b", letterSpacing: "0.1em" }}>ACHIEVEMENTS</div>
+          {achievements.length === 0 ? (
+            <div className="text-center py-8 font-mono text-xs" style={{ color: "#475569" }}>Loading...</div>
+          ) : (() => {
+            const completed = achievements.filter((a: any) => a.completed);
+            const total = achievements.length;
+            const pct = total ? Math.round((completed.length / total) * 100) : 0;
+            const totalMerit = completed.reduce((s: number, a: any) => s + a.meritReward, 0);
+            return (
+              <>
+                <div className="flex items-center gap-4 mb-4 flex-wrap">
+                  <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>{completed.length}/{total} completed</span>
+                  <span className="font-mono text-xs" style={{ color: "#39d353" }}>{totalMerit.toLocaleString()} M earned</span>
+                </div>
+                <div style={{ background: "#0a0a0f", borderRadius: 4, height: 6, marginBottom: 16, overflow: "hidden" }}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: "#39d353", transition: "width 0.5s" }} />
+                </div>
+                <div className="space-y-2">
+                  {achievements.filter((a: any) => a.completed).slice(0, 10).map((a: any) => (
+                    <div key={a.id} style={{ background: "#0a0a0f", borderRadius: 6, padding: "8px 12px", border: "1px solid #39d35330", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <div>
+                        <div className="font-mono text-xs font-bold" style={{ color: "#39d353" }}>{a.name}</div>
+                        <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>{a.description}</div>
+                      </div>
+                      <div className="font-mono text-xs font-bold flex-shrink-0" style={{ color: "#39d353" }}>+{a.meritReward} M</div>
+                    </div>
+                  ))}
+                  {completed.length === 0 && (
+                    <div className="text-center py-4 font-mono text-xs" style={{ color: "#475569" }}>No achievements completed yet. Keep playing!</div>
+                  )}
+                  {completed.length > 10 && (
+                    <div className="font-mono text-xs text-center mt-2" style={{ color: "#475569" }}>+{completed.length - 10} more — visit Achievements page to see all</div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {activeTab === "combat-log" && (
+        <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
+          <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>COMBAT RECORD</div>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {[
+              { label: "WINS",         value: user.wins,             color: "#39d353" },
+              { label: "LOSSES",       value: user.losses,           color: "#ff2d55" },
+              { label: "TOTAL FIGHTS", value: (user as any).totalFights || 0, color: "#00d4ff" },
+              { label: "PVP TODAY",    value: user.attacksToday || 0, color: "#94a3b8" },
+              { label: "CRIMES",       value: user.successfulCrimes, color: "#ff6b35" },
+              { label: "TOTAL CRIMES", value: (user as any).totalCrimes || 0, color: "#475569" },
+            ].map(s => (
+              <div key={s.label} style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
+                <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>{s.label}</div>
+                <div className="font-mono font-bold text-lg" style={{ color: s.color }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+          {user.wins + user.losses > 0 && (
+            <div style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
+              <div className="font-mono text-xs" style={{ color: "#64748b" }}>WIN RATE</div>
+              <div className="font-mono font-bold" style={{ color: "#e2e8f0" }}>
+                {Math.round((user.wins / (user.wins + user.losses)) * 100)}%
+              </div>
+              <div style={{ background: "#1e1e2e", borderRadius: 4, height: 4, marginTop: 6, overflow: "hidden" }}>
+                <div style={{ width: `${Math.round((user.wins / (user.wins + user.losses)) * 100)}%`, height: "100%", background: "#39d353" }} />
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {activeTab === "frames" && (

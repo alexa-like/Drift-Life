@@ -5,6 +5,7 @@ import { requireStaff, requireOwner, AuthRequest } from "../middlewares/auth";
 import { levelUp, xpForLevel } from "../models/User";
 import { SHOP_ITEMS, PRICE_OVERRIDES } from "./market";
 import Frame from "../models/Frame";
+import ServerConfig from "../models/ServerConfig";
 
 const router = Router();
 router.use(requireStaff as any);
@@ -296,6 +297,82 @@ router.delete("/shop-items/:id/price", requireOwner as any, async (req: AuthRequ
   if (!item) return res.status(404).json({ message: "Item not found" });
   PRICE_OVERRIDES.delete(item.id);
   res.json({ message: `${item.name} price reset to default (${item.basePrice.toLocaleString()} DC)`, price: item.basePrice });
+});
+
+// GET /api/owner/xp-boost — get current XP boost status
+router.get("/xp-boost", async (_req, res) => {
+  try {
+    const config = await ServerConfig.findOne({ key: "xpBoost" }).lean();
+    if (!config || !config.value || new Date(config.value["expiresAt"] as string) <= new Date()) {
+      return res.json({ active: false, multiplier: 1 });
+    }
+    res.json({ active: true, multiplier: config.value["multiplier"], expiresAt: config.value["expiresAt"] });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/xp-boost — activate server-wide XP multiplier
+router.post("/xp-boost", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { multiplier, durationHours } = req.body;
+    const mult = Number(multiplier);
+    const hours = Number(durationHours);
+    if (![1, 1.5, 2, 3].includes(mult) || isNaN(hours) || hours <= 0 || hours > 168) {
+      return res.status(400).json({ message: "multiplier must be 1/1.5/2/3, durationHours 1-168" });
+    }
+    const expiresAt = mult === 1 ? new Date(0) : new Date(Date.now() + hours * 3600 * 1000);
+    await ServerConfig.findOneAndUpdate(
+      { key: "xpBoost" },
+      { value: { multiplier: mult, expiresAt }, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    const msg = mult === 1
+      ? "XP boost cancelled"
+      : `${mult}x XP boost active for ${hours}h`;
+    req.log.info({ multiplier: mult, hours }, "owner set xp boost");
+    res.json({ message: msg, multiplier: mult, expiresAt });
+  } catch (err: any) {
+    req.log.error({ err }, "xp-boost error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/grant/merit — grant Merit to a player
+router.post("/grant/merit", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { userId, amount } = req.body;
+    const delta = Math.floor(Number(amount));
+    if (!userId || isNaN(delta) || delta === 0) return res.status(400).json({ message: "userId and non-zero amount required" });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.merit = Math.max(0, (user.merit || 0) + delta);
+    await user.save();
+    req.log.info({ userId, delta }, "owner granted merit");
+    res.json({ message: `${delta >= 0 ? "+" : ""}${delta} M granted to ${user.username}`, merit: user.merit });
+  } catch (err: any) {
+    req.log.error({ err }, "grant merit error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/grant/xp — grant XP to a player
+router.post("/grant/xp", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { userId, amount } = req.body;
+    const delta = Math.floor(Number(amount));
+    if (!userId || isNaN(delta) || delta === 0) return res.status(400).json({ message: "userId and non-zero amount required" });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.xp = Math.max(0, user.xp + delta);
+    const leveled = delta > 0 ? levelUp(user) : false;
+    await user.save();
+    req.log.info({ userId, delta }, "owner granted xp");
+    res.json({ message: `${delta >= 0 ? "+" : ""}${delta} XP granted to ${user.username}${leveled ? " (leveled up!)" : ""}`, xp: user.xp, level: user.level });
+  } catch (err: any) {
+    req.log.error({ err }, "grant xp error");
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
 // GET /api/owner/frames — list all frames

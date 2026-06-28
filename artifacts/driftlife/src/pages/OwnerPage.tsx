@@ -61,7 +61,7 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "frames";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "frames" | "grants";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -100,6 +100,22 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [framePriceEdit, setFramePriceEdit] = useState<string | null>(null);
   const [framePriceVal, setFramePriceVal] = useState("");
   const [framesRarityFilter, setFramesRarityFilter] = useState<string>("all");
+  // Grants tab
+  const [grantSearch, setGrantSearch] = useState("");
+  const [grantUsers, setGrantUsers] = useState<{ _id: string; username: string; level: number }[]>([]);
+  const [grantSearching, setGrantSearching] = useState(false);
+  const [grantTargetId, setGrantTargetId] = useState<string | null>(null);
+  const [grantTargetName, setGrantTargetName] = useState("");
+  const [grantMeritAmt, setGrantMeritAmt] = useState("");
+  const [grantXpAmt, setGrantXpAmt] = useState("");
+  const [grantingMerit, setGrantingMerit] = useState(false);
+  const [grantingXp, setGrantingXp] = useState(false);
+  const [xpBoostInfo, setXpBoostInfo] = useState<{ active: boolean; multiplier: number; expiresAt?: string } | null>(null);
+  const [boostMultiplier, setBoostMultiplier] = useState("2");
+  const [boostHours, setBoostHours] = useState("4");
+  const [settingBoost, setSettingBoost] = useState(false);
+  const [grantFrameId, setGrantFrameId] = useState("");
+  const [grantingFrame, setGrantingFrame] = useState(false);
 
   const loadStats = useCallback(async () => {
     try {
@@ -159,6 +175,12 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   useEffect(() => { if (tab === "patch-notes") loadPatchNotes(); }, [tab, loadPatchNotes]);
   useEffect(() => { if (tab === "items") loadShopItems(); }, [tab, loadShopItems]);
   useEffect(() => { if (tab === "frames") loadFrames(); }, [tab, loadFrames]);
+  useEffect(() => {
+    if (tab === "grants") {
+      api.get<{ active: boolean; multiplier: number; expiresAt?: string }>("/owner/xp-boost")
+        .then(setXpBoostInfo).catch(() => {});
+    }
+  }, [tab]);
 
   async function banUser(userId: string) {
     if (!banReason.trim()) { addToast("Enter a ban reason", "error"); return; }
@@ -246,6 +268,59 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     finally { setPublishingNote(false); }
   }
 
+  async function searchGrantUsers() {
+    if (!grantSearch.trim()) return;
+    setGrantSearching(true);
+    try {
+      const res = await api.get<{ users: { _id: string; username: string; level: number }[] }>(`/owner/users?page=1&limit=10&q=${encodeURIComponent(grantSearch.trim())}`);
+      setGrantUsers(res.users);
+    } catch { setGrantUsers([]); }
+    finally { setGrantSearching(false); }
+  }
+
+  async function grantMerit() {
+    if (!grantTargetId || !grantMeritAmt) { addToast("Select player and enter amount", "error"); return; }
+    setGrantingMerit(true);
+    try {
+      const r = await api.post<{ message: string }>("/owner/grant/merit", { userId: grantTargetId, amount: Number(grantMeritAmt) });
+      addToast(r.message, "success");
+      setGrantMeritAmt("");
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setGrantingMerit(false); }
+  }
+
+  async function grantXp() {
+    if (!grantTargetId || !grantXpAmt) { addToast("Select player and enter amount", "error"); return; }
+    setGrantingXp(true);
+    try {
+      const r = await api.post<{ message: string }>("/owner/grant/xp", { userId: grantTargetId, amount: Number(grantXpAmt) });
+      addToast(r.message, "success");
+      setGrantXpAmt("");
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setGrantingXp(false); }
+  }
+
+  async function setXpBoost() {
+    setSettingBoost(true);
+    try {
+      const r = await api.post<{ message: string; multiplier: number; expiresAt: string }>("/owner/xp-boost", { multiplier: Number(boostMultiplier), durationHours: Number(boostHours) });
+      addToast(r.message, "success");
+      setXpBoostInfo({ active: Number(boostMultiplier) !== 1, multiplier: r.multiplier, expiresAt: r.expiresAt });
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setSettingBoost(false); }
+  }
+
+  async function grantFrame() {
+    if (!grantTargetId || !grantFrameId) { addToast("Select player and frame", "error"); return; }
+    setGrantingFrame(true);
+    try {
+      const r = await api.post<{ message: string }>("/frames/owner/grant", { userId: grantTargetId, frameId: grantFrameId });
+      addToast(r.message, "success");
+      setGrantFrameId("");
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setGrantingFrame(false); }
+  }
+
   async function deleteNote(id: string) {
     try {
       await api.delete(`/owner/patch-notes/${id}`);
@@ -296,12 +371,13 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const isMuted = (u: PlayerRow) => u.mutedUntil && new Date(u.mutedUntil) > new Date();
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: "stats", label: "Dashboard" },
-    { id: "users", label: `Players (${total || "?"})` },
-    { id: "activity", label: "Activity" },
+    { id: "stats",       label: "Dashboard" },
+    { id: "users",       label: `Players (${total || "?"})` },
+    { id: "activity",   label: "Activity" },
     { id: "patch-notes", label: "Patch Notes" },
-    { id: "items", label: "Items" },
-    { id: "frames", label: "Frames" },
+    { id: "items",       label: "Items" },
+    { id: "frames",      label: "Frames" },
+    { id: "grants",      label: "Grants" },
   ];
 
   const s = { background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 };
@@ -719,6 +795,108 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                 })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* GRANTS TAB */}
+      {tab === "grants" && (
+        <div className="space-y-4">
+          {/* XP Boost */}
+          <div style={s}>
+            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#f59e0b", letterSpacing: "0.1em" }}>SERVER XP BOOST</div>
+            {xpBoostInfo?.active && (
+              <div className="font-mono text-xs mb-3 px-3 py-2 rounded" style={{ background: "#f59e0b18", border: "1px solid #f59e0b30", color: "#f59e0b" }}>
+                ACTIVE: {xpBoostInfo.multiplier}x XP — expires {xpBoostInfo.expiresAt ? new Date(xpBoostInfo.expiresAt).toLocaleString() : "—"}
+              </div>
+            )}
+            {!xpBoostInfo?.active && (
+              <div className="font-mono text-xs mb-3" style={{ color: "#475569" }}>No boost currently active (1x XP)</div>
+            )}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <label className="font-mono text-xs" style={{ color: "#64748b" }}>Multiplier</label>
+                <select value={boostMultiplier} onChange={e => setBoostMultiplier(e.target.value)} className="font-mono text-xs px-2 py-1.5 rounded" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }}>
+                  <option value="1">1x (cancel)</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="2">2x</option>
+                  <option value="3">3x</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="font-mono text-xs" style={{ color: "#64748b" }}>Hours</label>
+                <input value={boostHours} onChange={e => setBoostHours(e.target.value)} type="number" min={1} max={168} className="font-mono text-xs px-2 py-1.5 rounded" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", width: 70 }} />
+              </div>
+              <button onClick={setXpBoost} disabled={settingBoost} className="font-mono text-xs px-4 py-1.5 rounded font-bold" style={{ background: "#f59e0b20", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
+                {settingBoost ? "Setting..." : "Activate Boost"}
+              </button>
+            </div>
+          </div>
+
+          {/* Player Search */}
+          <div style={s}>
+            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#00d4ff", letterSpacing: "0.1em" }}>PLAYER GRANTS</div>
+            <div className="flex gap-2 mb-3">
+              <input value={grantSearch} onChange={e => setGrantSearch(e.target.value)} onKeyDown={e => e.key === "Enter" && searchGrantUsers()}
+                placeholder="Search username..." className="flex-1 font-mono text-xs px-3 py-1.5 rounded"
+                style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }} />
+              <button onClick={searchGrantUsers} disabled={grantSearching} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}>
+                {grantSearching ? "..." : "Search"}
+              </button>
+            </div>
+
+            {grantUsers.length > 0 && (
+              <div className="space-y-1 mb-3">
+                {grantUsers.map(u => (
+                  <button
+                    key={u._id}
+                    onClick={() => { setGrantTargetId(u._id); setGrantTargetName(u.username); setGrantUsers([]); setGrantSearch(""); }}
+                    className="w-full text-left font-mono text-xs px-3 py-2 rounded transition-all"
+                    style={{
+                      background: grantTargetId === u._id ? "#00d4ff18" : "#0a0a0f",
+                      border: `1px solid ${grantTargetId === u._id ? "#00d4ff40" : "#1e1e2e"}`,
+                      color: "#e2e8f0",
+                    }}
+                  >
+                    {u.username} — Lv.{u.level}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {grantTargetId && (
+              <div className="font-mono text-xs mb-4 px-3 py-2 rounded" style={{ background: "#00d4ff10", border: "1px solid #00d4ff30", color: "#00d4ff" }}>
+                Target: <span className="font-bold">{grantTargetName}</span>
+                <button onClick={() => { setGrantTargetId(null); setGrantTargetName(""); }} className="ml-3 font-mono text-xs" style={{ color: "#475569" }}>× clear</button>
+              </div>
+            )}
+
+            {/* Merit grant */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <label className="font-mono text-xs" style={{ color: "#64748b", width: 60 }}>Merit</label>
+              <input value={grantMeritAmt} onChange={e => setGrantMeritAmt(e.target.value)} type="number" placeholder="amount" className="font-mono text-xs px-2 py-1.5 rounded" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", width: 90 }} />
+              <button onClick={grantMerit} disabled={grantingMerit || !grantTargetId || !grantMeritAmt} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}>
+                {grantingMerit ? "..." : "Grant M"}
+              </button>
+            </div>
+
+            {/* XP grant */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <label className="font-mono text-xs" style={{ color: "#64748b", width: 60 }}>XP</label>
+              <input value={grantXpAmt} onChange={e => setGrantXpAmt(e.target.value)} type="number" placeholder="amount" className="font-mono text-xs px-2 py-1.5 rounded" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", width: 90 }} />
+              <button onClick={grantXp} disabled={grantingXp || !grantTargetId || !grantXpAmt} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740" }}>
+                {grantingXp ? "..." : "Grant XP"}
+              </button>
+            </div>
+
+            {/* Frame grant */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="font-mono text-xs" style={{ color: "#64748b", width: 60 }}>Frame</label>
+              <input value={grantFrameId} onChange={e => setGrantFrameId(e.target.value)} placeholder="frameId (e.g. ghost_wire)" className="font-mono text-xs px-2 py-1.5 rounded flex-1" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
+              <button onClick={grantFrame} disabled={grantingFrame || !grantTargetId || !grantFrameId} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
+                {grantingFrame ? "..." : "Grant Frame"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

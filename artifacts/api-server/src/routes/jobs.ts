@@ -3,6 +3,7 @@ import User from "../models/User";
 import FeedEvent from "../models/FeedEvent";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp } from "../lib/regen";
+import { checkAchievements } from "./achievements";
 
 const router = Router();
 
@@ -107,6 +108,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
 
     const leveled = levelUp(user);
     await user.save();
+    checkAchievements(String(req.userId)).catch(() => {});
 
     // 30% chance to trigger the job's assigned mini-game
     const miniGameTriggered = Math.random() < 0.30;

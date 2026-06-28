@@ -32,6 +32,8 @@ interface PublicProfile {
   rank: string;
 }
 
+interface OwnedFrame { id: string; name: string; rarity: string; }
+
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
@@ -47,16 +49,34 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [attacking, setAttacking] = useState(false);
+  const [showGift, setShowGift] = useState(false);
+  const [myFrames, setMyFrames] = useState<OwnedFrame[]>([]);
+  const [selectedGiftFrame, setSelectedGiftFrame] = useState("");
+  const [gifting, setGifting] = useState(false);
 
   useEffect(() => {
     if (!targetId) return;
     setLoading(true);
     setProfile(null);
+    setShowGift(false);
+    setSelectedGiftFrame("");
     api.get<PublicProfile>(`/user/profile/${targetId}`)
       .then(setProfile)
       .catch(() => setProfile(null))
       .finally(() => setLoading(false));
   }, [targetId]);
+
+  useEffect(() => {
+    if (showGift && myFrames.length === 0) {
+      api.get<{ ownedFrames: string[] }>("/user/me").then(me => {
+        const owned: OwnedFrame[] = (me.ownedFrames || []).map((fid: string) => {
+          const def = getFrame(fid);
+          return def ? { id: fid, name: def.name, rarity: def.rarity } : { id: fid, name: fid, rarity: "common" };
+        });
+        setMyFrames(owned);
+      }).catch(() => {});
+    }
+  }, [showGift, myFrames.length]);
 
   if (!targetId) return null;
 
@@ -80,6 +100,26 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
       setAttacking(false);
     }
   }
+
+  async function giftFrame() {
+    if (!profile || !selectedGiftFrame) return;
+    setGifting(true);
+    try {
+      const r = await api.post<{ message: string }>("/frames/gift", { frameId: selectedGiftFrame, recipientId: profile.id });
+      addToast(r.message, "success");
+      setShowGift(false);
+      setSelectedGiftFrame("");
+    } catch (e: any) {
+      addToast(e.message, "error");
+    } finally {
+      setGifting(false);
+    }
+  }
+
+  const RARITY_CLR: Record<string, string> = {
+    common: "#9ca3af", uncommon: "#4ade80", rare: "#60a5fa",
+    epic: "#c084fc", legendary: "#fbbf24", mythic: "#00ff41",
+  };
 
   return (
     <div
@@ -168,7 +208,7 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                       Lv.{profile.level}{profile.prestige > 0 ? ` ✦${profile.prestige}` : ""} · {profile.rank}
                     </div>
                     <div className="font-mono text-xs" style={{ color: "#475569" }}>
-                      📍 {profile.district.replace(/-/g, " ")}
+                      {profile.district.replace(/-/g, " ")}
                     </div>
                   </div>
                 </div>
@@ -209,6 +249,59 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                   ))}
                 </div>
 
+                {/* Gift Frame panel */}
+                {!isOwn && showGift && (
+                  <div style={{ background: "#0d0d15", border: "1px solid #a855f730", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                    <div className="font-mono text-xs font-bold mb-2" style={{ color: "#a855f7" }}>GIFT A FRAME</div>
+                    {myFrames.length === 0 ? (
+                      <div className="font-mono text-xs" style={{ color: "#475569" }}>You have no frames to gift.</div>
+                    ) : (
+                      <>
+                        <select
+                          value={selectedGiftFrame}
+                          onChange={e => setSelectedGiftFrame(e.target.value)}
+                          className="w-full font-mono text-xs px-2 py-1.5 rounded mb-2"
+                          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                        >
+                          <option value="">-- Select a frame --</option>
+                          {myFrames.map(f => (
+                            <option key={f.id} value={f.id}>
+                              {f.name} ({f.rarity})
+                            </option>
+                          ))}
+                        </select>
+                        {selectedGiftFrame && (() => {
+                          const def = getFrame(selectedGiftFrame);
+                          const rc = def ? RARITY_CLR[def.rarity] || "#9ca3af" : "#9ca3af";
+                          void RARITY_COLOR;
+                          return (
+                            <div className="font-mono mb-2" style={{ fontSize: 10, color: rc }}>
+                              {def?.name} · {def?.rarity} · Permanently transferred. This cannot be undone.
+                            </div>
+                          );
+                        })()}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={giftFrame}
+                            disabled={gifting || !selectedGiftFrame}
+                            className="flex-1 px-3 py-1.5 rounded font-mono text-xs font-bold"
+                            style={{ background: "#a855f720", color: "#a855f7", border: "1px solid #a855f740" }}
+                          >
+                            {gifting ? "Sending..." : "Confirm Gift"}
+                          </button>
+                          <button
+                            onClick={() => { setShowGift(false); setSelectedGiftFrame(""); }}
+                            className="px-3 py-1.5 rounded font-mono text-xs"
+                            style={{ color: "#475569", border: "1px solid #1e1e2e" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* Actions */}
                 {!isOwn && (
                   <div className="flex gap-2 flex-wrap">
@@ -219,7 +312,16 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                         className="px-3 py-1.5 font-mono text-xs rounded font-bold transition-all"
                         style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}
                       >
-                        {attacking ? "Attacking..." : "⚔️ Attack"}
+                        {attacking ? "Attacking..." : "Attack"}
+                      </button>
+                    )}
+                    {(currentUser.ownedFrames || []).length > 0 && !showGift && (
+                      <button
+                        onClick={() => setShowGift(true)}
+                        className="px-3 py-1.5 font-mono text-xs rounded transition-all"
+                        style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f730" }}
+                      >
+                        Gift Frame
                       </button>
                     )}
                   </div>

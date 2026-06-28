@@ -3,6 +3,7 @@ import User from "../models/User";
 import Item from "../models/Item";
 import FeedEvent from "../models/FeedEvent";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { checkAchievements } from "./achievements";
 
 const router = Router();
 
@@ -122,6 +123,7 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
     }
 
     await user.save();
+    checkAchievements(String(user._id)).catch(() => {});
 
     await FeedEvent.create({
       type: "daily",

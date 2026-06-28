@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccess } from "../lib/jwt";
+import User from "../models/User";
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -19,6 +20,10 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     req.userId = payload.userId;
     req.username = payload.username;
     req.role = payload.role;
+    User.updateOne(
+      { _id: payload.userId, lastActiveAt: { $lt: new Date(Date.now() - 60000) } },
+      { lastActiveAt: new Date() }
+    ).catch(() => {});
     next();
   } catch {
     res.status(401).json({ message: "Invalid or expired token" });
