@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
+import { formatDC } from "../lib/format";
 
 interface Props {
   user: User;
@@ -349,7 +350,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
               { label: "TOTAL PLAYERS", value: stats?.totalPlayers ?? "—", color: "#00d4ff" },
               { label: "ONLINE (15m)", value: stats?.onlinePlayers ?? "—", color: "#39d353" },
               { label: "BANNED", value: stats?.bannedPlayers ?? "—", color: "#ff2d55" },
-              { label: "DC IN ECONOMY", value: stats?.totalDcInEconomy != null ? Math.round(stats.totalDcInEconomy).toLocaleString() + " DC" : "—", color: "#f59e0b" },
+              { label: "DC IN ECONOMY", value: stats?.totalDcInEconomy != null ? formatDC(Math.round(stats.totalDcInEconomy)) + " DC" : "—", color: "#f59e0b" },
             ].map(st => (
               <div key={st.label} style={{ ...s, textAlign: "center" }}>
                 <div className="font-mono font-bold text-xl" style={{ color: st.color }}>
@@ -411,7 +412,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                           {isMuted(u) && <span className="font-mono px-1.5 py-0.5 rounded" style={{ fontSize: 10, color: "#ff6b35", background: "#ff6b3520", border: "1px solid #ff6b3540" }}>MUTED</span>}
                         </div>
                         <div className="font-mono mt-1" style={{ fontSize: 11, color: "#64748b" }}>
-                          {u.email} · Lv.{u.level} · {(u.dc || 0).toLocaleString()} DC wallet · {(u.bankBalance || 0).toLocaleString()} DC bank
+                          {u.email} · Lv.{u.level} · {formatDC(u.dc || 0)} DC wallet · {formatDC(u.bankBalance || 0)} DC bank
                         </div>
                         {u.banned && u.banReason && (
                           <div className="font-mono mt-0.5" style={{ fontSize: 11, color: "#ff6b35" }}>Ban: {u.banReason}</div>
@@ -596,9 +597,9 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
 
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <div className="text-right">
-                            <div className="font-mono text-sm font-bold" style={{ color: "#f59e0b" }}>{item.currentPrice.toLocaleString()} DC</div>
+                            <div className="font-mono text-sm font-bold" style={{ color: "#f59e0b" }}>{formatDC(item.currentPrice)} DC</div>
                             {item.overridden && (
-                              <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>default: {item.basePrice.toLocaleString()}</div>
+                              <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>default: {formatDC(item.basePrice)}</div>
                             )}
                           </div>
 

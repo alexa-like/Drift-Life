@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
 import { ItemImage } from "../components/ItemImage";
+import { formatDC } from "../lib/format";
 
 interface ShopItem {
   id: string;
@@ -121,7 +122,7 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>
-            {item.basePrice.toLocaleString()} DC
+            {formatDC(item.basePrice)} DC
           </span>
           <button
             onClick={onBuy}
@@ -161,7 +162,7 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
           </div>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>{listing.price.toLocaleString()} DC</span>
+          <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>{formatDC(listing.price)} DC</span>
           <button
             onClick={onBuy}
             disabled={busy || !canAfford}
@@ -183,7 +184,7 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-mono font-bold" style={{ color: "#00d4ff" }}>Black Market</h2>
-        <span className="text-xs font-mono" style={{ color: "#f59e0b" }}>{user.dc.toLocaleString()} DC</span>
+        <span className="text-xs font-mono" style={{ color: "#f59e0b" }}>{formatDC(user.dc)} DC</span>
       </div>
 
       <div className="flex gap-2">

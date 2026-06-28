@@ -3,6 +3,7 @@ import { FeedEvent, User } from "../lib/types";
 import { api } from "../lib/api";
 import { FrameCardWrapper } from "../components/FrameCardWrapper";
 import { AvatarWithFrame } from "../components/AvatarWithFrame";
+import { formatDC } from "../lib/format";
 import { getFrame } from "../lib/frames";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -174,7 +175,7 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
                       )}
                       <p className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{ev.message}</p>
                       <div className="flex gap-3 mt-0.5 flex-wrap">
-                        {ev.dc > 0 && <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>+{ev.dc.toLocaleString()} DC</span>}
+                        {ev.dc > 0 && <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>+{formatDC(ev.dc)} DC</span>}
                         {ev.xp > 0 && <span className="font-mono text-xs" style={{ color: "#a855f7" }}>+{ev.xp} XP</span>}
                       </div>
                     </div>

@@ -3,6 +3,7 @@ import { User, Frame } from "../lib/types";
 import { api } from "../lib/api";
 import { getFrame, FrameRarity } from "../lib/frames";
 import { FrameCardWrapper } from "../components/FrameCardWrapper";
+import { formatDC } from "../lib/format";
 
 interface Props {
   user: User;
@@ -67,7 +68,7 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
   async function purchase(frameId: string, cost: number, currency: string) {
     const bal = currency === "nc" ? user.nc : user.dc;
     if (bal < cost) { addToast(`Not enough ${currency.toUpperCase()}`, "error"); return; }
-    if (!confirm(`Purchase frame for ${cost.toLocaleString()} ${currency.toUpperCase()}?`)) return;
+    if (!confirm(`Purchase frame for ${formatDC(cost)} ${currency.toUpperCase()}?`)) return;
     setActing(frameId);
     try {
       const data = await api.post<any>(`/frames/purchase/${frameId}`);
@@ -105,7 +106,7 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
         <div>
           <h2 className="text-lg font-mono font-bold" style={{ color: "#a855f7" }}>Frame Store</h2>
           <p className="text-xs font-mono mt-0.5" style={{ color: "#64748b" }}>
-            Owned: {owned}/{frames.length} · Balance: {user.dc.toLocaleString()} DC / {user.nc.toLocaleString()} NC
+            Owned: {owned}/{frames.length} · Balance: {formatDC(user.dc)} DC / {formatDC(user.nc)} UC
           </p>
         </div>
       </div>
@@ -222,7 +223,7 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
                         className="px-3 py-1.5 rounded font-mono text-xs font-bold"
                         style={{ background: color + "18", color, border: `1px solid ${color}40` }}
                       >
-                        {acting === frame.frameId ? "..." : frame.isFree ? "Claim" : `${frame.price.toLocaleString()} ${frame.currency.toUpperCase()}`}
+                        {acting === frame.frameId ? "..." : frame.isFree ? "Claim" : `${formatDC(frame.price)} ${frame.currency === "nc" ? "UC" : "DC"}`}
                       </button>
                     )
                   ) : !frame.equipped ? (

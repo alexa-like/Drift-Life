@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { User, NPC } from "../lib/types";
 import { api } from "../lib/api";
+import { formatDC } from "../lib/format";
 
 interface Target {
   id: string;
@@ -63,7 +64,7 @@ export function CombatPage({ user, refreshUser, addToast }: Props) {
       const data = await api.post<any>(`/combat/npc/${npcId}`);
       setLastResult({ ...data, mode: "npc" });
       if (data.playerWins) {
-        addToast(`Victory! +${data.dcGained.toLocaleString()} DC`, "success");
+        addToast(`Victory! +${formatDC(data.dcGained)} DC`, "success");
       } else {
         addToast(data.hospitalized ? "You were hospitalized!" : "Defeated — you retreated.", data.hospitalized ? "error" : "warning");
       }
@@ -82,7 +83,7 @@ export function CombatPage({ user, refreshUser, addToast }: Props) {
       const data = await api.post<any>("/combat/attack", { targetId });
       setLastResult({ ...data, mode: "pvp" });
       if (data.attackerWins) {
-        addToast(`Victory! Seized ${data.dcGained.toLocaleString()} DC`, "success");
+        addToast(`Victory! Seized ${formatDC(data.dcGained)} DC`, "success");
       } else {
         addToast(data.attackerHospitalized ? "Defeated — hospitalized." : "Defeated — you survived.", data.attackerHospitalized ? "error" : "warning");
       }
@@ -153,7 +154,7 @@ export function CombatPage({ user, refreshUser, addToast }: Props) {
           </div>
           <p className="text-xs mb-2" style={{ color: "#94a3b8", fontStyle: "italic" }}>{lastResult.narrative}</p>
           <div className="flex gap-4 text-xs flex-wrap">
-            {lastResult.dcGained > 0 && <span style={{ color: "#f59e0b" }}>+{lastResult.dcGained.toLocaleString()} DC</span>}
+            {lastResult.dcGained > 0 && <span style={{ color: "#f59e0b" }}>+{formatDC(lastResult.dcGained)} DC</span>}
             {lastResult.xpGained > 0 && <span style={{ color: "#a855f7" }}>+{lastResult.xpGained} XP</span>}
             {lastResult.leveled && <span style={{ color: "#00d4ff" }}>LEVEL UP! Lv.{lastResult.newLevel}</span>}
             {(lastResult.defenderHospitalized) && <span style={{ color: "#ff2d55" }}>Enemy hospitalized</span>}
@@ -202,7 +203,7 @@ export function CombatPage({ user, refreshUser, addToast }: Props) {
                         <div className="flex gap-3 font-mono text-xs flex-wrap">
                           <span style={{ color: "#39d353" }}>HP: {npc.hp}</span>
                           <span style={{ color: "#ff6b35" }}>STR: {npc.strength}</span>
-                          <span style={{ color: "#f59e0b" }}>{npc.dcMin.toLocaleString()}–{npc.dcMax.toLocaleString()} DC</span>
+                          <span style={{ color: "#f59e0b" }}>{formatDC(npc.dcMin)}–{formatDC(npc.dcMax)} DC</span>
                           <span style={{ color: "#a855f7" }}>+{npc.xp} XP</span>
                         </div>
                       </div>

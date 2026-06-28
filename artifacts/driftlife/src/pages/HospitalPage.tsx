@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { User, Item } from "../lib/types";
 import { api } from "../lib/api";
+import { formatDC } from "../lib/format";
 
 interface Props {
   user: User;
@@ -127,7 +128,7 @@ export function HospitalPage({ user, refreshUser, addToast }: Props) {
                   border: `1px solid ${user.dc >= dischargeCost ? "#ff2d5540" : "#1e1e2e"}`,
                 }}
               >
-                {discharging ? "..." : `Early Discharge — ${dischargeCost.toLocaleString()} DC`}
+                {discharging ? "..." : `Early Discharge — ${formatDC(dischargeCost)} DC`}
               </button>
               {missingHp > 0 && (
                 <button
@@ -140,7 +141,7 @@ export function HospitalPage({ user, refreshUser, addToast }: Props) {
                     border: `1px solid ${user.dc >= totalHealCost ? "#39d35340" : "#1e1e2e"}`,
                   }}
                 >
-                  {healing ? "..." : `Heal + Discharge — ${totalHealCost.toLocaleString()} DC`}
+                  {healing ? "..." : `Heal + Discharge — ${formatDC(totalHealCost)} DC`}
                 </button>
               )}
             </div>

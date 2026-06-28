@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
+import { formatDC } from "../lib/format";
 
 interface Props {
   user: User;
@@ -55,7 +56,7 @@ export function DailyPage({ user, refreshUser, addToast, onNav }: Props) {
       const data = await api.post<any>("/daily/claim");
       setResult(data);
       setStatus(s => s ? { ...s, claimed: true, streak: data.streak, nextClaimAt: data.nextClaimAt } : s);
-      addToast(`Daily claimed! +${data.dcGained.toLocaleString()} DC (Day ${data.streak})`, "success");
+      addToast(`Daily claimed! +${formatDC(data.dcGained)} DC (Day ${data.streak})`, "success");
       refreshUser();
     } catch (err: any) {
       addToast(err.message, "error");
@@ -118,7 +119,7 @@ export function DailyPage({ user, refreshUser, addToast, onNav }: Props) {
           <div className="font-mono text-xs mb-2" style={{ color: "#f59e0b" }}>TODAY'S REWARD {todayReward.special ? "— MILESTONE" : ""}</div>
           <div className="flex gap-4 flex-wrap">
             <div>
-              <span className="font-mono font-bold text-xl" style={{ color: "#f59e0b" }}>+{todayReward.dc.toLocaleString()}</span>
+              <span className="font-mono font-bold text-xl" style={{ color: "#f59e0b" }}>+{formatDC(todayReward.dc)}</span>
               <span className="font-mono text-xs ml-1" style={{ color: "#64748b" }}>DC</span>
             </div>
             <div>
@@ -162,7 +163,7 @@ export function DailyPage({ user, refreshUser, addToast, onNav }: Props) {
         <div style={{ background: "#111118", border: "1px solid #f59e0b40", borderRadius: 8, padding: 20 }}>
           <div className="font-mono font-bold mb-2" style={{ color: "#f59e0b" }}>Reward Received!</div>
           <div className="space-y-1 font-mono text-sm">
-            <div style={{ color: "#e2e8f0" }}>+{result.dcGained.toLocaleString()} DC</div>
+            <div style={{ color: "#e2e8f0" }}>+{formatDC(result.dcGained)} DC</div>
             <div style={{ color: "#a855f7" }}>+{result.xpGained} XP</div>
             {result.bonus && <div style={{ color: "#00d4ff" }}>Bonus: {result.bonus}</div>}
             {result.leveled && <div style={{ color: "#00d4ff" }}>LEVEL UP! Lv.{result.newLevel}</div>}
@@ -176,7 +177,7 @@ export function DailyPage({ user, refreshUser, addToast, onNav }: Props) {
         <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 16 }}>
           <div className="font-mono text-xs mb-2" style={{ color: "#64748b" }}>NEXT REWARD (Day {nextReward.day})</div>
           <div className="flex gap-3 font-mono text-sm flex-wrap">
-            <span style={{ color: "#f59e0b" }}>+{nextReward.dc.toLocaleString()} DC</span>
+            <span style={{ color: "#f59e0b" }}>+{formatDC(nextReward.dc)} DC</span>
             <span style={{ color: "#a855f7" }}>+{nextReward.xp} XP</span>
             {nextReward.bonus && <span style={{ color: "#00d4ff" }}>{nextReward.bonus}</span>}
           </div>

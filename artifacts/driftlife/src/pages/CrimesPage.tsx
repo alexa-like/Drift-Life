@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { User, Crime } from "../lib/types";
 import { api } from "../lib/api";
+import { formatDC } from "../lib/format";
 
 interface Props {
   user: User;
@@ -85,7 +86,7 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
                 WANTED LEVEL {user.wantedLevel} {"★".repeat(Math.min(5, user.wantedLevel))}
               </div>
               <div className="text-xs" style={{ color: "#64748b" }}>
-                Bribe Chief Ralston to clear your record — costs {bribeCost.toLocaleString()} DC
+                Bribe Chief Ralston to clear your record — costs {formatDC(bribeCost)} DC
               </div>
             </div>
             <button
@@ -98,7 +99,7 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
                 border: `1px solid ${user.dc >= bribeCost ? "#f59e0b40" : "#1e1e2e"}`,
               }}
             >
-              {bribing ? "..." : `Bribe (${bribeCost.toLocaleString()} DC)`}
+              {bribing ? "..." : `Bribe (${formatDC(bribeCost)} DC)`}
             </button>
           </div>
         </div>
@@ -114,7 +115,7 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
           </div>
           <p className="text-xs mb-2" style={{ color: "#94a3b8", fontStyle: "italic" }}>{lastResult.narrative}</p>
           <div className="flex gap-4 text-xs flex-wrap">
-            {lastResult.dcGained > 0 && <span style={{ color: "#f59e0b" }}>+{lastResult.dcGained.toLocaleString()} DC</span>}
+            {lastResult.dcGained > 0 && <span style={{ color: "#f59e0b" }}>+{formatDC(lastResult.dcGained)} DC</span>}
             {lastResult.xpGained > 0 && <span style={{ color: "#a855f7" }}>+{lastResult.xpGained} XP</span>}
             {lastResult.leveled && <span style={{ color: "#00d4ff" }}>LEVEL UP! Lv.{lastResult.newLevel}</span>}
             {lastResult.hospitalized && <span style={{ color: "#ff2d55" }}>Hospitalized</span>}
@@ -151,7 +152,7 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
                   </div>
                   <div className="flex gap-3 font-mono text-xs flex-wrap">
                     <span style={{ color: "#ff6b35" }}>Nerve: {crime.nerveCost}</span>
-                    <span style={{ color: "#f59e0b" }}>{crime.dcRange[0].toLocaleString()}–{crime.dcRange[1].toLocaleString()} DC</span>
+                    <span style={{ color: "#f59e0b" }}>{formatDC(crime.dcRange[0])}–{formatDC(crime.dcRange[1])} DC</span>
                     <span style={{ color: "#a855f7" }}>+{crime.xp} XP</span>
                     <span style={{ color: "#64748b" }}>{Math.round(crime.baseSuccess * 100)}% success</span>
                   </div>

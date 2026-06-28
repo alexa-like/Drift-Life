@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { User, Job } from "../lib/types";
 import { api } from "../lib/api";
 import { MiniGameModal } from "../components/MiniGameModal";
+import { formatDC } from "../lib/format";
 
 interface Props {
   user: User;
@@ -132,7 +133,7 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
         <div className="p-3 rounded font-mono" style={{ background: "#39d35310", border: "1px solid #39d35340" }}>
           <div className="font-bold text-sm mb-1" style={{ color: "#39d353" }}>Job Complete</div>
           <div className="flex gap-4 text-xs flex-wrap">
-            <span style={{ color: "#f59e0b" }}>+{lastResult.dcGained.toLocaleString()} DC</span>
+            <span style={{ color: "#f59e0b" }}>+{formatDC(lastResult.dcGained)} DC</span>
             <span style={{ color: "#a855f7" }}>+{lastResult.xpGained} XP</span>
             {lastResult.leveled && <span style={{ color: "#00d4ff" }}>LEVEL UP! Lv.{lastResult.newLevel}</span>}
             {lastResult.miniGameTriggered && <span style={{ color: "#a855f7" }}>Mini-game triggered!</span>}
@@ -197,7 +198,7 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
                   <p className="font-mono text-xs mb-1" style={{ color: "#475569" }}>{job.description}</p>
                   <div className="flex gap-3 font-mono text-xs flex-wrap">
                     <span style={{ color: "#00d4ff" }}>Energy: {job.energyCost}</span>
-                    <span style={{ color: "#f59e0b" }}>{job.dcMin.toLocaleString()}–{job.dcMax.toLocaleString()} DC</span>
+                    <span style={{ color: "#f59e0b" }}>{formatDC(job.dcMin)}–{formatDC(job.dcMax)} DC</span>
                     <span style={{ color: "#a855f7" }}>+{job.xpPerJob} XP</span>
                     {job.onCooldown && job.cooldownUntil && (
                       <span style={{ color: "#64748b" }}>CD: <Cooldown until={job.cooldownUntil} /></span>

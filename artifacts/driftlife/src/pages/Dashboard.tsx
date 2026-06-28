@@ -119,6 +119,10 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
               <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>Bank</span>
               <span className="text-sm font-mono font-bold" style={{ color: "#39d353" }}>{formatDC(user.bankBalance)} DC</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>UC (NeoCoins)</span>
+              <span className="text-sm font-mono font-bold" style={{ color: "#a855f7" }}>{formatDC(user.nc)} UC</span>
+            </div>
           </div>
           <button
             onClick={() => onNav("bank")}

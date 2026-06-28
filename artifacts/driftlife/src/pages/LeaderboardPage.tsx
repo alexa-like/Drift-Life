@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { LeaderboardEntry } from "../lib/types";
 import { api } from "../lib/api";
 import { AvatarWithFrame } from "../components/AvatarWithFrame";
+import { formatDC } from "../lib/format";
 
 type SortType = "level" | "dc" | "wins" | "crimes";
 
@@ -32,7 +33,7 @@ export function LeaderboardPage() {
   const MEDALS = ["#FFD700", "#C0C0C0", "#CD7F32"];
 
   function getMetricDisplay(entry: LeaderboardEntry): string {
-    if (sortType === "dc") return `${((entry.dc + entry.bankBalance) / 1000).toFixed(1)}k DC`;
+    if (sortType === "dc") return `${formatDC(entry.dc + entry.bankBalance)} DC`;
     if (sortType === "wins") return `${entry.wins}W`;
     if (sortType === "crimes") return `${entry.crimes} crimes`;
     return `Lv.${entry.level}`;
