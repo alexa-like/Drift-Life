@@ -227,26 +227,35 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
             )}
             {feed.map(ev => {
               const typeColors: Record<string, string> = {
-                crime: "#ff2d55",
-                fight: "#ff6b35",
-                job: "#39d353",
-                market: "#00d4ff",
-                bank: "#f59e0b",
-                system: "#a855f7",
-                level_up: "#f59e0b",
-                hospital: "#ff2d55",
+                crime: "#ff2d55", fight: "#ff6b35", job: "#39d353",
+                market: "#00d4ff", bank: "#f59e0b", system: "#a855f7",
+                level_up: "#f59e0b", hospital: "#ff2d55", frame_gift: "#a855f7",
               };
-              const color = typeColors[ev.type] ?? "#94a3b8";
+              const typeColor = typeColors[ev.type] ?? "#94a3b8";
+
+              const RARITY_COLORS: Record<string, string> = {
+                common: "#94a3b8", uncommon: "#39d353", rare: "#00d4ff",
+                epic: "#a855f7", legendary: "#f59e0b", mythic: "#00ff41",
+              };
+
+              const frameColor = ev.actorFrameColor || null;
+              const borderColor = frameColor || typeColor;
+              const rarity = ev.actorFrame ? "unknown" : null;
+              const isLegendary = rarity === "legendary" || rarity === "mythic";
+
               return (
                 <div
                   key={ev.id}
-                  className="flex items-start gap-2 py-1.5 border-b"
-                  style={{ borderColor: "#1e1e2e" }}
+                  className="flex items-start gap-2 py-1.5"
+                  style={{
+                    borderLeft: `3px solid ${borderColor}`,
+                    paddingLeft: 8,
+                    marginLeft: -4,
+                    background: borderColor !== typeColor ? `${borderColor}08` : "transparent",
+                    borderBottom: "1px solid #1e1e2e",
+                    animation: isLegendary ? "feedBorderPulse 2s ease-in-out infinite" : undefined,
+                  }}
                 >
-                  <div
-                    className="w-1 h-1 rounded-full mt-1.5 flex-shrink-0"
-                    style={{ background: color, boxShadow: `0 0 4px ${color}` }}
-                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-mono" style={{ color: "#e2e8f0" }}>{ev.message}</p>
                     {(ev.dc > 0 || ev.xp > 0) && (
@@ -256,7 +265,7 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
                       </div>
                     )}
                   </div>
-                  <span className="text-xs font-mono flex-shrink-0" style={{ color: "#1e1e2e" }}>
+                  <span className="text-xs font-mono flex-shrink-0" style={{ color: "#334155" }}>
                     {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>

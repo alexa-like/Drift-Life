@@ -211,6 +211,11 @@ router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
     user.nerve -= crime.nerveCost;
     user.totalCrimes += 1;
 
+    const nowDate = new Date();
+    const todayStr = nowDate.toDateString();
+    const isFirstCrimeToday = !user.lastCrimeDate || user.lastCrimeDate.toDateString() !== todayStr;
+    user.lastCrimeDate = nowDate;
+
     // Success formula from spec
     const intBonus = (user.intelligence - 5) * 0.01;
     const factionBonus = (user.faction === "suits" && ["scam_operation","corporate_espionage"].includes(crime.id)) ? 0.05
@@ -228,7 +233,7 @@ router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
 
     if (success) {
       dcGained = Math.floor(crime.dcMin + Math.random() * (crime.dcMax - crime.dcMin));
-      xpGained = crime.xp;
+      xpGained = crime.xp * (isFirstCrimeToday ? 2 : 1);
       user.dc += dcGained;
       user.xp += xpGained;
       user.successfulCrimes += 1;

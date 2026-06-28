@@ -256,8 +256,16 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
                   transition: "border-color 0.2s",
                 }}
               >
-                <div style={{ padding: "2px" }}>
+                <div style={{ position: "relative", padding: "2px" }}>
                   <MiniChatPreview frame={f} colorOverride={user.equippedFrameColor} />
+                  {/* NEW badge — show if createdAt is within 7 days */}
+                  {f.createdAt && (Date.now() - new Date(f.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000 && (
+                    <span className="font-mono" style={{
+                      position: "absolute", top: 4, right: 6, fontSize: 8, fontWeight: "bold",
+                      background: "#00d4ff", color: "#0a0a0f",
+                      padding: "1px 5px", borderRadius: 3, letterSpacing: "0.08em",
+                    }}>NEW</span>
+                  )}
                 </div>
 
                 <div style={{ padding: "10px 12px" }}>
@@ -286,6 +294,20 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
                       {f.equipped && <span className="font-mono" style={{ fontSize: 8, color: "#39d353", background: "#39d35315", padding: "1px 4px", borderRadius: 3 }}>EQUIPPED</span>}
                     </div>
                   </div>
+                  {/* Countdown timer for limited-time frames */}
+                  {f.isLimited && f.availableUntil && (() => {
+                    const ms = new Date(f.availableUntil).getTime() - Date.now();
+                    if (ms <= 0) return null;
+                    const h = Math.floor(ms / 3600000);
+                    const m = Math.floor((ms % 3600000) / 60000);
+                    const d = Math.floor(h / 24);
+                    const label = d > 0 ? `${d}d ${h % 24}h left` : `${h}h ${m}m left`;
+                    return (
+                      <div className="font-mono mt-1" style={{ fontSize: 9, color: "#ff6b35" }}>
+                        {label}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {selectedFrame?.frameId === f.frameId && (

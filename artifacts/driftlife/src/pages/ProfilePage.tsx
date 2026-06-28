@@ -458,6 +458,41 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
         <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
           <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>YOUR FRAMES</div>
 
+          {/* Collection stats */}
+          {(() => {
+            const RARITY_ORDER = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
+            const RARITY_COLORS_MAP: Record<string, string> = { common: "#94a3b8", uncommon: "#39d353", rare: "#00d4ff", epic: "#a855f7", legendary: "#f59e0b", mythic: "#00ff41" };
+            const totalFrames = apiFrames.filter(f => !f.mythicAliasOf).length;
+            const ownedCount = ownedFrames.length;
+            const pct = totalFrames > 0 ? Math.round((ownedCount / totalFrames) * 100) : 0;
+            const rarestOwned = RARITY_ORDER.slice().reverse().find(r => ownedFrames.some(f => f.rarity === r));
+            return (
+              <div style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 6, padding: "12px 14px", marginBottom: 16 }}>
+                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>COLLECTED</div>
+                      <div className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 14 }}>{ownedCount}<span style={{ color: "#475569", fontSize: 11 }}>/{totalFrames}</span></div>
+                    </div>
+                    <div>
+                      <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>COMPLETION</div>
+                      <div className="font-mono font-bold" style={{ color: "#a855f7", fontSize: 14 }}>{pct}%</div>
+                    </div>
+                    {rarestOwned && (
+                      <div>
+                        <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>RAREST OWNED</div>
+                        <div className="font-mono font-bold capitalize" style={{ color: RARITY_COLORS_MAP[rarestOwned], fontSize: 12 }}>{rarestOwned}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ background: "#1e1e2e", borderRadius: 4, height: 5, overflow: "hidden" }}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg, #a855f7, #00d4ff)", transition: "width 0.5s" }} />
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Color customizer — shown when a frame is equipped */}
           {equippedFrameDef && (
             <div style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 6, padding: 14, marginBottom: 16 }}>

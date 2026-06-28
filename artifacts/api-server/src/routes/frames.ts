@@ -65,6 +65,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
             isLimited: !!(f.availableUntil && f.availableUntil > now),
             availableUntil: f.availableUntil ?? undefined,
             mythicAliasOf: f.mythicAliasOf ?? undefined,
+            createdAt: (f as any).createdAt ?? undefined,
             owned: isOwned,
             equipped: user.equippedFrame === f.frameId,
           };
@@ -197,6 +198,9 @@ router.post("/gift", requireAuth, async (req: AuthRequest, res) => {
     if (sender.equippedFrame === frameId) {
       return res.status(400).json({ message: "Cannot gift your currently equipped frame" });
     }
+    if ((sender.receivedAsGift || []).includes(frameId)) {
+      return res.status(400).json({ message: "Cannot re-gift frames you received as a gift" });
+    }
 
     const recipient = await User.findById(targetUserId);
     if (!recipient || recipient.banned) {
@@ -227,7 +231,9 @@ router.post("/gift", requireAuth, async (req: AuthRequest, res) => {
     sender.markModified("ownedFrames");
 
     recipient.ownedFrames.push(frameId);
+    recipient.receivedAsGift = [...(recipient.receivedAsGift || []), frameId];
     recipient.markModified("ownedFrames");
+    recipient.markModified("receivedAsGift");
 
     await sender.save();
     await recipient.save();
@@ -345,6 +351,35 @@ router.post("/owner/create", requireAuth, requireOwner as any, async (req: AuthR
     res.json({ message: "Frame created", frame });
   } catch (err: any) {
     req.log.error({ err }, "owner create frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/frames/owner/revoke — revoke a frame from a player
+router.post("/owner/revoke", requireAuth, requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { frameId, userId } = req.body;
+    if (!frameId || !userId) return res.status(400).json({ message: "frameId and userId required" });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (!user.ownedFrames.includes(frameId)) {
+      return res.status(400).json({ message: "Player does not own this frame" });
+    }
+
+    user.ownedFrames = user.ownedFrames.filter((f: string) => f !== frameId);
+    if (user.equippedFrame === frameId) {
+      user.equippedFrame = "ghostFrame";
+      user.equippedFrameRarity = "common";
+    }
+    user.markModified("ownedFrames");
+    await user.save();
+
+    req.log.info({ frameId, userId }, "frame revoked from player");
+    res.json({ message: `Frame revoked from ${user.username}` });
+  } catch (err: any) {
+    req.log.error({ err }, "owner revoke frame error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

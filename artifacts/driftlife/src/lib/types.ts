@@ -188,6 +188,9 @@ export interface Frame {
   isLimited?: boolean;
   availableUntil?: string;
   mythicAliasOf?: string;
+  createdAt?: string;
+  isCustom?: boolean;
+  isVisible?: boolean;
   owned: boolean;
   equipped: boolean;
 }

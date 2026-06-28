@@ -95,11 +95,29 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [itemPriceVal, setItemPriceVal] = useState("");
   const [itemPriceFilter, setItemPriceFilter] = useState<string>("all");
   // Frames tab
-  const [framesList, setFramesList] = useState<{ frameId: string; displayName: string; rarity: string; currency: string; basePrice: number; currentPrice: number; overridden: boolean; isFree: boolean; description: string }[]>([]);
+  const [framesList, setFramesList] = useState<{
+    frameId: string; displayName: string; rarity: string; currency: string;
+    price: number; salePrice: number | null; saleExpiry: string | null;
+    isFree: boolean; isWeeklyFree: boolean; isFeatured: boolean; isVisible: boolean;
+    isCustom: boolean; glowColor: string; description: string; ownedByCount: number;
+  }[]>([]);
   const [framesLoading, setFramesLoading] = useState(false);
   const [framePriceEdit, setFramePriceEdit] = useState<string | null>(null);
   const [framePriceVal, setFramePriceVal] = useState("");
   const [framesRarityFilter, setFramesRarityFilter] = useState<string>("all");
+  const [savingFrame, setSavingFrame] = useState<string | null>(null);
+  const [frameSaleEdit, setFrameSaleEdit] = useState<string | null>(null);
+  const [frameSaleVal, setFrameSaleVal] = useState("");
+  const [frameSaleExpiry, setFrameSaleExpiry] = useState("");
+  const [createFrameOpen, setCreateFrameOpen] = useState(false);
+  const [newFrame, setNewFrame] = useState({ frameId: "", displayName: "", rarity: "common", glowColor: "#00d4ff", animationType: "static", price: 0, currency: "dc", description: "" });
+  const [creatingFrame, setCreatingFrame] = useState(false);
+  const [revokeFrameId, setRevokeFrameId] = useState("");
+  const [revokeSearch, setRevokeSearch] = useState("");
+  const [revokeUsers, setRevokeUsers] = useState<{_id: string; username: string; level: number}[]>([]);
+  const [revokeTargetId, setRevokeTargetId] = useState<string | null>(null);
+  const [revokeTargetName, setRevokeTargetName] = useState("");
+  const [revokingFrame, setRevokingFrame] = useState(false);
   // Grants tab
   const [grantSearch, setGrantSearch] = useState("");
   const [grantUsers, setGrantUsers] = useState<{ _id: string; username: string; level: number }[]>([]);
@@ -331,19 +349,89 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
 
   async function setFramePrice(frameId: string) {
     const price = Number(framePriceVal);
-    if (isNaN(price) || price < 0) { addToast("Enter a valid price (0 to reset)", "error"); return; }
+    if (isNaN(price) || price < 0) { addToast("Enter a valid price", "error"); return; }
+    setSavingFrame(frameId);
     try {
-      const res = await api.post<{ message: string; price: number }>(`/owner/frames/${frameId}/price`, { price });
-      addToast(res.message, "success");
+      await api.patch<{ message: string }>(`/frames/owner/${frameId}`, { price });
+      addToast("Frame price updated", "success");
       setFramePriceEdit(null); setFramePriceVal("");
       loadFrames();
     } catch (e: any) { addToast(e.message, "error"); }
+    finally { setSavingFrame(null); }
   }
 
-  async function resetFramePrice(frameId: string) {
+  async function patchFrame(frameId: string, data: Record<string, unknown>) {
+    setSavingFrame(frameId);
     try {
-      const res = await api.delete<{ message: string }>(`/owner/frames/${frameId}/price`);
-      addToast(res.message, "success");
+      await api.patch<{ message: string }>(`/frames/owner/${frameId}`, data);
+      addToast("Frame updated", "success");
+      loadFrames();
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setSavingFrame(null); }
+  }
+
+  async function setSalePrice(frameId: string) {
+    if (!frameSaleVal) { addToast("Enter a sale price", "error"); return; }
+    setSavingFrame(frameId);
+    try {
+      await api.patch<{ message: string }>(`/frames/owner/${frameId}`, {
+        salePrice: Number(frameSaleVal),
+        saleExpiry: frameSaleExpiry || null,
+      });
+      addToast("Sale price set", "success");
+      setFrameSaleEdit(null); setFrameSaleVal(""); setFrameSaleExpiry("");
+      loadFrames();
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setSavingFrame(null); }
+  }
+
+  async function clearSalePrice(frameId: string) {
+    setSavingFrame(frameId);
+    try {
+      await api.patch<{ message: string }>(`/frames/owner/${frameId}`, { salePrice: null, saleExpiry: null });
+      addToast("Sale cleared", "success");
+      loadFrames();
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setSavingFrame(null); }
+  }
+
+  async function createNewFrame() {
+    if (!newFrame.frameId || !newFrame.displayName) { addToast("Frame ID and name required", "error"); return; }
+    setCreatingFrame(true);
+    try {
+      await api.post<{ message: string }>("/frames/owner/create", newFrame);
+      addToast("Frame created", "success");
+      setCreateFrameOpen(false);
+      setNewFrame({ frameId: "", displayName: "", rarity: "common", glowColor: "#00d4ff", animationType: "static", price: 0, currency: "dc", description: "" });
+      loadFrames();
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setCreatingFrame(false); }
+  }
+
+  async function searchRevokeUsers() {
+    if (!revokeSearch.trim()) return;
+    try {
+      const res = await api.get<{ users: {_id: string; username: string; level: number}[] }>(`/owner/users?page=1&limit=10&q=${encodeURIComponent(revokeSearch.trim())}`);
+      setRevokeUsers(res.users);
+    } catch { setRevokeUsers([]); }
+  }
+
+  async function doRevokeFrame() {
+    if (!revokeFrameId || !revokeTargetId) { addToast("Select frame ID and player", "error"); return; }
+    setRevokingFrame(true);
+    try {
+      const r = await api.post<{ message: string }>("/frames/owner/revoke", { frameId: revokeFrameId, userId: revokeTargetId });
+      addToast(r.message, "success");
+      setRevokeTargetId(null); setRevokeTargetName(""); setRevokeFrameId(""); setRevokeSearch(""); setRevokeUsers([]);
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setRevokingFrame(false); }
+  }
+
+  async function deleteCustomFrame(frameId: string) {
+    if (!confirm(`Delete custom frame "${frameId}"? This cannot be undone.`)) return;
+    try {
+      await api.delete<{ message: string }>(`/frames/owner/${frameId}`);
+      addToast("Frame deleted", "success");
       loadFrames();
     } catch (e: any) { addToast(e.message, "error"); }
   }

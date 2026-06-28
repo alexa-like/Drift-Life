@@ -375,10 +375,17 @@ router.post("/grant/xp", requireOwner as any, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/owner/frames — list all frames
-router.get("/frames", async (_req, res) => {
+// GET /api/owner/frames — list ALL frames (admin view)
+router.get("/frames", requireOwner as any, async (req: AuthRequest, res) => {
   try {
-    const frames = await Frame.find({ isVisible: true }).sort({ rarity: 1, price: 1 }).lean();
+    const frames = await Frame.find({}).sort({ rarity: 1, price: 1 }).lean();
+    const allUsers = await User.find({}).select("ownedFrames").lean();
+    const ownedCounts: Record<string, number> = {};
+    for (const u of allUsers) {
+      for (const fid of (u.ownedFrames || [])) {
+        ownedCounts[fid] = (ownedCounts[fid] || 0) + 1;
+      }
+    }
     res.json(frames.map((f: any) => ({
       frameId: f.frameId,
       displayName: f.displayName,
@@ -386,14 +393,18 @@ router.get("/frames", async (_req, res) => {
       currency: f.currency,
       price: f.price,
       salePrice: f.salePrice,
+      saleExpiry: f.saleExpiry,
       isFree: f.isFree,
       isWeeklyFree: f.isWeeklyFree,
       isFeatured: f.isFeatured,
       isVisible: f.isVisible,
+      isCustom: f.isCustom,
+      glowColor: f.glowColor,
       description: f.description,
-      mythicAliasOf: f.mythicAliasOf,
+      ownedByCount: ownedCounts[f.frameId] || 0,
     })));
   } catch (err: any) {
+    req.log.error({ err }, "owner get frames error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

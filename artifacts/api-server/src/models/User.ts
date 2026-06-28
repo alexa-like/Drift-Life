@@ -79,9 +79,11 @@ export interface IUser extends Document {
   equippedTitle: string | null;
   titles: string[];
   ownedFrames: string[];
+  receivedAsGift: string[];
   merit: number;
   appearOffline: boolean;
   lastActiveAt: Date;
+  lastCrimeDate: Date | null;
   dmPrivacy: "anyone" | "nobody";
   liteModeEnabled: boolean;
   notificationPrefs: {
@@ -179,9 +181,11 @@ const UserSchema = new Schema<IUser>(
     equippedTitle: { type: String, default: "New in Town" },
     titles: [{ type: String }],
     ownedFrames: [{ type: String }],
+    receivedAsGift: [{ type: String }],
     merit: { type: Number, default: 0 },
     appearOffline: { type: Boolean, default: false },
     lastActiveAt: { type: Date, default: Date.now },
+    lastCrimeDate: { type: Date, default: null },
     dmPrivacy: { type: String, enum: ["anyone", "nobody"], default: "anyone" },
     liteModeEnabled: { type: Boolean, default: false },
     notificationPrefs: {
