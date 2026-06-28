@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { User, Frame } from "../lib/types";
 import { api } from "../lib/api";
-import { getFrame, FrameRarity } from "../lib/frames";
-import { FrameCardWrapper } from "../components/FrameCardWrapper";
+import { getFrame, RARITY_COLORS } from "../lib/frames";
 import { formatDC } from "../lib/format";
 
 interface Props {
@@ -11,46 +10,55 @@ interface Props {
   addToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
 }
 
-const RARITY_COLORS: Record<string, string> = {
-  common: "#94a3b8",
-  uncommon: "#39d353",
-  rare: "#00d4ff",
-  epic: "#a855f7",
-  legendary: "#f59e0b",
-  mythic: "#ff2d55",
-};
+const CURRENCY_LABELS: Record<string, string> = { dc: "DC", merit: "M", nc: "NC" };
+const CURRENCY_COLORS: Record<string, string> = { dc: "#f59e0b", merit: "#39d353", nc: "#a855f7" };
 
+const RARITY_ORDER = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
 
-function FrameLivePreview({ frameId, colorOverride, width = 88, height = 60 }: {
-  frameId: string;
-  colorOverride?: string | null;
-  width?: number;
-  height?: number;
-}) {
-  const frame = getFrame(frameId);
-  const rarity = frame.rarity as FrameRarity;
-  const rarityColor = RARITY_COLORS[rarity] || "#94a3b8";
+function MiniChatPreview({ frame, colorOverride }: { frame: Frame; colorOverride?: string | null }) {
+  const def = getFrame(frame.frameId);
+  const color = colorOverride || frame.glowColor;
+  const rarity = frame.rarity;
+
+  const glowIntensity = rarity === "mythic" ? 14 : rarity === "legendary" ? 10 : rarity === "epic" ? 7 : rarity === "rare" ? 5 : 2;
+  const headerBg = rarity !== "common"
+    ? `linear-gradient(135deg, ${color}25 0%, ${color}10 100%)`
+    : `${color}10`;
 
   return (
-    <FrameCardWrapper
-      frameId={frameId}
-      colorOverride={colorOverride}
-      style={{ width, height, flexShrink: 0, background: "#0a0a0f" }}
-      borderRadius={8}
-    >
-      <div style={{
-        position: "absolute", inset: 0,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        flexDirection: "column", gap: 2, pointerEvents: "none",
-      }}>
-        <div style={{ fontSize: 18, lineHeight: 1 }}>
-          {rarity === "mythic" ? "☠" : rarity === "legendary" ? "⚡" : rarity === "epic" ? "✦" : rarity === "rare" ? "◆" : rarity === "uncommon" ? "◈" : "□"}
+    <div style={{
+      borderRadius: 6, overflow: "hidden",
+      border: `1px solid ${rarity !== "common" ? color + "40" : "#1e1e2e"}`,
+      boxShadow: `0 0 ${glowIntensity}px ${color}25`,
+      background: "#0a0a0f",
+      minHeight: 72,
+    }}>
+      {rarity !== "common" && (
+        <div style={{
+          background: headerBg,
+          borderBottom: `1px solid ${color}25`,
+          padding: "4px 10px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: color, boxShadow: `0 0 4px ${color}` }} />
+            <span className="font-mono" style={{ color, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "bold" }}>
+              {def.name}
+            </span>
+          </div>
+          <span className="font-mono" style={{ color: color + "70", fontSize: 8, textTransform: "capitalize" }}>{rarity}</span>
         </div>
-        <div className="font-mono" style={{ fontSize: 8, color: rarityColor, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          {rarity}
+      )}
+      <div style={{ padding: "6px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+          <span className="font-mono font-bold" style={{ color, fontSize: 11 }}>RUNNER</span>
+          <span className="font-mono" style={{ color: "#334155", fontSize: 9 }}>12:47</span>
         </div>
+        <p className="font-mono" style={{ color: "#94a3b8", fontSize: 10 }}>You see the city from above...</p>
       </div>
-    </FrameCardWrapper>
+    </div>
   );
 }
 
@@ -59,21 +67,33 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [filterRarity, setFilterRarity] = useState<string>("all");
-  const [previewFrame, setPreviewFrame] = useState<Frame | null>(null);
+  const [filterCurrency, setFilterCurrency] = useState<string>("all");
+  const [filterOwned, setFilterOwned] = useState<"all" | "owned" | "not-owned">("all");
+  const [searchQ, setSearchQ] = useState("");
+  const [selectedFrame, setSelectedFrame] = useState<Frame | null>(null);
+  const [customColor, setCustomColor] = useState("");
+  const [savingColor, setSavingColor] = useState(false);
+
+  const PRESET_COLORS = ["#00d4ff", "#ff6b35", "#ff2d55", "#39d353", "#a855f7", "#f59e0b", "#e879f9", "#22d3ee", "#fde047", "#e2e8f0", "#64748b", "#dc2626"];
 
   useEffect(() => {
-    api.get<Frame[]>("/frames").then(f => { setFrames(f); setLoading(false); }).catch(() => setLoading(false));
+    api.get<Frame[]>("/frames")
+      .then(f => { setFrames(f); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
-  async function purchase(frameId: string, cost: number, currency: string) {
-    const bal = currency === "nc" ? user.nc : user.dc;
-    if (bal < cost) { addToast(`Not enough ${currency.toUpperCase()}`, "error"); return; }
-    if (!confirm(`Purchase frame for ${formatDC(cost)} ${currency.toUpperCase()}?`)) return;
-    setActing(frameId);
+  async function purchase(f: Frame) {
+    const cost = f.price;
+    const currency = f.currency;
+    const bal = currency === "nc" ? user.nc : currency === "merit" ? (user.merit ?? 0) : user.dc;
+    if (bal < cost) { addToast(`Not enough ${CURRENCY_LABELS[currency]}`, "error"); return; }
+    if (!confirm(`Purchase ${f.displayName} for ${formatDC(cost)} ${CURRENCY_LABELS[currency]}?`)) return;
+    setActing(f.frameId);
     try {
-      const data = await api.post<any>(`/frames/purchase/${frameId}`);
+      const data = await api.post<any>(`/frames/purchase/${f.frameId}`);
       addToast(data.message, "success");
-      setFrames(prev => prev.map(f => f.frameId === frameId ? { ...f, owned: true } : f));
+      setFrames(prev => prev.map(fr => fr.frameId === f.frameId ? { ...fr, owned: true } : fr));
+      if (selectedFrame?.frameId === f.frameId) setSelectedFrame(prev => prev ? { ...prev, owned: true } : prev);
       await refreshUser();
     } catch (err: any) {
       addToast(err.message, "error");
@@ -85,10 +105,11 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
   async function equip(frameId: string) {
     setActing(frameId);
     try {
-      const data = await api.post<any>(`/frames/equip/${frameId}`);
-      addToast(data.message, "success");
+      await api.post<any>(`/frames/equip/${frameId}`);
       setFrames(prev => prev.map(f => ({ ...f, equipped: f.frameId === frameId })));
+      if (selectedFrame) setSelectedFrame(prev => prev ? { ...prev, equipped: prev.frameId === frameId } : prev);
       await refreshUser();
+      addToast("Frame equipped", "success");
     } catch (err: any) {
       addToast(err.message, "error");
     } finally {
@@ -96,159 +117,274 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
     }
   }
 
-  const rarities = ["all", "common", "uncommon", "rare", "epic", "legendary", "mythic"];
-  const filtered = filterRarity === "all" ? frames : frames.filter(f => f.rarity === filterRarity);
+  async function saveColor(color: string | null) {
+    setSavingColor(true);
+    try {
+      await api.post<any>("/frames/color", { color });
+      await refreshUser();
+      addToast("Color saved", "success");
+    } catch (err: any) {
+      addToast(err.message, "error");
+    } finally {
+      setSavingColor(false);
+    }
+  }
+
+  const weeklyFree = frames.find(f => f.isWeeklyFree);
+
+  let filtered = frames.filter(f => {
+    if (filterRarity !== "all" && f.rarity !== filterRarity) return false;
+    if (filterCurrency !== "all" && f.currency !== filterCurrency) return false;
+    if (filterOwned === "owned" && !f.owned) return false;
+    if (filterOwned === "not-owned" && f.owned) return false;
+    if (searchQ && !f.displayName.toLowerCase().includes(searchQ.toLowerCase())) return false;
+    return true;
+  });
+
+  filtered = filtered.sort((a, b) => {
+    const ai = RARITY_ORDER.indexOf(a.rarity);
+    const bi = RARITY_ORDER.indexOf(b.rarity);
+    if (ai !== bi) return ai - bi;
+    return a.price - b.price;
+  });
+
   const owned = frames.filter(f => f.owned).length;
+  const total = frames.filter(f => !f.mythicAliasOf).length;
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-4">
-      <div className="flex justify-between items-center flex-wrap gap-2">
-        <div>
-          <h2 className="text-lg font-mono font-bold" style={{ color: "#a855f7" }}>Frame Store</h2>
-          <p className="text-xs font-mono mt-0.5" style={{ color: "#64748b" }}>
-            Owned: {owned}/{frames.length} · Balance: {formatDC(user.dc)} DC / {formatDC(user.nc)} UC
-          </p>
+    <div style={{ maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ marginBottom: 16 }}>
+        <h1 className="font-mono font-bold" style={{ color: "#00d4ff", fontSize: 18, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+          Frame Store
+        </h1>
+        <div className="font-mono" style={{ color: "#475569", fontSize: 11, marginTop: 4 }}>
+          {owned}/{total} frames owned &nbsp;·&nbsp;
+          <span style={{ color: "#f59e0b" }}>{formatDC(user.dc)} DC</span> &nbsp;
+          <span style={{ color: "#39d353" }}>{(user.merit ?? 0).toLocaleString()} M</span> &nbsp;
+          <span style={{ color: "#a855f7" }}>{user.nc} NC</span>
         </div>
       </div>
 
-      {/* Live preview modal */}
-      {previewFrame && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}
-          onClick={() => setPreviewFrame(null)}
-        >
-          <div onClick={e => e.stopPropagation()} style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 12, padding: 24, minWidth: 280, textAlign: "center" }}>
-            <div className="font-mono text-xs mb-4" style={{ color: "#64748b" }}>LIVE PREVIEW</div>
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-              <FrameLivePreview frameId={previewFrame.frameId} colorOverride={previewFrame.glowColor} width={220} height={130} />
+      {weeklyFree && !weeklyFree.owned && (
+        <div style={{
+          background: "#39d35315", border: "1px solid #39d35360", borderRadius: 8,
+          padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div>
+            <div className="font-mono font-bold" style={{ color: "#39d353", fontSize: 12, letterSpacing: "0.08em" }}>
+              FREE THIS WEEK: {weeklyFree.displayName}
             </div>
-            <div className="font-mono font-bold text-sm mb-1" style={{ color: "#e2e8f0" }}>{previewFrame.displayName}</div>
-            <div className="font-mono text-xs mb-4 capitalize" style={{ color: RARITY_COLORS[previewFrame.rarity] }}>{previewFrame.rarity}</div>
-            <button onClick={() => setPreviewFrame(null)} className="font-mono text-xs px-4 py-1.5 rounded" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>Close</button>
+            <div className="font-mono text-xs" style={{ color: "#39d353", opacity: 0.7 }}>Claim your free frame</div>
           </div>
+          <button
+            onClick={() => equip(weeklyFree.frameId)}
+            className="font-mono text-xs font-bold"
+            style={{
+              background: "#39d35320", border: "1px solid #39d353", borderRadius: 6,
+              color: "#39d353", padding: "6px 14px", cursor: "pointer",
+            }}
+          >
+            Equip Free
+          </button>
         </div>
       )}
 
-      {/* Rarity filter */}
-      <div className="flex gap-1.5 flex-wrap">
-        {rarities.map(r => {
-          const color = RARITY_COLORS[r] ?? "#94a3b8";
-          const active = filterRarity === r;
-          return (
-            <button
-              key={r}
-              onClick={() => setFilterRarity(r)}
-              className="px-2.5 py-1 rounded font-mono capitalize"
-              style={{
-                fontSize: 11,
-                background: active ? (r === "all" ? "#ffffff10" : color + "18") : "transparent",
-                color: active ? (r === "all" ? "#e2e8f0" : color) : "#475569",
-                border: `1px solid ${active ? (r === "all" ? "#ffffff30" : color + "50") : "#1e1e2e"}`,
-              }}
-            >
-              {r}
+      <div style={{ marginBottom: 12 }}>
+        <input
+          value={searchQ}
+          onChange={e => setSearchQ(e.target.value)}
+          placeholder="Search frames..."
+          className="font-mono text-xs"
+          style={{
+            width: "100%", background: "#111118", border: "1px solid #1e1e2e", borderRadius: 6,
+            color: "#e2e8f0", padding: "8px 12px", outline: "none", boxSizing: "border-box", marginBottom: 8,
+          }}
+        />
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {["all", ...RARITY_ORDER].map(r => (
+            <button key={r} onClick={() => setFilterRarity(r)} className="font-mono" style={{
+              fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
+              background: filterRarity === r ? (RARITY_COLORS as any)[r] || "#00d4ff" : "#111118",
+              color: filterRarity === r ? "#0a0a0f" : "#64748b",
+              border: `1px solid ${filterRarity === r ? "transparent" : "#1e1e2e"}`,
+              fontWeight: filterRarity === r ? "bold" : "normal", textTransform: "capitalize",
+            }}>
+              {r === "all" ? "All Rarities" : r}
             </button>
-          );
-        })}
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+          {[["all", "All Currency"], ["dc", "DC"], ["merit", "Merit"], ["nc", "NC"]].map(([val, label]) => (
+            <button key={val} onClick={() => setFilterCurrency(val)} className="font-mono" style={{
+              fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
+              background: filterCurrency === val ? CURRENCY_COLORS[val] || "#00d4ff" : "#111118",
+              color: filterCurrency === val ? "#0a0a0f" : "#64748b",
+              border: `1px solid ${filterCurrency === val ? "transparent" : "#1e1e2e"}`,
+              fontWeight: filterCurrency === val ? "bold" : "normal",
+            }}>{label}</button>
+          ))}
+          {[["all", "All"], ["owned", "Owned"], ["not-owned", "Not Owned"]].map(([val, label]) => (
+            <button key={val} onClick={() => setFilterOwned(val as any)} className="font-mono" style={{
+              fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
+              background: filterOwned === val ? "#00d4ff" : "#111118",
+              color: filterOwned === val ? "#0a0a0f" : "#64748b",
+              border: `1px solid ${filterOwned === val ? "transparent" : "#1e1e2e"}`,
+              fontWeight: filterOwned === val ? "bold" : "normal",
+            }}>{label}</button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 font-mono text-xs" style={{ color: "#475569" }}>Loading...</div>
+        <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", paddingTop: 40 }}>Loading frames...</div>
       ) : (
-        <div className="grid grid-cols-1 gap-3">
-          {filtered.map(frame => {
-            const color = RARITY_COLORS[frame.rarity] ?? "#94a3b8";
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+          {filtered.map(f => {
+            const rarityColor = RARITY_COLORS[f.rarity] || "#94a3b8";
+            const currencyColor = CURRENCY_COLORS[f.currency] || "#f59e0b";
+            const isActing = acting === f.frameId;
+
             return (
               <div
-                key={frame.frameId}
-                className="rounded-lg p-4 flex items-center gap-4"
+                key={f.frameId}
+                onClick={() => setSelectedFrame(prev => prev?.frameId === f.frameId ? null : f)}
                 style={{
                   background: "#111118",
-                  border: `1px solid ${frame.equipped ? color + "70" : frame.owned ? color + "30" : "#1e1e2e"}`,
-                  boxShadow: frame.equipped ? `0 0 12px ${color}18` : undefined,
+                  border: `1px solid ${selectedFrame?.frameId === f.frameId ? rarityColor + "80" : f.equipped ? "#00d4ff50" : "#1e1e2e"}`,
+                  borderRadius: 8, overflow: "hidden", cursor: "pointer",
+                  boxShadow: f.equipped ? "0 0 8px #00d4ff20" : "none",
+                  transition: "border-color 0.2s",
                 }}
               >
-                {/* Live animated frame preview */}
-                <div style={{ position: "relative" }}>
-                  <FrameLivePreview frameId={frame.frameId} colorOverride={frame.glowColor} />
-                  <button
-                    onClick={() => setPreviewFrame(frame)}
-                    title="Preview fullscreen"
-                    style={{
-                      position: "absolute", bottom: 2, right: 2,
-                      background: "#000000aa", border: "none", borderRadius: 3,
-                      color: "#94a3b8", fontSize: 9, padding: "1px 4px",
-                      cursor: "pointer", fontFamily: "monospace",
-                    }}
-                  >
-                    ⛶
-                  </button>
+                <div style={{ padding: "2px" }}>
+                  <MiniChatPreview frame={f} colorOverride={user.equippedFrameColor} />
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{frame.displayName}</span>
-                    <span className="font-mono text-xs px-1.5 py-0.5 rounded capitalize" style={{ color, background: color + "15", border: `1px solid ${color}30` }}>
-                      {frame.rarity}
+                <div style={{ padding: "10px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 12 }}>{f.displayName}</span>
+                    <span className="font-mono" style={{ color: rarityColor, fontSize: 9, textTransform: "capitalize", fontWeight: "bold" }}>
+                      {f.rarity}
                     </span>
-                    {frame.equipped && (
-                      <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ background: "#39d35320", color: "#39d353", border: "1px solid #39d35340" }}>
-                        equipped
-                      </span>
-                    )}
-                    {frame.isFree && (
-                      <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ background: "#00d4ff10", color: "#00d4ff", border: "1px solid #00d4ff30" }}>
-                        free
-                      </span>
-                    )}
                   </div>
-                  <div className="text-xs font-mono" style={{ color: "#64748b" }}>
-                    {frame.description}
-                  </div>
-                  {frame.earnedBy && (
-                    <div className="text-xs font-mono mt-0.5" style={{ color: "#475569" }}>
-                      🔒 {frame.earnedBy}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span className="font-mono" style={{ color: currencyColor, fontSize: 11, fontWeight: "bold" }}>
+                      {f.isFree ? "FREE" : f.isOnSale ? (
+                        <>
+                          <span style={{ textDecoration: "line-through", color: "#475569", marginRight: 4 }}>
+                            {formatDC(f.originalPrice || f.price)}
+                          </span>
+                          {formatDC(f.price)} {CURRENCY_LABELS[f.currency]}
+                        </>
+                      ) : `${formatDC(f.price)} ${CURRENCY_LABELS[f.currency]}`}
+                    </span>
+                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      {f.isWeeklyFree && <span className="font-mono" style={{ fontSize: 8, color: "#39d353", background: "#39d35320", padding: "1px 4px", borderRadius: 3 }}>FREE</span>}
+                      {f.isLimited && <span className="font-mono" style={{ fontSize: 8, color: "#ff6b35", background: "#ff6b3520", padding: "1px 4px", borderRadius: 3 }}>LIMITED</span>}
+                      {f.isOnSale && <span className="font-mono" style={{ fontSize: 8, color: "#ff2d55", background: "#ff2d5520", padding: "1px 4px", borderRadius: 3 }}>SALE</span>}
+                      {f.owned && <span className="font-mono" style={{ fontSize: 8, color: "#00d4ff", background: "#00d4ff15", padding: "1px 4px", borderRadius: 3 }}>OWNED</span>}
+                      {f.equipped && <span className="font-mono" style={{ fontSize: 8, color: "#39d353", background: "#39d35315", padding: "1px 4px", borderRadius: 3 }}>EQUIPPED</span>}
                     </div>
-                  )}
+                  </div>
                 </div>
 
-                <div className="flex flex-col gap-1.5 flex-shrink-0 items-end">
-                  {!frame.owned ? (
-                    frame.earnedBy ? (
-                      <span className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>Locked</span>
+                {selectedFrame?.frameId === f.frameId && (
+                  <div style={{ padding: "0 12px 12px", borderTop: `1px solid ${rarityColor}20` }}>
+                    <p className="font-mono" style={{ color: "#64748b", fontSize: 10, marginBottom: 10, marginTop: 8 }}>{f.description}</p>
+
+                    {f.owned ? (
+                      <>
+                        <button
+                          onClick={e => { e.stopPropagation(); equip(f.frameId); }}
+                          disabled={isActing || f.equipped}
+                          className="font-mono text-xs font-bold"
+                          style={{
+                            width: "100%", padding: "7px 0", borderRadius: 6, cursor: f.equipped ? "default" : "pointer",
+                            background: f.equipped ? "#39d35315" : "#00d4ff20",
+                            border: `1px solid ${f.equipped ? "#39d35350" : "#00d4ff50"}`,
+                            color: f.equipped ? "#39d353" : "#00d4ff",
+                            marginBottom: 10,
+                          }}
+                        >
+                          {isActing ? "..." : f.equipped ? "Equipped" : "Equip"}
+                        </button>
+
+                        {f.equipped && (
+                          <div>
+                            <div className="font-mono" style={{ color: "#475569", fontSize: 10, marginBottom: 6 }}>Frame Color</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                              {PRESET_COLORS.map(c => (
+                                <button
+                                  key={c}
+                                  onClick={e => { e.stopPropagation(); saveColor(c); }}
+                                  style={{
+                                    width: 20, height: 20, borderRadius: 4, background: c, cursor: "pointer",
+                                    border: user.equippedFrameColor === c ? "2px solid #fff" : "1px solid transparent",
+                                  }}
+                                />
+                              ))}
+                            </div>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <input
+                                value={customColor}
+                                onChange={e => setCustomColor(e.target.value)}
+                                placeholder="#RRGGBB"
+                                onClick={e => e.stopPropagation()}
+                                className="font-mono text-xs"
+                                style={{
+                                  flex: 1, background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 4,
+                                  color: "#e2e8f0", padding: "4px 8px", outline: "none",
+                                }}
+                              />
+                              <button
+                                onClick={e => { e.stopPropagation(); if (/^#[0-9a-fA-F]{3,8}$/.test(customColor)) saveColor(customColor); }}
+                                disabled={savingColor}
+                                className="font-mono text-xs"
+                                style={{
+                                  background: "#111118", border: "1px solid #1e1e2e", borderRadius: 4,
+                                  color: "#e2e8f0", padding: "4px 10px", cursor: "pointer",
+                                }}
+                              >
+                                {savingColor ? "..." : "Set"}
+                              </button>
+                              <button
+                                onClick={e => { e.stopPropagation(); saveColor(null); }}
+                                className="font-mono text-xs"
+                                style={{
+                                  background: "#111118", border: "1px solid #1e1e2e", borderRadius: 4,
+                                  color: "#475569", padding: "4px 8px", cursor: "pointer",
+                                }}
+                              >
+                                Reset
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <button
-                        onClick={() => purchase(frame.frameId, frame.price, frame.currency)}
-                        disabled={acting === frame.frameId}
-                        className="px-3 py-1.5 rounded font-mono text-xs font-bold"
-                        style={{ background: color + "18", color, border: `1px solid ${color}40` }}
+                        onClick={e => { e.stopPropagation(); purchase(f); }}
+                        disabled={isActing}
+                        className="font-mono text-xs font-bold"
+                        style={{
+                          width: "100%", padding: "7px 0", borderRadius: 6, cursor: "pointer",
+                          background: currencyColor + "20", border: `1px solid ${currencyColor}50`, color: currencyColor,
+                        }}
                       >
-                        {acting === frame.frameId ? "..." : frame.isFree ? "Claim" : `${formatDC(frame.price)} ${frame.currency === "nc" ? "UC" : "DC"}`}
+                        {isActing ? "..." : f.isFree ? "Equip Free" : `Buy — ${formatDC(f.price)} ${CURRENCY_LABELS[f.currency]}`}
                       </button>
-                    )
-                  ) : !frame.equipped ? (
-                    <button
-                      onClick={() => equip(frame.frameId)}
-                      disabled={acting === frame.frameId}
-                      className="px-3 py-1.5 rounded font-mono text-xs font-bold"
-                      style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}
-                    >
-                      {acting === frame.frameId ? "..." : "Equip"}
-                    </button>
-                  ) : (
-                    <span className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#39d353", border: "1px solid #39d35330" }}>
-                      Active
-                    </span>
-                  )}
-                  {!frame.isFree && !frame.earnedBy && (
-                    <div className="font-mono text-xs" style={{ color: "#334155" }}>
-                      {frame.currency === "nc" ? "NC" : "DC"}
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
+        </div>
+      )}
+
+      {filtered.length === 0 && !loading && (
+        <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", paddingTop: 40 }}>
+          No frames match your filters
         </div>
       )}
     </div>

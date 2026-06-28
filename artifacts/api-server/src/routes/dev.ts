@@ -121,13 +121,29 @@ router.post("/give-frame", async (req: AuthRequest, res) => {
     if (!frameId) return res.status(400).json({ message: "frameId required" });
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "Not found" });
-    const owned: string[] = (user as any).ownedFrames || [];
-    if (!owned.includes(frameId)) owned.push(frameId);
-    (user as any).ownedFrames = owned;
+    if (!user.ownedFrames.includes(frameId)) {
+      user.ownedFrames.push(frameId);
+      user.markModified("ownedFrames");
+    }
     await user.save();
-    res.json({ message: `Frame ${frameId} added`, ownedFrames: owned });
+    res.json({ message: `Frame ${frameId} added`, ownedFrames: user.ownedFrames });
   } catch (err: any) {
     req.log.error({ err }, "dev give-frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/dev/add-merit
+router.post("/add-merit", async (req: AuthRequest, res) => {
+  try {
+    const amount = Number(req.body.amount) || 500;
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "Not found" });
+    user.merit += amount;
+    await user.save();
+    res.json({ message: `Added ${amount} M`, merit: user.merit });
+  } catch (err: any) {
+    req.log.error({ err }, "dev add-merit error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

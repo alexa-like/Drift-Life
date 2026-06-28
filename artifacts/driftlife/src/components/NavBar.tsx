@@ -28,18 +28,20 @@ const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", g
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
 const NAV = [
-  { id: "feed",        label: "Feed" },
-  { id: "map",         label: "Map" },
-  { id: "crimes",      label: "Crime" },
-  { id: "jobs",        label: "Jobs" },
-  { id: "combat",      label: "Combat" },
-  { id: "inventory",   label: "Gear" },
-  { id: "market",      label: "Market" },
-  { id: "bank",        label: "Bank" },
-  { id: "daily",       label: "Daily" },
-  { id: "frames",      label: "Frames" },
-  { id: "leaderboard", label: "Board" },
-  { id: "profile",     label: "Profile" },
+  { id: "feed",         label: "Feed" },
+  { id: "map",          label: "Map" },
+  { id: "crimes",       label: "Crime" },
+  { id: "jobs",         label: "Jobs" },
+  { id: "combat",       label: "Combat" },
+  { id: "inventory",    label: "Gear" },
+  { id: "market",       label: "Market" },
+  { id: "bank",         label: "Bank" },
+  { id: "daily",        label: "Daily" },
+  { id: "frames",       label: "Frames" },
+  { id: "achievements", label: "Achiev" },
+  { id: "chat",         label: "Chat" },
+  { id: "leaderboard",  label: "Board" },
+  { id: "profile",      label: "Profile" },
 ];
 
 function RollingNumber({ value, color }: { value: number; color: string }) {
@@ -146,8 +148,13 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
           <RollingNumber value={user.dc} color="#f59e0b" /> DC
         </span>
         <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
-          <RollingNC value={user.nc} /> UC
+          <RollingNC value={user.nc} /> NC
         </span>
+        {(user.merit ?? 0) > 0 && (
+          <span className="font-mono flex-shrink-0" style={{ color: "#39d353" }}>
+            {(user.merit ?? 0).toLocaleString()} M
+          </span>
+        )}
       </div>
 
       {/* Nav row */}

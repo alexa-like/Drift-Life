@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { AvatarWithFrame } from "./AvatarWithFrame";
 import { FrameCardWrapper } from "./FrameCardWrapper";
-import { getFrame, RARITY_COLOR } from "../lib/frames";
+import { getFrame, RARITY_COLORS as RARITY_COLOR } from "../lib/frames";
 import { User } from "../lib/types";
 
 interface PublicProfile {

@@ -50,6 +50,17 @@ export interface User {
   equippedTitle: string | null;
   titles: string[];
   ownedFrames: string[];
+  merit: number;
+  appearOffline: boolean;
+  dmPrivacy: "anyone" | "nobody";
+  liteModeEnabled: boolean;
+  notificationPrefs: {
+    achievements: boolean;
+    dms: boolean;
+    frameGifts: boolean;
+    xpBoost: boolean;
+    weeklyFrame: boolean;
+  };
   devMode: boolean;
   battlePassPremium: boolean;
   telegramNotifications: boolean;
@@ -163,14 +174,62 @@ export interface Frame {
   displayName: string;
   rarity: "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythic";
   glowColor: string;
-  animationType: "static" | "shimmer" | "pulse" | "rotate" | "flicker" | "matrix";
+  animationType: "static" | "shimmer" | "pulse" | "epic-particles" | "legendary-electric" | "mythic-cascade";
+  variantIndex: number;
   price: number;
-  currency: "dc" | "nc";
+  originalPrice?: number;
+  isOnSale?: boolean;
+  currency: "dc" | "merit" | "nc";
   isFree: boolean;
   description: string;
   earnedBy?: string;
+  isWeeklyFree?: boolean;
+  isFeatured?: boolean;
+  isLimited?: boolean;
+  availableUntil?: string;
+  mythicAliasOf?: string;
   owned: boolean;
   equipped: boolean;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  category: "combat" | "crime" | "wealth" | "social" | "exploration" | "collection";
+  meritReward: number;
+  progress: number;
+  target: number;
+  completed: boolean;
+  completedAt?: string | null;
+}
+
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  username: string;
+  faction: string | null;
+  frame: string | null;
+  frameColor: string | null;
+  frameRarity?: string | null;
+  title: string | null;
+  content: string;
+  at: string;
+  channel?: string;
+  districtId?: string;
+}
+
+export interface Conversation {
+  userId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  faction: string | null;
+  equippedFrame?: string | null;
+  equippedFrameColor?: string | null;
+  lastMessage: string;
+  lastAt: string;
+  unread: number;
 }
 
 export interface LeaderboardEntry {

@@ -1,147 +1,127 @@
 import { Router } from "express";
 import User from "../models/User";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
+import Frame from "../models/Frame";
+import { requireAuth, requireOwner, AuthRequest } from "../middlewares/auth";
+import { emitFeedEvent } from "../lib/feedEvents";
 
 const router = Router();
 
-export interface Frame {
-  frameId: string;
-  displayName: string;
-  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythic";
-  glowColor: string;
-  animationType: "static" | "shimmer" | "pulse" | "rotate" | "flicker" | "matrix";
-  price: number;
-  currency: "dc" | "nc";
-  isFree: boolean;
-  description: string;
+function requireStaff(req: AuthRequest, res: any, next: any) {
+  if (req.role !== "owner" && req.role !== "admin" && req.role !== "staff") {
+    return res.status(403).json({ message: "Staff only" });
+  }
+  next();
 }
 
-export const FRAME_CATALOG: Frame[] = [
-  // Common — static
-  { frameId: "ghostFrame",       displayName: "Ghost",            rarity: "common",   glowColor: "#64748b", animationType: "static",  price: 0,         currency: "dc", isFree: true,  description: "The default frame. Solid slate." },
-  { frameId: "basicWhite",       displayName: "Basic White",      rarity: "common",   glowColor: "#e2e8f0", animationType: "static",  price: 500,       currency: "dc", isFree: false, description: "Clean white border." },
-  { frameId: "basicGray",        displayName: "Basic Gray",       rarity: "common",   glowColor: "#94a3b8", animationType: "static",  price: 500,       currency: "dc", isFree: false, description: "Cool gray steel." },
-  { frameId: "neonBlue",         displayName: "Neon Blue",        rarity: "common",   glowColor: "#3b82f6", animationType: "static",  price: 1000,      currency: "dc", isFree: false, description: "Bright blue static." },
-  { frameId: "neonGreen",        displayName: "Neon Green",       rarity: "common",   glowColor: "#22c55e", animationType: "static",  price: 1000,      currency: "dc", isFree: false, description: "Grid hacker aesthetic." },
-  { frameId: "neonRed",          displayName: "Neon Red",         rarity: "common",   glowColor: "#ef4444", animationType: "static",  price: 1000,      currency: "dc", isFree: false, description: "Street heat." },
-  { frameId: "corpGray",         displayName: "Corp Gray",        rarity: "common",   glowColor: "#6b7280", animationType: "static",  price: 1500,      currency: "dc", isFree: false, description: "Corporate minimal." },
-  { frameId: "streetOrange",     displayName: "Street Orange",    rarity: "common",   glowColor: "#ff6b35", animationType: "static",  price: 1500,      currency: "dc", isFree: false, description: "Syndicate street colours." },
-  { frameId: "cyanPulse",        displayName: "Cyan Basic",       rarity: "common",   glowColor: "#00d4ff", animationType: "static",  price: 2000,      currency: "dc", isFree: false, description: "Data courier blue." },
-  { frameId: "goldBasic",        displayName: "Gold Basic",       rarity: "common",   glowColor: "#f59e0b", animationType: "static",  price: 2000,      currency: "dc", isFree: false, description: "DC gold." },
-
-  // Uncommon — shimmer
-  { frameId: "shimmerCyan",      displayName: "Shimmer Cyan",     rarity: "uncommon", glowColor: "#00d4ff", animationType: "shimmer", price: 5000,      currency: "dc", isFree: false, description: "Single orb sweep of electric cyan." },
-  { frameId: "shimmerPurple",    displayName: "Shimmer Purple",   rarity: "uncommon", glowColor: "#a855f7", animationType: "shimmer", price: 5000,      currency: "dc", isFree: false, description: "Dual opposing purple orbs." },
-  { frameId: "shimmerGold",      displayName: "Shimmer Gold",     rarity: "uncommon", glowColor: "#f59e0b", animationType: "shimmer", price: 6000,      currency: "dc", isFree: false, description: "Rotating dashed gold border." },
-  { frameId: "shimmerRed",       displayName: "Shimmer Red",      rarity: "uncommon", glowColor: "#ff2d55", animationType: "shimmer", price: 6000,      currency: "dc", isFree: false, description: "Three-orb danger sweep." },
-  { frameId: "shimmerGreen",     displayName: "Shimmer Green",    rarity: "uncommon", glowColor: "#39d353", animationType: "shimmer", price: 6000,      currency: "dc", isFree: false, description: "Long-tail bounty shimmer." },
-  { frameId: "shimmerOrange",    displayName: "Shimmer Orange",   rarity: "uncommon", glowColor: "#ff6b35", animationType: "shimmer", price: 6500,      currency: "dc", isFree: false, description: "Corner flash sequence." },
-  { frameId: "techShimmer",      displayName: "Tech Shimmer",     rarity: "uncommon", glowColor: "#60a5fa", animationType: "shimmer", price: 7000,      currency: "dc", isFree: false, description: "Digital dot sweep pattern." },
-  { frameId: "suitShimmer",      displayName: "Suit Shimmer",     rarity: "uncommon", glowColor: "#e2e8f0", animationType: "shimmer", price: 7000,      currency: "dc", isFree: false, description: "Ultra-slow elegant corporate sweep." },
-  { frameId: "crimsonShimmer",   displayName: "Crimson Shimmer",  rarity: "uncommon", glowColor: "#dc2626", animationType: "shimmer", price: 7500,      currency: "dc", isFree: false, description: "Dual-ring bloodline shimmer." },
-  { frameId: "iceShimmer",       displayName: "Ice Shimmer",      rarity: "uncommon", glowColor: "#e0f2fe", animationType: "shimmer", price: 7500,      currency: "dc", isFree: false, description: "Arctic cold slow crawl." },
-
-  // Rare — pulse
-  { frameId: "pulseCyan",        displayName: "Pulse Cyan",       rarity: "rare",     glowColor: "#00d4ff", animationType: "pulse",   price: 25000,     currency: "dc", isFree: false, description: "Breathing pulse of electric blue." },
-  { frameId: "pulsePurple",      displayName: "Pulse Purple",     rarity: "rare",     glowColor: "#a855f7", animationType: "pulse",   price: 25000,     currency: "dc", isFree: false, description: "Dual inner+outer NC rings." },
-  { frameId: "pulseGold",        displayName: "Pulse Gold",       rarity: "rare",     glowColor: "#f59e0b", animationType: "pulse",   price: 30000,     currency: "dc", isFree: false, description: "Slow perimeter spotlight." },
-  { frameId: "pulseRed",         displayName: "Pulse Red",        rarity: "rare",     glowColor: "#ff2d55", animationType: "pulse",   price: 30000,     currency: "dc", isFree: false, description: "Fast erratic danger pulse." },
-  { frameId: "pulseGreen",       displayName: "Pulse Green",      rarity: "rare",     glowColor: "#39d353", animationType: "pulse",   price: 30000,     currency: "dc", isFree: false, description: "Vertical scan line." },
-  { frameId: "hackerPulse",      displayName: "Hacker Pulse",     rarity: "rare",     glowColor: "#4ade80", animationType: "pulse",   price: 35000,     currency: "dc", isFree: false, description: "Corner glow blooms." },
-  { frameId: "corePulse",        displayName: "Core Pulse",       rarity: "rare",     glowColor: "#818cf8", animationType: "pulse",   price: 35000,     currency: "dc", isFree: false, description: "Chamfered octagon pulse." },
-  { frameId: "vaultPulse",       displayName: "Vault Pulse",      rarity: "rare",     glowColor: "#fbbf24", animationType: "pulse",   price: 40000,     currency: "dc", isFree: false, description: "Slow heavy double pulse." },
-  { frameId: "streetPulse",      displayName: "Street Pulse",     rarity: "rare",     glowColor: "#fb923c", animationType: "pulse",   price: 40000,     currency: "dc", isFree: false, description: "Rapid strobe underground." },
-  { frameId: "spectralPulse",    displayName: "Spectral Pulse",   rarity: "rare",     glowColor: "#e879f9", animationType: "pulse",   price: 45000,     currency: "dc", isFree: false, description: "Ghost diamond fade." },
-
-  // Epic — rotating gradient
-  { frameId: "epicCyan",         displayName: "Epic Cyan",        rarity: "epic",     glowColor: "#00d4ff", animationType: "rotate",  price: 200000,    currency: "dc", isFree: false, description: "Rotating cyan gradient sweep." },
-  { frameId: "epicPurple",       displayName: "Epic Purple",      rarity: "epic",     glowColor: "#a855f7", animationType: "rotate",  price: 200000,    currency: "dc", isFree: false, description: "Rotating NC gradient, chamfered." },
-  { frameId: "epicGold",         displayName: "Epic Gold",        rarity: "epic",     glowColor: "#f59e0b", animationType: "rotate",  price: 250000,    currency: "dc", isFree: false, description: "Dual conic rings rotating opposite." },
-  { frameId: "syndicate",        displayName: "Syndicate",        rarity: "epic",     glowColor: "#ff6b35", animationType: "rotate",  price: 250000,    currency: "dc", isFree: false, description: "Horizontal scan with thick glow." },
-  { frameId: "epicRed",          displayName: "Epic Red",         rarity: "epic",     glowColor: "#ff2d55", animationType: "rotate",  price: 300000,    currency: "dc", isFree: false, description: "Rotating diamond corner points." },
-  { frameId: "gridCore",         displayName: "Grid Core",        rarity: "epic",     glowColor: "#22d3ee", animationType: "rotate",  price: 300000,    currency: "dc", isFree: false, description: "Fast digital grid scan." },
-  { frameId: "suitsFrame",       displayName: "The Suits",        rarity: "epic",     glowColor: "#94a3b8", animationType: "rotate",  price: 300000,    currency: "dc", isFree: false, description: "Slow elegant conic + orbital dots." },
-  { frameId: "epicVoid",         displayName: "Void",             rarity: "epic",     glowColor: "#7c3aed", animationType: "rotate",  price: 350000,    currency: "dc", isFree: false, description: "Dark matter absorption rotation." },
-  { frameId: "epicInferno",      displayName: "Inferno",          rarity: "epic",     glowColor: "#ef4444", animationType: "rotate",  price: 350000,    currency: "dc", isFree: false, description: "Fire scan with ember particles." },
-  { frameId: "epicNova",         displayName: "Nova",             rarity: "epic",     glowColor: "#f0abfc", animationType: "rotate",  price: 400000,    currency: "dc", isFree: false, description: "Supernova radial burst." },
-
-  // Legendary — electric flicker
-  { frameId: "legendCyan",       displayName: "Lightning Cyan",   rarity: "legendary", glowColor: "#00d4ff", animationType: "flicker", price: 50,        currency: "nc", isFree: false, description: "Corner spark bursts." },
-  { frameId: "legendPurple",     displayName: "Lightning Purple", rarity: "legendary", glowColor: "#a855f7", animationType: "flicker", price: 75,        currency: "nc", isFree: false, description: "Arc lightning corner-to-corner." },
-  { frameId: "legendRed",        displayName: "Lightning Red",    rarity: "legendary", glowColor: "#ff2d55", animationType: "flicker", price: 100,       currency: "nc", isFree: false, description: "Glitch offset distortion." },
-  { frameId: "arcLight",         displayName: "Arc Light",        rarity: "legendary", glowColor: "#a5f3fc", animationType: "flicker", price: 100,       currency: "nc", isFree: false, description: "Pale sustained arc flash." },
-  { frameId: "legendGold",       displayName: "Lightning Gold",   rarity: "legendary", glowColor: "#f59e0b", animationType: "flicker", price: 125,       currency: "nc", isFree: false, description: "Electrical edge sparks." },
-  { frameId: "crimsonLord",      displayName: "Crimson Lord",     rarity: "legendary", glowColor: "#b91c1c", animationType: "flicker", price: 125,       currency: "nc", isFree: false, description: "Blood-red arc + pulse." },
-  { frameId: "thunderClap",      displayName: "Thunderclap",      rarity: "legendary", glowColor: "#fde047", animationType: "flicker", price: 150,       currency: "nc", isFree: false, description: "Yellow heavy strobe burst." },
-  { frameId: "plasmaBolt",       displayName: "Plasma Bolt",      rarity: "legendary", glowColor: "#d946ef", animationType: "flicker", price: 150,       currency: "nc", isFree: false, description: "Plasma discharges from corners." },
-  { frameId: "vantaLegend",      displayName: "Vanta Legend",     rarity: "legendary", glowColor: "#00d4ff", animationType: "flicker", price: 200,       currency: "nc", isFree: false, description: "City electric multi-spark." },
-  { frameId: "executioner",      displayName: "Executioner",      rarity: "legendary", glowColor: "#ff2d55", animationType: "flicker", price: 200,       currency: "nc", isFree: false, description: "Death row hard glitch + scan." },
-
-  // Mythic — matrix cascade
-  { frameId: "matrixGreen",      displayName: "Matrix",           rarity: "mythic",   glowColor: "#39d353", animationType: "matrix",  price: 500,       currency: "nc", isFree: false, description: "Falling code. The real one." },
-  { frameId: "matrixBlue",       displayName: "Blue Code",        rarity: "mythic",   glowColor: "#00d4ff", animationType: "matrix",  price: 500,       currency: "nc", isFree: false, description: "All-four-sides grid cascade." },
-  { frameId: "omega",            displayName: "Omega",            rarity: "mythic",   glowColor: "#a855f7", animationType: "matrix",  price: 750,       currency: "nc", isFree: false, description: "Fast all-sides end-state cascade." },
-  { frameId: "voidWalker",       displayName: "Void Walker",      rarity: "mythic",   glowColor: "#7c3aed", animationType: "matrix",  price: 750,       currency: "nc", isFree: false, description: "Orbiting void orbs phase-shift." },
-  { frameId: "matrixGold",       displayName: "Golden Code",      rarity: "mythic",   glowColor: "#f59e0b", animationType: "matrix",  price: 600,       currency: "nc", isFree: false, description: "Wealth data stream cascade." },
-  { frameId: "matrixRed",        displayName: "Red Code",         rarity: "mythic",   glowColor: "#ff2d55", animationType: "matrix",  price: 600,       currency: "nc", isFree: false, description: "Virus cascade with blink." },
-  { frameId: "architect",        displayName: "Architect",        rarity: "mythic",   glowColor: "#e2e8f0", animationType: "matrix",  price: 1000,      currency: "nc", isFree: false, description: "Slow elegant white code." },
-  { frameId: "nova2047",         displayName: "Nova 2047",        rarity: "mythic",   glowColor: "#f0abfc", animationType: "matrix",  price: 1000,      currency: "nc", isFree: false, description: "Pink nebula orbital + cascade." },
-  { frameId: "godMode",          displayName: "God Mode",         rarity: "mythic",   glowColor: "#fde047", animationType: "matrix",  price: 2000,      currency: "nc", isFree: false, description: "Maximum chaos — all effects combined." },
-  { frameId: "theOne",           displayName: "The One",          rarity: "mythic",   glowColor: "#00d4ff", animationType: "matrix",  price: 5000,      currency: "nc", isFree: false, description: "Matrix + orbits + corner glow. Only one." },
-];
-
-// Owner-controlled price overrides (in-memory, per restart)
-export const FRAME_PRICE_OVERRIDES = new Map<string, number>();
-
-// GET /api/frames — all frames + player's owned set
+// GET /api/frames — all visible frames + player's owned set
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await User.findById(req.userId).select("ownedFrames equippedFrame equippedFrameRarity").lean();
+    const user = await User.findById(req.userId)
+      .select("ownedFrames equippedFrame equippedFrameRarity equippedFrameColor dc nc merit")
+      .lean();
     if (!user) return res.status(404).json({ message: "User not found" });
-    const ownedFrames: string[] = (user as any).ownedFrames || [];
 
-    res.json(FRAME_CATALOG.map(f => ({
-      ...f,
-      price: FRAME_PRICE_OVERRIDES.get(f.frameId) ?? f.price,
-      priceOverridden: FRAME_PRICE_OVERRIDES.has(f.frameId),
-      owned: f.isFree || ownedFrames.includes(f.frameId),
-      equipped: (user as any).equippedFrame === f.frameId,
-    })));
+    const ownedFrames: string[] = user.ownedFrames || [];
+    const now = new Date();
+
+    const frames = await Frame.find({
+      $or: [
+        { isVisible: true },
+        { isVisible: false, frameId: { $in: ownedFrames } },
+      ],
+    }).lean();
+
+    const weeklyFree = frames.find(f => f.isWeeklyFree);
+
+    res.json(
+      frames
+        .filter(f => {
+          if (f.availableFrom && f.availableFrom > now) return false;
+          if (f.availableUntil && f.availableUntil < now && !ownedFrames.includes(f.frameId)) return false;
+          return true;
+        })
+        .map(f => {
+          const effectivePrice = (f.salePrice !== null && f.saleExpiry && f.saleExpiry > now)
+            ? f.salePrice
+            : f.price;
+          const isOnSale = f.salePrice !== null && f.saleExpiry != null && f.saleExpiry > now;
+          const isOwned = f.isFree || (weeklyFree && weeklyFree.frameId === f.frameId) || ownedFrames.includes(f.frameId);
+          return {
+            frameId: f.frameId,
+            displayName: f.displayName,
+            rarity: f.rarity,
+            glowColor: f.glowColor,
+            animationType: f.animationType,
+            variantIndex: f.variantIndex,
+            price: effectivePrice,
+            originalPrice: f.price,
+            isOnSale,
+            currency: f.currency,
+            isFree: f.isFree || (weeklyFree?.frameId === f.frameId),
+            description: f.description,
+            earnedBy: f.earnedBy ?? undefined,
+            isWeeklyFree: f.isWeeklyFree,
+            isFeatured: f.isFeatured,
+            isLimited: !!(f.availableUntil && f.availableUntil > now),
+            availableUntil: f.availableUntil ?? undefined,
+            mythicAliasOf: f.mythicAliasOf ?? undefined,
+            owned: isOwned,
+            equipped: user.equippedFrame === f.frameId,
+          };
+        })
+    );
   } catch (err: any) {
     req.log.error({ err }, "get frames error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// POST /api/frames/purchase/:frameId — buy a frame with DC or NC
+// POST /api/frames/purchase/:frameId
 router.post("/purchase/:frameId", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const frame = FRAME_CATALOG.find(f => f.frameId === req.params.frameId);
+    const frame = await Frame.findOne({ frameId: req.params.frameId });
     if (!frame) return res.status(404).json({ message: "Frame not found" });
+    if (!frame.isVisible) return res.status(404).json({ message: "Frame not found" });
     if (frame.isFree) return res.status(400).json({ message: "This frame is free — equip it directly" });
 
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const owned: string[] = (user as any).ownedFrames || [];
-    if (owned.includes(frame.frameId)) return res.status(400).json({ message: "You already own this frame" });
+    if (user.ownedFrames.includes(frame.frameId)) {
+      return res.status(400).json({ message: "You already own this frame" });
+    }
 
-    const effectivePrice = FRAME_PRICE_OVERRIDES.get(frame.frameId) ?? frame.price;
+    const now = new Date();
+    const effectivePrice = (frame.salePrice !== null && frame.saleExpiry && frame.saleExpiry > now)
+      ? frame.salePrice
+      : frame.price;
 
     if (frame.currency === "dc") {
-      if (user.dc < effectivePrice) return res.status(400).json({ message: `Not enough DC. Costs ${effectivePrice.toLocaleString()} DC.` });
+      if (user.dc < effectivePrice) {
+        return res.status(400).json({ message: `Not enough DC. Costs ${effectivePrice.toLocaleString()} DC.` });
+      }
       user.dc -= effectivePrice;
+    } else if (frame.currency === "merit") {
+      if (user.merit < effectivePrice) {
+        return res.status(400).json({ message: `Not enough Merit. Costs ${effectivePrice} M.` });
+      }
+      user.merit -= effectivePrice;
     } else {
-      if (user.nc < effectivePrice) return res.status(400).json({ message: `Not enough NC. Costs ${effectivePrice} NC.` });
+      if (user.nc < effectivePrice) {
+        return res.status(400).json({ message: `Not enough NC. Costs ${effectivePrice} NC.` });
+      }
       user.nc -= effectivePrice;
     }
 
-    owned.push(frame.frameId);
-    (user as any).ownedFrames = owned;
+    user.ownedFrames.push(frame.frameId);
     user.markModified("ownedFrames");
     await user.save();
 
-    res.json({ message: `${frame.displayName} frame purchased`, frameId: frame.frameId, ownedFrames: owned });
+    res.json({
+      message: `${frame.displayName} frame purchased`,
+      frameId: frame.frameId,
+      ownedFrames: user.ownedFrames,
+    });
   } catch (err: any) {
     req.log.error({ err }, "purchase frame error");
     res.status(500).json({ message: "Internal server error" });
@@ -151,19 +131,19 @@ router.post("/purchase/:frameId", requireAuth, async (req: AuthRequest, res) => 
 // POST /api/frames/equip/:frameId
 router.post("/equip/:frameId", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const frame = FRAME_CATALOG.find(f => f.frameId === req.params.frameId);
+    const frame = await Frame.findOne({ frameId: req.params.frameId });
     if (!frame) return res.status(404).json({ message: "Frame not found" });
 
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const owned: string[] = (user as any).ownedFrames || [];
-    if (!frame.isFree && !owned.includes(frame.frameId)) {
+    const isWeeklyFree = frame.isWeeklyFree;
+    if (!frame.isFree && !isWeeklyFree && !user.ownedFrames.includes(frame.frameId)) {
       return res.status(403).json({ message: "You don't own this frame" });
     }
 
-    (user as any).equippedFrame = frame.frameId;
-    (user as any).equippedFrameRarity = frame.rarity;
+    user.equippedFrame = frame.frameId;
+    user.equippedFrameRarity = frame.rarity;
     await user.save();
 
     res.json({ equippedFrame: frame.frameId, equippedFrameRarity: frame.rarity });
@@ -173,9 +153,291 @@ router.post("/equip/:frameId", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/frames/store — Phase 2 premium store placeholder
-router.get("/store", requireAuth, async (_req, res) => {
-  res.json({ message: "coming soon", frames: FRAME_CATALOG.filter(f => !f.isFree) });
+// POST /api/frames/color — save custom frame color
+router.post("/color", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { color } = req.body;
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (color === null || color === "") {
+      user.equippedFrameColor = null;
+    } else if (typeof color === "string" && /^#[0-9a-fA-F]{3,8}$/.test(color)) {
+      user.equippedFrameColor = color;
+    } else {
+      return res.status(400).json({ message: "Invalid color format. Use hex (#RRGGBB)" });
+    }
+
+    await user.save();
+    res.json({ equippedFrameColor: user.equippedFrameColor });
+  } catch (err: any) {
+    req.log.error({ err }, "set frame color error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/frames/gift — gift a frame to another player
+router.post("/gift", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { frameId, targetUserId } = req.body;
+    if (!frameId || !targetUserId) {
+      return res.status(400).json({ message: "frameId and targetUserId required" });
+    }
+
+    const frame = await Frame.findOne({ frameId });
+    if (!frame) return res.status(404).json({ message: "Frame not found" });
+    if (frame.isFree) return res.status(400).json({ message: "Cannot gift free frames" });
+
+    const sender = await User.findById(req.userId);
+    if (!sender) return res.status(404).json({ message: "User not found" });
+
+    if (!sender.ownedFrames.includes(frameId)) {
+      return res.status(403).json({ message: "You don't own this frame" });
+    }
+    if (sender.equippedFrame === frameId) {
+      return res.status(400).json({ message: "Cannot gift your currently equipped frame" });
+    }
+
+    const recipient = await User.findById(targetUserId);
+    if (!recipient || recipient.banned) {
+      return res.status(404).json({ message: "Target player not found" });
+    }
+    if (recipient.ownedFrames.includes(frameId)) {
+      return res.status(400).json({ message: "That player already owns this frame" });
+    }
+
+    const now = new Date();
+    const effectivePrice = (frame.salePrice !== null && frame.saleExpiry && frame.saleExpiry > now)
+      ? frame.salePrice
+      : frame.price;
+    const fee = Math.ceil(effectivePrice * 0.1);
+
+    if (frame.currency === "dc") {
+      if (sender.dc < fee) return res.status(400).json({ message: `Not enough DC for gifting fee (${fee.toLocaleString()} DC)` });
+      sender.dc -= fee;
+    } else if (frame.currency === "merit") {
+      if (sender.merit < fee) return res.status(400).json({ message: `Not enough Merit for gifting fee (${fee} M)` });
+      sender.merit -= fee;
+    } else {
+      if (sender.nc < fee) return res.status(400).json({ message: `Not enough NC for gifting fee (${fee} NC)` });
+      sender.nc -= fee;
+    }
+
+    sender.ownedFrames = sender.ownedFrames.filter(f => f !== frameId);
+    sender.markModified("ownedFrames");
+
+    recipient.ownedFrames.push(frameId);
+    recipient.markModified("ownedFrames");
+
+    await sender.save();
+    await recipient.save();
+
+    await emitFeedEvent({
+      type: "frame_gift",
+      actor: sender.username,
+      actorId: String(sender._id),
+      actorFrame: sender.equippedFrame,
+      actorFrameColor: sender.equippedFrameColor,
+      actorAvatarUrl: sender.avatarUrl,
+      target: recipient.username,
+      message: `${sender.username} gifted [${frame.displayName}] to ${recipient.username}`,
+      dc: 0,
+      xp: 0,
+    });
+
+    res.json({ message: `${frame.displayName} gifted to ${recipient.username}`, fee });
+  } catch (err: any) {
+    req.log.error({ err }, "gift frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── OWNER FRAME MANAGEMENT ────────────────────────────────────────────────────
+
+// GET /api/frames/owner/all — all frames with stats
+router.get("/owner/all", requireAuth, requireStaff as any, async (req: AuthRequest, res) => {
+  try {
+    const frames = await Frame.find({}).lean();
+    const ownedCounts: Record<string, number> = {};
+    const allUsers = await User.find({}).select("ownedFrames equippedFrame").lean();
+    for (const u of allUsers) {
+      for (const fid of (u.ownedFrames || [])) {
+        ownedCounts[fid] = (ownedCounts[fid] || 0) + 1;
+      }
+    }
+    res.json(frames.map(f => ({ ...f, ownedByCount: ownedCounts[f.frameId] || 0 })));
+  } catch (err: any) {
+    req.log.error({ err }, "owner get all frames error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /api/frames/owner/:frameId — update frame settings
+router.patch("/owner/:frameId", requireAuth, requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { frameId } = req.params;
+    const {
+      displayName, description, price, currency, earnedBy,
+      isVisible, isFeatured, salePrice, saleExpiry,
+      availableFrom, availableUntil, isWeeklyFree,
+    } = req.body;
+
+    const frame = await Frame.findOne({ frameId });
+    if (!frame) return res.status(404).json({ message: "Frame not found" });
+
+    if (displayName !== undefined) frame.displayName = displayName;
+    if (description !== undefined) frame.description = description;
+    if (price !== undefined) frame.price = Number(price);
+    if (currency !== undefined) frame.currency = currency;
+    if (earnedBy !== undefined) frame.earnedBy = earnedBy || null;
+    if (isVisible !== undefined) frame.isVisible = Boolean(isVisible);
+    if (isFeatured !== undefined) frame.isFeatured = Boolean(isFeatured);
+    if (salePrice !== undefined) frame.salePrice = salePrice !== null ? Number(salePrice) : null;
+    if (saleExpiry !== undefined) frame.saleExpiry = saleExpiry ? new Date(saleExpiry) : null;
+    if (availableFrom !== undefined) frame.availableFrom = availableFrom ? new Date(availableFrom) : null;
+    if (availableUntil !== undefined) frame.availableUntil = availableUntil ? new Date(availableUntil) : null;
+    if (isWeeklyFree !== undefined) {
+      if (isWeeklyFree) {
+        await Frame.updateMany({ isWeeklyFree: true }, { isWeeklyFree: false });
+      }
+      frame.isWeeklyFree = Boolean(isWeeklyFree);
+    }
+
+    await frame.save();
+    res.json({ message: "Frame updated", frame });
+  } catch (err: any) {
+    req.log.error({ err }, "owner patch frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/frames/owner/create — create a new custom frame
+router.post("/owner/create", requireAuth, requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const {
+      frameId, displayName, rarity, glowColor, animationType,
+      variantIndex, price, currency, description, earnedBy,
+    } = req.body;
+
+    if (!frameId || !displayName || !rarity || !glowColor || !animationType) {
+      return res.status(400).json({ message: "frameId, displayName, rarity, glowColor, animationType required" });
+    }
+
+    const existing = await Frame.findOne({ frameId });
+    if (existing) return res.status(400).json({ message: "Frame ID already exists" });
+
+    const frame = await Frame.create({
+      frameId,
+      displayName,
+      rarity,
+      glowColor,
+      animationType,
+      variantIndex: variantIndex ?? 0,
+      price: price ?? 0,
+      currency: currency ?? "dc",
+      description: description ?? "",
+      earnedBy: earnedBy || null,
+      isCustom: true,
+      isVisible: true,
+      isFeatured: false,
+    });
+
+    res.json({ message: "Frame created", frame });
+  } catch (err: any) {
+    req.log.error({ err }, "owner create frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// DELETE /api/frames/owner/:frameId — delete a custom frame
+router.delete("/owner/:frameId", requireAuth, requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const frame = await Frame.findOne({ frameId: req.params.frameId });
+    if (!frame) return res.status(404).json({ message: "Frame not found" });
+    if (!frame.isCustom) return res.status(403).json({ message: "Cannot delete built-in frames" });
+
+    await frame.deleteOne();
+    res.json({ message: "Frame deleted" });
+  } catch (err: any) {
+    req.log.error({ err }, "owner delete frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/frames/owner/grant — grant a frame to a player
+router.post("/owner/grant", requireAuth, requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { frameId, targetUserId } = req.body;
+    if (!frameId || !targetUserId) return res.status(400).json({ message: "frameId and targetUserId required" });
+
+    const frame = await Frame.findOne({ frameId });
+    if (!frame) return res.status(404).json({ message: "Frame not found" });
+
+    const user = await User.findById(targetUserId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (!user.ownedFrames.includes(frameId)) {
+      user.ownedFrames.push(frameId);
+      user.markModified("ownedFrames");
+      await user.save();
+    }
+
+    res.json({ message: `${frame.displayName} granted to ${user.username}`, ownedFrames: user.ownedFrames });
+  } catch (err: any) {
+    req.log.error({ err }, "owner grant frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/frames/owner/revoke — revoke a frame from a player
+router.post("/owner/revoke", requireAuth, requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { frameId, targetUserId } = req.body;
+    if (!frameId || !targetUserId) return res.status(400).json({ message: "frameId and targetUserId required" });
+
+    const user = await User.findById(targetUserId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.ownedFrames = user.ownedFrames.filter(f => f !== frameId);
+    user.markModified("ownedFrames");
+    if (user.equippedFrame === frameId) {
+      user.equippedFrame = "ghostFrame";
+      user.equippedFrameRarity = "common";
+    }
+    await user.save();
+
+    res.json({ message: `Frame revoked from ${user.username}` });
+  } catch (err: any) {
+    req.log.error({ err }, "owner revoke frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/frames/owner/bulk — bulk actions
+router.post("/owner/bulk", requireAuth, requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { frameIds, action, value } = req.body;
+    if (!Array.isArray(frameIds) || !action) return res.status(400).json({ message: "frameIds and action required" });
+
+    if (action === "hide") {
+      await Frame.updateMany({ frameId: { $in: frameIds } }, { isVisible: false });
+    } else if (action === "show") {
+      await Frame.updateMany({ frameId: { $in: frameIds } }, { isVisible: true });
+    } else if (action === "sale") {
+      const { salePrice, saleExpiry } = value || {};
+      await Frame.updateMany(
+        { frameId: { $in: frameIds } },
+        { salePrice: salePrice ?? null, saleExpiry: saleExpiry ? new Date(saleExpiry) : null }
+      );
+    } else {
+      return res.status(400).json({ message: "Unknown action" });
+    }
+
+    res.json({ message: `Bulk ${action} applied to ${frameIds.length} frames` });
+  } catch (err: any) {
+    req.log.error({ err }, "owner bulk frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
 export default router;

@@ -6,3 +6,9 @@ id = "KoK75jT-xbBhHIwvZRq6X"
 uri = "file://render.yaml"
 type = "unspecified"
 title = "render.yaml — Render Deployment Config"
+
+[[outputs]]
+id = "-ssArru0eIrDzmPk0ISkC"
+uri = "file://DRIFTLIFE_FRAME_BUILD_PROMPT.md"
+type = "text"
+title = "DriftLife Frame System — Complete Build Prompt"

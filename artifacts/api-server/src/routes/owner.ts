@@ -4,7 +4,7 @@ import FeedEvent from "../models/FeedEvent";
 import { requireStaff, requireOwner, AuthRequest } from "../middlewares/auth";
 import { levelUp, xpForLevel } from "../models/User";
 import { SHOP_ITEMS, PRICE_OVERRIDES } from "./market";
-import { FRAME_CATALOG, FRAME_PRICE_OVERRIDES } from "./frames";
+import Frame from "../models/Frame";
 
 const router = Router();
 router.use(requireStaff as any);
@@ -298,42 +298,54 @@ router.delete("/shop-items/:id/price", requireOwner as any, async (req: AuthRequ
   res.json({ message: `${item.name} price reset to default (${item.basePrice.toLocaleString()} DC)`, price: item.basePrice });
 });
 
-// GET /api/owner/frames — list all frames with current (possibly overridden) prices
+// GET /api/owner/frames — list all frames
 router.get("/frames", async (_req, res) => {
-  res.json(FRAME_CATALOG.map(f => ({
-    frameId: f.frameId,
-    displayName: f.displayName,
-    rarity: f.rarity,
-    currency: f.currency,
-    basePrice: f.price,
-    currentPrice: FRAME_PRICE_OVERRIDES.get(f.frameId) ?? f.price,
-    overridden: FRAME_PRICE_OVERRIDES.has(f.frameId),
-    isFree: f.isFree,
-    description: f.description,
-  })));
-});
-
-// POST /api/owner/frames/:frameId/price — set a custom frame price
-router.post("/frames/:frameId/price", requireOwner as any, async (req: AuthRequest, res) => {
-  const frame = FRAME_CATALOG.find(f => f.frameId === req.params.frameId);
-  if (!frame) return res.status(404).json({ message: "Frame not found" });
-  const price = Math.floor(Number(req.body.price));
-  if (isNaN(price) || price < 0) return res.status(400).json({ message: "Invalid price" });
-  if (price === 0 && frame.price !== 0) {
-    FRAME_PRICE_OVERRIDES.delete(frame.frameId);
-    return res.json({ message: `${frame.displayName} price reset to default (${frame.price} ${frame.currency.toUpperCase()})`, price: frame.price });
+  try {
+    const frames = await Frame.find({ isVisible: true }).sort({ rarity: 1, price: 1 }).lean();
+    res.json(frames.map((f: any) => ({
+      frameId: f.frameId,
+      displayName: f.displayName,
+      rarity: f.rarity,
+      currency: f.currency,
+      price: f.price,
+      salePrice: f.salePrice,
+      isFree: f.isFree,
+      isWeeklyFree: f.isWeeklyFree,
+      isFeatured: f.isFeatured,
+      isVisible: f.isVisible,
+      description: f.description,
+      mythicAliasOf: f.mythicAliasOf,
+    })));
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
   }
-  FRAME_PRICE_OVERRIDES.set(frame.frameId, price);
-  req.log.info({ frameId: frame.frameId, oldPrice: frame.price, newPrice: price }, "owner set frame price");
-  res.json({ message: `${frame.displayName} price set to ${price} ${frame.currency.toUpperCase()}`, price });
 });
 
-// DELETE /api/owner/frames/:frameId/price — reset frame price to default
-router.delete("/frames/:frameId/price", requireOwner as any, async (req: AuthRequest, res) => {
-  const frame = FRAME_CATALOG.find(f => f.frameId === req.params.frameId);
-  if (!frame) return res.status(404).json({ message: "Frame not found" });
-  FRAME_PRICE_OVERRIDES.delete(frame.frameId);
-  res.json({ message: `${frame.displayName} price reset to default (${frame.price} ${frame.currency.toUpperCase()})`, price: frame.price });
+// PATCH /api/owner/frames/:frameId — update a frame's price, sale, or visibility
+router.patch("/frames/:frameId", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const frame = await Frame.findOne({ frameId: req.params.frameId });
+    if (!frame) return res.status(404).json({ message: "Frame not found" });
+
+    const { price, salePrice, isFeatured, isWeeklyFree, isVisible } = req.body;
+    if (price !== undefined) frame.price = Math.max(0, Math.floor(Number(price)));
+    if (salePrice !== undefined) frame.salePrice = salePrice === null ? null : Math.max(0, Math.floor(Number(salePrice)));
+    if (isFeatured !== undefined) frame.isFeatured = Boolean(isFeatured);
+    if (isWeeklyFree !== undefined) {
+      if (isWeeklyFree) {
+        await Frame.updateMany({ isWeeklyFree: true }, { isWeeklyFree: false });
+      }
+      frame.isWeeklyFree = Boolean(isWeeklyFree);
+    }
+    if (isVisible !== undefined) frame.isVisible = Boolean(isVisible);
+
+    await frame.save();
+    req.log.info({ frameId: frame.frameId }, "owner updated frame");
+    res.json({ message: `${frame.displayName} updated`, frame });
+  } catch (err: any) {
+    req.log.error({ err }, "owner patch frame error");
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
 export default router;

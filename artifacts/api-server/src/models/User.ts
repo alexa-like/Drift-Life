@@ -79,6 +79,18 @@ export interface IUser extends Document {
   equippedTitle: string | null;
   titles: string[];
   ownedFrames: string[];
+  merit: number;
+  appearOffline: boolean;
+  lastActiveAt: Date;
+  dmPrivacy: "anyone" | "nobody";
+  liteModeEnabled: boolean;
+  notificationPrefs: {
+    achievements: boolean;
+    dms: boolean;
+    frameGifts: boolean;
+    xpBoost: boolean;
+    weeklyFrame: boolean;
+  };
   gang: string | null;
   referralCode: string;
   referredBy: string | null;
@@ -167,6 +179,21 @@ const UserSchema = new Schema<IUser>(
     equippedTitle: { type: String, default: "New in Town" },
     titles: [{ type: String }],
     ownedFrames: [{ type: String }],
+    merit: { type: Number, default: 0 },
+    appearOffline: { type: Boolean, default: false },
+    lastActiveAt: { type: Date, default: Date.now },
+    dmPrivacy: { type: String, enum: ["anyone", "nobody"], default: "anyone" },
+    liteModeEnabled: { type: Boolean, default: false },
+    notificationPrefs: {
+      type: {
+        achievements: { type: Boolean, default: true },
+        dms: { type: Boolean, default: true },
+        frameGifts: { type: Boolean, default: true },
+        xpBoost: { type: Boolean, default: true },
+        weeklyFrame: { type: Boolean, default: true },
+      },
+      default: () => ({ achievements: true, dms: true, frameGifts: true, xpBoost: true, weeklyFrame: true }),
+    },
     gang: { type: String, default: null },
     referralCode: { type: String, unique: true, sparse: true },
     referredBy: { type: String, default: null },

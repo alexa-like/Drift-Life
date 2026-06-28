@@ -19,6 +19,9 @@ import devRouter from "./dev";
 import ownerRouter from "./owner";
 import framesRouter from "./frames";
 import phase2Router from "./phase2";
+import settingsRouter from "./settings";
+import achievementsRouter from "./achievements";
+import chatRouter from "./chat";
 
 const router: IRouter = Router();
 
@@ -39,6 +42,9 @@ router.use("/districts", districtsRouter);
 router.use("/inventory", inventoryRouter);
 router.use("/market", marketRouter);
 router.use("/frames", framesRouter);
+router.use("/settings", settingsRouter);
+router.use("/achievements", achievementsRouter);
+router.use("/chat", chatRouter);
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);
 router.use(phase2Router);

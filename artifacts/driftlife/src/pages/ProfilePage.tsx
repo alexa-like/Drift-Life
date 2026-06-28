@@ -6,7 +6,7 @@ import { WantedStars } from "../components/WantedStars";
 import { StatBar } from "../components/StatBar";
 import { AvatarWithFrame } from "../components/AvatarWithFrame";
 import { FrameCardWrapper } from "../components/FrameCardWrapper";
-import { FRAME_CATALOG as FRAMES, FrameDef, RARITY_COLOR, getFrame } from "../lib/frames";
+import { FRAME_CATALOG as FRAMES, FrameDef, RARITY_COLORS as RARITY_COLOR, getFrame } from "../lib/frames";
 
 const FACTION_LABEL: Record<string, string> = { suits: "The Suits", street: "The Street", grid: "The Grid" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };

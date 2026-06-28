@@ -1,5 +1,6 @@
 import User from "../models/User";
 import Item from "../models/Item";
+import { seedFrames } from "../models/Frame";
 import { logger } from "./logger";
 
 export async function seed() {
@@ -8,9 +9,10 @@ export async function seed() {
       User.countDocuments(),
       Item.countDocuments(),
     ]);
+    await seedFrames();
     logger.info(
       { userCount, itemCount },
-      "DriftLife database ready — 70-item shop catalog loaded from static catalog"
+      "DriftLife database ready — frames seeded to MongoDB"
     );
   } catch (err) {
     logger.error({ err }, "Seed check error");
