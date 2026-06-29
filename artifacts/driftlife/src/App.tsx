@@ -22,6 +22,7 @@ import { DailyPage } from "./pages/DailyPage";
 import { FactionSelectPage } from "./pages/FactionSelectPage";
 import { OwnerPage } from "./pages/OwnerPage";
 import { FramesStorePage } from "./pages/FramesStorePage";
+import { FrameGalleryPage } from "./pages/FrameGalleryPage";
 import { AchievementsPage } from "./pages/AchievementsPage";
 import { ChatPage } from "./pages/ChatPage";
 import { NavBar } from "./components/NavBar";
@@ -129,6 +130,7 @@ function GameApp() {
       case "daily":        return <DailyPage {...pageProps} onNav={setPage} />;
       case "notifications":return <NotificationsPage onUnreadChange={setUnreadNotifs} />;
       case "frames":        return <FramesStorePage {...pageProps} />;
+      case "gallery":       return <FrameGalleryPage {...pageProps} />;
       case "achievements":  return <AchievementsPage {...pageProps} />;
       case "chat":          return <ChatPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       case "owner":

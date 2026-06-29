@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { getFrame, FrameRarity } from "../lib/frames";
+import { getFrame } from "../lib/frames";
 import { registerAnim, unregisterAnim, seededRand } from "../lib/animTicker";
 
 export type FrameSize = "xs" | "sm" | "md" | "lg" | "xl";
@@ -34,7 +34,6 @@ interface Props {
   className?: string;
 }
 
-// Perimeter point helper
 function perimPt(pos: number, W: number, H: number, bb: number): [number, number] {
   const perim = 2 * (W + H);
   const d = ((pos % perim) + perim) % perim;
@@ -44,38 +43,1010 @@ function perimPt(pos: number, W: number, H: number, bb: number): [number, number
   return [bb, H - (d - 2 * W - H)];
 }
 
-// Chamfered octagon path helper
-function octPath(ctx: CanvasRenderingContext2D, b: number, w: number, h: number, cut: number) {
+function octPath(ctx: CanvasRenderingContext2D, b: number, w: number, h: number) {
+  const cut = Math.max(4, w * 0.18);
   ctx.beginPath();
-  ctx.moveTo(b + cut, b);
-  ctx.lineTo(w - b - cut, b);
-  ctx.lineTo(w - b, b + cut);
-  ctx.lineTo(w - b, h - b - cut);
-  ctx.lineTo(w - b - cut, h - b);
-  ctx.lineTo(b + cut, h - b);
-  ctx.lineTo(b, h - b - cut);
-  ctx.lineTo(b, b + cut);
+  ctx.moveTo(b + cut, b); ctx.lineTo(w - b - cut, b);
+  ctx.lineTo(w - b, b + cut); ctx.lineTo(w - b, h - b - cut);
+  ctx.lineTo(w - b - cut, h - b); ctx.lineTo(b + cut, h - b);
+  ctx.lineTo(b, h - b - cut); ctx.lineTo(b, b + cut);
   ctx.closePath();
 }
 
-// Diamond path helper
 function diamondPath(ctx: CanvasRenderingContext2D, w: number, h: number, margin: number) {
   const cx = w / 2, cy = h / 2;
   ctx.beginPath();
-  ctx.moveTo(cx, margin);
-  ctx.lineTo(w - margin, cy);
-  ctx.lineTo(cx, h - margin);
-  ctx.lineTo(margin, cy);
+  ctx.moveTo(cx, margin); ctx.lineTo(w - margin, cy);
+  ctx.lineTo(cx, h - margin); ctx.lineTo(margin, cy);
   ctx.closePath();
 }
+
+const MATRIX_CHARS = "01アイウBC#!@$%░▓";
 
 function hsl2hex(h: number, s: number, l: number): string {
   s /= 100; l /= 100;
   const k = (n: number) => (n + h / 30) % 12;
   const a = s * Math.min(l, 1 - l);
-  const f = (n: number) =>
-    Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, "0");
+  const f = (n: number) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, "0");
   return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+const SPARK_DX = Array.from({ length: 32 }, (_, i) => (seededRand(i + 50) - 0.5) * 14);
+const SPARK_DY = Array.from({ length: 32 }, (_, i) => (seededRand(i + 150) - 0.5) * 14);
+const SPARK_X  = Array.from({ length: 32 }, (_, i) => seededRand(i + 100));
+const SPARK_Y  = Array.from({ length: 32 }, (_, i) => seededRand(i + 200));
+
+function drawStatic(ctx: CanvasRenderingContext2D, frameId: string, w: number, h: number, b: number, color: string, R: number) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = color;
+  ctx.shadowColor = color;
+
+  switch (frameId) {
+    case "ghostFrame": {
+      ctx.globalAlpha = 0.13;
+      ctx.lineWidth = b * 1.5; ctx.shadowBlur = 3;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "basicWhite": {
+      ctx.lineWidth = b * 1.5; ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
+      ctx.shadowBlur = 12; ctx.fillStyle = color;
+      for (const [cx, cy] of [[b, b], [w - b, b], [b, h - b], [w - b, h - b]] as const) {
+        ctx.beginPath(); ctx.arc(cx, cy, b * 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "basicGray": {
+      ctx.lineWidth = b * 1.5; ctx.shadowBlur = 5;
+      octPath(ctx, b, w, h); ctx.stroke();
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "neonBlue": {
+      ctx.lineWidth = b * 1.5; ctx.shadowBlur = 5;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.lineWidth = b * 0.7; ctx.globalAlpha = 0.4; ctx.shadowBlur = 3;
+      ctx.beginPath(); ctx.roundRect(b * 3.5, b * 3.5, w - b * 7, h - b * 7, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "neonGreen": {
+      ctx.setLineDash([5, 3]); ctx.lineWidth = b * 1.5; ctx.shadowBlur = 5;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.setLineDash([]); ctx.shadowBlur = 0;
+      break;
+    }
+    case "neonRed": {
+      ctx.lineWidth = b; ctx.shadowBlur = 4; ctx.globalAlpha = 0.45;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.lineWidth = b * 1.5; ctx.shadowBlur = 6;
+      const sz = Math.max(7, w * 0.26);
+      for (const [cx, cy, sx, sy] of [[b, b, 1, 1], [w - b, b, -1, 1], [b, h - b, 1, -1], [w - b, h - b, -1, -1]] as const) {
+        for (let i = -sz; i < sz * 2; i += 4) {
+          ctx.beginPath();
+          ctx.moveTo(cx + sx * Math.max(0, i), cy + sy * Math.max(0, -i + sz));
+          ctx.lineTo(cx + sx * Math.max(0, i + sz), cy + sy * Math.max(0, -i));
+          ctx.stroke();
+        }
+      }
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "corpGray": {
+      const arm = Math.max(7, w * 0.32);
+      ctx.lineWidth = b * 1.5; ctx.shadowBlur = 8;
+      for (const [cx, cy, sx, sy] of [[b, b, 1, 1], [w - b, b, -1, 1], [b, h - b, 1, -1], [w - b, h - b, -1, -1]] as const) {
+        ctx.beginPath();
+        ctx.moveTo(cx + sx * arm, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + sy * arm);
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "streetOrange": {
+      ctx.lineWidth = b; ctx.shadowBlur = 5;
+      ctx.beginPath(); ctx.roundRect(b * 2.5, b * 2.5, w - b * 5, h - b * 5, R); ctx.stroke();
+      ctx.fillStyle = color; ctx.shadowBlur = 6;
+      const step = Math.max(7, w / 4);
+      for (let i = b; i <= w - b; i += step) {
+        for (const y of [b, h - b]) { ctx.beginPath(); ctx.arc(i, y, b * 0.7, 0, Math.PI * 2); ctx.fill(); }
+      }
+      for (let j = b + step; j < h - b; j += step) {
+        for (const x of [b, w - b]) { ctx.beginPath(); ctx.arc(x, j, b * 0.7, 0, Math.PI * 2); ctx.fill(); }
+      }
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "cyanPulse": {
+      ctx.lineWidth = b; ctx.globalAlpha = 0.22; ctx.shadowBlur = 3;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.lineWidth = b * 1.5; ctx.shadowBlur = 8;
+      const sz = Math.max(5, w * 0.2);
+      for (const [cx, cy] of [[b, b], [w - b, b], [b, h - b], [w - b, h - b]] as const) {
+        ctx.beginPath(); ctx.moveTo(cx - sz * 0.5, cy - sz * 0.5); ctx.lineTo(cx + sz * 0.5, cy + sz * 0.5); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx + sz * 0.5, cy - sz * 0.5); ctx.lineTo(cx - sz * 0.5, cy + sz * 0.5); ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "goldBasic": {
+      ctx.lineWidth = b * 1.5; ctx.shadowBlur = 6;
+      diamondPath(ctx, w, h, b * 0.5); ctx.stroke();
+      ctx.shadowBlur = 0;
+      break;
+    }
+  }
+  ctx.globalAlpha = 1; ctx.setLineDash([]);
+}
+
+function drawAnimated(ctx: CanvasRenderingContext2D, frameId: string, w: number, h: number, b: number, color: string, R: number, t: number) {
+  const perim = 2 * (w + h);
+  const corners: [number, number][] = [[b, b], [w - b, b], [w - b, h - b], [b, h - b]];
+
+  const drawOrbTail = (pos: number, tailLen: number) => {
+    for (let i = 0; i < tailLen; i++) {
+      const tp = ((pos - i * (perim * 0.07 / tailLen)) + perim * 20) % perim;
+      const [px, py] = perimPt(tp, w, h, b);
+      const alpha = (1 - i / tailLen) ** 1.8;
+      ctx.beginPath(); ctx.arc(px, py, b * 0.8 * (1 - i / tailLen * 0.4), 0, Math.PI * 2);
+      ctx.fillStyle = color + Math.floor(alpha * 220).toString(16).padStart(2, "0");
+      ctx.shadowColor = color; ctx.shadowBlur = alpha * 5; ctx.fill();
+    }
+    const [hx, hy] = perimPt(pos, w, h, b);
+    ctx.beginPath(); ctx.arc(hx, hy, b, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 9; ctx.fill();
+    ctx.shadowBlur = 0;
+  };
+
+  switch (frameId) {
+
+    // ── UNCOMMON ─────────────────────────────────────────────────────────────
+
+    case "shimmerCyan": {
+      ctx.strokeStyle = color + "22"; ctx.lineWidth = b;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      const segCount = 12, segLen = perim / segCount;
+      const active = Math.floor(t / 3) % (segCount + 5);
+      for (let i = 0; i < Math.min(active, segCount); i++) {
+        const age = active - i;
+        const alpha = Math.max(0, 1 - age * 0.08);
+        const [x1, y1] = perimPt(i * segLen, w, h, b);
+        const [x2, y2] = perimPt((i + 0.8) * segLen, w, h, b);
+        ctx.strokeStyle = color + Math.floor(alpha * 190).toString(16).padStart(2, "0");
+        ctx.lineWidth = b * 1.5; ctx.shadowColor = color; ctx.shadowBlur = alpha * 5;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.fillStyle = color + Math.floor(alpha * 200).toString(16).padStart(2, "0");
+        ctx.beginPath(); ctx.arc(x1, y1, b * 0.8, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "shimmerPurple": {
+      ctx.strokeStyle = color + "28"; ctx.lineWidth = b;
+      ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
+      for (let c = 0; c < 2; c++) {
+        const dir = c === 0 ? 1 : -1;
+        const pos = ((t * 2.2 * dir) + c * perim * 0.5 + perim * 20) % perim;
+        drawOrbTail(pos, 18);
+      }
+      break;
+    }
+    case "shimmerGold": {
+      ctx.setLineDash([6, 4]);
+      ctx.lineDashOffset = -(t * 0.9) % 10;
+      ctx.strokeStyle = color; ctx.lineWidth = b * 1.4;
+      ctx.shadowColor = color; ctx.shadowBlur = 4;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.setLineDash([]); ctx.shadowBlur = 0;
+      break;
+    }
+    case "shimmerRed": {
+      ctx.strokeStyle = color + "28"; ctx.lineWidth = b;
+      octPath(ctx, b, w, h); ctx.stroke();
+      for (let c = 0; c < 3; c++) {
+        const pos = ((t * 2.8 + c * perim / 3) + perim * 20) % perim;
+        drawOrbTail(pos, 12);
+      }
+      break;
+    }
+    case "shimmerGreen": {
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 3;
+      ctx.shadowColor = color; ctx.shadowBlur = 2;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const pos = (t * 1.1 + perim * 20) % perim;
+      drawOrbTail(pos, 50);
+      break;
+    }
+    case "shimmerOrange": {
+      ctx.strokeStyle = color + "32"; ctx.lineWidth = b;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      const active = Math.floor(t / 8) % 4;
+      const phase = (t % 8) / 8;
+      const fa = Math.sin(phase * Math.PI);
+      const [cx, cy] = corners[active];
+      ctx.beginPath(); ctx.arc(cx, cy, b * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = color + Math.floor(fa * 200).toString(16).padStart(2, "0");
+      ctx.shadowColor = color; ctx.shadowBlur = fa * 11; ctx.fill();
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "techShimmer": {
+      ctx.strokeStyle = color + "22"; ctx.lineWidth = b;
+      ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
+      for (let i = 0; i < 8; i++) {
+        const ph = (t + i * 13) % 22;
+        if (ph < 7) {
+          const fa = Math.sin((ph / 7) * Math.PI);
+          const pingPos = (SPARK_X[i & 31] * perim + i * 53) % perim;
+          const [px, py] = perimPt(pingPos, w, h, b);
+          ctx.beginPath(); ctx.arc(px, py, b * 0.9, 0, Math.PI * 2);
+          ctx.fillStyle = color + Math.floor(fa * 210).toString(16).padStart(2, "0");
+          ctx.shadowColor = color; ctx.shadowBlur = fa * 6; ctx.fill();
+        }
+      }
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "suitShimmer": {
+      ctx.strokeStyle = color + "48"; ctx.lineWidth = b * 0.7;
+      ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
+      const pos = (t * 0.65 + perim * 20) % perim;
+      drawOrbTail(pos, 30);
+      break;
+    }
+    case "crimsonShimmer": {
+      ctx.strokeStyle = color + "22"; ctx.lineWidth = b;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.beginPath(); ctx.roundRect(b * 3, b * 3, w - b * 6, h - b * 6, R); ctx.stroke();
+      const pos1 = (t * 2.5 + perim * 20) % perim;
+      const [ox, oy] = perimPt(pos1, w, h, b);
+      ctx.beginPath(); ctx.arc(ox, oy, b, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 7; ctx.fill();
+      const ip = 2 * ((w - b * 6) + (h - b * 6));
+      const pos2 = (ip * 20 - t * 1.8) % ip;
+      const [ix, iy] = perimPt(pos2, w - b * 6, h - b * 6, b);
+      ctx.beginPath(); ctx.arc(ix + b * 3, iy + b * 3, b * 0.8, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 5; ctx.fill();
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "iceShimmer": {
+      ctx.strokeStyle = color + "58"; ctx.lineWidth = b * 1.2;
+      ctx.shadowColor = color; ctx.shadowBlur = 3;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      for (let i = 0; i < 24; i++) {
+        const pos = ((t * 0.32 + i * (perim / 24)) + perim * 20) % perim;
+        const [px, py] = perimPt(pos, w, h, b);
+        const fa = 0.18 + 0.42 * Math.abs(Math.sin((t * 0.045 + i * 0.4)));
+        ctx.beginPath(); ctx.arc(px, py, b * 0.42, 0, Math.PI * 2);
+        ctx.fillStyle = color + Math.floor(fa * 190).toString(16).padStart(2, "0"); ctx.fill();
+      }
+      break;
+    }
+
+    // ── RARE ─────────────────────────────────────────────────────────────────
+
+    case "pulseCyan": {
+      const p = 0.5 + 0.5 * Math.sin((t / 50) * Math.PI * 2);
+      ctx.strokeStyle = color; ctx.lineWidth = b * 2;
+      ctx.shadowColor = color; ctx.shadowBlur = 5 * p; ctx.globalAlpha = 0.3 + 0.7 * p;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "pulsePurple": {
+      const p1 = 0.5 + 0.5 * Math.sin((t / 32) * Math.PI * 2);
+      const p2 = 0.5 + 0.5 * Math.sin((t / 32) * Math.PI * 2 + Math.PI);
+      ctx.strokeStyle = color; ctx.lineWidth = b;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 4 * p1; ctx.globalAlpha = 0.25 + 0.75 * p1;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 4 * p2; ctx.globalAlpha = 0.25 + 0.75 * p2;
+      ctx.beginPath(); ctx.roundRect(b * 2.8, b * 2.8, w - b * 5.6, h - b * 5.6, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "pulseGold": {
+      ctx.strokeStyle = color + "38"; ctx.lineWidth = b;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      const pos = (t * 1.4 + perim * 20) % perim;
+      for (let i = 0; i < 14; i++) {
+        const tp = ((pos - i * (perim * 0.09 / 14)) + perim * 20) % perim;
+        const [px, py] = perimPt(tp, w, h, b);
+        const fa = (1 - i / 14) ** 2;
+        ctx.beginPath(); ctx.arc(px, py, b + b * fa * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = color + Math.floor(fa * 230).toString(16).padStart(2, "0");
+        ctx.shadowColor = color; ctx.shadowBlur = fa * 9; ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "pulseRed": {
+      const fast = 0.5 + 0.5 * Math.sin((t / 14) * Math.PI * 2);
+      const flicker = seededRand(t & 15) > 0.85 ? 0.15 : 1.0;
+      ctx.strokeStyle = color; ctx.lineWidth = b * 2;
+      ctx.shadowColor = color; ctx.shadowBlur = 4 * fast;
+      ctx.globalAlpha = (0.4 + 0.6 * fast) * flicker;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "pulseGreen": {
+      ctx.strokeStyle = color + "50"; ctx.lineWidth = b;
+      ctx.shadowColor = color; ctx.shadowBlur = 3;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const sy = ((t * 1.1) % (h + 12)) - 6;
+      const sg = ctx.createLinearGradient(0, sy - 4, 0, sy + 4);
+      sg.addColorStop(0, color + "00"); sg.addColorStop(0.5, color + "cc"); sg.addColorStop(1, color + "00");
+      ctx.fillStyle = sg; ctx.fillRect(b, Math.max(b, sy - 4), w - b * 2, 8);
+      break;
+    }
+    case "hackerPulse": {
+      ctx.strokeStyle = color + "32"; ctx.lineWidth = b;
+      ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
+      corners.forEach(([cx, cy], i) => {
+        const phase = (t / 24 + i * 0.25) * Math.PI * 2;
+        const fa = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(phase));
+        const r = b * (1.6 + Math.sin(phase) * 0.9);
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = color + Math.floor(fa * 180).toString(16).padStart(2, "0");
+        ctx.shadowColor = color; ctx.shadowBlur = 4 * fa; ctx.fill();
+      });
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "corePulse": {
+      const p = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin((t / 36) * Math.PI * 2));
+      ctx.strokeStyle = color; ctx.lineWidth = b * 2;
+      ctx.shadowColor = color; ctx.shadowBlur = 5 * p; ctx.globalAlpha = 0.35 + 0.65 * p;
+      octPath(ctx, b, w, h); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "vaultPulse": {
+      const p1 = 0.5 + 0.5 * Math.sin((t / 55) * Math.PI * 2);
+      const p2 = 0.5 + 0.5 * Math.sin((t / 55) * Math.PI * 2 + Math.PI * 0.6);
+      ctx.strokeStyle = color; ctx.lineWidth = b * 3.5;
+      ctx.globalAlpha = 0.12 + 0.28 * p1; ctx.shadowColor = color; ctx.shadowBlur = 3;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.lineWidth = b; ctx.globalAlpha = 0.45 + 0.55 * p2; ctx.shadowBlur = 5 * p2;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "streetPulse": {
+      const on = Math.floor(t / 4) % 3 !== 2;
+      if (on) {
+        const p = 0.4 + 0.6 * ((t % 4) / 4);
+        ctx.strokeStyle = color; ctx.lineWidth = b * 2;
+        ctx.shadowColor = color; ctx.shadowBlur = 4 * p; ctx.globalAlpha = 0.6 + 0.4 * p;
+        ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      }
+      break;
+    }
+    case "spectralPulse": {
+      const d = 0.15 + 0.55 * (0.5 + 0.5 * Math.sin((t / 60) * Math.PI * 2));
+      const g = 0.1 + 0.35 * (0.5 + 0.5 * Math.sin((t / 40) * Math.PI * 2 + 1.3));
+      ctx.strokeStyle = color; ctx.lineWidth = b * 1.5;
+      ctx.shadowColor = color; ctx.shadowBlur = 3; ctx.globalAlpha = d;
+      diamondPath(ctx, w, h, b * 0.5); ctx.stroke();
+      ctx.globalAlpha = g;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+
+    // ── EPIC ─────────────────────────────────────────────────────────────────
+
+    case "epicCyan": {
+      const cx2 = w / 2, cy2 = h / 2;
+      const ang = (t / 70) * Math.PI * 2;
+      const grad = ctx.createConicGradient(ang, cx2, cy2);
+      grad.addColorStop(0, color); grad.addColorStop(0.07, color + "80");
+      grad.addColorStop(0.22, color + "08"); grad.addColorStop(0.99, color + "08"); grad.addColorStop(1, color);
+      ctx.strokeStyle = grad; ctx.lineWidth = b * 2;
+      ctx.shadowColor = color; ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "epicPurple": {
+      const cx2 = w / 2, cy2 = h / 2;
+      const a1 = (t / 55) * Math.PI * 2, a2 = -(t / 90) * Math.PI * 2;
+      const g1 = ctx.createConicGradient(a1, cx2, cy2);
+      g1.addColorStop(0, color); g1.addColorStop(0.09, color + "60"); g1.addColorStop(0.28, color + "05"); g1.addColorStop(1, color + "05");
+      const g2 = ctx.createConicGradient(a2, cx2, cy2);
+      g2.addColorStop(0, color + "80"); g2.addColorStop(0.14, color + "20"); g2.addColorStop(0.99, color + "20"); g2.addColorStop(1, color + "80");
+      ctx.lineWidth = b * 2; ctx.shadowColor = color; ctx.shadowBlur = 5;
+      ctx.strokeStyle = g1; octPath(ctx, b, w, h); ctx.stroke();
+      ctx.lineWidth = b; ctx.shadowBlur = 3;
+      ctx.strokeStyle = g2; octPath(ctx, b, w, h); ctx.stroke();
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "epicGold": {
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      const segCount = 8, cycle = Math.floor(t / 4) % (segCount + 6);
+      for (let i = 0; i < segCount; i++) {
+        const startPos = (i / segCount) * perim, endPos = ((i + 0.86) / segCount) * perim;
+        const age = cycle - i;
+        if (age < 0) continue;
+        const fa = Math.max(0, 1 - age * 0.13);
+        const [x1, y1] = perimPt(startPos, w, h, b);
+        const [x2, y2] = perimPt(endPos, w, h, b);
+        ctx.strokeStyle = color + Math.floor(fa * 200).toString(16).padStart(2, "0");
+        ctx.lineWidth = b * 2; ctx.shadowColor = color; ctx.shadowBlur = fa * 7;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "syndicate": {
+      ctx.strokeStyle = color + "70"; ctx.lineWidth = b;
+      ctx.shadowColor = color; ctx.shadowBlur = 5;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = color + "28"; ctx.lineWidth = b * 4; ctx.shadowBlur = 2;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const scanY = ((t * 1.5) % (h + 14)) - 7;
+      const fg = ctx.createLinearGradient(0, scanY - 5, 0, scanY + 5);
+      fg.addColorStop(0, "#ff6b3500"); fg.addColorStop(0.5, "#ff6b35dd"); fg.addColorStop(1, "#ff6b3500");
+      ctx.fillStyle = fg; ctx.fillRect(b, Math.max(b, scanY - 5), w - b * 2, 10);
+      for (let i = 0; i < 3; i++) {
+        const ex = b + seededRand((t + i * 19) & 255) * (w - b * 2);
+        const ey = scanY - seededRand((t + i * 37) & 255) * 8;
+        if (ey > b && ey < h - b) { ctx.beginPath(); ctx.arc(ex, ey, 0.9, 0, Math.PI * 2); ctx.fillStyle = "#ffffff80"; ctx.fill(); }
+      }
+      break;
+    }
+    case "epicRed": {
+      ctx.strokeStyle = color + "60"; ctx.lineWidth = b;
+      ctx.shadowColor = color; ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = color + "28"; ctx.lineWidth = b * 5; ctx.shadowBlur = 3;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const scanY = ((t * 2.3) % (h + 16)) - 8;
+      const pg = ctx.createLinearGradient(0, scanY - 6, 0, scanY + 6);
+      pg.addColorStop(0, color + "00"); pg.addColorStop(0.5, color + "ff"); pg.addColorStop(1, color + "00");
+      ctx.fillStyle = pg; ctx.fillRect(b, Math.max(b, scanY - 6), w - b * 2, 12);
+      break;
+    }
+    case "gridCore": {
+      ctx.strokeStyle = color + "40"; ctx.lineWidth = b;
+      ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
+      const cell = Math.max(4, w / 7);
+      for (let x = b; x < w - b; x += cell) {
+        for (const y of [b, h - b - cell]) {
+          const blink = Math.floor((t + x * 0.3 + y * 0.5) / 6) % 3;
+          const fa = blink === 0 ? 0.85 : blink === 1 ? 0.25 : 0.05;
+          ctx.fillStyle = color + Math.floor(fa * 200).toString(16).padStart(2, "0");
+          ctx.shadowColor = color; ctx.shadowBlur = fa * 5;
+          ctx.fillRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+        }
+      }
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "suitsFrame": {
+      ctx.strokeStyle = color + "60"; ctx.lineWidth = b;
+      ctx.shadowColor = color; ctx.shadowBlur = 4;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const ang = (t / 80) * Math.PI * 2;
+      corners.forEach(([cx, cy], i) => {
+        const ph = ang + i * Math.PI / 2;
+        const dx = Math.cos(ph) * b * 2.5, dy = Math.sin(ph) * b * 2.5;
+        ctx.save(); ctx.translate(cx + dx, cy + dy); ctx.rotate(ph + Math.PI / 4);
+        ctx.beginPath();
+        ctx.moveTo(0, -b * 0.85); ctx.lineTo(b * 0.85, 0); ctx.lineTo(0, b * 0.85); ctx.lineTo(-b * 0.85, 0);
+        ctx.closePath();
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.fill();
+        ctx.restore();
+      });
+      ctx.shadowBlur = 0;
+      break;
+    }
+    case "epicVoid": {
+      ctx.strokeStyle = color + "70"; ctx.lineWidth = b * 2;
+      ctx.shadowColor = color; ctx.shadowBlur = 5;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = color + "22"; ctx.lineWidth = b * 5; ctx.shadowBlur = 3;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      if (t % 3 === 0) {
+        const n = (t >> 2) & 31;
+        for (let i = 0; i < 2; i++) {
+          const pos = (SPARK_X[(n + i * 7) & 31] * perim) % perim;
+          const [sx, sy] = perimPt(pos, w, h, b);
+          ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 0.9;
+          ctx.shadowColor = color; ctx.shadowBlur = 5; ctx.globalAlpha = 0.72;
+          ctx.beginPath(); ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + SPARK_DX[(n + i * 3) & 31] * 0.6, sy + SPARK_DY[(n + i * 5) & 31] * 0.6);
+          ctx.stroke(); ctx.globalAlpha = 1;
+        }
+        ctx.shadowBlur = 0;
+      }
+      break;
+    }
+    case "epicInferno": {
+      const fa = seededRand(t & 31);
+      const fb = seededRand((t + 7) & 31);
+      const p = 0.5 + 0.5 * Math.sin((t / 8) * Math.PI * 2);
+      ctx.strokeStyle = color; ctx.lineWidth = b * (2 + fa * 2);
+      ctx.shadowColor = color; ctx.shadowBlur = 3 + fb * 8; ctx.globalAlpha = 0.5 + 0.5 * p;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.lineWidth = b; ctx.shadowBlur = fa * 4; ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = "#ffffff30";
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "epicNova": {
+      const cx2 = w / 2, cy2 = h / 2;
+      const a1 = (t / 45) * Math.PI * 2;
+      const g1 = ctx.createConicGradient(a1, cx2, cy2);
+      g1.addColorStop(0, color); g1.addColorStop(0.08, color + "80"); g1.addColorStop(0.5, color + "08");
+      g1.addColorStop(0.58, color + "80"); g1.addColorStop(0.66, color + "08"); g1.addColorStop(1, color);
+      ctx.strokeStyle = g1; ctx.lineWidth = b * 2;
+      ctx.shadowColor = color; ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      const burst = 0.5 + 0.5 * Math.sin((t / 28) * Math.PI * 2);
+      ctx.strokeStyle = color + "30"; ctx.lineWidth = b * 4;
+      ctx.shadowBlur = 4 + 4 * burst; ctx.globalAlpha = 0.12 + 0.18 * burst;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+
+    // ── LEGENDARY ─────────────────────────────────────────────────────────────
+
+    case "legendCyan": {
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = color; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      if (t % 4 === 0) {
+        const n = (t >> 2) & 31;
+        for (let i = 0; i < 2; i++) {
+          const pos = (SPARK_X[(n + i * 7) & 31] * perim) % perim;
+          const [sx, sy] = perimPt(pos, w, h, b);
+          ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
+          ctx.shadowColor = color; ctx.shadowBlur = 6; ctx.globalAlpha = 0.85;
+          ctx.beginPath(); ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + SPARK_DX[(n + i * 3) & 31] * 0.8, sy + SPARK_DY[(n + i * 5) & 31] * 0.8);
+          ctx.stroke(); ctx.globalAlpha = 1;
+        }
+        ctx.shadowBlur = 0;
+      }
+      break;
+    }
+    case "legendPurple": {
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = color; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      if (t % 18 < 7) {
+        const c1 = Math.floor(t / 18) % 4, c2 = (c1 + 2) % 4;
+        const [x1, y1] = corners[c1], [x2, y2] = corners[c2];
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.2;
+        ctx.shadowColor = color; ctx.shadowBlur = 10;
+        ctx.globalAlpha = 0.9 * (1 - (t % 18) / 7);
+        ctx.beginPath(); ctx.moveTo(x1, y1);
+        let lx = x1, ly = y1;
+        const n = (t >> 1) & 31;
+        for (let s = 0; s < 5; s++) {
+          lx += (x2 - x1) / 5 + SPARK_DX[(n + s) & 31] * 0.7;
+          ly += (y2 - y1) / 5 + SPARK_DY[(n + s) & 31] * 0.7;
+          ctx.lineTo(Math.max(b, Math.min(w - b, lx)), Math.max(b, Math.min(h - b, ly)));
+        }
+        ctx.lineTo(x2, y2); ctx.stroke(); ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      }
+      break;
+    }
+    case "legendGold": {
+      const glitch = t % 14 < 4;
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = color; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      if (glitch) {
+        const ox = SPARK_DX[t & 31] * 0.5;
+        ctx.strokeStyle = "#ff000060"; ctx.lineWidth = b * 2;
+        ctx.beginPath(); ctx.roundRect(b + ox, b, w - b * 2, h - b * 2, R); ctx.stroke();
+        ctx.strokeStyle = "#00ff0050"; ctx.lineWidth = b * 1.5;
+        ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+        ctx.strokeStyle = "#4488ff70"; ctx.lineWidth = b * 2;
+        ctx.beginPath(); ctx.roundRect(b - ox, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      } else {
+        ctx.strokeStyle = color; ctx.lineWidth = b * 2;
+        ctx.shadowColor = color; ctx.shadowBlur = 7;
+        ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      break;
+    }
+    case "legendRed": {
+      const period = t % 60, hb = period < 8 ? 0.2 + 0.8 * Math.sin((period / 8) * Math.PI)
+        : period >= 14 && period < 26 ? 0.2 + Math.sin(((period - 14) / 12) * Math.PI) : 0.2;
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = color; ctx.shadowBlur = 10 * hb;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = b * 2;
+      ctx.globalAlpha = 0.2 + 0.8 * hb; ctx.shadowBlur = 8 * hb;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "crimsonLord": {
+      const offset = 1 + (0.5 + 0.5 * Math.sin((t / 22) * Math.PI * 2)) * 2;
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = color; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0; ctx.lineWidth = b * 2;
+      ctx.strokeStyle = "#ff000070";
+      ctx.beginPath(); ctx.roundRect(b - offset, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = "#00ff0050";
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = "#4488ff70";
+      ctx.beginPath(); ctx.roundRect(b + offset, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      break;
+    }
+    case "arcLight": {
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = color; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const arcStart = (t * 0.55) % perim, arcLen = perim * 0.2;
+      for (let i = 0; i < 18; i++) {
+        const pos = (arcStart + (i / 18) * arcLen + perim * 20) % perim;
+        const [px, py] = perimPt(pos, w, h, b);
+        const fade = Math.sin((i / 18) * Math.PI);
+        const jitter = SPARK_DX[(Math.floor(t * 0.1 + i) & 31)] * 0.18;
+        ctx.beginPath(); ctx.arc(px + jitter, py + jitter * 0.5, b * 0.7, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = fade * 8;
+        ctx.globalAlpha = fade * 0.9; ctx.fill();
+      }
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "plasmaBolt": {
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = color; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const bp = t % 70;
+      if (bp < 30) {
+        const progress = bp / 30;
+        const ba = bp < 15 ? progress * 2 : 2 - progress * 2;
+        const bY = b + progress * (h - b * 2);
+        let lx = w / 2;
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.5;
+        ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.globalAlpha = ba * 0.9;
+        ctx.beginPath(); ctx.moveTo(lx, b);
+        for (let s = 0; s < 6; s++) {
+          const sy2 = b + (s / 6) * (bY - b);
+          lx += SPARK_DX[(t + s * 3) & 31] * 0.4;
+          lx = Math.max(b + 2, Math.min(w - b - 2, lx));
+          ctx.lineTo(lx, sy2);
+        }
+        ctx.stroke(); ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      }
+      break;
+    }
+    case "thunderClap": {
+      const phase = t % 80;
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = color; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      if (phase < 12) {
+        const ba = Math.sin((phase / 12) * Math.PI);
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = b * (2 + phase * 0.5);
+        ctx.shadowColor = color; ctx.shadowBlur = 12 * ba; ctx.globalAlpha = ba * 0.85;
+        ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      } else {
+        ctx.strokeStyle = color; ctx.lineWidth = b * 2;
+        ctx.shadowColor = color; ctx.shadowBlur = 7;
+        ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      break;
+    }
+    case "vantaLegend": {
+      const va = 0.04 + 0.96 * Math.pow(0.5 + 0.5 * Math.sin((t / 90) * Math.PI * 2), 2);
+      ctx.strokeStyle = color + "15"; ctx.lineWidth = b * 8;
+      ctx.shadowColor = color; ctx.shadowBlur = 15 * va; ctx.globalAlpha = va;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.lineWidth = b * 2; ctx.shadowBlur = 10 * va;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "executioner": {
+      const throb = 0.5 + 0.5 * Math.sin((t / 70) * Math.PI * 2);
+      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = color; ctx.shadowBlur = 10 + 5 * throb;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = b * 2;
+      ctx.globalAlpha = 0.4 + 0.6 * throb; ctx.shadowBlur = 7 * throb;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      if (throb > 0.95) {
+        const fa = (throb - 0.95) / 0.05;
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = b * 3;
+        ctx.shadowColor = color; ctx.shadowBlur = 15; ctx.globalAlpha = fa * 0.8;
+        ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      }
+      break;
+    }
+
+    // ── MYTHIC ────────────────────────────────────────────────────────────────
+
+    case "matrixGreen": {
+      const cc = hsl2hex((t / 4) % 360, 100, 60);
+      ctx.strokeStyle = "#39d35350"; ctx.lineWidth = b * 6;
+      ctx.shadowColor = cc; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = "#39d353"; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const cs = Math.max(5, b * 2);
+      ctx.font = `${cs}px monospace`;
+      for (let x = 0; x < w; x += cs + 1) {
+        const ci = Math.floor((t * 0.3 + x) / 4) % MATRIX_CHARS.length;
+        ctx.fillStyle = cc; ctx.globalAlpha = 0.5 + 0.3 * Math.abs(Math.sin((t + x) / 10));
+        ctx.fillText(MATRIX_CHARS[ci], x, b + cs - 1);
+        ctx.fillText(MATRIX_CHARS[(ci + 3) % MATRIX_CHARS.length], x, h - 1);
+      }
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case "matrixBlue": {
+      const cc = hsl2hex((200 + (t / 3) % 40), 100, 60);
+      ctx.strokeStyle = cc + "50"; ctx.lineWidth = b * 6;
+      ctx.shadowColor = cc; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = cc; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const cs = Math.max(5, b * 2);
+      ctx.font = `${cs}px monospace`;
+      for (let x = 0; x < w; x += cs + 1) {
+        const ci = Math.floor((t * 0.4 + x) / 4) % MATRIX_CHARS.length;
+        const fa = 0.35 + 0.45 * Math.abs(Math.sin((t + x) / 8));
+        ctx.fillStyle = cc; ctx.globalAlpha = fa;
+        ctx.fillText(MATRIX_CHARS[ci], x, b + cs - 1);
+        ctx.fillText(MATRIX_CHARS[(ci + 2) % MATRIX_CHARS.length], x, h - 1);
+      }
+      for (let y = cs; y < h - cs; y += cs + 1) {
+        const ci = Math.floor((t * 0.4 + y) / 4) % MATRIX_CHARS.length;
+        const fa = 0.35 + 0.45 * Math.abs(Math.sin((t + y) / 8));
+        ctx.fillStyle = cc; ctx.globalAlpha = fa;
+        ctx.fillText(MATRIX_CHARS[ci], 0, y);
+        ctx.fillText(MATRIX_CHARS[(ci + 4) % MATRIX_CHARS.length], w - cs, y);
+      }
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case "matrixGold": {
+      const cc = hsl2hex((40 + (t / 6) % 20), 100, 55);
+      ctx.strokeStyle = "#f59e0b50"; ctx.lineWidth = b * 6;
+      ctx.shadowColor = cc; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const cs = Math.max(5, b * 2);
+      ctx.font = `${cs}px monospace`;
+      for (let x = 0; x < w; x += cs + 1) {
+        const ci = Math.floor((t * 0.2 + x) / 6) % MATRIX_CHARS.length;
+        const fa = 0.4 + 0.35 * Math.abs(Math.sin((t * 0.5 + x * 0.3)));
+        ctx.fillStyle = cc; ctx.globalAlpha = fa;
+        ctx.fillText(MATRIX_CHARS[ci], x, b + cs - 1);
+        ctx.fillText(MATRIX_CHARS[(ci + 6) % MATRIX_CHARS.length], x, h - 1);
+      }
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case "matrixRed": {
+      const cc = hsl2hex((0 + (t / 4) % 15), 100, 55);
+      ctx.strokeStyle = "#ff2d5550"; ctx.lineWidth = b * 6;
+      ctx.shadowColor = cc; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = "#ff2d55"; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const cs = Math.max(5, b * 2);
+      ctx.font = `${cs}px monospace`;
+      for (let x = 0; x < w; x += cs + 1) {
+        const ci = Math.floor((t * 0.5 + x) / 3) % MATRIX_CHARS.length;
+        const blink = (Math.floor((t + x) / 5) % 3 !== 0) ? 1 : 0;
+        ctx.fillStyle = cc; ctx.globalAlpha = 0.55 * blink;
+        ctx.fillText(MATRIX_CHARS[ci], x, b + cs - 1);
+        ctx.fillText(MATRIX_CHARS[(ci + 4) % MATRIX_CHARS.length], x, h - 1);
+      }
+      for (let y = cs; y < h - cs; y += cs + 1) {
+        const ci = Math.floor((t * 0.5 + y) / 3) % MATRIX_CHARS.length;
+        const blink = (Math.floor((t + y) / 5) % 3 !== 0) ? 1 : 0;
+        ctx.fillStyle = cc; ctx.globalAlpha = 0.55 * blink;
+        ctx.fillText(MATRIX_CHARS[ci], 0, y);
+        ctx.fillText(MATRIX_CHARS[(ci + 8) % MATRIX_CHARS.length], w - cs, y);
+      }
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case "voidWalker": {
+      ctx.strokeStyle = color + "50"; ctx.lineWidth = b * 6;
+      ctx.shadowColor = color; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const cx2 = w / 2, cy2 = h / 2;
+      for (let i = 0; i < 12; i++) {
+        const lp = ((t + i * 17) % 30) / 30;
+        const sp = (SPARK_X[i & 31] * perim + i * 47) % perim;
+        const [sx, sy] = perimPt(sp, w, h, b);
+        const px = sx + (cx2 - sx) * lp, py = sy + (cy2 - sy) * lp;
+        const fa = Math.sin(lp * Math.PI) * 0.7;
+        ctx.beginPath(); ctx.arc(px, py, b * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 5 * fa;
+        ctx.globalAlpha = fa; ctx.fill();
+      }
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "nova2047": {
+      const cx2 = w / 2, cy2 = h / 2;
+      const a1 = (t / 40) * Math.PI * 2, a2 = -(t / 65) * Math.PI * 2;
+      const g1 = ctx.createConicGradient(a1, cx2, cy2);
+      g1.addColorStop(0, color); g1.addColorStop(0.12, color + "60"); g1.addColorStop(0.5, color + "08"); g1.addColorStop(0.62, color + "60"); g1.addColorStop(1, color);
+      const g2 = ctx.createConicGradient(a2, cx2, cy2);
+      g2.addColorStop(0, "#ffffff30"); g2.addColorStop(0.5, color + "10"); g2.addColorStop(1, "#ffffff30");
+      ctx.strokeStyle = color + "40"; ctx.lineWidth = b * 6;
+      ctx.shadowColor = color; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = g1; ctx.lineWidth = b * 2.5; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = g2; ctx.lineWidth = b; ctx.shadowBlur = 4;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const rp = (t % 40) / 40;
+      ctx.strokeStyle = color + Math.floor((1 - rp) * 80).toString(16).padStart(2, "0");
+      ctx.lineWidth = 1; ctx.globalAlpha = 1 - rp;
+      const exp = rp * 10;
+      ctx.beginPath(); ctx.roundRect(b - exp, b - exp, w - b * 2 + exp * 2, h - b * 2 + exp * 2, R + exp); ctx.stroke();
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case "godMode": {
+      const cc = hsl2hex((50 + (t / 5) % 20), 100, 60);
+      ctx.strokeStyle = cc + "40"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = cc; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = b * 2; ctx.shadowBlur = 10;
+      ctx.globalAlpha = 0.7 + 0.3 * Math.abs(Math.sin((t / 8) * Math.PI));
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      for (let r = 0; r < 3; r++) {
+        const rp = ((t + r * 26) % 55) / 55;
+        const exp = rp * 12;
+        ctx.strokeStyle = cc + Math.floor((1 - rp) * 100).toString(16).padStart(2, "0");
+        ctx.lineWidth = 1.5 - rp; ctx.globalAlpha = (1 - rp) * 0.8;
+        ctx.beginPath(); ctx.roundRect(b - exp, b - exp, w - b * 2 + exp * 2, h - b * 2 + exp * 2, R + exp); ctx.stroke();
+      }
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      break;
+    }
+    case "omega": {
+      const cc = hsl2hex((t / 2) % 360, 100, 60);
+      ctx.strokeStyle = cc + "40"; ctx.lineWidth = b * 7;
+      ctx.shadowColor = cc; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = cc; ctx.lineWidth = b * 2.5; ctx.shadowBlur = 10;
+      const fl = 0.7 + 0.3 * Math.abs(Math.sin((t / 7) * Math.PI));
+      ctx.globalAlpha = fl;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      if (t % 2 === 0) {
+        const n = (t >> 1) & 31;
+        for (let i = 0; i < 3; i++) {
+          const pos = (SPARK_X[(n + i * 7) & 31] * perim) % perim;
+          const [sx, sy] = perimPt(pos, w, h, b);
+          const sc = hsl2hex((t / 2 + i * 40) % 360, 100, 75);
+          ctx.strokeStyle = sc; ctx.lineWidth = 1;
+          ctx.shadowColor = sc; ctx.shadowBlur = 5; ctx.globalAlpha = 0.8;
+          ctx.beginPath(); ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + SPARK_DX[(n + i) & 31] * 0.7, sy + SPARK_DY[(n + i) & 31] * 0.7);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      }
+      break;
+    }
+    case "architect": {
+      ctx.strokeStyle = "#e2e8f040"; ctx.lineWidth = b * 6;
+      ctx.shadowColor = "#e2e8f0"; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      ctx.shadowBlur = 0;
+      const step = Math.max(5, w / 6);
+      const rot = (t / 200) * Math.PI * 2;
+      for (let i = 0; i < Math.ceil(perim / step); i++) {
+        const pos = ((i * step + t * 0.25) + perim * 20) % perim;
+        const [px, py] = perimPt(pos, w, h, b);
+        const fa = 0.3 + 0.5 * Math.abs(Math.sin((t * 0.04 + i * 0.5)));
+        ctx.save(); ctx.translate(px, py); ctx.rotate(rot);
+        ctx.fillStyle = "#ffffff"; ctx.globalAlpha = fa;
+        ctx.fillRect(-b * 0.4, -b * 0.4, b * 0.8, b * 0.8);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case "theOne": {
+      const cc = hsl2hex((t / 2.5) % 360, 100, 65);
+      const cx2 = w / 2, cy2 = h / 2;
+      for (let layer = 0; layer < 3; layer++) {
+        const a = ((t / (40 + layer * 25)) * Math.PI * 2) * (layer % 2 === 0 ? 1 : -1);
+        const lc = hsl2hex((t / 2.5 + layer * 120) % 360, 100, 65);
+        const g = ctx.createConicGradient(a, cx2, cy2);
+        g.addColorStop(0, lc); g.addColorStop(0.08, lc + "40"); g.addColorStop(0.5, lc + "05"); g.addColorStop(1, lc);
+        ctx.strokeStyle = g;
+        ctx.lineWidth = layer === 0 ? b * 3 : b * (2 - layer * 0.4);
+        ctx.shadowColor = lc; ctx.shadowBlur = 5 + layer * 2;
+        ctx.beginPath(); ctx.roundRect(b + layer, b + layer, w - b * 2 - layer * 2, h - b * 2 - layer * 2, R); ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+      const cs = Math.max(4, b * 1.8);
+      ctx.font = `${cs}px monospace`;
+      for (let x = 0; x < w; x += cs + 1) {
+        const ci = Math.floor((t * 0.5 + x) / 3) % MATRIX_CHARS.length;
+        ctx.fillStyle = cc; ctx.globalAlpha = 0.45;
+        ctx.fillText(MATRIX_CHARS[ci], x, b + cs - 1);
+        ctx.fillText(MATRIX_CHARS[(ci + 5) % MATRIX_CHARS.length], x, h - 1);
+      }
+      ctx.globalAlpha = 1;
+      if (t % 20 < 6) {
+        const c1 = Math.floor(t / 20) % 4, c2 = (c1 + 2) % 4;
+        const [x1, y1] = corners[c1], [x2, y2] = corners[c2];
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
+        ctx.shadowColor = cc; ctx.shadowBlur = 10;
+        ctx.globalAlpha = 0.85 * (1 - (t % 20) / 6);
+        ctx.beginPath(); ctx.moveTo(x1, y1);
+        let lx = x1, ly = y1;
+        const n = (t >> 1) & 31;
+        for (let s = 0; s < 5; s++) {
+          lx += (x2 - x1) / 5 + SPARK_DX[(n + s) & 31] * 0.5;
+          ly += (y2 - y1) / 5 + SPARK_DY[(n + s) & 31] * 0.5;
+          ctx.lineTo(Math.max(b, Math.min(w - b, lx)), Math.max(b, Math.min(h - b, ly)));
+        }
+        ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      }
+      break;
+    }
+  }
 }
 
 export function PlayerFrame({ frameId, size = "md", children, style, className }: Props) {
@@ -84,15 +1055,11 @@ export function PlayerFrame({ frameId, size = "md", children, style, className }
   const border = BORDER_PX[size];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const visibleRef = useRef(true);
-  const rarity = frame.rarity as FrameRarity;
-  const idx = FRAME_VARIANT[frame.id] ?? 0;
-  const color = frame.glowColor;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // IntersectionObserver — pause animation when frame is off-screen
     const observer = new IntersectionObserver(
       ([entry]) => { visibleRef.current = entry.isIntersecting; },
       { threshold: 0 }
@@ -105,992 +1072,43 @@ export function PlayerFrame({ frameId, size = "md", children, style, className }
 
     const w = canvas.width, h = canvas.height;
     const b = border;
-    const R = 3; // corner radius
-    const cut = Math.max(4, w * 0.18); // chamfer size
-    const CHARS = "01アイウBC#!@$%░▓";
+    const R = 3;
+    const color = frame.glowColor;
+
+    if (frame.rarity === "common") {
+      drawStatic(ctx, frame.id, w, h, b, color, R);
+      return () => observer.disconnect();
+    }
+
     let t = 0;
-
-    // ── COMMON — 10 unique static border designs ────────────────────────────
-    function drawCommon() {
-      ctx.clearRect(0, 0, w, h);
-      ctx.strokeStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 4;
-      switch (idx) {
-        case 0: { // Ghost — rounded + L-corner arms
-          ctx.lineWidth = b * 2;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          const arm = Math.max(5, w * 0.28);
-          ctx.lineWidth = b;
-          for (const [cx, cy, sx, sy] of [[b, b, 1, 1], [w - b, b, -1, 1], [b, h - b, 1, -1], [w - b, h - b, -1, -1]] as const) {
-            ctx.beginPath(); ctx.moveTo(cx + sx * arm, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + sy * arm); ctx.stroke();
-          }
-          break;
-        }
-        case 1: { // Basic White — square + glowing corner dots
-          ctx.lineWidth = b * 1.5;
-          ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
-          ctx.shadowBlur = 8; ctx.fillStyle = color;
-          for (const [cx, cy] of [[b, b], [w - b, b], [b, h - b], [w - b, h - b]] as const) {
-            ctx.beginPath(); ctx.arc(cx, cy, b * 1.4, 0, Math.PI * 2); ctx.fill();
-          }
-          break;
-        }
-        case 2: { // Basic Gray — chamfered octagon
-          ctx.lineWidth = b * 1.5;
-          octPath(ctx, b, w, h, cut); ctx.stroke();
-          break;
-        }
-        case 3: { // Neon Blue — double concentric
-          ctx.lineWidth = b * 1.5;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.lineWidth = b * 0.6; ctx.globalAlpha = 0.35;
-          ctx.beginPath(); ctx.roundRect(b * 3, b * 3, w - b * 6, h - b * 6, R); ctx.stroke();
-          ctx.globalAlpha = 1;
-          break;
-        }
-        case 4: { // Neon Green — dashed border
-          ctx.setLineDash([5, 3]); ctx.lineWidth = b * 1.5;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.setLineDash([]);
-          break;
-        }
-        case 5: { // Neon Red — thick glow + thin inner line
-          ctx.lineWidth = b * 4; ctx.shadowBlur = 2; ctx.globalAlpha = 0.25;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.lineWidth = b; ctx.shadowBlur = 5; ctx.globalAlpha = 1;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          break;
-        }
-        case 6: { // Corp Gray — corner brackets only
-          const arm2 = Math.max(6, w * 0.32);
-          ctx.lineWidth = b * 1.5;
-          for (const [cx, cy, sx, sy] of [[b, b, 1, 1], [w - b, b, -1, 1], [b, h - b, 1, -1], [w - b, h - b, -1, -1]] as const) {
-            ctx.beginPath(); ctx.moveTo(cx + sx * arm2, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + sy * arm2); ctx.stroke();
-          }
-          break;
-        }
-        case 7: { // Street Orange — inner ring + perimeter dots
-          ctx.lineWidth = b;
-          ctx.beginPath(); ctx.roundRect(b * 2.5, b * 2.5, w - b * 5, h - b * 5, R); ctx.stroke();
-          ctx.shadowBlur = 6; ctx.fillStyle = color;
-          const step = Math.max(6, w / 3.5);
-          for (let i = b; i <= w - b; i += step) {
-            for (const y of [b, h - b]) { ctx.beginPath(); ctx.arc(i, y, b * 0.7, 0, Math.PI * 2); ctx.fill(); }
-          }
-          for (let j = b + step; j < h - b; j += step) {
-            for (const x of [b, w - b]) { ctx.beginPath(); ctx.arc(x, j, b * 0.7, 0, Math.PI * 2); ctx.fill(); }
-          }
-          break;
-        }
-        case 8: { // Cyan Basic — diagonal X marks at corners
-          ctx.lineWidth = b; ctx.globalAlpha = 0.3;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.globalAlpha = 1; ctx.lineWidth = b * 1.5; ctx.shadowBlur = 6;
-          const sz = Math.max(5, w * 0.22);
-          for (const [cx, cy] of [[b, b], [w - b, b], [b, h - b], [w - b, h - b]] as const) {
-            ctx.beginPath(); ctx.moveTo(cx - sz * 0.55, cy - sz * 0.55); ctx.lineTo(cx + sz * 0.55, cy + sz * 0.55); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(cx + sz * 0.55, cy - sz * 0.55); ctx.lineTo(cx - sz * 0.55, cy + sz * 0.55); ctx.stroke();
-          }
-          break;
-        }
-        case 9: { // Gold Basic — diamond shape
-          ctx.lineWidth = b * 1.5;
-          diamondPath(ctx, w, h, b * 0.5);
-          ctx.stroke();
-          break;
-        }
-      }
-      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-    }
-
-    // ── UNCOMMON — 10 visually distinct shimmer designs ─────────────────────
-    function drawUncommon() {
+    const animId = registerAnim(() => {
       if (!visibleRef.current) return;
       ctx.clearRect(0, 0, w, h);
-      const perim = 2 * (w + h);
-
-      switch (idx) {
-        case 0: { // shimmerCyan — single orb sweep, rounded border
-          ctx.strokeStyle = color + "30"; ctx.lineWidth = b;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          const pos = (t * 2.5) % perim;
-          for (let i = 0; i < 18; i++) {
-            const tp = (pos - i * (perim * 0.08 / 18) + perim * 10) % perim;
-            const [px2, py] = perimPt(tp, w, h, b);
-            const alpha = (1 - i / 18) ** 2;
-            ctx.beginPath(); ctx.arc(px2, py, b * 0.8, 0, Math.PI * 2);
-            ctx.fillStyle = color + Math.floor(alpha * 200).toString(16).padStart(2, "0");
-            ctx.shadowColor = color; ctx.shadowBlur = alpha * 5; ctx.fill();
-          }
-          break;
-        }
-        case 1: { // shimmerPurple — dual opposing orbs, square border
-          ctx.strokeStyle = color + "30"; ctx.lineWidth = b;
-          ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
-          for (let c = 0; c < 2; c++) {
-            const pos = ((t * 2.0 + c * perim * 0.5) + perim * 10) % perim;
-            for (let i = 0; i < 12; i++) {
-              const tp = (pos - i * (perim * 0.07 / 12) + perim * 10) % perim;
-              const [px2, py] = perimPt(tp, w, h, b);
-              const alpha = (1 - i / 12) ** 2;
-              ctx.beginPath(); ctx.arc(px2, py, b * 0.8, 0, Math.PI * 2);
-              ctx.fillStyle = color + Math.floor(alpha * 180).toString(16).padStart(2, "0");
-              ctx.shadowColor = color; ctx.shadowBlur = alpha * 4; ctx.fill();
-            }
-          }
-          break;
-        }
-        case 2: { // shimmerGold — rotating dashed border (no orb)
-          ctx.setLineDash([5, 4]);
-          ctx.lineDashOffset = -(t * 0.8) % 9;
-          ctx.strokeStyle = color; ctx.lineWidth = b * 1.4;
-          ctx.shadowColor = color; ctx.shadowBlur = 4;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.setLineDash([]); ctx.shadowBlur = 0;
-          break;
-        }
-        case 3: { // shimmerRed — 3 orbs equally spaced, chamfered border
-          ctx.strokeStyle = color + "25"; ctx.lineWidth = b;
-          octPath(ctx, b, w, h, cut); ctx.stroke();
-          for (let c = 0; c < 3; c++) {
-            const pos = ((t * 3.0 + c * perim / 3) + perim * 10) % perim;
-            const [px2, py] = perimPt(pos, w, h, b);
-            ctx.beginPath(); ctx.arc(px2, py, b * 1.1, 0, Math.PI * 2);
-            ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 6; ctx.fill();
-          }
-          break;
-        }
-        case 4: { // shimmerGreen — single orb with extra-long tail, thick border
-          ctx.lineWidth = b * 3; ctx.globalAlpha = 0.18;
-          ctx.strokeStyle = color;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.globalAlpha = 1; ctx.lineWidth = b;
-          ctx.strokeStyle = color + "20";
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          const pos = (t * 1.5) % perim;
-          for (let i = 0; i < 30; i++) {
-            const tp = (pos - i * (perim * 0.12 / 30) + perim * 10) % perim;
-            const [px2, py] = perimPt(tp, w, h, b);
-            const alpha = (1 - i / 30) ** 1.8;
-            ctx.beginPath(); ctx.arc(px2, py, b * 0.6, 0, Math.PI * 2);
-            ctx.fillStyle = color + Math.floor(alpha * 200).toString(16).padStart(2, "0");
-            ctx.shadowBlur = 0; ctx.fill();
-          }
-          break;
-        }
-        case 5: { // shimmerOrange — corner flash sequence
-          ctx.strokeStyle = color + "40"; ctx.lineWidth = b;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          const corners = [[b, b], [w - b, b], [w - b, h - b], [b, h - b]];
-          const active = Math.floor(t / 6) % 4;
-          const phase = (t % 6) / 6;
-          const a = Math.sin(phase * Math.PI);
-          const [cx, cy] = corners[active];
-          ctx.beginPath(); ctx.arc(cx, cy, b * 2.2, 0, Math.PI * 2);
-          ctx.fillStyle = color + Math.floor(a * 180).toString(16).padStart(2, "0");
-          ctx.shadowColor = color; ctx.shadowBlur = a * 8; ctx.fill();
-          break;
-        }
-        case 6: { // techShimmer — digital dot sweep on square border
-          ctx.strokeStyle = color + "20"; ctx.lineWidth = b;
-          ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
-          const pos = (t * 2.2) % perim;
-          const stepSz = Math.max(5, w / 4);
-          for (let i = 0; i < 8; i++) {
-            const tp = (pos + i * stepSz) % perim;
-            const [px2, py] = perimPt(tp, w, h, b);
-            const blink = (Math.floor((t + i * 3) / 4) % 2 === 0) ? 1 : 0.3;
-            ctx.beginPath(); ctx.arc(px2, py, b * 0.7, 0, Math.PI * 2);
-            ctx.fillStyle = color + Math.floor(blink * 200).toString(16).padStart(2, "0");
-            ctx.shadowBlur = 0; ctx.fill();
-          }
-          break;
-        }
-        case 7: { // suitShimmer — ultra-slow elegant sweep, thin border
-          ctx.strokeStyle = color + "50"; ctx.lineWidth = b * 0.8;
-          ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
-          const pos = (t * 1.0) % perim;
-          for (let i = 0; i < 24; i++) {
-            const tp = (pos - i * (perim * 0.1 / 24) + perim * 10) % perim;
-            const [px2, py] = perimPt(tp, w, h, b);
-            const alpha = (1 - i / 24) ** 2.5;
-            ctx.beginPath(); ctx.arc(px2, py, b * 0.9, 0, Math.PI * 2);
-            ctx.fillStyle = color + Math.floor(alpha * 160).toString(16).padStart(2, "0");
-            ctx.shadowBlur = 0; ctx.fill();
-          }
-          break;
-        }
-        case 8: { // crimsonShimmer — two rings (inner+outer) sweeping
-          ctx.strokeStyle = color + "20"; ctx.lineWidth = b;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.beginPath(); ctx.roundRect(b * 3, b * 3, w - b * 6, h - b * 6, R); ctx.stroke();
-          const rings = [{ r: 0, spd: 2.5, sz: b }, { r: b * 2.5, spd: -1.5, sz: b * 0.6 }];
-          for (const ring of rings) {
-            const rPerim = 2 * (w - ring.r * 2 + h - ring.r * 2);
-            const pos = ((t * ring.spd) + rPerim * 10) % rPerim;
-            const [px2, py] = perimPt(pos, w - ring.r * 2, h - ring.r * 2, b);
-            ctx.beginPath(); ctx.arc(px2 + ring.r, py + ring.r, ring.sz, 0, Math.PI * 2);
-            ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 6; ctx.fill();
-          }
-          break;
-        }
-        case 9: { // iceShimmer — very slow faint crawl, barely visible
-          ctx.strokeStyle = color + "60"; ctx.lineWidth = b * 1.2;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          const pos = (t * 0.7) % perim;
-          for (let i = 0; i < 40; i++) {
-            const tp = (pos - i * (perim * 0.18 / 40) + perim * 10) % perim;
-            const [px2, py] = perimPt(tp, w, h, b);
-            const alpha = (1 - i / 40) ** 3;
-            ctx.beginPath(); ctx.arc(px2, py, b * 0.5, 0, Math.PI * 2);
-            ctx.fillStyle = color + Math.floor(alpha * 140).toString(16).padStart(2, "0");
-            ctx.shadowBlur = 0; ctx.fill();
-          }
-          break;
-        }
-      }
-      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-    }
-
-    // ── RARE — 10 distinct pulse designs ────────────────────────────────────
-    function drawRare() {
-      if (!visibleRef.current) return;
-      ctx.clearRect(0, 0, w, h);
-
-      switch (idx) {
-        case 0: { // pulseCyan — breathing pulse, rounded
-          const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin((t / 40) * Math.PI * 2));
-          ctx.strokeStyle = color; ctx.lineWidth = b * 2;
-          ctx.shadowColor = color; ctx.shadowBlur = 5 * pulse;
-          ctx.globalAlpha = 0.4 + 0.6 * pulse;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-          break;
-        }
-        case 1: { // pulsePurple — dual breathing rings (in-phase opposition)
-          const p1 = 0.5 + 0.5 * Math.sin((t / 32) * Math.PI * 2);
-          const p2 = 0.5 + 0.5 * Math.sin((t / 32) * Math.PI * 2 + Math.PI);
-          ctx.strokeStyle = color; ctx.lineWidth = b;
-          ctx.shadowColor = color;
-          ctx.shadowBlur = 4 * p1; ctx.globalAlpha = 0.3 + 0.7 * p1;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.shadowBlur = 4 * p2; ctx.globalAlpha = 0.3 + 0.7 * p2;
-          ctx.beginPath(); ctx.roundRect(b * 2.5, b * 2.5, w - b * 5, h - b * 5, R); ctx.stroke();
-          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-          break;
-        }
-        case 2: { // pulseGold — slow perimeter spotlight
-          ctx.strokeStyle = color + "40"; ctx.lineWidth = b;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          const perim = 2 * (w + h);
-          const pos = (t * 1.2) % perim;
-          for (let i = 0; i < 14; i++) {
-            const tp = (pos - i * (perim * 0.1 / 14) + perim * 10) % perim;
-            const [px2, py] = perimPt(tp, w, h, b);
-            const alpha = (1 - i / 14) ** 2;
-            ctx.beginPath(); ctx.arc(px2, py, b + b * alpha * 0.4, 0, Math.PI * 2);
-            ctx.fillStyle = color + Math.floor(alpha * 220).toString(16).padStart(2, "0");
-            ctx.shadowColor = color; ctx.shadowBlur = alpha * 8; ctx.fill();
-          }
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 3: { // pulseRed — fast erratic pulse with flicker
-          const fast = 0.5 + 0.5 * Math.sin((t / 18) * Math.PI * 2);
-          const flicker = seededRand(t & 15) > 0.7 ? 0.6 : 1.0;
-          ctx.strokeStyle = color; ctx.lineWidth = b * 2;
-          ctx.shadowColor = color; ctx.shadowBlur = 4 * fast;
-          ctx.globalAlpha = (0.5 + 0.5 * fast) * flicker;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-          break;
-        }
-        case 4: { // pulseGreen — vertical scan line
-          ctx.strokeStyle = color + "50"; ctx.lineWidth = b;
-          ctx.shadowColor = color; ctx.shadowBlur = 4;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          const scanY = ((t * 1.3) % (h + 14)) - 7;
-          const sg = ctx.createLinearGradient(0, scanY - 4, 0, scanY + 4);
-          sg.addColorStop(0, color + "00");
-          sg.addColorStop(0.5, color + "cc");
-          sg.addColorStop(1, color + "00");
-          ctx.fillStyle = sg; ctx.shadowBlur = 0;
-          ctx.fillRect(b, Math.max(b, scanY - 4), w - b * 2, 8);
-          break;
-        }
-        case 5: { // hackerPulse — corner glow blooms
-          ctx.strokeStyle = color + "40"; ctx.lineWidth = b;
-          ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
-          const corners = [[b, b], [w - b, b], [w - b, h - b], [b, h - b]];
-          corners.forEach(([cx, cy], i) => {
-            const phase = (t / 28 + i * 0.25) * Math.PI * 2;
-            const a = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(phase));
-            const r = b * (1.5 + Math.sin(phase) * 0.8);
-            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-            ctx.fillStyle = color + Math.floor(a * 180).toString(16).padStart(2, "0");
-            ctx.shadowColor = color; ctx.shadowBlur = 4 * a; ctx.fill();
-          });
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 6: { // corePulse — chamfered octagon shape pulse
-          const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin((t / 36) * Math.PI * 2));
-          ctx.strokeStyle = color; ctx.lineWidth = b * 1.8;
-          ctx.shadowColor = color; ctx.shadowBlur = 4 * pulse;
-          ctx.globalAlpha = 0.4 + 0.6 * pulse;
-          octPath(ctx, b, w, h, cut); ctx.stroke();
-          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-          break;
-        }
-        case 7: { // vaultPulse — slow heavy double pulse
-          const p = (0.5 + 0.5 * Math.sin((t / 50) * Math.PI * 2));
-          ctx.strokeStyle = color; ctx.lineWidth = b * 3; ctx.globalAlpha = 0.15 + 0.35 * p;
-          ctx.shadowColor = color; ctx.shadowBlur = 3;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.lineWidth = b; ctx.globalAlpha = 0.5 + 0.5 * p; ctx.shadowBlur = 5 * p;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-          break;
-        }
-        case 8: { // streetPulse — rapid strobe with square border
-          const strobe = Math.sin((t / 10) * Math.PI * 2);
-          const pulse = 0.3 + 0.7 * (0.5 + 0.5 * strobe);
-          ctx.strokeStyle = color; ctx.lineWidth = b * 2;
-          ctx.shadowColor = color; ctx.shadowBlur = 3 * pulse;
-          ctx.globalAlpha = pulse;
-          ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
-          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-          break;
-        }
-        case 9: { // spectralPulse — ghost fade with diamond shape
-          const ghost = 0.15 + 0.55 * (0.5 + 0.5 * Math.sin((t / 60) * Math.PI * 2));
-          ctx.strokeStyle = color; ctx.lineWidth = b * 1.5;
-          ctx.shadowColor = color; ctx.shadowBlur = 3;
-          ctx.globalAlpha = ghost;
-          diamondPath(ctx, w, h, b * 0.5); ctx.stroke();
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R);
-          ctx.globalAlpha = ghost * 0.4; ctx.stroke();
-          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-          break;
-        }
-      }
+      drawAnimated(ctx, frame.id, w, h, b, color, R, t);
       t++;
-    }
+    });
 
-    // ── EPIC — 10 distinct rotating/scanning designs ────────────────────────
-    function drawEpic() {
-      if (!visibleRef.current) return;
-      ctx.clearRect(0, 0, w, h);
-      const cx2 = w / 2, cy2 = h / 2;
-
-      switch (idx) {
-        case 0: { // epicCyan — conic gradient rotation, rounded
-          const ang = (t / 80) * Math.PI * 2;
-          const grad = ctx.createConicGradient(ang, cx2, cy2);
-          grad.addColorStop(0, color);
-          grad.addColorStop(0.4, color + "40");
-          grad.addColorStop(0.7, color + "10");
-          grad.addColorStop(1, color);
-          ctx.strokeStyle = grad; ctx.lineWidth = b * 2;
-          ctx.shadowColor = color; ctx.shadowBlur = 5;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 1: { // epicPurple — conic rotation on chamfered border
-          const ang = (t / 65) * Math.PI * 2;
-          const grad = ctx.createConicGradient(ang, cx2, cy2);
-          grad.addColorStop(0, color);
-          grad.addColorStop(0.35, color + "30");
-          grad.addColorStop(0.65, color + "08");
-          grad.addColorStop(1, color);
-          ctx.strokeStyle = grad; ctx.lineWidth = b * 2;
-          ctx.shadowColor = color; ctx.shadowBlur = 5;
-          octPath(ctx, b, w, h, cut); ctx.stroke();
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 2: { // epicGold — dual conic (outer+inner rotate opposite)
-          const a1 = (t / 90) * Math.PI * 2;
-          const a2 = -(t / 60) * Math.PI * 2;
-          const g1 = ctx.createConicGradient(a1, cx2, cy2);
-          g1.addColorStop(0, color); g1.addColorStop(0.5, color + "20"); g1.addColorStop(1, color);
-          ctx.strokeStyle = g1; ctx.lineWidth = b;
-          ctx.shadowColor = color; ctx.shadowBlur = 4;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          const g2 = ctx.createConicGradient(a2, cx2, cy2);
-          g2.addColorStop(0, color); g2.addColorStop(0.5, color + "20"); g2.addColorStop(1, color);
-          ctx.strokeStyle = g2; ctx.lineWidth = b;
-          ctx.beginPath(); ctx.roundRect(b * 2.5, b * 2.5, w - b * 5, h - b * 5, R); ctx.stroke();
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 3: { // syndicate — horizontal scan + thick glow outer
-          ctx.strokeStyle = color + "60"; ctx.lineWidth = b;
-          ctx.shadowColor = color; ctx.shadowBlur = 5;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.lineWidth = b * 4; ctx.globalAlpha = 0.12; ctx.shadowBlur = 2;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.globalAlpha = 1;
-          const scanX = ((t * 1.4) % (w + 14)) - 7;
-          const sg = ctx.createLinearGradient(scanX - 5, 0, scanX + 5, 0);
-          sg.addColorStop(0, color + "00"); sg.addColorStop(0.5, color + "cc"); sg.addColorStop(1, color + "00");
-          ctx.fillStyle = sg; ctx.shadowBlur = 0;
-          ctx.fillRect(Math.max(b, scanX - 5), b, 10, h - b * 2);
-          break;
-        }
-        case 4: { // epicRed — rotating diamond points at corners
-          ctx.strokeStyle = color + "60"; ctx.lineWidth = b;
-          ctx.shadowColor = color; ctx.shadowBlur = 4;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          const ang = (t / 50) * Math.PI * 2;
-          const corners = [[b, b], [w - b, b], [w - b, h - b], [b, h - b]];
-          corners.forEach(([cx, cy], i) => {
-            const ph = ang + i * Math.PI / 2;
-            const r = b * 2.5;
-            const px3 = cx + Math.cos(ph) * r, py = cy + Math.sin(ph) * r;
-            ctx.save(); ctx.translate(px3, py); ctx.rotate(ph);
-            ctx.beginPath();
-            ctx.moveTo(0, -b * 0.85); ctx.lineTo(b * 0.85, 0);
-            ctx.lineTo(0, b * 0.85); ctx.lineTo(-b * 0.85, 0);
-            ctx.closePath();
-            ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.fill();
-            ctx.restore();
-          });
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 5: { // gridCore — fast horizontal scan lines (grid aesthetic)
-          ctx.strokeStyle = color + "50"; ctx.lineWidth = b;
-          ctx.shadowColor = color; ctx.shadowBlur = 4;
-          ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
-          ctx.shadowBlur = 0;
-          const scanX = ((t * 2.4) % (w + 14)) - 7;
-          const sg = ctx.createLinearGradient(scanX - 4, 0, scanX + 4, 0);
-          sg.addColorStop(0, color + "00"); sg.addColorStop(0.5, color + "dd"); sg.addColorStop(1, color + "00");
-          ctx.fillStyle = sg;
-          ctx.fillRect(Math.max(b, scanX - 4), b, 8, h - b * 2);
-          break;
-        }
-        case 6: { // suitsFrame — slow elegant conic + slow orbital dots
-          const ang = (t / 120) * Math.PI * 2;
-          const grad = ctx.createConicGradient(ang, cx2, cy2);
-          grad.addColorStop(0, color + "90");
-          grad.addColorStop(0.5, color + "10");
-          grad.addColorStop(1, color + "90");
-          ctx.strokeStyle = grad; ctx.lineWidth = b * 1.5;
-          ctx.shadowColor = color; ctx.shadowBlur = 3;
-          ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
-          const corners = [[b, b], [w - b, b], [w - b, h - b], [b, h - b]];
-          corners.forEach(([cx, cy], i) => {
-            const ph = ang + i * Math.PI / 2;
-            ctx.beginPath(); ctx.arc(cx + Math.cos(ph) * b * 1.5, cy + Math.sin(ph) * b * 1.5, b * 0.7, 0, Math.PI * 2);
-            ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 5; ctx.fill();
-          });
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 7: { // epicVoid — dark matter absorption (inverted conic)
-          const ang = -(t / 70) * Math.PI * 2;
-          const grad = ctx.createConicGradient(ang, cx2, cy2);
-          grad.addColorStop(0, color);
-          grad.addColorStop(0.2, color + "80");
-          grad.addColorStop(0.5, color + "08");
-          grad.addColorStop(0.8, color + "80");
-          grad.addColorStop(1, color);
-          ctx.strokeStyle = grad; ctx.lineWidth = b * 2;
-          ctx.shadowColor = color; ctx.shadowBlur = 4;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          // breathing inner dark ring
-          const pulse = 0.3 + 0.4 * Math.sin((t / 35) * Math.PI * 2);
-          ctx.strokeStyle = color + "40"; ctx.lineWidth = b * 0.7; ctx.globalAlpha = pulse; ctx.shadowBlur = 2;
-          ctx.beginPath(); ctx.roundRect(b * 3, b * 3, w - b * 6, h - b * 6, R); ctx.stroke();
-          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-          break;
-        }
-        case 8: { // epicInferno — bottom-to-top fire scan + ember dots
-          ctx.strokeStyle = color + "70"; ctx.lineWidth = b;
-          ctx.shadowColor = color; ctx.shadowBlur = 5;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.shadowBlur = 0;
-          const scanY = h - ((t * 1.8) % (h + 16));
-          const fg = ctx.createLinearGradient(0, scanY - 6, 0, scanY + 6);
-          fg.addColorStop(0, color + "00"); fg.addColorStop(0.5, color + "cc"); fg.addColorStop(1, color + "00");
-          ctx.fillStyle = fg;
-          ctx.fillRect(b, Math.max(b, scanY - 6), w - b * 2, 12);
-          // ember dots
-          for (let i = 0; i < 3; i++) {
-            const ex = b + seededRand((t + i * 17) & 255) * (w - b * 2);
-            const ey = scanY - seededRand((t + i * 31) & 255) * 8;
-            if (ey > b && ey < h - b) {
-              ctx.beginPath(); ctx.arc(ex, ey, 0.8, 0, Math.PI * 2);
-              ctx.fillStyle = "#ffffff"; ctx.fill();
-            }
-          }
-          break;
-        }
-        case 9: { // epicNova — supernova radial burst + pulsing outer
-          const ang = (t / 55) * Math.PI * 2;
-          const burst = 0.5 + 0.5 * Math.sin((t / 30) * Math.PI * 2);
-          const grad = ctx.createConicGradient(ang, cx2, cy2);
-          grad.addColorStop(0, color);
-          grad.addColorStop(0.25, color + "60");
-          grad.addColorStop(0.5, color + "ff");
-          grad.addColorStop(0.75, color + "60");
-          grad.addColorStop(1, color);
-          ctx.strokeStyle = grad; ctx.lineWidth = b * 1.5;
-          ctx.shadowColor = color; ctx.shadowBlur = 4 + 3 * burst;
-          ctx.globalAlpha = 0.7 + 0.3 * burst;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-          break;
-        }
-      }
-      t++;
-    }
-
-    // ── LEGENDARY — 10 distinct electric/flicker designs ───────────────────
-    // Pre-computed spark positions to avoid Math.random() in hot path
-    const SPARK_X = Array.from({ length: 32 }, (_, i) => seededRand(i + 100));
-    const SPARK_Y = Array.from({ length: 32 }, (_, i) => seededRand(i + 200));
-    const SPARK_DX = Array.from({ length: 32 }, (_, i) => (seededRand(i + 50) - 0.5) * 10);
-    const SPARK_DY = Array.from({ length: 32 }, (_, i) => (seededRand(i + 150) - 0.5) * 10);
-
-    function drawLegendary() {
-      if (!visibleRef.current) return;
-      ctx.clearRect(0, 0, w, h);
-      ctx.strokeStyle = color; ctx.lineWidth = b * 2;
-      ctx.shadowColor = color; ctx.shadowBlur = 6;
-      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      const corners: [number, number][] = [[b, b], [w - b, b], [w - b, h - b], [b, h - b]];
-
-      switch (idx) {
-        case 0: { // legendCyan — corner sparks every N frames
-          if (t % 8 === 0) {
-            const si = (t >> 3) & 3;
-            const [sx, sy] = corners[si];
-            const n = (t >> 3) & 7;
-            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.shadowColor = color; ctx.shadowBlur = 5;
-            ctx.globalAlpha = 0.9;
-            ctx.beginPath(); ctx.moveTo(sx, sy);
-            ctx.lineTo(sx + SPARK_DX[n & 31], sy + SPARK_DY[n & 31]); ctx.stroke();
-            ctx.globalAlpha = 1;
-          }
-          break;
-        }
-        case 1: { // legendPurple — arc lightning corner-to-corner
-          if (t % 15 < 5) {
-            const c1 = Math.floor(t / 15) % 4;
-            const c2 = (c1 + 2) % 4;
-            const [x1, y1] = corners[c1], [x2, y2] = corners[c2];
-            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
-            ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.globalAlpha = 0.8;
-            ctx.beginPath(); ctx.moveTo(x1, y1);
-            let lx = x1, ly = y1;
-            const n = (t >> 1) & 31;
-            for (let s = 0; s < 5; s++) {
-              lx += (x2 - x1) / 5 + (SPARK_DX[(n + s) & 31]);
-              ly += (y2 - y1) / 5 + (SPARK_DY[(n + s) & 31]);
-              ctx.lineTo(Math.max(b, Math.min(w - b, lx)), Math.max(b, Math.min(h - b, ly)));
-            }
-            ctx.lineTo(x2, y2); ctx.stroke(); ctx.globalAlpha = 1;
-          }
-          break;
-        }
-        case 2: { // legendRed — glitch offset
-          const glitch = t % 12 < 3;
-          if (glitch) {
-            const n = t & 31;
-            const ox = (SPARK_DX[n] * 0.4), oy = (SPARK_DY[n] * 0.4);
-            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = b * 2;
-            ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.globalAlpha = 0.6;
-            ctx.beginPath(); ctx.roundRect(b + ox, b + oy, w - b * 2, h - b * 2, R); ctx.stroke();
-            ctx.strokeStyle = color + "60"; ctx.lineWidth = b;
-            ctx.beginPath(); ctx.roundRect(b - ox, b - oy, w - b * 2, h - b * 2, R); ctx.stroke();
-            ctx.globalAlpha = 1;
-          }
-          break;
-        }
-        case 3: { // arcLight — pale arc flash + sustained arc
-          ctx.strokeStyle = color; ctx.lineWidth = b * 1.5;
-          ctx.shadowColor = color; ctx.shadowBlur = 5;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          if (t % 18 < 6) {
-            const c1 = Math.floor(t / 18) % 4, c2 = (c1 + 1) % 4;
-            const [x1, y1] = corners[c1], [x2, y2] = corners[c2];
-            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
-            ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 4; ctx.globalAlpha = 0.7;
-            ctx.beginPath(); ctx.moveTo(x1, y1);
-            const n = (t >> 1) & 31;
-            let lx = x1, ly = y1;
-            for (let s = 0; s < 4; s++) {
-              lx += (x2 - x1) / 4 + SPARK_DX[(n + s) & 31] * 0.6;
-              ly += (y2 - y1) / 4 + SPARK_DY[(n + s) & 31] * 0.6;
-              ctx.lineTo(Math.max(b, Math.min(w - b, lx)), Math.max(b, Math.min(h - b, ly)));
-            }
-            ctx.lineTo(x2, y2); ctx.stroke(); ctx.globalAlpha = 1;
-          }
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 4: { // legendGold — electrical sparks along edges
-          if (t % 6 === 0) {
-            const n = (t >> 2) & 31;
-            const sides = [[w * SPARK_X[n], b], [w - b, h * SPARK_Y[n]], [w * SPARK_X[(n + 5) & 31], h - b], [b, h * SPARK_Y[(n + 8) & 31]]];
-            for (let s = 0; s < 2; s++) {
-              const [sx, sy] = sides[(n + s) & 3];
-              ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
-              ctx.shadowColor = color; ctx.shadowBlur = 5; ctx.globalAlpha = 0.85;
-              ctx.beginPath();
-              ctx.moveTo(Math.max(b, Math.min(w - b, sx)), Math.max(b, Math.min(h - b, sy)));
-              ctx.lineTo(
-                Math.max(b, Math.min(w - b, sx + SPARK_DX[(n + s * 7) & 31])),
-                Math.max(b, Math.min(h - b, sy + SPARK_DY[(n + s * 11) & 31]))
-              );
-              ctx.stroke();
-            }
-            ctx.globalAlpha = 1;
-          }
-          break;
-        }
-        case 5: { // crimsonLord — blood-red arc + double-border pulse
-          const pulse = 0.5 + 0.5 * Math.sin((t / 20) * Math.PI * 2);
-          ctx.strokeStyle = color + "80"; ctx.lineWidth = b * 3; ctx.globalAlpha = 0.15 * pulse;
-          ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          ctx.globalAlpha = 1;
-          if (t % 20 < 7) {
-            const c1 = (Math.floor(t / 20)) % 4, c2 = (c1 + 2) % 4;
-            const [x1, y1] = corners[c1], [x2, y2] = corners[c2];
-            ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 1;
-            ctx.shadowColor = color; ctx.shadowBlur = 6; ctx.globalAlpha = 0.75;
-            ctx.beginPath(); ctx.moveTo(x1, y1);
-            const n = t & 31;
-            let lx = x1, ly = y1;
-            for (let s = 0; s < 6; s++) {
-              lx += (x2 - x1) / 6 + SPARK_DX[(n + s) & 31] * 0.7;
-              ly += (y2 - y1) / 6 + SPARK_DY[(n + s) & 31] * 0.7;
-              ctx.lineTo(Math.max(b, Math.min(w - b, lx)), Math.max(b, Math.min(h - b, ly)));
-            }
-            ctx.lineTo(x2, y2); ctx.stroke(); ctx.globalAlpha = 1;
-          }
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 6: { // thunderClap — yellow heavy strobe burst
-          const burst = t % 10;
-          if (burst < 4) {
-            const a = 1 - burst / 4;
-            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = b * (2 + burst);
-            ctx.shadowColor = color; ctx.shadowBlur = 6; ctx.globalAlpha = a * 0.8;
-            ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-            ctx.globalAlpha = 1;
-          }
-          break;
-        }
-        case 7: { // plasmaBolt — plasma discharges rotating around corners
-          const ang = (t / 40) * Math.PI * 2;
-          corners.forEach(([cx, cy], i) => {
-            const ph = ang + i * Math.PI / 2;
-            const r = b * 3;
-            const ex = cx + Math.cos(ph) * r, ey = cy + Math.sin(ph) * r;
-            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
-            ctx.shadowColor = color; ctx.shadowBlur = 5; ctx.globalAlpha = 0.7;
-            ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            ctx.lineTo(Math.max(0, Math.min(w, ex)), Math.max(0, Math.min(h, ey)));
-            ctx.stroke();
-            ctx.globalAlpha = 1;
-          });
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 8: { // vantaLegend — multi-spark city electric (city skyline style)
-          if (t % 5 === 0) {
-            for (let i = 0; i < 3; i++) {
-              const n = (t + i * 11) & 31;
-              const side = n & 3;
-              let sx: number, sy: number;
-              if (side === 0) { sx = b + SPARK_X[n] * (w - b * 2); sy = b; }
-              else if (side === 1) { sx = w - b; sy = b + SPARK_Y[n] * (h - b * 2); }
-              else if (side === 2) { sx = b + SPARK_X[(n + 7) & 31] * (w - b * 2); sy = h - b; }
-              else { sx = b; sy = b + SPARK_Y[(n + 13) & 31] * (h - b * 2); }
-              ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
-              ctx.shadowColor = color; ctx.shadowBlur = 4; ctx.globalAlpha = 0.8;
-              ctx.beginPath(); ctx.moveTo(sx, sy);
-              ctx.lineTo(sx + SPARK_DX[n] * 0.7, sy + SPARK_DY[n] * 0.7); ctx.stroke();
-            }
-            ctx.globalAlpha = 1;
-          }
-          break;
-        }
-        case 9: { // executioner — hard red sharp glitch + scan
-          const glitch = t % 8 < 2;
-          if (glitch) {
-            const n = t & 31;
-            const ox = SPARK_DX[n] * 0.5;
-            ctx.clearRect(0, 0, w, h);
-            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = b * 2;
-            ctx.shadowColor = color; ctx.shadowBlur = 4; ctx.globalAlpha = 0.5;
-            ctx.beginPath(); ctx.roundRect(b + ox, b, w - b * 2, h - b * 2, R); ctx.stroke();
-            ctx.strokeStyle = color; ctx.lineWidth = b; ctx.globalAlpha = 1;
-            ctx.beginPath(); ctx.roundRect(b - ox * 0.5, b, w - b * 2, h - b * 2, R); ctx.stroke();
-          }
-          // scan stripe
-          const scanY = ((t * 2.0) % (h + 12)) - 6;
-          const sg = ctx.createLinearGradient(0, scanY - 3, 0, scanY + 3);
-          sg.addColorStop(0, color + "00"); sg.addColorStop(0.5, color + "aa"); sg.addColorStop(1, color + "00");
-          ctx.fillStyle = sg; ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-          ctx.fillRect(b, Math.max(b, scanY - 3), w - b * 2, 6);
-          break;
-        }
-      }
-      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-      t++;
-    }
-
-    // ── MYTHIC — 10 distinct matrix/cascade designs ─────────────────────────
-    const M_HUE_SPEED = [4, 3, 5, 2, 6, 3.5, 0, 4.5, 7, 2.5];
-    const M_DENSITY   = [8, 7, 7, 8, 6, 8, 9, 7, 6, 8];
-
-    function drawMythic() {
-      if (!visibleRef.current) return;
-      ctx.clearRect(0, 0, w, h);
-      const hspd = M_HUE_SPEED[idx] ?? 4;
-      const dens = M_DENSITY[idx] ?? 7;
-      // architect (idx 6) is white, fixed
-      const cc = idx === 6 ? "#e2e8f0" : hspd === 0 ? color : hsl2hex((t / hspd) % 360, 100, 60);
-
-      ctx.strokeStyle = cc; ctx.lineWidth = b * 1.5;
-      ctx.shadowColor = cc; ctx.shadowBlur = 5;
-      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      const charSize = Math.max(5, b * 2);
-      ctx.font = `${charSize}px monospace`;
-
-      switch (idx) {
-        case 0: { // matrixGreen — top+bottom chars
-          for (let x = 0; x < w; x += dens) {
-            const ci = Math.floor((t * 0.3 + x) / 4) % CHARS.length;
-            ctx.fillStyle = cc; ctx.globalAlpha = 0.55;
-            ctx.fillText(CHARS[ci], x, b + 2);
-            ctx.fillText(CHARS[(ci + 3) % CHARS.length], x, h - 1);
-          }
-          break;
-        }
-        case 1: { // matrixBlue — all 4 sides chars with wave alpha
-          for (let x = 0; x < w; x += dens) {
-            const ci = Math.floor((t * 0.4 + x) / 4) % CHARS.length;
-            const a = 0.4 + 0.4 * Math.abs(Math.sin((t + x) / 10));
-            ctx.fillStyle = cc; ctx.globalAlpha = a;
-            ctx.fillText(CHARS[ci], x, b + 2);
-            ctx.fillText(CHARS[(ci + 2) % CHARS.length], x, h - 1);
-          }
-          for (let y = dens; y < h - dens; y += dens) {
-            const ci = Math.floor((t * 0.4 + y) / 4) % CHARS.length;
-            const a = 0.4 + 0.4 * Math.abs(Math.sin((t + y) / 10));
-            ctx.fillStyle = cc; ctx.globalAlpha = a;
-            ctx.fillText(CHARS[ci], 0, y);
-            ctx.fillText(CHARS[(ci + 4) % CHARS.length], w - dens, y);
-          }
-          break;
-        }
-        case 2: { // omega — all 4 sides + fast hue + pulsing size
-          for (let x = 0; x < w; x += dens) {
-            const ci = Math.floor((t * 0.6 + x) / 3) % CHARS.length;
-            ctx.fillStyle = cc; ctx.globalAlpha = 0.6;
-            ctx.fillText(CHARS[ci], x, b + 2);
-            ctx.fillText(CHARS[(ci + 5) % CHARS.length], x, h - 1);
-          }
-          for (let y = dens; y < h - dens; y += dens) {
-            const ci = Math.floor((t * 0.6 + y) / 3) % CHARS.length;
-            ctx.fillStyle = cc; ctx.globalAlpha = 0.6;
-            ctx.fillText(CHARS[ci], 0, y);
-            ctx.fillText(CHARS[(ci + 7) % CHARS.length], w - dens, y);
-          }
-          break;
-        }
-        case 3: { // voidWalker — orbiting void orbs
-          const perim = 2 * (w + h);
-          for (let i = 0; i < 5; i++) {
-            const pos = (t * 2.5 + i * (perim / 5)) % perim;
-            const [px2, py] = perimPt(pos, w, h, b);
-            const a = 0.5 + 0.5 * Math.sin((t / 15 + i) * Math.PI * 2);
-            ctx.beginPath(); ctx.arc(px2, py, b * (0.6 + a * 0.5), 0, Math.PI * 2);
-            ctx.fillStyle = "#ffffff"; ctx.shadowColor = cc; ctx.shadowBlur = 5 * a; ctx.fill();
-            ctx.globalAlpha = 1;
-          }
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 4: { // matrixGold — wealth cascade top+bottom, slower hue
-          for (let x = 0; x < w; x += dens) {
-            const ci = Math.floor((t * 0.25 + x) / 5) % CHARS.length;
-            const a = 0.45 + 0.35 * Math.sin((t * 0.5 + x * 0.3));
-            ctx.fillStyle = cc; ctx.globalAlpha = Math.max(0.1, a);
-            ctx.fillText(CHARS[ci], x, b + 2);
-            ctx.fillText(CHARS[(ci + 6) % CHARS.length], x, h - 1);
-          }
-          break;
-        }
-        case 5: { // matrixRed — virus cascade (all sides, blinking)
-          for (let x = 0; x < w; x += dens) {
-            const ci = Math.floor((t * 0.5 + x) / 3) % CHARS.length;
-            const blink = (Math.floor((t + x) / 6) % 3 !== 0) ? 1 : 0;
-            ctx.fillStyle = cc; ctx.globalAlpha = 0.55 * blink;
-            ctx.fillText(CHARS[ci], x, b + 2);
-            ctx.fillText(CHARS[(ci + 4) % CHARS.length], x, h - 1);
-          }
-          for (let y = dens; y < h - dens; y += dens) {
-            const ci = Math.floor((t * 0.5 + y) / 3) % CHARS.length;
-            const blink = (Math.floor((t + y) / 6) % 3 !== 0) ? 1 : 0;
-            ctx.fillStyle = cc; ctx.globalAlpha = 0.55 * blink;
-            ctx.fillText(CHARS[ci], 0, y);
-            ctx.fillText(CHARS[(ci + 8) % CHARS.length], w - dens, y);
-          }
-          break;
-        }
-        case 6: { // architect — slow elegant white chars top+bottom only
-          for (let x = 0; x < w; x += dens) {
-            const ci = Math.floor((t * 0.15 + x) / 8) % CHARS.length;
-            const a = 0.25 + 0.35 * Math.sin((t * 0.08 + x * 0.5));
-            ctx.fillStyle = "#e2e8f0"; ctx.globalAlpha = Math.max(0.05, a);
-            ctx.fillText(CHARS[ci], x, b + 2);
-            ctx.fillText(CHARS[(ci + 2) % CHARS.length], x, h - 1);
-          }
-          break;
-        }
-        case 7: { // nova2047 — pink nebula orbital + chars top
-          for (let x = 0; x < w; x += dens) {
-            const ci = Math.floor((t * 0.35 + x) / 4) % CHARS.length;
-            const a = 0.3 + 0.4 * Math.abs(Math.sin((t * 0.6 + x * 0.4)));
-            ctx.fillStyle = cc; ctx.globalAlpha = a;
-            ctx.fillText(CHARS[ci], x, b + 2);
-          }
-          const perim = 2 * (w + h);
-          for (let i = 0; i < 3; i++) {
-            const pos = (t * 1.8 + i * (perim / 3)) % perim;
-            const [px2, py] = perimPt(pos, w, h, b);
-            const a = 0.5 + 0.5 * Math.sin((t / 12 + i * 2) * Math.PI * 2);
-            ctx.beginPath(); ctx.arc(px2, py, b * (0.5 + a * 0.4), 0, Math.PI * 2);
-            ctx.fillStyle = "#ffffff"; ctx.shadowColor = cc; ctx.shadowBlur = 4 * a; ctx.fill();
-          }
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 8: { // godMode — maximum chaos (all chars all sides + orbs)
-          for (let x = 0; x < w; x += dens - 1) {
-            const ci = Math.floor((t * 0.7 + x) / 2) % CHARS.length;
-            ctx.fillStyle = cc; ctx.globalAlpha = 0.7;
-            ctx.fillText(CHARS[ci], x, b + 2);
-            ctx.fillText(CHARS[(ci + 6) % CHARS.length], x, h - 1);
-          }
-          for (let y = dens; y < h - dens; y += dens) {
-            const ci = Math.floor((t * 0.7 + y) / 2) % CHARS.length;
-            ctx.fillStyle = cc; ctx.globalAlpha = 0.7;
-            ctx.fillText(CHARS[ci], 0, y);
-            ctx.fillText(CHARS[(ci + 9) % CHARS.length], w - dens, y);
-          }
-          const perim = 2 * (w + h);
-          for (let i = 0; i < 4; i++) {
-            const pos = (t * 3.5 + i * (perim / 4)) % perim;
-            const [px2, py] = perimPt(pos, w, h, b);
-            ctx.beginPath(); ctx.arc(px2, py, b * 0.8, 0, Math.PI * 2);
-            ctx.fillStyle = "#ffffff"; ctx.shadowColor = cc; ctx.shadowBlur = 4; ctx.fill();
-          }
-          ctx.shadowBlur = 0;
-          break;
-        }
-        case 9: { // theOne — matrix + orbits + corner bloom (unique combo)
-          for (let x = 0; x < w; x += dens) {
-            const ci = Math.floor((t * 0.45 + x) / 4) % CHARS.length;
-            const a = 0.4 + 0.4 * Math.abs(Math.sin((t * 0.5 + x * 0.35)));
-            ctx.fillStyle = cc; ctx.globalAlpha = a;
-            ctx.fillText(CHARS[ci], x, b + 2);
-            ctx.fillText(CHARS[(ci + 5) % CHARS.length], x, h - 1);
-          }
-          const perim = 2 * (w + h);
-          for (let i = 0; i < 6; i++) {
-            const pos = (t * 2.2 + i * (perim / 6)) % perim;
-            const [px2, py] = perimPt(pos, w, h, b);
-            const a = 0.5 + 0.5 * Math.abs(Math.sin((t / 10 + i)));
-            ctx.beginPath(); ctx.arc(px2, py, b * (0.4 + a * 0.5), 0, Math.PI * 2);
-            ctx.fillStyle = "#ffffff"; ctx.shadowColor = cc; ctx.shadowBlur = 3 * a; ctx.fill();
-          }
-          ctx.shadowBlur = 0;
-          break;
-        }
-      }
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-      t++;
-    }
-
-    const drawMap: Record<FrameRarity, () => void> = {
-      common: drawCommon,
-      uncommon: drawUncommon,
-      rare: drawRare,
-      epic: drawEpic,
-      legendary: drawLegendary,
-      mythic: drawMythic,
-    };
-
-    const drawFn = drawMap[rarity] ?? drawCommon;
-    const isStatic = rarity === "common";
-
-    drawFn();
-    if (isStatic) {
-      observer.disconnect();
-      return;
-    }
-
-    const tickId = registerAnim(() => drawFn());
-    return () => {
-      unregisterAnim(tickId);
-      observer.disconnect();
-    };
-  }, [frame.id, rarity, idx, border, color]);
+    return () => { unregisterAnim(animId); observer.disconnect(); };
+  }, [frame.id, frame.rarity, frame.glowColor, px, border]);
 
   return (
     <div
+      style={{ position: "relative", width: px, height: px, flexShrink: 0, ...style }}
       className={className}
-      style={{
-        position: "relative",
-        width: px,
-        height: px,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-        ...style,
-      }}
     >
       <canvas
         ref={canvasRef}
         width={px}
         height={px}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          pointerEvents: "none",
-          zIndex: 2,
-          willChange: "transform",
-          transform: "translateZ(0)",
-        }}
+        style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}
       />
       <div
         style={{
           position: "absolute",
-          inset: border + 2,
-          borderRadius: 3,
+          inset: border,
+          borderRadius: 2,
           overflow: "hidden",
           zIndex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
         }}
       >
         {children}
