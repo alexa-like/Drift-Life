@@ -3,6 +3,7 @@ import { User, Frame } from "../lib/types";
 import { api } from "../lib/api";
 import { getFrame, RARITY_COLORS } from "../lib/frames";
 import { formatDC } from "../lib/format";
+import { PlayerFrame } from "../components/PlayerFrame";
 
 interface Props {
   user: User;

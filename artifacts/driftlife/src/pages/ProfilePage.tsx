@@ -98,8 +98,13 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
     const key = frameId ?? "none";
     setEquippingFrame(key);
     try {
-      await api.post("/user/equip-frame", { frameId });
-      addToast(frameId ? "Frame equipped!" : "Frame removed", "success");
+      if (frameId) {
+        await api.post(`/frames/equip/${frameId}`, {});
+        addToast("Frame equipped!", "success");
+      } else {
+        await api.patch("/user/me", { equippedFrame: null });
+        addToast("Frame removed", "success");
+      }
       refreshUser();
     } catch (e: any) {
       addToast(e.message, "error");
