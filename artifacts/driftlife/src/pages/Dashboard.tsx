@@ -233,15 +233,9 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
               };
               const typeColor = typeColors[ev.type] ?? "#94a3b8";
 
-              const RARITY_COLORS: Record<string, string> = {
-                common: "#94a3b8", uncommon: "#39d353", rare: "#00d4ff",
-                epic: "#a855f7", legendary: "#f59e0b", mythic: "#00ff41",
-              };
-
               const frameColor = ev.actorFrameColor || null;
               const borderColor = frameColor || typeColor;
-              const rarity = ev.actorFrame ? "unknown" : null;
-              const isLegendary = rarity === "legendary" || rarity === "mythic";
+              const isLegendary = false;
 
               return (
                 <div

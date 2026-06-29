@@ -131,6 +131,13 @@ router.get("/profile/:id", requireAuth, async (req: AuthRequest, res) => {
       equippedTitle: user.equippedTitle,
       titles: user.titles,
       equippedItems,
+      onlineStatus: (() => {
+        if (user.appearOffline) return "offline";
+        const ms = Date.now() - new Date(user.lastActiveAt || 0).getTime();
+        if (ms < 5 * 60 * 1000) return "online";
+        if (ms < 30 * 60 * 1000) return "away";
+        return "offline";
+      })(),
     });
   } catch (err: any) {
     req.log.error({ err }, "get profile by id error");

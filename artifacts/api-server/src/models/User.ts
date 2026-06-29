@@ -208,11 +208,11 @@ const UserSchema = new Schema<IUser>(
 );
 
 export function xpForLevel(level: number): number {
-  if (level <= 9) return 500 + (level - 1) * Math.floor(1500 / 8);
-  if (level <= 24) return 3000 + (level - 10) * Math.floor(5000 / 14);
-  if (level <= 49) return 10000 + (level - 25) * Math.floor(15000 / 24);
-  if (level <= 74) return 30000 + (level - 50) * Math.floor(30000 / 24);
-  return 75000 + (level - 75) * Math.floor(75000 / 24);
+  // L1-10: 500 → 2000, L11-30: 3000 → 8000, L31-60: 10000 → 25000, L61-100: 30000 → 100000
+  if (level <= 10) return Math.round(500 + (level - 1) * (1500 / 9));
+  if (level <= 30) return Math.round(3000 + (level - 11) * (5000 / 19));
+  if (level <= 60) return Math.round(10000 + (level - 31) * (15000 / 29));
+  return Math.round(30000 + (level - 61) * (70000 / 39));
 }
 
 export function applyRegen(user: IUser): void {

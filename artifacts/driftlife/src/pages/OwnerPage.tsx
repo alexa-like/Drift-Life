@@ -803,10 +803,9 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
       {/* FRAMES TAB */}
       {tab === "frames" && (
         <div className="space-y-4">
+
+          {/* Toolbar */}
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="font-mono text-xs" style={{ color: "#64748b" }}>
-              Set frame prices. Enter 0 to reset to default. Prices survive only until server restart.
-            </div>
             <div className="flex items-center gap-2 flex-wrap">
               {(["all", "common", "uncommon", "rare", "epic", "legendary", "mythic"] as string[]).map(r => (
                 <button key={r} onClick={() => setFramesRarityFilter(r)}
@@ -815,10 +814,116 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                   {r}
                 </button>
               ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCreateFrameOpen(o => !o)} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}>
+                {createFrameOpen ? "Cancel" : "+ New Frame"}
+              </button>
               <button onClick={loadFrames} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}>Refresh</button>
             </div>
           </div>
 
+          {/* Create new frame form */}
+          {createFrameOpen && (
+            <div style={{ ...s, borderColor: "#39d35330" }}>
+              <div className="font-mono text-xs font-bold mb-3" style={{ color: "#39d353", letterSpacing: "0.1em" }}>CREATE CUSTOM FRAME</div>
+              <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                <div>
+                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Frame ID (snake_case)</label>
+                  <input value={newFrame.frameId} onChange={e => setNewFrame(p => ({ ...p, frameId: e.target.value }))}
+                    placeholder="e.g. vanta_gold" className="w-full font-mono text-xs px-2 py-1.5 rounded"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
+                </div>
+                <div>
+                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Display Name</label>
+                  <input value={newFrame.displayName} onChange={e => setNewFrame(p => ({ ...p, displayName: e.target.value }))}
+                    placeholder="e.g. Vanta Gold" className="w-full font-mono text-xs px-2 py-1.5 rounded"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
+                </div>
+                <div>
+                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Rarity</label>
+                  <select value={newFrame.rarity} onChange={e => setNewFrame(p => ({ ...p, rarity: e.target.value }))}
+                    className="w-full font-mono text-xs px-2 py-1.5 rounded"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }}>
+                    {["common","uncommon","rare","epic","legendary","mythic"].map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Currency</label>
+                  <select value={newFrame.currency} onChange={e => setNewFrame(p => ({ ...p, currency: e.target.value }))}
+                    className="w-full font-mono text-xs px-2 py-1.5 rounded"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }}>
+                    <option value="dc">DC (DarkCoin)</option>
+                    <option value="nc">NC (NanoCred)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Price</label>
+                  <input type="number" value={newFrame.price} onChange={e => setNewFrame(p => ({ ...p, price: Number(e.target.value) }))}
+                    className="w-full font-mono text-xs px-2 py-1.5 rounded"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
+                </div>
+                <div>
+                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Glow Color</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={newFrame.glowColor} onChange={e => setNewFrame(p => ({ ...p, glowColor: e.target.value }))}
+                      style={{ width: 36, height: 28, border: "1px solid #1e1e2e", background: "transparent", cursor: "pointer", borderRadius: 4 }} />
+                    <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>{newFrame.glowColor}</span>
+                  </div>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Description</label>
+                  <input value={newFrame.description} onChange={e => setNewFrame(p => ({ ...p, description: e.target.value }))}
+                    placeholder="Short description shown in store" className="w-full font-mono text-xs px-2 py-1.5 rounded"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
+                </div>
+              </div>
+              <button onClick={createNewFrame} disabled={creatingFrame} className="mt-3 font-mono text-xs px-4 py-2 rounded font-bold"
+                style={{ background: "#39d35330", color: "#39d353", border: "1px solid #39d35350" }}>
+                {creatingFrame ? "Creating..." : "Create Frame"}
+              </button>
+            </div>
+          )}
+
+          {/* Revoke frame section */}
+          <div style={{ ...s, borderColor: "#ff2d5520" }}>
+            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#ff2d55", letterSpacing: "0.1em" }}>REVOKE FRAME FROM PLAYER</div>
+            <div className="flex items-center gap-2 flex-wrap mb-2">
+              <input value={revokeFrameId} onChange={e => setRevokeFrameId(e.target.value)}
+                placeholder="Frame ID (e.g. ghost_wire)" className="font-mono text-xs px-2 py-1.5 rounded flex-1"
+                style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", minWidth: 150 }} />
+              <input value={revokeSearch} onChange={e => setRevokeSearch(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && searchRevokeUsers()}
+                placeholder="Search player..." className="font-mono text-xs px-2 py-1.5 rounded flex-1"
+                style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", minWidth: 140 }} />
+              <button onClick={searchRevokeUsers} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5530" }}>Search</button>
+            </div>
+            {revokeUsers.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {revokeUsers.map(u => (
+                  <button key={u._id} onClick={() => { setRevokeTargetId(u._id); setRevokeTargetName(u.username); setRevokeUsers([]); }}
+                    className="font-mono text-xs px-2 py-1 rounded"
+                    style={{ background: revokeTargetId === u._id ? "#ff2d5520" : "#0a0a0f", border: `1px solid ${revokeTargetId === u._id ? "#ff2d5540" : "#1e1e2e"}`, color: "#e2e8f0" }}>
+                    {u.username} — Lv.{u.level}
+                  </button>
+                ))}
+              </div>
+            )}
+            {revokeTargetId && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#ff2d5510", border: "1px solid #ff2d5530", color: "#ff2d55" }}>
+                  Target: <span className="font-bold">{revokeTargetName}</span>
+                  <button onClick={() => { setRevokeTargetId(null); setRevokeTargetName(""); }} className="ml-2" style={{ color: "#475569" }}>× clear</button>
+                </div>
+                <button onClick={doRevokeFrame} disabled={revokingFrame || !revokeFrameId} className="font-mono text-xs px-4 py-1.5 rounded font-bold"
+                  style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}>
+                  {revokingFrame ? "Revoking..." : "Revoke Frame"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Frame list */}
           {framesLoading ? (
             <div className="text-center py-8 font-mono text-xs" style={{ color: "#475569" }}>Loading...</div>
           ) : (
@@ -828,56 +933,111 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                 .map(frame => {
                   const RARITY_CLR: Record<string, string> = { common: "#9ca3af", uncommon: "#4ade80", rare: "#60a5fa", epic: "#c084fc", legendary: "#fbbf24", mythic: "#00ff41" };
                   const rc = RARITY_CLR[frame.rarity] ?? "#9ca3af";
+                  const saving = savingFrame === frame.frameId;
                   return (
-                    <div key={frame.frameId} style={{ background: "#111118", border: `1px solid ${frame.overridden ? "#f59e0b30" : "#1e1e2e"}`, borderRadius: 8, padding: 12 }}>
-                      <div className="flex items-center gap-3 flex-wrap">
+                    <div key={frame.frameId} style={{ background: "#111118", border: `1px solid ${frame.isCustom ? "#a855f730" : "#1e1e2e"}`, borderRadius: 8, padding: "10px 14px" }}>
+                      {/* Row 1: identity + badges + owner count */}
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{frame.displayName}</span>
                             <span className="font-mono text-xs px-1.5 py-0.5 rounded capitalize" style={{ color: rc, background: rc + "15", border: `1px solid ${rc}30` }}>{frame.rarity}</span>
-                            <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>{frame.currency.toUpperCase()}</span>
+                            <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>{(frame.currency || "dc").toUpperCase()}</span>
                             {frame.isFree && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#39d353", background: "#39d35315", border: "1px solid #39d35330" }}>FREE</span>}
-                            {frame.overridden && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#f59e0b", background: "#f59e0b15", border: "1px solid #f59e0b30" }}>custom price</span>}
+                            {frame.isCustom && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#a855f7", background: "#a855f715", border: "1px solid #a855f730" }}>CUSTOM</span>}
+                            {!frame.isVisible && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#ff2d55", background: "#ff2d5515", border: "1px solid #ff2d5530" }}>HIDDEN</span>}
+                            {frame.isFeatured && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#f59e0b", background: "#f59e0b15", border: "1px solid #f59e0b30" }}>FEATURED</span>}
+                            {frame.isWeeklyFree && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#00d4ff", background: "#00d4ff15", border: "1px solid #00d4ff30" }}>WEEKLY FREE</span>}
                           </div>
-                          <div className="font-mono mt-0.5" style={{ fontSize: 11, color: "#475569" }}>{frame.description}</div>
+                          <div className="font-mono mt-0.5" style={{ fontSize: 10, color: "#475569" }}>
+                            ID: {frame.frameId} · {frame.ownedByCount} player{frame.ownedByCount !== 1 ? "s" : ""} own this
+                            {frame.glowColor && <span style={{ color: frame.glowColor }}> · ●</span>}
+                          </div>
                         </div>
 
-                        {!frame.isFree && (
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <div className="text-right">
-                              <div className="font-mono text-sm font-bold" style={{ color: frame.currency === "nc" ? "#a855f7" : "#f59e0b" }}>
-                                {frame.currentPrice} {frame.currency.toUpperCase()}
-                              </div>
-                              {frame.overridden && (
-                                <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>default: {frame.basePrice}</div>
-                              )}
-                            </div>
-
-                            {isOwner && framePriceEdit === frame.frameId ? (
-                              <div className="flex items-center gap-1">
-                                <input
-                                  value={framePriceVal}
-                                  onChange={e => setFramePriceVal(e.target.value)}
-                                  type="number"
-                                  min={0}
-                                  placeholder="New price"
-                                  autoFocus
-                                  className="font-mono text-xs px-2 py-1 rounded"
-                                  style={{ background: "#0a0a0f", border: "1px solid #f59e0b40", color: "#e2e8f0", width: 90 }}
-                                  onKeyDown={e => { if (e.key === "Enter") setFramePrice(frame.frameId); if (e.key === "Escape") { setFramePriceEdit(null); setFramePriceVal(""); } }}
-                                />
-                                <button onClick={() => setFramePrice(frame.frameId)} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}>Set</button>
-                                {frame.overridden && (
-                                  <button onClick={() => resetFramePrice(frame.frameId)} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Reset to default">↺</button>
-                                )}
-                                <button onClick={() => { setFramePriceEdit(null); setFramePriceVal(""); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>✕</button>
-                              </div>
-                            ) : isOwner ? (
-                              <button onClick={() => { setFramePriceEdit(frame.frameId); setFramePriceVal(String(frame.currentPrice)); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#f59e0b", border: "1px solid #f59e0b30" }}>Edit</button>
-                            ) : null}
-                          </div>
-                        )}
+                        {/* Toggle buttons */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+                          <button onClick={() => patchFrame(frame.frameId, { isVisible: !frame.isVisible })}
+                            disabled={saving}
+                            className="font-mono text-xs px-2 py-1 rounded"
+                            style={{ background: frame.isVisible ? "#39d35318" : "#ff2d5518", color: frame.isVisible ? "#39d353" : "#ff2d55", border: `1px solid ${frame.isVisible ? "#39d35340" : "#ff2d5540"}` }}>
+                            {frame.isVisible ? "Visible" : "Hidden"}
+                          </button>
+                          <button onClick={() => patchFrame(frame.frameId, { isFeatured: !frame.isFeatured })}
+                            disabled={saving}
+                            className="font-mono text-xs px-2 py-1 rounded"
+                            style={{ background: frame.isFeatured ? "#f59e0b18" : "transparent", color: frame.isFeatured ? "#f59e0b" : "#475569", border: `1px solid ${frame.isFeatured ? "#f59e0b40" : "#1e1e2e"}` }}>
+                            {frame.isFeatured ? "★ Featured" : "☆ Feature"}
+                          </button>
+                          <button onClick={() => patchFrame(frame.frameId, { isWeeklyFree: !frame.isWeeklyFree })}
+                            disabled={saving}
+                            className="font-mono text-xs px-2 py-1 rounded"
+                            style={{ background: frame.isWeeklyFree ? "#00d4ff18" : "transparent", color: frame.isWeeklyFree ? "#00d4ff" : "#475569", border: `1px solid ${frame.isWeeklyFree ? "#00d4ff40" : "#1e1e2e"}` }}>
+                            {frame.isWeeklyFree ? "Free/wk ON" : "Free/wk"}
+                          </button>
+                          {frame.isCustom && (
+                            <button onClick={() => deleteCustomFrame(frame.frameId)}
+                              className="font-mono text-xs px-2 py-1 rounded"
+                              style={{ color: "#ff2d55", border: "1px solid #ff2d5530" }}>
+                              Delete
+                            </button>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Row 2: price editing + sale */}
+                      {!frame.isFree && (
+                        <div className="flex items-center gap-3 flex-wrap mt-2 pt-2" style={{ borderTop: "1px solid #1e1e2e" }}>
+                          {/* Base price */}
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs" style={{ color: "#64748b" }}>Price:</span>
+                            {framePriceEdit === frame.frameId ? (
+                              <>
+                                <input value={framePriceVal} onChange={e => setFramePriceVal(e.target.value)}
+                                  type="number" min={0} autoFocus
+                                  className="font-mono text-xs px-2 py-1 rounded"
+                                  style={{ background: "#0a0a0f", border: "1px solid #f59e0b40", color: "#e2e8f0", width: 80 }}
+                                  onKeyDown={e => { if (e.key === "Enter") setFramePrice(frame.frameId); if (e.key === "Escape") { setFramePriceEdit(null); setFramePriceVal(""); } }} />
+                                <button onClick={() => setFramePrice(frame.frameId)} disabled={saving} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}>Save</button>
+                                <button onClick={() => { setFramePriceEdit(null); setFramePriceVal(""); }} className="font-mono text-xs px-1.5 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>✕</button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-mono text-xs font-bold" style={{ color: "#f59e0b" }}>{frame.price}</span>
+                                <button onClick={() => { setFramePriceEdit(frame.frameId); setFramePriceVal(String(frame.price)); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#f59e0b", border: "1px solid #f59e0b30" }}>Edit</button>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Sale price */}
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs" style={{ color: "#64748b" }}>Sale:</span>
+                            {frameSaleEdit === frame.frameId ? (
+                              <>
+                                <input value={frameSaleVal} onChange={e => setFrameSaleVal(e.target.value)}
+                                  type="number" min={0} placeholder="sale price" autoFocus
+                                  className="font-mono text-xs px-2 py-1 rounded"
+                                  style={{ background: "#0a0a0f", border: "1px solid #ff2d5540", color: "#e2e8f0", width: 80 }} />
+                                <input value={frameSaleExpiry} onChange={e => setFrameSaleExpiry(e.target.value)}
+                                  type="datetime-local"
+                                  className="font-mono text-xs px-2 py-1 rounded"
+                                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#64748b" }} />
+                                <button onClick={() => setSalePrice(frame.frameId)} disabled={saving} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5540" }}>Set</button>
+                                <button onClick={() => { setFrameSaleEdit(null); setFrameSaleVal(""); setFrameSaleExpiry(""); }} className="font-mono text-xs px-1.5 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>✕</button>
+                              </>
+                            ) : frame.salePrice != null ? (
+                              <>
+                                <span className="font-mono text-xs font-bold" style={{ color: "#ff2d55" }}>{frame.salePrice}</span>
+                                {frame.saleExpiry && <span className="font-mono text-xs" style={{ color: "#475569" }}>until {new Date(frame.saleExpiry).toLocaleDateString()}</span>}
+                                <button onClick={() => { setFrameSaleEdit(frame.frameId); setFrameSaleVal(String(frame.salePrice)); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#ff2d55", border: "1px solid #ff2d5530" }}>Edit</button>
+                                <button onClick={() => clearSalePrice(frame.frameId)} disabled={saving} className="font-mono text-xs px-1.5 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>Clear</button>
+                              </>
+                            ) : (
+                              <button onClick={() => { setFrameSaleEdit(frame.frameId); setFrameSaleVal(""); setFrameSaleExpiry(""); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#ff2d55", border: "1px solid #ff2d5530" }}>Set Sale</button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

@@ -30,6 +30,7 @@ interface PublicProfile {
   totalCrimes: number;
   district: string;
   rank: string;
+  onlineStatus?: "online" | "away" | "offline";
 }
 
 interface OwnedFrame { id: string; name: string; rarity: string; }
@@ -174,8 +175,23 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                     size="xl"
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="font-mono font-bold text-base" style={{ color: frameColor || "#e2e8f0" }}>
-                      {profile.username}
+                    <div className="flex items-center gap-2">
+                      <div className="font-mono font-bold text-base" style={{ color: frameColor || "#e2e8f0" }}>
+                        {profile.username}
+                      </div>
+                      {/* Online status dot */}
+                      {(() => {
+                        const s = profile.onlineStatus;
+                        const color = s === "online" ? "#39d353" : s === "away" ? "#f59e0b" : "#334155";
+                        const label = s === "online" ? "Online" : s === "away" ? "Away" : "Offline";
+                        return (
+                          <div title={label} style={{
+                            width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                            background: color,
+                            boxShadow: s === "online" ? `0 0 6px ${color}` : "none",
+                          }} />
+                        );
+                      })()}
                     </div>
                     {profile.tag && (
                       <div className="font-mono text-xs" style={{ color: "#475569" }}>{profile.tag}</div>

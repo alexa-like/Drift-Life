@@ -218,15 +218,20 @@ router.get("/dm/conversations", requireAuth, async (req: AuthRequest, res) => {
     }
 
     const otherUsers = await User.find({ _id: { $in: otherIds } })
-      .select("username avatar avatarUrl faction equippedFrame equippedFrameColor")
+      .select("username avatar avatarUrl faction equippedFrame equippedFrameColor lastActiveAt appearOffline")
       .lean();
     const userMap: Record<string, (typeof otherUsers)[0]> = {};
     for (const u of otherUsers) userMap[String(u._id)] = u;
 
+    const now = Date.now();
     res.json(conversations.map((c: any) => {
       const parts: string[] = String(c._id).split(":");
       const otherId = parts.find((p: string) => p !== userId) || "";
       const other = userMap[otherId] as any;
+      const lastActive = other?.lastActiveAt ? new Date(other.lastActiveAt).getTime() : 0;
+      const msSince = now - lastActive;
+      const isOnline = !other?.appearOffline && msSince < 5 * 60 * 1000;
+      const isAway = !other?.appearOffline && !isOnline && msSince < 30 * 60 * 1000;
       return {
         userId: otherId,
         username: other?.username || "Unknown",
@@ -237,6 +242,7 @@ router.get("/dm/conversations", requireAuth, async (req: AuthRequest, res) => {
         equippedFrameColor: other?.equippedFrameColor || null,
         lastMessage: c.lastMsg.content,
         lastAt: c.lastMsg.createdAt,
+        onlineStatus: isOnline ? "online" : isAway ? "away" : "offline",
       };
     }));
   } catch (err: any) {

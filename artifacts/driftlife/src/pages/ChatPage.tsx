@@ -387,7 +387,10 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
           No conversations yet. Search for a player above to start messaging.
         </div>
       ) : (
-        conversations.map(c => (
+        conversations.map(c => {
+          const statusColor = c.onlineStatus === "online" ? "#39d353" : c.onlineStatus === "away" ? "#f59e0b" : "#334155";
+          const statusLabel = c.onlineStatus === "online" ? "Online" : c.onlineStatus === "away" ? "Away" : "Offline";
+          return (
           <button
             key={c.userId}
             onClick={() => openConversation(c.userId)}
@@ -398,6 +401,12 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
               cursor: "pointer", textAlign: "left",
             }}
           >
+            {/* Online status dot */}
+            <div title={statusLabel} style={{
+              width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+              background: statusColor,
+              boxShadow: c.onlineStatus === "online" ? `0 0 6px ${statusColor}` : "none",
+            }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 12 }}>{c.username}</div>
               <div className="font-mono text-xs" style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -408,7 +417,7 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
               {new Date(c.lastAt).toLocaleDateString()}
             </div>
           </button>
-        ))
+        );})
       )}
     </div>
   );

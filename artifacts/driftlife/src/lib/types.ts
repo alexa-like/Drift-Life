@@ -233,6 +233,7 @@ export interface Conversation {
   lastMessage: string;
   lastAt: string;
   unread: number;
+  onlineStatus?: "online" | "away" | "offline";
 }
 
 export interface LeaderboardEntry {
