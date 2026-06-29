@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
+import { formatDC } from "../lib/format";
 
 interface Props {
   user: User;
