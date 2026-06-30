@@ -58,8 +58,16 @@ export function AuthPage({ onLogin }: Props) {
     } catch (err: any) {
       // Login returns 403 with needsVerification when email isn't verified yet
       if (err.data?.needsVerification) {
-        setPendingEmail(err.data.email ?? email);
+        const verifyEmail = err.data.email ?? email;
+        setPendingEmail(verifyEmail);
         setMode("verify");
+        // Send a fresh code right away since the player is being redirected here unexpectedly
+        try {
+          await api.post("/auth/resend-otp", { email: verifyEmail });
+          setError("Your account isn't verified yet. A new code has been sent to your email.");
+        } catch {
+          setError("Your account isn't verified yet. Tap resend below to get a new code.");
+        }
         return;
       }
       setError(err.message ?? "Something went wrong");
