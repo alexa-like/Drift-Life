@@ -33,16 +33,17 @@ export function AuthPage({ onLogin }: Props) {
     try {
       if (mode === "login") {
         const data = await api.post<any>("/auth/login", { email, password });
-        if (data.needsVerification) {
-          setPendingEmail(data.email);
-          setMode("verify");
-          return;
-        }
         onLogin(data.accessToken, data.refreshToken, data.user);
       } else if (mode === "register") {
         const data = await api.post<any>("/auth/register", { email, username, password });
         if (data.autoVerified) {
           onLogin(data.accessToken, data.refreshToken, data.user);
+          return;
+        }
+        if (data.needsVerification) {
+          setPendingEmail(data.email ?? email);
+          setMode("verify");
+          setError(data.message ?? "Check your email for a verification code.");
           return;
         }
         setPendingEmail(email);
@@ -55,6 +56,12 @@ export function AuthPage({ onLogin }: Props) {
         onLogin(data.accessToken, data.refreshToken, data.user);
       }
     } catch (err: any) {
+      // Login returns 403 with needsVerification when email isn't verified yet
+      if (err.data?.needsVerification) {
+        setPendingEmail(err.data.email ?? email);
+        setMode("verify");
+        return;
+      }
       setError(err.message ?? "Something went wrong");
     } finally {
       setLoading(false);

@@ -96,7 +96,25 @@ router.post("/register", async (req, res) => {
 
     const emailLower = email.toLowerCase().trim();
     const existingEmail = await User.findOne({ email: emailLower });
-    if (existingEmail) return res.status(409).json({ message: "Email already registered" });
+    if (existingEmail) {
+      // If account exists but is unverified, resend OTP so the player can complete verification
+      if (!existingEmail.isEmailVerified) {
+        const otp = generateOtp();
+        existingEmail.emailOtp = otp;
+        existingEmail.emailOtpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+        await existingEmail.save();
+        if (process.env["GMAIL_USER"] && process.env["GMAIL_PASS"]) {
+          sendOtpEmail(existingEmail.email, otp).catch(() => {});
+        }
+        return res.status(200).json({
+          message: "Account pending verification. A new code has been sent to your email.",
+          userId: existingEmail._id,
+          needsVerification: true,
+          email: existingEmail.email,
+        });
+      }
+      return res.status(409).json({ message: "Email already registered. Try logging in instead." });
+    }
     const existingUser = await User.findOne({ username: new RegExp(`^${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") });
     if (existingUser) return res.status(409).json({ message: "Username already taken" });
 
