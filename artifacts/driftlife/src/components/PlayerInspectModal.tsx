@@ -172,6 +172,7 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                     username={profile.username}
                     avatarUrl={profile.avatarUrl}
                     frameId={frameId}
+                    frameColor={profile.equippedFrameColor}
                     size="xl"
                   />
                   <div className="flex-1 min-w-0">

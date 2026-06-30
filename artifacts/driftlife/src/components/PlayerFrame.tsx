@@ -292,10 +292,21 @@ function drawAnimated(ctx: CanvasRenderingContext2D, frameId: string, w: number,
       break;
     }
     case "suitShimmer": {
-      ctx.strokeStyle = color + "48"; ctx.lineWidth = b * 0.7;
-      ctx.beginPath(); ctx.rect(b, b, w - b * 2, h - b * 2); ctx.stroke();
-      const pos = (t * 0.65 + perim * 20) % perim;
-      drawOrbTail(pos, 30);
+      // Executive: 8 equidistant tick marks around the border that cycle on/off in sequence
+      ctx.strokeStyle = color + "30"; ctx.lineWidth = b * 0.8;
+      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
+      const tickCount = 8;
+      const activeTick = Math.floor(t / 5) % tickCount;
+      for (let i = 0; i < tickCount; i++) {
+        const pos = (i / tickCount) * perim;
+        const [px, py] = perimPt(pos, w, h, b);
+        const dist = Math.min((i - activeTick + tickCount) % tickCount, (activeTick - i + tickCount) % tickCount);
+        const fa = Math.max(0, 1 - dist * 0.3);
+        ctx.beginPath(); ctx.arc(px, py, b * (0.6 + fa * 0.8), 0, Math.PI * 2);
+        ctx.fillStyle = color + Math.floor(fa * 220).toString(16).padStart(2, "0");
+        ctx.shadowColor = color; ctx.shadowBlur = fa * 7; ctx.fill();
+      }
+      ctx.shadowBlur = 0;
       break;
     }
     case "crimsonShimmer": {
@@ -332,11 +343,25 @@ function drawAnimated(ctx: CanvasRenderingContext2D, frameId: string, w: number,
     // ── RARE ─────────────────────────────────────────────────────────────────
 
     case "pulseCyan": {
-      const p = 0.5 + 0.5 * Math.sin((t / 50) * Math.PI * 2);
-      ctx.strokeStyle = color; ctx.lineWidth = b * 2;
-      ctx.shadowColor = color; ctx.shadowBlur = 5 * p; ctx.globalAlpha = 0.3 + 0.7 * p;
+      // Lifeline: two bright segments racing around the border in opposite directions
+      ctx.strokeStyle = color + "20"; ctx.lineWidth = b * 1.2;
       ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      for (let orb = 0; orb < 2; orb++) {
+        const dir = orb === 0 ? 1 : -1;
+        const head = ((t * 2.1 * dir + orb * perim * 0.5) % perim + perim * 20) % perim;
+        for (let i = 0; i < 20; i++) {
+          const tp = ((head - dir * i * (perim / 120)) + perim * 20) % perim;
+          const [px, py] = perimPt(tp, w, h, b);
+          const fa = (1 - i / 20) ** 1.5;
+          ctx.beginPath(); ctx.arc(px, py, b * 0.75 * (1 - i / 20 * 0.3), 0, Math.PI * 2);
+          ctx.fillStyle = color + Math.floor(fa * 230).toString(16).padStart(2, "0");
+          ctx.shadowColor = color; ctx.shadowBlur = fa * 6; ctx.fill();
+        }
+        const [hx, hy] = perimPt(head, w, h, b);
+        ctx.beginPath(); ctx.arc(hx, hy, b, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 10; ctx.fill();
+      }
+      ctx.shadowBlur = 0;
       break;
     }
     case "pulsePurple": {
@@ -410,14 +435,19 @@ function drawAnimated(ctx: CanvasRenderingContext2D, frameId: string, w: number,
       break;
     }
     case "vaultPulse": {
-      const p1 = 0.5 + 0.5 * Math.sin((t / 55) * Math.PI * 2);
-      const p2 = 0.5 + 0.5 * Math.sin((t / 55) * Math.PI * 2 + Math.PI * 0.6);
-      ctx.strokeStyle = color; ctx.lineWidth = b * 3.5;
-      ctx.globalAlpha = 0.12 + 0.28 * p1; ctx.shadowColor = color; ctx.shadowBlur = 3;
+      // Vault: marching dashes (ant march) — completely distinct from breathing pulses
+      const dashLen = Math.max(6, perim / 16), gapLen = Math.max(3, perim / 32);
+      const offset = -(t * 0.7) % (dashLen + gapLen);
+      ctx.setLineDash([dashLen, gapLen]);
+      ctx.lineDashOffset = offset;
+      ctx.strokeStyle = color; ctx.lineWidth = b * 1.8;
+      ctx.shadowColor = color; ctx.shadowBlur = 5;
       ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-      ctx.lineWidth = b; ctx.globalAlpha = 0.45 + 0.55 * p2; ctx.shadowBlur = 5 * p2;
-      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      // Inner accent line marching opposite direction
+      ctx.lineDashOffset = -offset * 0.6;
+      ctx.strokeStyle = color + "40"; ctx.lineWidth = b * 0.8; ctx.shadowBlur = 2;
+      ctx.beginPath(); ctx.roundRect(b * 2.5, b * 2.5, w - b * 5, h - b * 5, R); ctx.stroke();
+      ctx.setLineDash([]); ctx.shadowBlur = 0;
       break;
     }
     case "streetPulse": {
@@ -610,25 +640,36 @@ function drawAnimated(ctx: CanvasRenderingContext2D, frameId: string, w: number,
     // ── LEGENDARY ─────────────────────────────────────────────────────────────
 
     case "legendCyan": {
-      ctx.strokeStyle = color + "18"; ctx.lineWidth = b * 7;
-      ctx.shadowColor = color; ctx.shadowBlur = 12;
-      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-      ctx.strokeStyle = color; ctx.lineWidth = b * 2; ctx.shadowBlur = 8;
-      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-      ctx.shadowBlur = 0;
-      if (t % 4 === 0) {
-        const n = (t >> 2) & 31;
-        for (let i = 0; i < 2; i++) {
-          const pos = (SPARK_X[(n + i * 7) & 31] * perim) % perim;
-          const [sx, sy] = perimPt(pos, w, h, b);
-          ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
-          ctx.shadowColor = color; ctx.shadowBlur = 6; ctx.globalAlpha = 0.85;
-          ctx.beginPath(); ctx.moveTo(sx, sy);
-          ctx.lineTo(sx + SPARK_DX[(n + i * 3) & 31] * 0.8, sy + SPARK_DY[(n + i * 5) & 31] * 0.8);
-          ctx.stroke(); ctx.globalAlpha = 1;
-        }
-        ctx.shadowBlur = 0;
+      // Arc Node: corner L-brackets that light up in sequence + fast scan arc between them
+      const arm = Math.max(8, w * 0.28);
+      const activeCorner = Math.floor(t / 18) % 4;
+      const cornerPhase = (t % 18) / 18;
+      for (let ci = 0; ci < 4; ci++) {
+        const [cx, cy] = corners[ci];
+        const sx = ci < 2 ? 1 : -1, sy = ci === 0 || ci === 3 ? 1 : -1;
+        const dist = Math.min((ci - activeCorner + 4) % 4, (activeCorner - ci + 4) % 4);
+        const fa = Math.max(0.15, 1 - dist * 0.28) * (ci === activeCorner ? (0.6 + 0.4 * Math.sin(cornerPhase * Math.PI)) : 1);
+        ctx.strokeStyle = color + Math.floor(fa * 230).toString(16).padStart(2, "0");
+        ctx.lineWidth = b * (1.5 + fa * 0.8);
+        ctx.shadowColor = color; ctx.shadowBlur = fa * 10;
+        ctx.beginPath(); ctx.moveTo(cx + sx * arm, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + sy * arm);
+        ctx.stroke();
       }
+      ctx.shadowBlur = 0;
+      // Bright scan dot sweeping perimeter
+      const scanPos = (t * 1.8 % perim + perim * 20) % perim;
+      for (let i = 0; i < 14; i++) {
+        const tp = ((scanPos - i * (perim / 80)) + perim * 20) % perim;
+        const [px, py] = perimPt(tp, w, h, b);
+        const fa = (1 - i / 14) ** 2;
+        ctx.beginPath(); ctx.arc(px, py, b * 0.7, 0, Math.PI * 2);
+        ctx.fillStyle = color + Math.floor(fa * 210).toString(16).padStart(2, "0");
+        ctx.shadowColor = color; ctx.shadowBlur = fa * 6; ctx.fill();
+      }
+      const [hx, hy] = perimPt(scanPos, w, h, b);
+      ctx.beginPath(); ctx.arc(hx, hy, b, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 10; ctx.fill();
+      ctx.shadowBlur = 0;
       break;
     }
     case "legendPurple": {
@@ -771,13 +812,30 @@ function drawAnimated(ctx: CanvasRenderingContext2D, frameId: string, w: number,
       break;
     }
     case "vantaLegend": {
-      const va = 0.04 + 0.96 * Math.pow(0.5 + 0.5 * Math.sin((t / 90) * Math.PI * 2), 2);
-      ctx.strokeStyle = color + "15"; ctx.lineWidth = b * 8;
-      ctx.shadowColor = color; ctx.shadowBlur = 15 * va; ctx.globalAlpha = va;
+      // Vanta: two half-arcs counter-rotating — each covers 40% of the perimeter
+      ctx.strokeStyle = color + "15"; ctx.lineWidth = b * 6;
+      ctx.shadowColor = color; ctx.shadowBlur = 12;
       ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-      ctx.lineWidth = b * 2; ctx.shadowBlur = 10 * va;
-      ctx.beginPath(); ctx.roundRect(b, b, w - b * 2, h - b * 2, R); ctx.stroke();
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      ctx.shadowBlur = 0;
+      const arcSpan = perim * 0.38;
+      for (let arc = 0; arc < 2; arc++) {
+        const dir = arc === 0 ? 1 : -1;
+        const head = ((t * 0.6 * dir + arc * perim * 0.5) % perim + perim * 20) % perim;
+        const steps = 28;
+        for (let i = 0; i < steps; i++) {
+          const frac = i / steps;
+          const tp = ((head - dir * frac * arcSpan) + perim * 20) % perim;
+          const [px, py] = perimPt(tp, w, h, b);
+          const fa = Math.sin(frac * Math.PI) * (0.4 + 0.6 * (1 - frac));
+          ctx.beginPath(); ctx.arc(px, py, b * (0.5 + fa * 0.7), 0, Math.PI * 2);
+          ctx.fillStyle = color + Math.floor(fa * 200).toString(16).padStart(2, "0");
+          ctx.shadowColor = color; ctx.shadowBlur = fa * 8; ctx.fill();
+        }
+        const [hx, hy] = perimPt(head, w, h, b);
+        ctx.beginPath(); ctx.arc(hx, hy, b * 1.1, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = color; ctx.shadowBlur = 12; ctx.fill();
+      }
+      ctx.shadowBlur = 0;
       break;
     }
     case "executioner": {

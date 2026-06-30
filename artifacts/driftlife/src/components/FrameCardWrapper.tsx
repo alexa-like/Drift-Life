@@ -708,6 +708,7 @@ function drawCard(
 
   // ── MYTHIC ────────────────────────────────────────────────────────────────
   if (rarity === "mythic") {
+    const cx2 = w / 2, cy2 = h / 2;
     const cs = 8;
     ctx.font = `bold ${cs}px monospace`;
 
@@ -923,6 +924,15 @@ export function FrameCardWrapper({ frameId, colorOverride, children, className, 
       return () => { ro.disconnect(); observer.disconnect(); };
     }
 
+    // Size the canvas immediately via ResizeObserver so first animation frame is not blank
+    const ro = new ResizeObserver(() => {
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.round(rect.width), h = Math.round(rect.height);
+      if (w === 0 || h === 0) return;
+      canvas.width = w; canvas.height = h;
+    });
+    ro.observe(wrap);
+
     let t = 0;
     const animId = registerAnim(() => {
       if (!visibleRef.current) return;
@@ -930,7 +940,7 @@ export function FrameCardWrapper({ frameId, colorOverride, children, className, 
       t++;
     });
 
-    return () => { unregisterAnim(animId); observer.disconnect(); };
+    return () => { unregisterAnim(animId); ro.disconnect(); observer.disconnect(); };
   }, [frame.id, rarity, color, borderRadius]);
 
   return (

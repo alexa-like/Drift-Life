@@ -313,7 +313,24 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
 
                 {selectedFrame?.frameId === f.frameId && (
                   <div style={{ padding: "0 12px 12px", borderTop: `1px solid ${rarityColor}20` }}>
-                    <p className="font-mono" style={{ color: "#64748b", fontSize: 10, marginBottom: 10, marginTop: 8 }}>{f.description}</p>
+                    {/* Live canvas previews */}
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 10, marginBottom: 10 }}>
+                      <div style={{ flexShrink: 0 }}>
+                        <div className="font-mono" style={{ fontSize: 9, color: "#334155", marginBottom: 4, letterSpacing: "0.08em" }}>AVATAR</div>
+                        <PlayerFrame frameId={f.frameId} size="xl">
+                          <div style={{ width: "100%", height: "100%", background: "#0a0a0f", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <svg width="55%" height="55%" viewBox="0 0 24 24" fill="none">
+                              <circle cx="12" cy="8" r="4" fill={(f.glowColor || rarityColor) + "50"} />
+                              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke={(f.glowColor || rarityColor) + "50"} strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                            </svg>
+                          </div>
+                        </PlayerFrame>
+                      </div>
+                      <div className="font-mono" style={{ fontSize: 9, color: "#334155", flex: 1 }}>
+                        <div style={{ marginBottom: 4, letterSpacing: "0.08em" }}>ABOUT</div>
+                        <div style={{ color: "#64748b", lineHeight: 1.6 }}>{f.description}</div>
+                      </div>
+                    </div>
 
                     {f.owned ? (
                       <>

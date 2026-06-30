@@ -340,7 +340,7 @@ export function FrameRectBubble({ message, isOwn, onUsernameClick }: Props) {
 
       <div style={{ position: "relative", zIndex: 2 }}>
         <div className="flex items-start gap-2">
-          <AvatarWithFrame username={message.username} frameId={message.frame} size="xs" />
+          <AvatarWithFrame username={message.username} frameId={message.frame} frameColor={message.frameColor} size="xs" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
               <button

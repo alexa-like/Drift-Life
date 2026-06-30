@@ -141,6 +141,7 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
                         username={ev.actor}
                         avatarUrl={ev.actorAvatarUrl}
                         frameId={evFrame}
+                        frameColor={evFrameColor}
                         size="xs"
                       />
                     )}
