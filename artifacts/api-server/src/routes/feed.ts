@@ -82,6 +82,27 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// DELETE /api/feed/:id — owner or staff/admin/owner role can delete
+router.delete("/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const event = await FeedEvent.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: "Post not found" });
+
+    const user = await User.findById(req.userId).select("role").lean();
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+    const isOwner = event.actorId && String(event.actorId) === String(req.userId);
+    const isMod = ["admin", "staff", "owner"].includes((user as any).role);
+    if (!isOwner && !isMod) return res.status(403).json({ message: "Cannot delete this post" });
+
+    await FeedEvent.findByIdAndDelete(req.params.id);
+    res.status(204).end();
+  } catch (err: any) {
+    req.log.error({ err }, "delete feed event error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // POST /api/feed/:id/react
 router.post("/:id/react", requireAuth, async (req: AuthRequest, res) => {
   try {

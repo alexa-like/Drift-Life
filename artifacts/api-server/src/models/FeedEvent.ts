@@ -45,5 +45,7 @@ const FeedEventSchema = new Schema<IFeedEvent>(
 );
 
 FeedEventSchema.index({ createdAt: -1 });
+// Auto-expire all feed events after 24 hours
+FeedEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 
 export default mongoose.model<IFeedEvent>("FeedEvent", FeedEventSchema);

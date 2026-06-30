@@ -70,6 +70,13 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
     } catch { /* ignore */ }
   }
 
+  async function deletePost(eventId: string) {
+    try {
+      await api.delete(`/feed/${eventId}`);
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+    } catch { /* ignore */ }
+  }
+
   // composer frame is the current user's equipped frame
   const myFrame = user?.equippedFrame || null;
   const myFrameColor = user?.equippedFrameColor || null;
@@ -207,6 +214,26 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
                     >
                       {comments.length > 0 ? `${comments.length} comment${comments.length > 1 ? "s" : ""}` : "Reply"}
                     </button>
+                    <div className="flex-1" />
+                    {ev.type === "post" && ev.actorId && user && String(ev.actorId) === user.id && (
+                      <button
+                        onClick={() => deletePost(ev.id)}
+                        className="font-mono text-xs px-2 py-0.5 rounded"
+                        style={{ color: "#ff2d55", border: "1px solid #ff2d5530", background: "transparent" }}
+                        title="Delete post"
+                      >
+                        Delete
+                      </button>
+                    )}
+                    <span className="font-mono text-xs" style={{ color: "#1e1e2e", fontSize: 10 }}>
+                      {(() => {
+                        const diff = Date.now() - new Date(ev.createdAt).getTime();
+                        const remaining = 86400000 - diff;
+                        if (remaining <= 0) return "expiring";
+                        const h = Math.floor(remaining / 3600000);
+                        return `${h}h left`;
+                      })()}
+                    </span>
                   </div>
 
                   {/* Comments */}
