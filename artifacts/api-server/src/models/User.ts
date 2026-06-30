@@ -98,6 +98,8 @@ export interface IUser extends Document {
   referredBy: string | null;
   referralCount: number;
   jobCooldowns: Record<string, Date>;
+  lastNpcCombatAt: Date | null;
+  friends: mongoose.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -203,6 +205,8 @@ const UserSchema = new Schema<IUser>(
     referredBy: { type: String, default: null },
     referralCount: { type: Number, default: 0 },
     jobCooldowns: { type: Map, of: Date, default: {} },
+    lastNpcCombatAt: { type: Date, default: null },
+    friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );

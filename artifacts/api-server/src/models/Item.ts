@@ -63,5 +63,7 @@ const ItemSchema = new Schema<IItem>(
 
 ItemSchema.index({ owner: 1, type: 1 });
 ItemSchema.index({ marketListed: 1, createdAt: -1 });
+// Compound index for NPC-drop upsert deduplication (prevents race-created duplicates)
+ItemSchema.index({ owner: 1, name: 1, type: 1, rarity: 1 });
 
 export default mongoose.model<IItem>("Item", ItemSchema);

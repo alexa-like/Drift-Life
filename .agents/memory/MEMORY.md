@@ -5,3 +5,4 @@
 - [DriftLife Frames System](driftlife-frames.md) — FRAME_CATALOG (not FRAMES) exported from frames.ts; ownedFrames+equippedFrame on User model; equip-frame route in user.ts; give-frame in dev.ts
 - [Express 5 Wildcard Routes](express5-wildcard.md) — bare `*` routes crash on startup; use `/{*splat}` instead
 - [DriftLife Role Enum](driftlife-roles.md) — roles are player|admin|staff|owner (staff added for moderation); requireStaff checks all three elevated roles; frontend User type must match
+- [DriftLife Security Fixes](driftlife-security-fixes.md) — audit fixes applied: helmet+rate-limit, sanitize-html in chat, NoSQL guards in auth, atomic locks in jobs/crimes/combat, NPC drop upsert, friends system, faction chat

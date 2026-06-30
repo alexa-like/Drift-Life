@@ -87,6 +87,10 @@ export function safeUser(user: InstanceType<typeof User>) {
 router.post("/register", async (req, res) => {
   try {
     const { username, email, password, faction, referralCode } = req.body;
+    // Type-guard: reject non-string values to prevent NoSQL injection
+    if (typeof username !== "string" || typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({ message: "username, email and password required" });
+    }
     if (!username || !email || !password)
       return res.status(400).json({ message: "username, email and password required" });
     if (username.length < 3 || username.length > 20)
@@ -229,7 +233,10 @@ router.post("/resend-otp", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: "email and password required" });
+    // Type-guard: reject non-string values to prevent NoSQL injection
+    if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
+      return res.status(400).json({ message: "email and password required" });
+    }
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) return res.status(401).json({ message: "Invalid credentials" });
     if (user.banned) return res.status(403).json({ message: `Banned: ${user.banReason ?? "policy violation"}` });

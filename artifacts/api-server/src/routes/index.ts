@@ -22,6 +22,7 @@ import phase2Router from "./phase2";
 import settingsRouter from "./settings";
 import achievementsRouter from "./achievements";
 import chatRouter from "./chat";
+import friendsRouter from "./friends";
 
 const router: IRouter = Router();
 
@@ -45,6 +46,7 @@ router.use("/frames", framesRouter);
 router.use("/settings", settingsRouter);
 router.use("/achievements", achievementsRouter);
 router.use("/chat", chatRouter);
+router.use("/friends", friendsRouter);
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);
 router.use(phase2Router);

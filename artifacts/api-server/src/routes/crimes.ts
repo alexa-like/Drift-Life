@@ -195,32 +195,49 @@ router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
     const crime = CRIMES.find(c => c.id === req.params.crimeId);
     if (!crime) return res.status(404).json({ message: "Crime not found" });
 
+    // Load user and apply regen
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-
     applyRegen(user);
 
+    // Preliminary checks (non-concurrent-sensitive)
     if (isHospitalized(user)) return res.status(400).json({ message: "You are hospitalized and cannot commit crimes" });
     if (isJailed(user)) return res.status(400).json({ message: "You are jailed" });
     if (user.level < crime.minLevel) return res.status(400).json({ message: `Requires level ${crime.minLevel}` });
-    if (user.nerve < crime.nerveCost) return res.status(400).json({ message: `Not enough nerve (need ${crime.nerveCost})` });
-    if (user.wantedLevel >= 5 && ["corporate_espionage","assassination_contract","vault_crack"].includes(crime.id)) {
+    if (user.wantedLevel >= 5 && ["corporate_espionage", "assassination_contract", "vault_crack"].includes(crime.id)) {
       return res.status(400).json({ message: "Too hot. Max wanted level blocks extreme crimes." });
     }
 
-    user.nerve -= crime.nerveCost;
-    user.totalCrimes += 1;
+    // Save regen state so DB reflects updated nerve before the atomic gate
+    await User.updateOne({ _id: req.userId }, {
+      $set: {
+        energy: user.energy,
+        nerve: user.nerve,
+        energyRegenAt: user.energyRegenAt,
+        nerveRegenAt: user.nerveRegenAt,
+      },
+    });
+
+    // ATOMIC: check nerve and deduct (prevents concurrent double-spend)
+    const gated = await User.findOneAndUpdate(
+      { _id: req.userId, nerve: { $gte: crime.nerveCost } },
+      { $inc: { nerve: -crime.nerveCost, totalCrimes: 1 } },
+      { new: true },
+    );
+    if (!gated) {
+      return res.status(400).json({ message: `Not enough nerve (need ${crime.nerveCost})` });
+    }
 
     const nowDate = new Date();
     const todayStr = nowDate.toDateString();
-    const isFirstCrimeToday = !user.lastCrimeDate || user.lastCrimeDate.toDateString() !== todayStr;
-    user.lastCrimeDate = nowDate;
+    const isFirstCrimeToday = !gated.lastCrimeDate || gated.lastCrimeDate.toDateString() !== todayStr;
+    gated.lastCrimeDate = nowDate;
 
     // Success formula from spec
-    const intBonus = (user.intelligence - 5) * 0.01;
-    const factionBonus = (user.faction === "suits" && ["scam_operation","corporate_espionage"].includes(crime.id)) ? 0.05
-      : (user.faction === "street" && ["break_in","heist_solo"].includes(crime.id)) ? 0.05
-      : (user.faction === "grid" && ["data_breach","scam_operation"].includes(crime.id)) ? 0.05 : 0;
+    const intBonus = (gated.intelligence - 5) * 0.01;
+    const factionBonus = (gated.faction === "suits" && ["scam_operation", "corporate_espionage"].includes(crime.id)) ? 0.05
+      : (gated.faction === "street" && ["break_in", "heist_solo"].includes(crime.id)) ? 0.05
+      : (gated.faction === "grid" && ["data_breach", "scam_operation"].includes(crime.id)) ? 0.05 : 0;
     const successChance = Math.min(0.95, crime.baseSuccess + intBonus + factionBonus);
     const roll = Math.random();
     const success = roll < successChance;
@@ -234,17 +251,17 @@ router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
     if (success) {
       dcGained = Math.floor(crime.dcMin + Math.random() * (crime.dcMax - crime.dcMin));
       xpGained = crime.xp * (isFirstCrimeToday ? 2 : 1);
-      user.dc = Math.min(user.dc + dcGained, 100_000_000);
-      user.xp += xpGained;
-      user.successfulCrimes += 1;
-      user.wantedLevel = Math.min(5, user.wantedLevel + crime.wantedIncrease);
-      user.wantedDecayAt = new Date();
-      leveled = levelUp(user);
+      gated.dc = Math.min(gated.dc + dcGained, 100_000_000);
+      gated.xp += xpGained;
+      gated.successfulCrimes += 1;
+      gated.wantedLevel = Math.min(5, gated.wantedLevel + crime.wantedIncrease);
+      gated.wantedDecayAt = new Date();
+      leveled = levelUp(gated);
       narrative = crime.flavour;
     } else {
       // Failure: hospital risk
       if (Math.random() < crime.hospitalRisk) {
-        user.hospitalizedUntil = new Date(Date.now() + crime.hospitalDuration);
+        gated.hospitalizedUntil = new Date(Date.now() + crime.hospitalDuration);
         hospitalized = true;
         narrative = `The security system flagged your biometrics. You woke up in New Vanta General.`;
       } else {
@@ -252,15 +269,15 @@ router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
-    await user.save();
+    await gated.save();
     checkAchievements(String(req.userId)).catch(() => {});
 
     // Feed post
     await FeedEvent.create({
       type: "crime",
-      actor: user.username,
-      actorId: user._id,
-      message: `${user.username} ${success ? "pulled off" : "botched"} a ${crime.name}${dcGained ? ` — +${dcGained} DC` : ""}`,
+      actor: gated.username,
+      actorId: gated._id,
+      message: `${gated.username} ${success ? "pulled off" : "botched"} a ${crime.name}${dcGained ? ` — +${dcGained} DC` : ""}`,
       dc: dcGained,
       xp: xpGained,
     }).catch(() => {});
@@ -271,18 +288,18 @@ router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
       dcGained,
       xpGained,
       hospitalized,
-      hospitalizedUntil: user.hospitalizedUntil,
+      hospitalizedUntil: gated.hospitalizedUntil,
       leveled,
-      newLevel: leveled ? user.level : undefined,
+      newLevel: leveled ? gated.level : undefined,
       user: {
-        dc: user.dc,
-        nerve: user.nerve,
-        maxNerve: user.maxNerve,
-        xp: user.xp,
-        xpToNext: user.xpToNext,
-        level: user.level,
-        wantedLevel: user.wantedLevel,
-        hospitalizedUntil: user.hospitalizedUntil,
+        dc: gated.dc,
+        nerve: gated.nerve,
+        maxNerve: gated.maxNerve,
+        xp: gated.xp,
+        xpToNext: gated.xpToNext,
+        level: gated.level,
+        wantedLevel: gated.wantedLevel,
+        hospitalizedUntil: gated.hospitalizedUntil,
       },
     });
   } catch (err: any) {

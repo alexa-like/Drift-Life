@@ -40,11 +40,30 @@ router.get("/npcs/all", requireAuth, async (_req, res) => {
   res.json(NPCS);
 });
 
+const NPC_COMBAT_COOLDOWN_MS = 5000; // 5-second cooldown between NPC fights
+
 // POST /api/combat/npc/:npcId
 router.post("/npc/:npcId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const npc = NPCS.find(n => n.id === req.params.npcId);
     if (!npc) return res.status(404).json({ message: "NPC not found" });
+
+    // ATOMIC: per-user NPC combat cooldown (prevents concurrent NPC spam)
+    const cooldownGate = await User.findOneAndUpdate(
+      {
+        _id: req.userId,
+        $or: [
+          { lastNpcCombatAt: null },
+          { lastNpcCombatAt: { $exists: false } },
+          { lastNpcCombatAt: { $lte: new Date(Date.now() - NPC_COMBAT_COOLDOWN_MS) } },
+        ],
+      },
+      { $set: { lastNpcCombatAt: new Date() } },
+      { new: true },
+    );
+    if (!cooldownGate) {
+      return res.status(429).json({ message: "NPC combat cooldown — wait a few seconds" });
+    }
 
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -181,20 +200,28 @@ async function grantNpcDrop(userId: string, dropRarity: string): Promise<void> {
   const pool = rarityPool.filter(i => i.rarity === rarity);
   if (!pool.length) return;
   const template = pool[Math.floor(Math.random() * pool.length)];
-  await Item.create({
-    owner: userId,
-    name: template.name,
-    type: template.type,
-    rarity: template.rarity,
-    strengthBonus: template.strengthBonus,
-    charismaBonus: 0,
-    intelligenceBonus: 0,
-    streetCredBonus: 0,
-    defenseBonus: 0,
-    basePrice: template.basePrice,
-    quantity: 1,
-    slot: template.slot,
-  });
+
+  // Upsert: increment quantity if item already exists, otherwise create it
+  await Item.findOneAndUpdate(
+    { owner: userId, name: template.name, type: template.type, rarity: template.rarity },
+    {
+      $inc: { quantity: 1 },
+      $setOnInsert: {
+        owner: userId,
+        name: template.name,
+        type: template.type,
+        rarity: template.rarity,
+        strengthBonus: template.strengthBonus,
+        charismaBonus: 0,
+        intelligenceBonus: 0,
+        streetCredBonus: 0,
+        defenseBonus: 0,
+        basePrice: template.basePrice,
+        slot: template.slot,
+      },
+    },
+    { upsert: true },
+  );
 }
 
 // GET /api/combat/targets

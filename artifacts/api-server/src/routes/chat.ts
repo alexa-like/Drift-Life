@@ -1,4 +1,5 @@
 import { Router } from "express";
+import sanitizeHtml from "sanitize-html";
 import User from "../models/User";
 import ChatMessage, { dmKey } from "../models/ChatMessage";
 import { requireAuth, requireOwner, AuthRequest } from "../middlewares/auth";
@@ -19,6 +20,12 @@ function requireStaff(req: AuthRequest, res: any, next: any) {
     return res.status(403).json({ message: "Staff only" });
   }
   next();
+}
+
+/** Strip all HTML tags from user-provided text. Returns plain text only. */
+function sanitizeContent(raw: unknown): string {
+  if (!raw || typeof raw !== "string") return "";
+  return sanitizeHtml(raw, { allowedTags: [], allowedAttributes: {} }).trim();
 }
 
 // ── GLOBAL CHAT ───────────────────────────────────────────────────────────────
@@ -50,10 +57,9 @@ router.get("/global", requireAuth, async (req: AuthRequest, res) => {
 // POST /api/chat/global — send a global message
 router.post("/global", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { content } = req.body;
-    if (!content || typeof content !== "string") return res.status(400).json({ message: "content required" });
-    const trimmed = content.trim().slice(0, MAX_CONTENT_LEN);
-    if (!trimmed) return res.status(400).json({ message: "Empty message" });
+    const content = sanitizeContent(req.body.content);
+    if (!content) return res.status(400).json({ message: "content required" });
+    if (content.length > MAX_CONTENT_LEN) return res.status(400).json({ message: `Message too long (max ${MAX_CONTENT_LEN} chars)` });
 
     const now = Date.now();
     const lastSent = cooldownMap.get(String(req.userId)) || 0;
@@ -80,7 +86,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
       senderFrameColor: user.equippedFrameColor,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
-      content: trimmed,
+      content,
     });
 
     const io = req.app.locals["io"];
@@ -93,7 +99,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
         frame: user.equippedFrame,
         frameColor: user.equippedFrameColor,
         title: user.equippedTitle,
-        content: trimmed,
+        content,
         at: message.createdAt,
       });
     }
@@ -137,10 +143,9 @@ router.get("/district/:districtId", requireAuth, async (req: AuthRequest, res) =
 router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { districtId } = req.params;
-    const { content } = req.body;
-    if (!content || typeof content !== "string") return res.status(400).json({ message: "content required" });
-    const trimmed = content.trim().slice(0, MAX_CONTENT_LEN);
-    if (!trimmed) return res.status(400).json({ message: "Empty message" });
+    const content = sanitizeContent(req.body.content);
+    if (!content) return res.status(400).json({ message: "content required" });
+    if (content.length > MAX_CONTENT_LEN) return res.status(400).json({ message: `Message too long (max ${MAX_CONTENT_LEN} chars)` });
 
     const now = Date.now();
     const lastSent = cooldownMap.get(String(req.userId)) || 0;
@@ -168,7 +173,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
       senderFrameColor: user.equippedFrameColor,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
-      content: trimmed,
+      content,
     }) as any;
 
     const io = req.app.locals["io"];
@@ -181,7 +186,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
         frame: user.equippedFrame,
         frameColor: user.equippedFrameColor,
         title: user.equippedTitle,
-        content: trimmed,
+        content,
         at: message.createdAt,
         districtId: dId,
       });
@@ -190,6 +195,98 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
     res.json({ message: "Sent", id: message._id });
   } catch (err: any) {
     req.log.error({ err }, "post district chat error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── FACTION CHAT ──────────────────────────────────────────────────────────────
+
+// GET /api/chat/faction — last 50 messages in the player's faction channel
+router.get("/faction", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("faction").lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.faction || user.faction === null) {
+      return res.status(400).json({ message: "You must belong to a faction to use faction chat" });
+    }
+    const messages = await ChatMessage.find({ channel: `faction:${user.faction}`, deleted: false })
+      .sort({ createdAt: -1 })
+      .limit(HISTORY_LIMIT)
+      .lean();
+    res.json(messages.reverse().map(m => ({
+      id: m._id,
+      userId: m.senderId,
+      username: m.senderName,
+      faction: m.senderFaction,
+      frame: m.senderFrame,
+      frameColor: m.senderFrameColor,
+      title: m.senderTitle,
+      content: m.content,
+      at: m.createdAt,
+    })));
+  } catch (err: any) {
+    req.log.error({ err }, "get faction chat error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/chat/faction — send a faction message
+router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const content = sanitizeContent(req.body.content);
+    if (!content) return res.status(400).json({ message: "content required" });
+    if (content.length > MAX_CONTENT_LEN) return res.status(400).json({ message: `Message too long (max ${MAX_CONTENT_LEN} chars)` });
+
+    const now = Date.now();
+    const lastSent = cooldownMap.get(`faction:${String(req.userId)}`) || 0;
+    if (now - lastSent < MESSAGE_COOLDOWN_MS) {
+      return res.status(429).json({ message: "Slow down — 1 message per 3 seconds" });
+    }
+    cooldownMap.set(`faction:${String(req.userId)}`, now);
+
+    const user = await User.findById(req.userId)
+      .select("username faction equippedFrame equippedFrameColor equippedTitle mutedUntil banned");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.banned) return res.status(403).json({ message: "Banned" });
+    if (!user.faction) {
+      return res.status(400).json({ message: "Join a faction to use faction chat" });
+    }
+    if (user.mutedUntil && user.mutedUntil > new Date()) {
+      return res.status(403).json({ message: "You are muted" });
+    }
+
+    const channel = `faction:${user.faction}` as `faction:${string}`;
+    const message = await ChatMessage.create({
+      channel,
+      districtId: null,
+      dmKey: null,
+      senderId: user._id,
+      senderName: user.username,
+      senderFrame: user.equippedFrame,
+      senderFrameColor: user.equippedFrameColor,
+      senderFaction: user.faction,
+      senderTitle: user.equippedTitle,
+      content,
+    });
+
+    const io = req.app.locals["io"];
+    if (io) {
+      io.to(channel).emit("faction_message", {
+        id: message._id,
+        userId: user._id,
+        username: user.username,
+        faction: user.faction,
+        frame: user.equippedFrame,
+        frameColor: user.equippedFrameColor,
+        title: user.equippedTitle,
+        content,
+        at: message.createdAt,
+      });
+    }
+
+    res.json({ message: "Sent", id: message._id });
+  } catch (err: any) {
+    req.log.error({ err }, "post faction chat error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -291,10 +388,9 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
 
     if (myId === otherId) return res.status(400).json({ message: "Cannot DM yourself" });
 
-    const { content } = req.body;
-    if (!content || typeof content !== "string") return res.status(400).json({ message: "content required" });
-    const trimmed = content.trim().slice(0, MAX_CONTENT_LEN);
-    if (!trimmed) return res.status(400).json({ message: "Empty message" });
+    const content = sanitizeContent(req.body.content);
+    if (!content) return res.status(400).json({ message: "content required" });
+    if (content.length > MAX_CONTENT_LEN) return res.status(400).json({ message: `Message too long (max ${MAX_CONTENT_LEN} chars)` });
 
     const [me, other] = await Promise.all([
       User.findById(myId).select("username faction equippedFrame equippedFrameColor equippedTitle mutedUntil banned blockedUsers"),
@@ -327,7 +423,7 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
       senderFrameColor: me.equippedFrameColor,
       senderFaction: me.faction,
       senderTitle: me.equippedTitle,
-      content: trimmed,
+      content,
     });
 
     const io = req.app.locals["io"];
@@ -340,7 +436,7 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
         frame: me.equippedFrame,
         frameColor: me.equippedFrameColor,
         title: me.equippedTitle,
-        content: trimmed,
+        content,
         at: message.createdAt,
       };
       io.to(`user:${otherId}`).emit("new_dm", { senderId: myId, senderName: me.username, message: payload });

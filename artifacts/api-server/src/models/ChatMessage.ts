@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export interface IChatMessage extends Document {
   _id: mongoose.Types.ObjectId;
-  channel: "global" | "district" | "dm";
+  channel: "global" | "district" | "dm" | `faction:${string}`;
   districtId: string | null;
   dmKey: string | null;
   senderId: mongoose.Types.ObjectId;
@@ -18,7 +18,7 @@ export interface IChatMessage extends Document {
 
 const ChatMessageSchema = new Schema<IChatMessage>(
   {
-    channel:         { type: String, enum: ["global", "district", "dm"], required: true },
+    channel:         { type: String, required: true },
     districtId:      { type: String, default: null },
     dmKey:           { type: String, default: null },
     senderId:        { type: Schema.Types.ObjectId, ref: "User", required: true },

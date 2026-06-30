@@ -64,50 +64,64 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
     const job = JOBS.find(j => j.id === req.params.jobId);
     if (!job) return res.status(404).json({ message: "Job not found" });
 
+    // Load user and apply regen
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-
     applyRegen(user);
 
+    // Preliminary checks (non-concurrent-sensitive)
     if (isHospitalized(user)) return res.status(400).json({ message: "You are hospitalized" });
     if (isJailed(user)) return res.status(400).json({ message: "You are in jail" });
     if (user.level < job.minLevel) return res.status(400).json({ message: `Requires level ${job.minLevel}` });
     if (job.district !== "any" && user.district !== job.district) {
       return res.status(400).json({ message: `This job is only available in ${job.district.replace(/-/g, " ")}` });
     }
-    if (user.energy < job.energyCost) return res.status(400).json({ message: `Not enough energy (need ${job.energyCost})` });
 
-    // Check cooldown
-    const cooldowns = (user as any).jobCooldowns || {};
-    const cooldownUntil = cooldowns[job.id] ? new Date(cooldowns[job.id]) : null;
-    if (cooldownUntil && cooldownUntil > new Date()) {
-      const secsLeft = Math.ceil((cooldownUntil.getTime() - Date.now()) / 1000);
-      return res.status(400).json({ message: `On cooldown. ${secsLeft}s remaining.`, cooldownUntil });
-    }
+    // Save regen state so DB reflects updated energy before the atomic gate
+    await User.updateOne({ _id: req.userId }, {
+      $set: {
+        energy: user.energy,
+        nerve: user.nerve,
+        energyRegenAt: user.energyRegenAt,
+        nerveRegenAt: user.nerveRegenAt,
+      },
+    });
 
-    user.energy -= job.energyCost;
-
-    // Faction bonus
+    // Faction bonuses
+    const energyRefund = user.faction === "grid" ? Math.floor(job.energyCost * 0.10) : 0;
     let dcMultiplier = 1;
     if (user.faction === "suits") dcMultiplier = 1.10;
-    if (user.faction === "grid") {
-      user.energy += Math.floor(job.energyCost * 0.10);
-      dcMultiplier = 1;
-    }
 
     const dcGained = Math.floor((job.dcMin + Math.random() * (job.dcMax - job.dcMin)) * dcMultiplier);
     const xpGained = job.xpPerJob;
-    user.dc = Math.min(user.dc + dcGained, 100_000_000);
-    user.xp += xpGained;
-    user.job = job.id;
+    const cooldownUntil = new Date(Date.now() + job.cooldownMin * 60 * 1000);
 
-    // Set cooldown
-    const newCooldowns = { ...(user as any).jobCooldowns?.toJSON?.() || cooldowns };
-    newCooldowns[job.id] = new Date(Date.now() + job.cooldownMin * 60 * 1000);
-    (user as any).jobCooldowns = newCooldowns;
+    // ATOMIC: check energy AND cooldown, deduct energy, set cooldown in one operation
+    const gated = await User.findOneAndUpdate(
+      {
+        _id: req.userId,
+        energy: { $gte: job.energyCost },
+        $or: [
+          { [`jobCooldowns.${job.id}`]: { $exists: false } },
+          { [`jobCooldowns.${job.id}`]: { $lte: new Date() } },
+        ],
+      },
+      {
+        $inc: { energy: -job.energyCost + energyRefund },
+        $set: { job: job.id, [`jobCooldowns.${job.id}`]: cooldownUntil },
+      },
+      { new: true },
+    );
 
-    const leveled = levelUp(user);
-    await user.save();
+    if (!gated) {
+      return res.status(400).json({ message: "Not enough energy or job is on cooldown" });
+    }
+
+    // Apply DC/XP rewards and level-up
+    gated.dc = Math.min(gated.dc + dcGained, 100_000_000);
+    gated.xp += xpGained;
+    const leveled = levelUp(gated);
+    await gated.save();
     checkAchievements(String(req.userId)).catch(() => {});
 
     // 30% chance to trigger the job's assigned mini-game
@@ -116,9 +130,9 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
 
     await FeedEvent.create({
       type: "job",
-      actor: user.username,
-      actorId: user._id,
-      message: `${user.username} completed a shift as ${job.name} and earned ${dcGained} DC`,
+      actor: gated.username,
+      actorId: gated._id,
+      message: `${gated.username} completed a shift as ${job.name} and earned ${dcGained} DC`,
       dc: dcGained,
       xp: xpGained,
     }).catch(() => {});
@@ -127,17 +141,17 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
       dcGained,
       xpGained,
       leveled,
-      newLevel: leveled ? user.level : undefined,
+      newLevel: leveled ? gated.level : undefined,
       miniGameTriggered,
       miniGameType,
-      cooldownUntil: newCooldowns[job.id],
+      cooldownUntil,
       user: {
-        dc: user.dc,
-        energy: user.energy,
-        maxEnergy: user.maxEnergy,
-        xp: user.xp,
-        xpToNext: user.xpToNext,
-        level: user.level,
+        dc: gated.dc,
+        energy: gated.energy,
+        maxEnergy: gated.maxEnergy,
+        xp: gated.xp,
+        xpToNext: gated.xpToNext,
+        level: gated.level,
       },
     });
   } catch (err: any) {
