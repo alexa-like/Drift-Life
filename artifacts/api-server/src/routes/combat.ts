@@ -78,7 +78,7 @@ router.post("/npc/:npcId", requireAuth, async (req: AuthRequest, res) => {
       dcGained = Math.floor(npc.dcMin + Math.random() * (npc.dcMax - npc.dcMin));
       xpGained = npc.xp;
       if (user.faction === "street") xpGained = Math.floor(xpGained * 1.1); // +10% xp for Street
-      user.dc += dcGained;
+      user.dc = Math.min(user.dc + dcGained, 100_000_000);
       user.xp += xpGained;
       user.wins += 1;
       leveled = levelUp(user);
@@ -322,7 +322,7 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
       dcGained = Math.min(Math.floor(defender.dc * 0.10), 500000);
       if (user_faction_bonus(attacker)) dcGained = Math.floor(dcGained * 1.10);
       dcGained = Math.max(0, dcGained);
-      attacker.dc += dcGained;
+      attacker.dc = Math.min(attacker.dc + dcGained, 100_000_000);
       defender.dc = Math.max(0, defender.dc - dcGained);
 
       xpGained = 20 + attacker.level * 2;

@@ -305,7 +305,7 @@ router.post("/listings/:id/buy", requireAuth, async (req: AuthRequest, res) => {
     const sellerReceives = salePrice - fee;
 
     buyer.dc -= salePrice;
-    seller.dc += sellerReceives;
+    seller.dc = Math.min(seller.dc + sellerReceives, 100_000_000);
 
     item.owner = buyer._id;
     item.marketListed = false;

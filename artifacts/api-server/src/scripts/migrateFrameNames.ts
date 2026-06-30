@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import Frame from "../models/Frame";
-import { connectDb } from "../lib/db";
+import { connectDB } from "../lib/db";
 
 const NAME_MAP: Record<string, string> = {
   ghostFrame:     "Phantom",
@@ -66,7 +66,7 @@ const NAME_MAP: Record<string, string> = {
 };
 
 async function migrate() {
-  await connectDb();
+  await connectDB();
   let updated = 0;
   for (const [frameId, displayName] of Object.entries(NAME_MAP)) {
     const result = await Frame.updateOne({ frameId }, { $set: { displayName } });

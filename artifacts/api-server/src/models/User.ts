@@ -267,6 +267,15 @@ export function isHospitalized(user: IUser): boolean {
   return user.hospitalizedUntil !== null && user.hospitalizedUntil > new Date();
 }
 
+export const WALLET_CAP = 100_000_000;   // 100M DC max on hand
+export const BANK_CAP   = 1_000_000_000; // 1B DC max in bank
+
+// Hard clamp on every save — safety net for all code paths
+UserSchema.pre("save", function () {
+  if (this.dc > WALLET_CAP) this.dc = WALLET_CAP;
+  if (this.bankBalance > BANK_CAP) this.bankBalance = BANK_CAP;
+});
+
 export function isJailed(user: IUser): boolean {
   return user.jailUntil !== null && user.jailUntil > new Date();
 }

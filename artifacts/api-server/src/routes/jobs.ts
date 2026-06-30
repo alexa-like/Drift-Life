@@ -97,7 +97,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
 
     const dcGained = Math.floor((job.dcMin + Math.random() * (job.dcMax - job.dcMin)) * dcMultiplier);
     const xpGained = job.xpPerJob;
-    user.dc += dcGained;
+    user.dc = Math.min(user.dc + dcGained, 100_000_000);
     user.xp += xpGained;
     user.job = job.id;
 
@@ -156,7 +156,7 @@ router.post("/minigame/complete", requireAuth, async (req: AuthRequest, res) => 
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
     const bonus = Math.floor(user.dc * 0.02 * (multiplier - 1) * 100);
-    user.dc += bonus;
+    user.dc = Math.min(user.dc + bonus, 100_000_000);
     await user.save();
     res.json({ bonus, newDc: user.dc });
   } catch (err: any) {

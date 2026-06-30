@@ -113,7 +113,7 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
 
     const reward = getDayReward(user.dailyStreak);
 
-    user.dc += reward.dc;
+    user.dc = Math.min(user.dc + reward.dc, 100_000_000);
     user.xp += reward.xp;
     user.lastDailyReward = now;
 

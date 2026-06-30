@@ -1,5 +1,6 @@
 import { Router } from "express";
 import User from "../models/User";
+import { WALLET_CAP, BANK_CAP } from "../models/User";
 import FeedEvent from "../models/FeedEvent";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 
@@ -21,6 +22,8 @@ router.post("/deposit", requireAuth, async (req: AuthRequest, res) => {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "Not found" });
     if (user.dc < amount) return res.status(400).json({ message: "Insufficient funds" });
+    if (user.bankBalance + amount > BANK_CAP)
+      return res.status(400).json({ message: `Bank is full — max ${(BANK_CAP / 1_000_000_000).toFixed(0)}B DC` });
 
     user.dc -= amount;
     user.bankBalance += amount;
@@ -42,6 +45,8 @@ router.post("/withdraw", requireAuth, async (req: AuthRequest, res) => {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "Not found" });
     if (user.bankBalance < amount) return res.status(400).json({ message: "Insufficient funds" });
+    if (user.dc + amount > WALLET_CAP)
+      return res.status(400).json({ message: `Wallet is full — max ${(WALLET_CAP / 1_000_000).toFixed(0)}M DC on hand. Deposit some first.` });
 
     user.bankBalance -= amount;
     user.dc += amount;
@@ -72,6 +77,8 @@ router.post("/transfer", requireAuth, async (req: AuthRequest, res) => {
     if (String(sender._id) === String(recipient._id))
       return res.status(400).json({ message: "Cannot transfer to yourself" });
     if (sender.dc < amount) return res.status(400).json({ message: "Insufficient funds" });
+    if (recipient.dc + amount > WALLET_CAP)
+      return res.status(400).json({ message: `Recipient's wallet is full — they can hold max ${(WALLET_CAP / 1_000_000).toFixed(0)}M DC on hand` });
 
     sender.dc -= amount;
     recipient.dc += amount;

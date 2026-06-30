@@ -234,7 +234,7 @@ router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
     if (success) {
       dcGained = Math.floor(crime.dcMin + Math.random() * (crime.dcMax - crime.dcMin));
       xpGained = crime.xp * (isFirstCrimeToday ? 2 : 1);
-      user.dc += dcGained;
+      user.dc = Math.min(user.dc + dcGained, 100_000_000);
       user.xp += xpGained;
       user.successfulCrimes += 1;
       user.wantedLevel = Math.min(5, user.wantedLevel + crime.wantedIncrease);
