@@ -144,8 +144,9 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
 
     const reward = getDayReward(newStreak);
     // Apply DC (capped), XP, streak — aggregation pipeline enforces wallet cap atomically
+    // Use oldUser._id (ObjectId) — consistent with crimes/jobs; avoids Mongoose 9 string-cast edge cases
     const updated = await User.findByIdAndUpdate(
-      req.userId,
+      oldUser._id,
       [{ $set: {
         dc:          { $min: [{ $add: ["$dc", reward.dc] }, 100_000_000] },
         xp:          { $add: ["$xp", reward.xp] },
@@ -155,14 +156,32 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
     );
     if (!updated) return res.status(500).json({ message: "Internal server error" });
 
-    // Level-up check
+    // Level-up check — use findByIdAndUpdate instead of .save() to avoid stale-document
+    // conflicts in Mongoose 9 (doc was already touched by the first findOneAndUpdate)
     const leveled = levelUp(updated);
-    if (leveled) await updated.save();
+    if (leveled) {
+      await User.findByIdAndUpdate(oldUser._id, {
+        $set: {
+          xp: updated.xp,
+          level: updated.level,
+          xpToNext: updated.xpToNext,
+          rank: updated.rank,
+          maxHealth: updated.maxHealth,
+          maxEnergy: updated.maxEnergy,
+          maxNerve: updated.maxNerve,
+          skillPoints: updated.skillPoints,
+        },
+      });
+    }
 
-    // Item drop
+    // Item drop — isolated so a failed grant on milestone days never aborts the whole claim
     let itemGranted: string | null = null;
     if (reward.itemRarity) {
-      itemGranted = await grantDailyItem(String(req.userId), reward.itemRarity);
+      try {
+        itemGranted = await grantDailyItem(String(oldUser._id), reward.itemRarity);
+      } catch (itemErr: any) {
+        req.log.warn({ itemErr }, "daily item grant failed — reward still applied");
+      }
     }
 
     checkAchievements(String(req.userId)).catch(() => {});
