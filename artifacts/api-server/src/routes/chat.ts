@@ -293,57 +293,73 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
 
 // ── DIRECT MESSAGES ───────────────────────────────────────────────────────────
 
+/** Shared helper: build the conversations list for the requesting user */
+async function getDmConversations(userId: string): Promise<object[]> {
+  // Escape any regex-special characters in the userId string before embedding it
+  const escaped = userId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(^|:)${escaped}($|:)`);
+
+  const conversations: any[] = await ChatMessage.aggregate([
+    { $match: { channel: "dm", deleted: false, dmKey: { $regex: pattern } } },
+    { $sort: { createdAt: -1 } },
+    { $group: { _id: "$dmKey", lastMsg: { $first: "$$ROOT" } } },
+    { $sort: { "lastMsg.createdAt": -1 } },
+    { $limit: 50 },
+  ]);
+
+  const otherIds: string[] = [];
+  for (const c of conversations) {
+    const parts: string[] = String(c._id).split(":");
+    const otherId = parts.find((p: string) => p !== userId);
+    if (otherId) otherIds.push(otherId);
+  }
+
+  const otherUsers = await User.find({ _id: { $in: otherIds } })
+    .select("username avatar avatarUrl faction equippedFrame equippedFrameColor lastActiveAt appearOffline")
+    .lean();
+  const userMap: Record<string, (typeof otherUsers)[0]> = {};
+  for (const u of otherUsers) userMap[String(u._id)] = u;
+
+  const now = Date.now();
+  return conversations.map((c: any) => {
+    const parts: string[] = String(c._id).split(":");
+    const otherId = parts.find((p: string) => p !== userId) || "";
+    const other = userMap[otherId] as any;
+    const lastActive = other?.lastActiveAt ? new Date(other.lastActiveAt).getTime() : 0;
+    const msSince = now - lastActive;
+    const isOnline = !other?.appearOffline && msSince < 5 * 60 * 1000;
+    const isAway = !other?.appearOffline && !isOnline && msSince < 30 * 60 * 1000;
+    return {
+      userId: otherId,
+      username: other?.username || "Unknown",
+      avatar: other?.avatar || "1",
+      avatarUrl: other?.avatarUrl || null,
+      faction: other?.faction || null,
+      equippedFrame: other?.equippedFrame || null,
+      equippedFrameColor: other?.equippedFrameColor || null,
+      lastMessage: c.lastMsg.content,
+      lastAt: c.lastMsg.createdAt,
+      onlineStatus: isOnline ? "online" : isAway ? "away" : "offline",
+    };
+  });
+}
+
 // GET /api/chat/dm/conversations — list all DM conversations
 router.get("/dm/conversations", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const userId = String(req.userId);
-    const pattern = new RegExp(`(^|:)${userId}($|:)`);
-
-    const conversations: any[] = await ChatMessage.aggregate([
-      { $match: { channel: "dm", deleted: false, dmKey: { $regex: pattern } } },
-      { $sort: { createdAt: -1 } },
-      { $group: { _id: "$dmKey", lastMsg: { $first: "$$ROOT" } } },
-      { $sort: { "lastMsg.createdAt": -1 } },
-      { $limit: 50 },
-    ]);
-
-    const otherIds: string[] = [];
-    for (const c of conversations) {
-      const parts: string[] = String(c._id).split(":");
-      const otherId = parts.find((p: string) => p !== userId);
-      if (otherId) otherIds.push(otherId);
-    }
-
-    const otherUsers = await User.find({ _id: { $in: otherIds } })
-      .select("username avatar avatarUrl faction equippedFrame equippedFrameColor lastActiveAt appearOffline")
-      .lean();
-    const userMap: Record<string, (typeof otherUsers)[0]> = {};
-    for (const u of otherUsers) userMap[String(u._id)] = u;
-
-    const now = Date.now();
-    res.json(conversations.map((c: any) => {
-      const parts: string[] = String(c._id).split(":");
-      const otherId = parts.find((p: string) => p !== userId) || "";
-      const other = userMap[otherId] as any;
-      const lastActive = other?.lastActiveAt ? new Date(other.lastActiveAt).getTime() : 0;
-      const msSince = now - lastActive;
-      const isOnline = !other?.appearOffline && msSince < 5 * 60 * 1000;
-      const isAway = !other?.appearOffline && !isOnline && msSince < 30 * 60 * 1000;
-      return {
-        userId: otherId,
-        username: other?.username || "Unknown",
-        avatar: other?.avatar || "1",
-        avatarUrl: other?.avatarUrl || null,
-        faction: other?.faction || null,
-        equippedFrame: other?.equippedFrame || null,
-        equippedFrameColor: other?.equippedFrameColor || null,
-        lastMessage: c.lastMsg.content,
-        lastAt: c.lastMsg.createdAt,
-        onlineStatus: isOnline ? "online" : isAway ? "away" : "offline",
-      };
-    }));
+    res.json(await getDmConversations(String(req.userId)));
   } catch (err: any) {
     req.log.error({ err }, "get dm conversations error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/chat/dm/list — alias for /dm/conversations (must be registered before /dm/:userId)
+router.get("/dm/list", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    res.json(await getDmConversations(String(req.userId)));
+  } catch (err: any) {
+    req.log.error({ err }, "get dm list error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -353,6 +369,12 @@ router.get("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const myId = String(req.userId);
     const otherId = String(req.params.userId);
+
+    // Guard against non-ObjectId params (e.g. "list" or "conversations" falling through)
+    if (!mongoose.isValidObjectId(otherId)) {
+      return res.status(400).json({ message: "Invalid userId" });
+    }
+
     const key = dmKey(myId, otherId);
 
     const other = await User.findById(otherId).select("dmPrivacy banned").lean();
