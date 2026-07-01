@@ -48,7 +48,8 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   }, [activeTab]);
 
   const xpPct = Math.min(100, Math.round((user.xp / user.xpToNext) * 100));
-  const equippedFrameId = user.equippedFrame || null;
+  // Avatar surface uses its own slot; fall back to legacy equippedFrame
+  const equippedFrameId = (user.equippedFrames?.avatar && user.equippedFrames.avatar !== "ghostFrame") ? user.equippedFrames.avatar : (user.equippedFrame || null);
   const equippedColor = user.equippedFrameColor || null;
   const equippedFrameDef = equippedFrameId ? getFrame(equippedFrameId) : null;
   const isElevated = user.role === "owner" || user.role === "admin";

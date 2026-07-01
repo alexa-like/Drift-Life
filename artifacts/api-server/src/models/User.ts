@@ -77,6 +77,11 @@ export interface IUser extends Document {
   equippedFrame: string | null;
   equippedFrameRarity: string | null;
   equippedFrameColor: string | null;
+  equippedFrames: {
+    avatar: string;
+    chat: string;
+    feed: string;
+  };
   equippedTitle: string | null;
   titles: string[];
   ownedFrames: string[];
@@ -182,6 +187,11 @@ const UserSchema = new Schema<IUser>(
     equippedFrame: { type: String, default: "ghostFrame" },
     equippedFrameRarity: { type: String, default: "common" },
     equippedFrameColor: { type: String, default: null },
+    equippedFrames: {
+      avatar: { type: String, default: "ghostFrame" },
+      chat:   { type: String, default: "ghostFrame" },
+      feed:   { type: String, default: "ghostFrame" },
+    },
     equippedTitle: { type: String, default: "New in Town" },
     titles: [{ type: String }],
     ownedFrames: [{ type: String }],

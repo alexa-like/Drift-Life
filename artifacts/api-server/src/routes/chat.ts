@@ -15,6 +15,13 @@ const XP_CAP_PER_DAY = 20;
 
 const cooldownMap = new Map<string, number>();
 
+/** Returns the frame the user has equipped for chat surfaces, falling back to the legacy equippedFrame. */
+function userChatFrame(user: { equippedFrame?: string | null; equippedFrames?: { chat?: string } | null }): string | null {
+  const slot = user.equippedFrames?.chat;
+  if (slot && slot !== "ghostFrame") return slot;
+  return user.equippedFrame || null;
+}
+
 function requireStaff(req: AuthRequest, res: any, next: any) {
   if (req.role !== "owner" && req.role !== "admin" && req.role !== "staff") {
     return res.status(403).json({ message: "Staff only" });
@@ -69,7 +76,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedFrame equippedFrameColor equippedTitle mutedUntil banned");
+      .select("username faction equippedFrame equippedFrames equippedFrameColor equippedTitle mutedUntil banned");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
@@ -82,7 +89,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
       dmKey: null,
       senderId: user._id,
       senderName: user.username,
-      senderFrame: user.equippedFrame,
+      senderFrame: userChatFrame(user),
       senderFrameColor: user.equippedFrameColor,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
@@ -96,7 +103,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
         userId: user._id,
         username: user.username,
         faction: user.faction,
-        frame: user.equippedFrame,
+        frame: userChatFrame(user),
         frameColor: user.equippedFrameColor,
         title: user.equippedTitle,
         content,
@@ -155,7 +162,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedFrame equippedFrameColor equippedTitle mutedUntil banned district");
+      .select("username faction equippedFrame equippedFrames equippedFrameColor equippedTitle mutedUntil banned district");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
@@ -169,7 +176,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
       dmKey: null,
       senderId: user._id,
       senderName: user.username,
-      senderFrame: user.equippedFrame,
+      senderFrame: userChatFrame(user),
       senderFrameColor: user.equippedFrameColor,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
@@ -183,7 +190,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
         userId: user._id,
         username: user.username,
         faction: user.faction,
-        frame: user.equippedFrame,
+        frame: userChatFrame(user),
         frameColor: user.equippedFrameColor,
         title: user.equippedTitle,
         content,
@@ -245,7 +252,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(`faction:${String(req.userId)}`, now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedFrame equippedFrameColor equippedTitle mutedUntil banned");
+      .select("username faction equippedFrame equippedFrames equippedFrameColor equippedTitle mutedUntil banned");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (!user.faction) {
@@ -262,7 +269,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
       dmKey: null,
       senderId: user._id,
       senderName: user.username,
-      senderFrame: user.equippedFrame,
+      senderFrame: userChatFrame(user),
       senderFrameColor: user.equippedFrameColor,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
@@ -276,7 +283,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
         userId: user._id,
         username: user.username,
         faction: user.faction,
-        frame: user.equippedFrame,
+        frame: userChatFrame(user),
         frameColor: user.equippedFrameColor,
         title: user.equippedTitle,
         content,
@@ -415,7 +422,7 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
     if (content.length > MAX_CONTENT_LEN) return res.status(400).json({ message: `Message too long (max ${MAX_CONTENT_LEN} chars)` });
 
     const [me, other] = await Promise.all([
-      User.findById(myId).select("username faction equippedFrame equippedFrameColor equippedTitle mutedUntil banned blockedUsers"),
+      User.findById(myId).select("username faction equippedFrame equippedFrames equippedFrameColor equippedTitle mutedUntil banned blockedUsers"),
       User.findById(otherId).select("dmPrivacy banned blockedUsers"),
     ]);
 
@@ -441,7 +448,7 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
       dmKey: key,
       senderId: me._id,
       senderName: me.username,
-      senderFrame: me.equippedFrame,
+      senderFrame: userChatFrame(me),
       senderFrameColor: me.equippedFrameColor,
       senderFaction: me.faction,
       senderTitle: me.equippedTitle,
@@ -455,7 +462,7 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
         userId: me._id,
         username: me.username,
         faction: me.faction,
-        frame: me.equippedFrame,
+        frame: userChatFrame(me),
         frameColor: me.equippedFrameColor,
         title: me.equippedTitle,
         content,

@@ -292,7 +292,7 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
         userId: user.id,
         username: user.username,
         faction: user.faction,
-        frame: user.equippedFrame,
+        frame: (user.equippedFrames?.chat && user.equippedFrames.chat !== "ghostFrame") ? user.equippedFrames.chat : user.equippedFrame,
         frameColor: user.equippedFrameColor,
         title: user.equippedTitle,
         content,

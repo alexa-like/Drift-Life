@@ -56,6 +56,7 @@ export function safeUser(user: InstanceType<typeof User>) {
     equippedFrame: user.equippedFrame,
     equippedFrameRarity: user.equippedFrameRarity ?? "common",
     equippedFrameColor: user.equippedFrameColor ?? null,
+    equippedFrames: (user as any).equippedFrames ?? { avatar: "ghostFrame", chat: "ghostFrame", feed: "ghostFrame" },
     equippedTitle: user.equippedTitle,
     titles: user.titles,
     ownedFrames: user.ownedFrames || [],

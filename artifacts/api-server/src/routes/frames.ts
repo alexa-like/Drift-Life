@@ -17,7 +17,7 @@ function requireStaff(req: AuthRequest, res: any, next: any) {
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId)
-      .select("ownedFrames equippedFrame equippedFrameRarity equippedFrameColor dc nc merit")
+      .select("ownedFrames equippedFrame equippedFrameRarity equippedFrameColor equippedFrames dc nc merit")
       .lean();
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -68,6 +68,9 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
             createdAt: (f as any).createdAt ?? undefined,
             owned: isOwned,
             equipped: user.equippedFrame === f.frameId,
+            equippedOn: (["avatar", "chat", "feed"] as const).filter(
+              s => ((user as any).equippedFrames ?? {})[s] === f.frameId
+            ),
           };
         })
     );
@@ -145,6 +148,13 @@ router.post("/equip/:frameId", requireAuth, async (req: AuthRequest, res) => {
 
     user.equippedFrame = frame.frameId;
     user.equippedFrameRarity = frame.rarity;
+    // Also default all per-surface slots to this frame on first equip
+    const slots = (user as any).equippedFrames ?? { avatar: "ghostFrame", chat: "ghostFrame", feed: "ghostFrame" };
+    if (slots.avatar === "ghostFrame") slots.avatar = frame.frameId;
+    if (slots.chat === "ghostFrame") slots.chat = frame.frameId;
+    if (slots.feed === "ghostFrame") slots.feed = frame.frameId;
+    (user as any).equippedFrames = slots;
+    user.markModified("equippedFrames");
     await user.save();
 
     res.json({ equippedFrame: frame.frameId, equippedFrameRarity: frame.rarity });

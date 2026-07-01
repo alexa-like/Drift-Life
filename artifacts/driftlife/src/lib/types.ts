@@ -47,6 +47,12 @@ export interface User {
   equippedFrame: string | null;
   equippedFrameRarity: string | null;
   equippedFrameColor: string | null;
+  /** Per-surface frame slots. Falls back to equippedFrame when a slot is "ghostFrame". */
+  equippedFrames: {
+    avatar: string;
+    chat: string;
+    feed: string;
+  };
   equippedTitle: string | null;
   titles: string[];
   ownedFrames: string[];

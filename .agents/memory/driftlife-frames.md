@@ -1,30 +1,37 @@
 ---
 name: DriftLife Frames System
-description: How frames are stored, catalogued, and rendered — critical sync requirement between backend and frontend catalogs.
+description: Frame catalog structure, equip slots, getFrame alias resolution, surface routing
 ---
 
-## Rule
-Frontend `driftlife/src/lib/frames.ts` FRAME_CATALOG `id` fields must exactly match backend `api-server/src/routes/frames.ts` FRAME_CATALOG `frameId` fields. If a backend frameId is not in the frontend FRAME_MAP, `getFrame()` falls back to `ghostFrame` and the frame renders as empty/invisible.
+## Frame Catalog
+- Exported as `FRAME_CATALOG` (not `FRAMES`) from `artifacts/driftlife/src/lib/frames.ts`
+- `FrameDef` has: id, name, rarity, glowColor, animationType, variantIndex, ncCost, earnedBy?, mythicAliasOf?, **icon**, **textColor**, **headerBg**
+- `icon` — unique monospace/Unicode char per frame, shown in chat header strip
+- `textColor` — null for common/uncommon; glowColor+"88" rare; +"cc" epic; +"ee" legendary; full glowColor mythic
+- `headerBg` — null except mythic frames (including aliases), which define their own CSS gradient
 
-## Frame Ownership — Free Frames Bug
-Free frames (`isFree: true` on backend, e.g. `ghostFrame`) are NEVER added to `user.ownedFrames`. ProfilePage must fetch `GET /api/frames` and use `frame.owned` (which correctly returns true for free frames) rather than filtering by `user.ownedFrames`. Direct filter on `user.ownedFrames` misses all free frames.
+## Alias Resolution (getFrame)
+- Aliases carry their OWN `icon`, `textColor`, `headerBg` — NOT inherited from the base frame
+- `getFrame()` spreads target then overrides id/name/glowColor/icon/textColor/headerBg from alias entry
+- 5 aliases: matrixBlue, matrixGold, matrixRed (→ matrixGreen), omega (→ godMode), architect (→ theOne)
 
-## FRAME_VARIANT (PlayerFrame.tsx) — 0-9 unique per tier
-FRAME_VARIANT maps each frameId to 0-9 (unique index within the rarity tier). PlayerFrame.tsx and FrameCardWrapper.tsx use this index to parameterize animations (speed, direction, count, tail, freq, style). Common frames get 10 distinct static border designs (rounded/square/chamfer/double/dashed/glow/brackets/dots/X/rings). Animated tiers use index to vary speed/direction/count/frequency.
+## Per-Surface Equip Slots
+- User model has `equippedFrames: { avatar: string, chat: string, feed: string }` (default: "ghostFrame")
+- `equippedFrame` legacy field retained for backward compat; new equips should use slots
+- **Fallback rule everywhere**: treat `"ghostFrame"` as unset → fall back to `equippedFrame`
+  - `(slot && slot !== "ghostFrame") ? slot : equippedFrame`
 
-**Why:** The backend is the source of truth for what frames exist and can be purchased. The frontend only uses the catalog for color lookup and rendering. A mismatch means users see ghost frames even after purchasing/equipping real ones.
+## Server-Side Surface Routing
+- **chat** (global/district/faction/DM): `userChatFrame(user)` helper in `routes/chat.ts`
+- **feed**: resolved inline in `routes/feed.ts` (feedSlot !== "ghostFrame" ? feedSlot : equippedFrame)
+- **avatar/profile**: frontend only (ProfilePage uses equippedFrames.avatar slot)
 
-**How to apply:** Any time a new frame is added to the backend catalog, add the matching entry to the frontend catalog with the same id, correct glowColor, and rarity.
+## Equip Security
+- `PATCH /api/user/me`: ownership validated for both `equippedFrame` (legacy) and each `equippedFrames` slot
+- `POST /api/frames/equip`: seeds all 3 slots from ghostFrame on first equip (does not overwrite non-ghost slots)
+- `equippedOn: string[]` (surfaces) returned in GET /api/frames per frame entry
 
-## Current IDs (backend frameId = frontend id)
-- Common (static): ghostFrame, basicWhite, basicGray, neonBlue, neonGreen, neonRed, corpGray, streetOrange, cyanPulse, goldBasic
-- Uncommon (shimmer): shimmerCyan, shimmerPurple, shimmerGold, shimmerRed, shimmerGreen, shimmerOrange, techShimmer, suitShimmer, crimsonShimmer, iceShimmer
-- Rare (pulse): pulseCyan, pulsePurple, pulseGold, pulseRed, pulseGreen, hackerPulse, corePulse, vaultPulse, streetPulse, spectralPulse
-- Epic (rotate): epicCyan, epicPurple, epicGold, epicRed, syndicate, gridCore, suitsFrame, epicVoid, epicInferno, epicNova
-- Legendary (flicker): legendCyan, legendPurple, legendGold, legendRed, crimsonLord, arcLight, plasmaBolt, thunderClap, vantaLegend, executioner
-- Mythic (matrix): matrixGreen, matrixBlue, matrixGold, matrixRed, omega, voidWalker, architect, nova2047, godMode, theOne
-
-## Other notes
-- ownedFrames + equippedFrame on User model; equip-frame route in user.ts; give-frame in dev.ts
-- FrameLivePreview in FramesStorePage: always pass `colorOverride={frame.glowColor}` so backend color is used directly, not re-derived from the frontend catalog
-- PRICE_OVERRIDES (Map) exported from market.ts — owner can set item prices via POST /api/owner/shop-items/:id/price (requireOwner); resets on server restart
+## Other
+- `ownedFrames` + `equippedFrame` on User model
+- equip-frame route in `routes/frames.ts`; give-frame in `routes/dev.ts`
+- `RARITY_COLORS` and `RARITY_ORDER` exported from frames.ts

@@ -18,14 +18,15 @@ router.get("/", requireAuth, async (req, res) => {
 
     // Batch-fetch actor frame data for events that have an actorId
     const actorIds = [...new Set(events.map(e => e.actorId).filter(Boolean))];
-    const actorMap: Record<string, { equippedFrame?: string | null; equippedFrameColor?: string | null; avatarUrl?: string | null }> = {};
+    const actorMap: Record<string, { equippedFrame?: string | null; equippedFrames?: { feed?: string } | null; equippedFrameColor?: string | null; avatarUrl?: string | null }> = {};
     if (actorIds.length > 0) {
       const actors = await User.find({ _id: { $in: actorIds } })
-        .select("_id equippedFrame equippedFrameColor avatarUrl")
+        .select("_id equippedFrame equippedFrames equippedFrameColor avatarUrl")
         .lean();
       for (const a of actors) {
         actorMap[String(a._id)] = {
           equippedFrame: (a as any).equippedFrame ?? null,
+          equippedFrames: (a as any).equippedFrames ?? null,
           equippedFrameColor: (a as any).equippedFrameColor ?? null,
           avatarUrl: (a as any).avatarUrl ?? null,
         };
@@ -34,12 +35,15 @@ router.get("/", requireAuth, async (req, res) => {
 
     res.json(events.map(e => {
       const actorData = e.actorId ? actorMap[String(e.actorId)] : undefined;
+      // Resolve feed surface slot; fall back to legacy equippedFrame
+      const feedSlot = actorData?.equippedFrames?.feed;
+      const resolvedFrame = (feedSlot && feedSlot !== "ghostFrame") ? feedSlot : (actorData?.equippedFrame ?? null);
       return {
         id: e._id,
         type: e.type,
         actor: e.actor,
         actorId: e.actorId,
-        actorFrame: actorData?.equippedFrame ?? (e as any).actorFrame ?? null,
+        actorFrame: resolvedFrame ?? (e as any).actorFrame ?? null,
         actorFrameColor: actorData?.equippedFrameColor ?? (e as any).actorFrameColor ?? null,
         actorAvatarUrl: actorData?.avatarUrl ?? (e as any).actorAvatarUrl ?? null,
         target: e.target,

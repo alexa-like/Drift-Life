@@ -77,8 +77,8 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
     } catch { /* ignore */ }
   }
 
-  // composer frame is the current user's equipped frame
-  const myFrame = user?.equippedFrame || null;
+  // composer frame is the current user's feed-surface frame
+  const myFrame = (user?.equippedFrames?.feed && user.equippedFrames.feed !== "ghostFrame") ? user.equippedFrames.feed : (user?.equippedFrame || null);
   const myFrameColor = user?.equippedFrameColor || null;
 
   return (

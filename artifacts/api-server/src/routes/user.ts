@@ -27,7 +27,7 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-    const { avatar, avatarUrl, bio, equippedFrame, equippedTitle, equippedFrameColor } = req.body;
+    const { avatar, avatarUrl, bio, equippedFrame, equippedTitle, equippedFrameColor, equippedFrames } = req.body;
     if (avatar !== undefined) user.avatar = String(avatar);
     if (avatarUrl !== undefined) {
       // Only allow Pollinations AI URLs or null
@@ -40,7 +40,13 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
       }
     }
     if (bio !== undefined) user.bio = String(bio).slice(0, 300);
-    if (equippedFrame !== undefined) user.equippedFrame = equippedFrame;
+    if (equippedFrame !== undefined) {
+      // Ownership check: ghostFrame is always allowed; any other frame must be owned
+      if (equippedFrame !== null && equippedFrame !== "ghostFrame" && !(user.ownedFrames || []).includes(equippedFrame)) {
+        return res.status(403).json({ message: "You do not own this frame" });
+      }
+      user.equippedFrame = equippedFrame;
+    }
     if (equippedTitle !== undefined && user.titles.includes(equippedTitle)) user.equippedTitle = equippedTitle;
     if (equippedFrameColor !== undefined) {
       if (equippedFrameColor === null) {
@@ -50,6 +56,24 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
       } else {
         return res.status(400).json({ message: "Invalid color format. Use hex (#RRGGBB)" });
       }
+    }
+    // Per-surface frame slots: accept partial { avatar?, chat?, feed? }
+    if (equippedFrames && typeof equippedFrames === "object") {
+      const slots = ["avatar", "chat", "feed"] as const;
+      const current = (user as any).equippedFrames ?? { avatar: "ghostFrame", chat: "ghostFrame", feed: "ghostFrame" };
+      const allOwned: string[] = user.ownedFrames || [];
+      for (const slot of slots) {
+        const val = equippedFrames[slot];
+        if (val === undefined) continue;
+        if (typeof val !== "string") continue;
+        // Must own the frame (or it's ghostFrame)
+        if (val !== "ghostFrame" && !allOwned.includes(val)) {
+          return res.status(403).json({ message: `You do not own frame: ${val}` });
+        }
+        current[slot] = val;
+      }
+      (user as any).equippedFrames = current;
+      user.markModified("equippedFrames");
     }
     await user.save();
     res.json(safeUser(user));
