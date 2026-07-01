@@ -254,7 +254,9 @@ export interface LeaderboardEntry {
   totalWealth?: number;
   wins: number;
   losses: number;
+  totalFights: number;
   crimes: number;
+  reputation: number;
   district: string;
   metric?: string;
 }

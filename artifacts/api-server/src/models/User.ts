@@ -45,6 +45,7 @@ export interface IUser extends Document {
   totalFights: number;
   wins: number;
   losses: number;
+  reputation: number;
   attacksToday: number;
   attackResetAt: Date;
   attackCooldowns: Array<{ targetId: string; until: Date }>;
@@ -149,6 +150,7 @@ const UserSchema = new Schema<IUser>(
     totalFights: { type: Number, default: 0 },
     wins: { type: Number, default: 0 },
     losses: { type: Number, default: 0 },
+    reputation: { type: Number, default: 0 },
     attacksToday: { type: Number, default: 0 },
     attackResetAt: { type: Date, default: Date.now },
     attackCooldowns: [{ targetId: String, until: Date }],
