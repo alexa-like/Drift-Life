@@ -1,26 +1,21 @@
 import { useEffect, useRef } from "react";
 import { getFrame, FrameRarity } from "../lib/frames";
 import { AvatarWithFrame } from "./AvatarWithFrame";
+import type { ChatMessage } from "../lib/types";
 
-export interface ChatMessage {
-  id: string;
-  userId: string;
-  username: string;
-  faction: string | null;
-  frame?: string | null;
-  frameColor?: string | null;
-  frameRarity?: string;
-  title?: string | null;
-  content: string;
-  at: string;
-  districtId?: string;
-}
+// Re-export so existing callers that import ChatMessage from here still compile
+export type { ChatMessage };
 
 const FACTION_COLOR: Record<string, string> = {
   suits: "#f59e0b",
   street: "#ff6b35",
   grid: "#00d4ff",
-  neutral: "#64748b",
+};
+
+const FACTION_LABEL: Record<string, string> = {
+  suits: "SUITS",
+  street: "STREET",
+  grid: "GRID",
 };
 
 interface Props {
@@ -28,6 +23,18 @@ interface Props {
   isOwn?: boolean;
   onUsernameClick?: (userId: string, username: string) => void;
 }
+
+// ─── Rarity strip opacity (common has no canvas so body border is CSS) ────────
+const STRIP_OPACITY: Record<FrameRarity, string> = {
+  common:    "18",
+  uncommon:  "22",
+  rare:      "30",
+  epic:      "38",
+  legendary: "48",
+  mythic:    "58",
+};
+
+// ─── Canvas drawing ───────────────────────────────────────────────────────────
 
 function drawBubbleFrame(
   canvas: HTMLCanvasElement,
@@ -45,7 +52,7 @@ function drawBubbleFrame(
 
   ctx.clearRect(0, 0, w, h);
 
-  const r = 6;
+  const r = 0; // body div has square bottom corners
   const inset = 1;
 
   const path = () => {
@@ -53,24 +60,16 @@ function drawBubbleFrame(
     ctx.roundRect(inset, inset, w - inset * 2, h - inset * 2, Math.max(0, r - inset));
   };
 
-  if (rarity === "common") {
-    ctx.strokeStyle = color + "80";
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 5;
-    path(); ctx.stroke();
-    ctx.shadowBlur = 0;
-    return;
-  }
+  // common is handled via CSS — should not reach here
+  if (rarity === "common") return;
 
   if (rarity === "uncommon") {
-    // Traveling comet
     ctx.strokeStyle = color + "20";
     ctx.lineWidth = 1.5;
     path(); ctx.stroke();
 
     const perim = 2 * (w + h);
-    const pos = ((t * 2.5) % perim);
+    const pos = (t * 2.5) % perim;
     const pts = bubblePerimPts(w, h, r, 120);
     const total = pts.length;
     const headIdx = Math.floor((pos / perim) * total) % total;
@@ -268,6 +267,10 @@ function hslToHexBubble(h: number, s: number, l: number): string {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
+// ─── BubbleCanvas (animated body border) ─────────────────────────────────────
+// IntersectionObserver pauses the rAF loop when the message scrolls off-screen.
+// Common frames skip this component entirely and use a CSS border instead.
+
 function BubbleCanvas({ frameId, colorOverride }: { frameId: string | null | undefined; colorOverride?: string | null }) {
   const frame = getFrame(frameId);
   const color = colorOverride || frame.glowColor;
@@ -275,97 +278,259 @@ function BubbleCanvas({ frameId, colorOverride }: { frameId: string | null | und
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
   const tRef = useRef(0);
+  const runningRef = useRef(false);
 
   useEffect(() => {
-    if (!frameId) return;
+    if (!frameId || frameId === "ghostFrame") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const isStatic = rarity === "common";
-
     function draw() {
-      if (!canvas || !ctx) return;
+      if (!canvas || !ctx || !runningRef.current) return;
       drawBubbleFrame(canvas, ctx, tRef.current, rarity, color);
       tRef.current++;
-      if (!isStatic) animRef.current = requestAnimationFrame(draw);
+      animRef.current = requestAnimationFrame(draw);
     }
 
-    animRef.current = requestAnimationFrame(draw);
-
-    let ro: ResizeObserver | null = null;
-    if (isStatic && canvas.parentElement) {
-      ro = new ResizeObserver(() => {
-        if (canvas && ctx) drawBubbleFrame(canvas, ctx, 0, rarity, color);
-      });
-      ro.observe(canvas.parentElement);
+    function start() {
+      if (runningRef.current) return;
+      runningRef.current = true;
+      animRef.current = requestAnimationFrame(draw);
     }
 
-    return () => { cancelAnimationFrame(animRef.current); ro?.disconnect(); };
+    function stop() {
+      runningRef.current = false;
+      cancelAnimationFrame(animRef.current);
+    }
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) start();
+        else stop();
+      },
+      { threshold: 0 },
+    );
+    io.observe(canvas);
+
+    // Also watch for size changes (for the static-like mythic border chars)
+    const ro = new ResizeObserver(() => {
+      if (!runningRef.current && canvas && ctx) {
+        drawBubbleFrame(canvas, ctx, tRef.current, rarity, color);
+      }
+    });
+    if (canvas.parentElement) ro.observe(canvas.parentElement);
+
+    return () => {
+      io.disconnect();
+      ro.disconnect();
+      stop();
+    };
   }, [frameId, rarity, color]);
 
   return (
     <canvas
       ref={canvasRef}
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 1, borderRadius: 6 }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        zIndex: 1,
+        borderRadius: 0,
+      }}
     />
   );
 }
 
+// ─── FrameRectBubble — two-zone chat card ─────────────────────────────────────
+
 export function FrameRectBubble({ message, isOwn, onUsernameClick }: Props) {
   const frame = getFrame(message.frame);
+  // Effective color: player's custom override > catalog glowColor
   const color = message.frameColor || frame.glowColor;
   const rarity = frame.rarity;
-  const factionColor = FACTION_COLOR[message.faction || "neutral"] || "#64748b";
+  const hasFrame = !!message.frame && message.frame !== "ghostFrame";
 
-  const hasEffect = !!message.frame;
-  const glow = hasEffect
-    ? `0 0 ${rarity === "mythic" ? 16 : rarity === "legendary" ? 12 : rarity === "epic" ? 8 : rarity === "rare" ? 6 : 3}px ${color}25`
+  // ── Header strip background ──────────────────────────────────────────────
+  const headerBackground = (() => {
+    if (!hasFrame) return isOwn ? "#111118" : "#0d0d15";
+    // Custom color bypasses headerBg even for mythic (player's choice wins)
+    if (!message.frameColor && rarity === "mythic" && frame.headerBg) {
+      return frame.headerBg;
+    }
+    return color + STRIP_OPACITY[rarity];
+  })();
+
+  // ── Message text color ───────────────────────────────────────────────────
+  // Custom frameColor tints text for any tier; catalog textColor for non-custom.
+  const effectiveTextColor = (() => {
+    if (!hasFrame) return "#c4c9d4";
+    if (message.frameColor) return message.frameColor;
+    return frame.textColor || "#c4c9d4";
+  })();
+
+  // ── Outer card glow & border ─────────────────────────────────────────────
+  const outerGlow = hasFrame
+    ? `0 0 ${rarity === "mythic" ? 14 : rarity === "legendary" ? 10 : rarity === "epic" ? 6 : 3}px ${color}20`
     : "none";
+  const outerBorder = hasFrame
+    ? `1px solid ${color}28`
+    : `1px solid #1a1a2e`;
+
+  // ── Common frame body border (CSS, no canvas) ────────────────────────────
+  const commonBodyStyle = hasFrame && rarity === "common"
+    ? { borderTop: `1px solid ${color}40`, boxShadow: `inset 0 0 6px ${color}10` }
+    : {};
+
+  // ── Faction tag ──────────────────────────────────────────────────────────
+  const factionTag = message.tag
+    ? message.tag.toUpperCase()
+    : (message.faction ? FACTION_LABEL[message.faction] : null);
+  const factionColor = FACTION_COLOR[message.faction || ""] || "#475569";
 
   return (
     <div
       style={{
         position: "relative",
-        background: isOwn ? "#111118" : "#0d0d15",
         borderRadius: 6,
-        padding: "6px 10px",
+        overflow: "hidden",
         marginBottom: 4,
-        border: `1px solid ${hasEffect && rarity === "common" ? "transparent" : hasEffect ? "transparent" : "#1e1e2e"}`,
-        boxShadow: glow,
+        border: outerBorder,
+        boxShadow: outerGlow,
       }}
     >
-      {message.frame && <BubbleCanvas frameId={message.frame} colorOverride={message.frameColor} />}
+      {/* ══ ZONE 1: Header strip ══════════════════════════════════════════════ */}
+      <div
+        style={{
+          position: "relative",
+          background: headerBackground,
+          padding: "4px 8px",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          minHeight: 30,
+          borderBottom: hasFrame ? `1px solid ${color}18` : "1px solid #13131f",
+        }}
+      >
+        {/* Avatar */}
+        <AvatarWithFrame
+          username={message.username}
+          frameId={message.frame}
+          frameColor={message.frameColor}
+          size="xs"
+        />
 
-      <div style={{ position: "relative", zIndex: 2 }}>
-        <div className="flex items-start gap-2">
-          <AvatarWithFrame username={message.username} frameId={message.frame} frameColor={message.frameColor} size="xs" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-              <button
-                className="font-mono text-xs font-bold hover:underline"
-                style={{ color: message.frame ? color : factionColor, background: "none", border: "none", padding: 0, cursor: "pointer" }}
-                onClick={() => onUsernameClick?.(message.userId, message.username)}
-              >
-                {message.username}
-              </button>
-              {message.frame && rarity !== "common" && (
-                <span
-                  className="font-mono px-1 rounded"
-                  style={{ fontSize: 9, background: color + "20", color, border: `1px solid ${color}40`, textTransform: "capitalize" }}
-                >
-                  {frame.name}
-                </span>
-              )}
-              {message.title && (
-                <span className="font-mono" style={{ color: "#475569", fontSize: 10 }}>[{message.title}]</span>
-              )}
-              <span className="font-mono" style={{ color: "#334155", fontSize: 10 }}>
-                {new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        {/* Username */}
+        <button
+          className="font-mono text-xs font-bold hover:underline"
+          style={{
+            color: hasFrame ? color : factionColor,
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            lineHeight: 1,
+            flexShrink: 0,
+          }}
+          onClick={() => onUsernameClick?.(message.userId, message.username)}
+        >
+          {message.username}
+        </button>
+
+        {/* Faction / gang tag */}
+        {factionTag && (
+          <span
+            className="font-mono"
+            style={{ fontSize: 9, color: factionColor, opacity: 0.75, flexShrink: 0 }}
+          >
+            [{factionTag}]
+          </span>
+        )}
+
+        {/* Player title */}
+        {message.title && (
+          <span
+            className="font-mono"
+            style={{ fontSize: 9, color: "#475569", flexShrink: 0 }}
+          >
+            [{message.title}]
+          </span>
+        )}
+
+        {/* Spacer */}
+        <div style={{ flex: 1, minWidth: 0 }} />
+
+        {/* Frame label — hidden for ghost / no frame */}
+        {hasFrame && (
+          <span
+            className="font-mono"
+            style={{
+              fontSize: 9,
+              color,
+              opacity: 0.75,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            {frame.name}
+          </span>
+        )}
+
+        {/* Frame icon */}
+        {hasFrame && (
+          <span
+            style={{
+              fontSize: 13,
+              color,
+              lineHeight: 1,
+              flexShrink: 0,
+              textShadow: `0 0 8px ${color}80`,
+            }}
+          >
+            {frame.icon}
+          </span>
+        )}
+      </div>
+
+      {/* ══ ZONE 2: Body bubble ═══════════════════════════════════════════════ */}
+      <div
+        style={{
+          position: "relative",
+          background: isOwn ? "#111118" : "#0d0d15",
+          overflow: "hidden",
+          ...commonBodyStyle,
+        }}
+      >
+        {/* Canvas animation sits behind text (z-index 1).
+            Common frames skip canvas — rendered as pure CSS above. */}
+        {hasFrame && rarity !== "common" && (
+          <BubbleCanvas frameId={message.frame} colorOverride={message.frameColor} />
+        )}
+
+        {/* Text layer (z-index 2) */}
+        <div style={{ position: "relative", zIndex: 2, padding: "5px 10px 6px" }}>
+          <p
+            className="font-mono text-xs break-all"
+            style={{ color: effectiveTextColor, margin: 0, lineHeight: 1.45 }}
+          >
+            {message.content}
+          </p>
+
+          {/* Footer row: level (left) + timestamp (right) */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 2, gap: 8 }}>
+            {message.level !== undefined && (
+              <span className="font-mono" style={{ color: "#2d3748", fontSize: 9 }}>
+                Lv.{message.level}
               </span>
-            </div>
-            <p className="font-mono text-xs break-all" style={{ color: "#e2e8f0" }}>{message.content}</p>
+            )}
+            <span className="font-mono" style={{ color: "#2d3748", fontSize: 9 }}>
+              {new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
           </div>
         </div>
       </div>

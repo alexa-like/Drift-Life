@@ -2,85 +2,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { User, ChatMessage, Conversation } from "../lib/types";
 import { api } from "../lib/api";
 import { useSocket } from "../context/SocketContext";
-import { getFrame } from "../lib/frames";
-import { RARITY_COLORS } from "../lib/frames";
+import { FrameRectBubble } from "../components/FrameRectBubble";
 
 interface Props {
   user: User;
   addToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
   onInspectPlayer?: (userId: string) => void;
-}
-
-const FACTION_COLOR: Record<string, string> = {
-  suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff", neutral: "#64748b",
-};
-
-function MessageBubble({ msg, currentUserId, onUserClick }: {
-  msg: ChatMessage;
-  currentUserId: string;
-  onUserClick?: (userId: string) => void;
-}) {
-  const isOwn = msg.userId === currentUserId;
-  const frame = getFrame(msg.frame);
-  const color = msg.frameColor || frame.glowColor;
-  const factionColor = FACTION_COLOR[msg.faction || "neutral"] || "#64748b";
-  const nameColor = msg.frame ? color : factionColor;
-
-  const rarity = frame.rarity;
-  const glowIntensity = rarity === "mythic" ? 12 : rarity === "legendary" ? 8 : rarity === "epic" ? 6 : rarity === "rare" ? 4 : 2;
-  const headerBg = msg.frame && rarity !== "common"
-    ? `linear-gradient(135deg, ${color}20 0%, ${color}08 100%)`
-    : "transparent";
-
-  return (
-    <div style={{
-      background: isOwn ? "#111118" : "#0d0d15",
-      border: `1px solid ${msg.frame && rarity !== "common" ? color + "30" : "#1e1e2e"}`,
-      borderRadius: 6,
-      marginBottom: 4,
-      overflow: "hidden",
-      boxShadow: msg.frame ? `0 0 ${glowIntensity}px ${color}20` : "none",
-    }}>
-      {msg.frame && rarity !== "common" && (
-        <div style={{
-          background: headerBg,
-          borderBottom: `1px solid ${color}25`,
-          padding: "4px 10px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: `0 0 4px ${color}` }} />
-            <span className="font-mono" style={{ color, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "bold" }}>
-              {frame.name}
-            </span>
-          </div>
-          <span className="font-mono" style={{ color: color + "60", fontSize: 9, textTransform: "capitalize" }}>
-            {rarity}
-          </span>
-        </div>
-      )}
-      <div style={{ padding: "6px 10px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
-          <button
-            onClick={() => onUserClick?.(msg.userId)}
-            className="font-mono font-bold"
-            style={{ color: nameColor, fontSize: 12, background: "none", border: "none", padding: 0, cursor: "pointer" }}
-          >
-            {msg.username}
-          </button>
-          {msg.title && (
-            <span className="font-mono" style={{ color: "#475569", fontSize: 10 }}>[{msg.title}]</span>
-          )}
-          <span className="font-mono" style={{ color: "#334155", fontSize: 10 }}>
-            {new Date(msg.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        </div>
-        <p className="font-mono text-xs break-all" style={{ color: "#e2e8f0", lineHeight: 1.5 }}>{msg.content}</p>
-      </div>
-    </div>
-  );
 }
 
 function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void; placeholder?: string }) {
@@ -164,7 +91,7 @@ function GlobalTab({ user, onInspect }: { user: User; onInspect?: (id: string) =
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
         {loading && <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", padding: 20 }}>Loading...</div>}
         {messages.map(m => (
-          <MessageBubble key={m.id} msg={m} currentUserId={user.id} onUserClick={onInspect} />
+          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={(uid) => onInspect?.(uid)} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -219,7 +146,7 @@ function DistrictTab({ user, onInspect }: { user: User; onInspect?: (id: string)
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
         {loading && <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", padding: 20 }}>Loading...</div>}
         {messages.map(m => (
-          <MessageBubble key={m.id} msg={m} currentUserId={user.id} onUserClick={onInspect} />
+          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={(uid) => onInspect?.(uid)} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -337,7 +264,7 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
         <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
           {loadingMsgs && <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", padding: 20 }}>Loading...</div>}
           {messages.map(m => (
-            <MessageBubble key={m.id} msg={m} currentUserId={user.id} onUserClick={onInspect} />
+            <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={(uid) => onInspect?.(uid)} />
           ))}
           <div ref={bottomRef} />
         </div>

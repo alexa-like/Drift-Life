@@ -222,6 +222,8 @@ export interface ChatMessage {
   frameColor: string | null;
   frameRarity?: string | null;
   title: string | null;
+  level?: number;
+  tag?: string | null;
   content: string;
   at: string;
   channel?: string;
