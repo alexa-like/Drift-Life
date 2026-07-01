@@ -4,6 +4,7 @@ import Item from "../models/Item";
 import FeedEvent from "../models/FeedEvent";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { checkAchievements } from "./achievements";
+import { levelUp } from "../lib/regen";
 
 const router = Router();
 
@@ -48,6 +49,12 @@ function isYesterday(date: Date) {
   return isSameDay(date, yesterday);
 }
 
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 const DROP_POOLS: Record<string, string[]> = {
   common:   ["Bandage", "Street Food", "Energy Drink", "Painkillers", "Fabric", "Scrap Metal"],
   uncommon: ["First Aid Kit", "Nerve Tonic", "Stimulant Pack", "Leather Jacket", "Pistol"],
@@ -55,23 +62,31 @@ const DROP_POOLS: Record<string, string[]> = {
   epic:     ["Nano Repair", "Plasma Pistol", "Nano Suit"],
 };
 
+/** Grant a daily item drop — stacks quantity for consumables/materials (no duplicates). */
 async function grantDailyItem(userId: string, rarity: "common" | "uncommon" | "rare" | "epic"): Promise<string | null> {
   const pool = DROP_POOLS[rarity];
   if (!pool?.length) return null;
   const name = pool[Math.floor(Math.random() * pool.length)];
-  await Item.create({
-    owner: userId,
-    name,
-    type: "consumable",
-    rarity,
-    strengthBonus: 0,
-    charismaBonus: 0,
-    intelligenceBonus: 0,
-    streetCredBonus: 0,
-    defenseBonus: 0,
-    basePrice: 0,
-    quantity: 1,
-  });
+  // Upsert: stack consumables instead of creating duplicate documents
+  await Item.findOneAndUpdate(
+    { owner: userId, name, type: "consumable", rarity },
+    {
+      $inc: { quantity: 1 },
+      $setOnInsert: {
+        owner: userId,
+        name,
+        type: "consumable",
+        rarity,
+        strengthBonus: 0,
+        charismaBonus: 0,
+        intelligenceBonus: 0,
+        streetCredBonus: 0,
+        defenseBonus: 0,
+        basePrice: 0,
+      },
+    },
+    { upsert: true },
+  );
   return name;
 }
 
@@ -98,38 +113,65 @@ router.get("/status", requireAuth, async (req: AuthRequest, res) => {
 // POST /api/daily/claim
 router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "Not found" });
-
     const now = new Date();
-    if (user.lastDailyReward && isSameDay(user.lastDailyReward, now))
-      return res.status(400).json({ message: "Already claimed today" });
+    const todayStart = startOfToday();
 
-    if (user.lastDailyReward && isYesterday(user.lastDailyReward)) {
-      user.dailyStreak += 1;
-    } else {
-      user.dailyStreak = 1;
+    // ATOMIC: claim gate — only succeeds if lastDailyReward is null or before today
+    // Returns the OLD document (before: true is NOT used) so we can compute streak from previous state
+    const oldUser = await User.findOneAndUpdate(
+      {
+        _id: req.userId,
+        $or: [
+          { lastDailyReward: null },
+          { lastDailyReward: { $lt: todayStart } },
+        ],
+      },
+      { $set: { lastDailyReward: now } }, // Mark claimed immediately to block concurrent requests
+      { new: false },                      // Return OLD doc to read previous lastDailyReward
+    );
+
+    if (!oldUser) {
+      return res.status(400).json({ message: "Already claimed today" });
     }
 
-    const reward = getDayReward(user.dailyStreak);
+    // Compute new streak from previous claim date
+    let newStreak: number;
+    if (oldUser.lastDailyReward && isYesterday(oldUser.lastDailyReward)) {
+      newStreak = (oldUser.dailyStreak || 0) + 1;
+    } else {
+      newStreak = 1;
+    }
 
-    user.dc = Math.min(user.dc + reward.dc, 100_000_000);
-    user.xp += reward.xp;
-    user.lastDailyReward = now;
+    const reward = getDayReward(newStreak);
+    // Apply DC (capped), XP, streak — aggregation pipeline enforces wallet cap atomically
+    const updated = await User.findByIdAndUpdate(
+      req.userId,
+      [{ $set: {
+        dc:          { $min: [{ $add: ["$dc", reward.dc] }, 100_000_000] },
+        xp:          { $add: ["$xp", reward.xp] },
+        dailyStreak: newStreak,
+      }}],
+      { new: true },
+    );
+    if (!updated) return res.status(500).json({ message: "Internal server error" });
 
+    // Level-up check
+    const leveled = levelUp(updated);
+    if (leveled) await updated.save();
+
+    // Item drop
     let itemGranted: string | null = null;
     if (reward.itemRarity) {
-      itemGranted = await grantDailyItem(String(user._id), reward.itemRarity);
+      itemGranted = await grantDailyItem(String(req.userId), reward.itemRarity);
     }
 
-    await user.save();
-    checkAchievements(String(user._id)).catch(() => {});
+    checkAchievements(String(req.userId)).catch(() => {});
 
     await FeedEvent.create({
       type: "daily",
-      actor: user.username,
-      actorId: user._id,
-      message: `${user.username} claimed Day ${user.dailyStreak} daily reward: +${reward.dc.toLocaleString()} DC${itemGranted ? ` + ${itemGranted}` : ""}`,
+      actor: updated.username,
+      actorId: updated._id,
+      message: `${updated.username} claimed Day ${newStreak} daily reward: +${reward.dc.toLocaleString()} DC${itemGranted ? ` + ${itemGranted}` : ""}`,
       dc: reward.dc,
       xp: reward.xp,
     }).catch(() => {});
@@ -139,13 +181,15 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
 
     res.json({
       claimed: true,
-      streak: user.dailyStreak,
+      streak: newStreak,
       dcGained: reward.dc,
       xpGained: reward.xp,
       bonus: reward.bonus ?? null,
       itemGranted,
-      dc: user.dc,
-      xp: user.xp,
+      dc: updated.dc,
+      xp: updated.xp,
+      leveled,
+      newLevel: leveled ? updated.level : undefined,
       nextClaimAt: nextClaimAt.toISOString(),
     });
   } catch (err: any) {

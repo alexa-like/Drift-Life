@@ -284,45 +284,67 @@ router.delete("/listings/:id", requireAuth, async (req: AuthRequest, res) => {
 // POST /api/market/listings/:id/buy
 router.post("/listings/:id/buy", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const item = await Item.findOne({ _id: req.params.id, marketListed: true });
-    if (!item) return res.status(404).json({ message: "Listing not found" });
-    if (String(item.owner) === req.userId) {
+    // Read price snapshot first (non-atomic, just for info)
+    const listing = await Item.findOne({ _id: req.params.id, marketListed: true })
+      .populate<{ owner: { _id: string; username: string } }>("owner", "username")
+      .lean();
+    if (!listing) return res.status(404).json({ message: "Listing not found" });
+
+    // Use the populated _id (object) for comparison — String(listing.owner) would give "[object Object]"
+    const sellerId   = (listing.owner as any)?._id ?? listing.owner;
+    const sellerName = (listing.owner as any)?.username ?? "Unknown";
+    if (String(sellerId) === req.userId) {
       return res.status(400).json({ message: "Cannot buy your own listing" });
     }
 
-    const [buyer, seller] = await Promise.all([
-      User.findById(req.userId),
-      User.findById(item.owner),
-    ]);
-    if (!buyer || !seller) return res.status(404).json({ message: "User not found" });
-
-    const salePrice = item.marketPrice!;
-    if (buyer.dc < salePrice) {
-      return res.status(400).json({ message: `Not enough DC. Costs ${salePrice.toLocaleString()} DC.` });
-    }
-
+    const salePrice = listing.marketPrice!;
     const fee = Math.floor(salePrice * MARKET_FEE);
     const sellerReceives = salePrice - fee;
 
-    buyer.dc -= salePrice;
-    seller.dc = Math.min(seller.dc + sellerReceives, 100_000_000);
+    // ATOMIC gate 1: deduct buyer DC (prevents concurrent DC double-spend)
+    const buyer = await User.findOneAndUpdate(
+      { _id: req.userId, dc: { $gte: salePrice } },
+      { $inc: { dc: -salePrice } },
+      { new: true },
+    );
+    if (!buyer) {
+      return res.status(400).json({ message: `Not enough DC. Costs ${salePrice.toLocaleString()} DC.` });
+    }
 
-    item.owner = buyer._id;
-    item.marketListed = false;
-    item.marketPrice = null;
-    item.marketListedAt = null;
+    // ATOMIC gate 2: claim item (prevents two buyers winning the same listing)
+    const item = await Item.findOneAndUpdate(
+      { _id: req.params.id, marketListed: true },
+      {
+        $set: {
+          owner: buyer._id,
+          marketListed: false,
+          marketPrice: null,
+          marketListedAt: null,
+        },
+      },
+      { new: true },
+    );
 
-    await Promise.all([buyer.save(), seller.save(), item.save()]);
+    if (!item) {
+      // Item was already bought between our read and atomic claim — refund buyer
+      await User.findByIdAndUpdate(req.userId, { $inc: { dc: salePrice } });
+      return res.status(409).json({ message: "This listing was just sold — your DC has been refunded" });
+    }
+
+    // Credit seller — aggregation pipeline enforces wallet cap atomically
+    await User.findByIdAndUpdate(sellerId, [
+      { $set: { dc: { $min: [{ $add: ["$dc", sellerReceives] }, 100_000_000] } } },
+    ]);
 
     await FeedEvent.create({
       type: "market",
       actor: buyer.username,
       actorId: buyer._id,
-      target: seller.username,
-      targetId: seller._id,
-      message: `${buyer.username} bought ${item.name} from ${seller.username} for ${salePrice.toLocaleString()} DC`,
+      target: sellerName,
+      targetId: sellerId,
+      message: `${buyer.username} bought ${item.name} from ${sellerName} for ${salePrice.toLocaleString()} DC`,
       dc: salePrice,
-    });
+    }).catch(() => {});
 
     res.json({ message: `Purchased ${item.name} for ${salePrice.toLocaleString()} DC`, dc: buyer.dc });
   } catch (err: any) {

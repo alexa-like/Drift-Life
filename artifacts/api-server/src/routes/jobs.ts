@@ -4,6 +4,7 @@ import FeedEvent from "../models/FeedEvent";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp } from "../lib/regen";
 import { checkAchievements } from "./achievements";
+import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
 
 const router = Router();
 
@@ -33,24 +34,15 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
-
     const now = new Date();
     const cooldowns = (user as any).jobCooldowns || {};
-
     const jobsWithStatus = JOBS.map(j => {
       const cooldownUntil = cooldowns[j.id] ? new Date(cooldowns[j.id]) : null;
-      const onCooldown = cooldownUntil && cooldownUntil > now;
+      const onCooldown = !!(cooldownUntil && cooldownUntil > now);
       const districtMatch = j.district === "any" || j.district === user.district;
       const levelOk = user.level >= j.minLevel;
-      return {
-        ...j,
-        available: districtMatch && levelOk && !onCooldown,
-        onCooldown,
-        cooldownUntil: onCooldown ? cooldownUntil : null,
-        districtMatch,
-      };
+      return { ...j, available: districtMatch && levelOk && !onCooldown, onCooldown, cooldownUntil: onCooldown ? cooldownUntil : null, districtMatch };
     });
-
     res.json(jobsWithStatus);
   } catch (err: any) {
     req.log.error({ err }, "get jobs error");
@@ -64,52 +56,47 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
     const job = JOBS.find(j => j.id === req.params.jobId);
     if (!job) return res.status(404).json({ message: "Job not found" });
 
-    // Load user and apply regen
+    // Read user for preliminary checks + faction info only — regen computed DB-side below
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Apply regen in-memory for preliminary checks (not saved — DB pipeline handles it)
     applyRegen(user);
 
-    // Preliminary checks (non-concurrent-sensitive)
     if (isHospitalized(user)) return res.status(400).json({ message: "You are hospitalized" });
-    if (isJailed(user)) return res.status(400).json({ message: "You are in jail" });
+    if (isJailed(user))       return res.status(400).json({ message: "You are in jail" });
     if (user.level < job.minLevel) return res.status(400).json({ message: `Requires level ${job.minLevel}` });
     if (job.district !== "any" && user.district !== job.district) {
       return res.status(400).json({ message: `This job is only available in ${job.district.replace(/-/g, " ")}` });
     }
 
-    // Save regen state so DB reflects updated energy before the atomic gate
-    await User.updateOne({ _id: req.userId }, {
-      $set: {
-        energy: user.energy,
-        nerve: user.nerve,
-        energyRegenAt: user.energyRegenAt,
-        nerveRegenAt: user.nerveRegenAt,
-      },
-    });
-
     // Faction bonuses
-    const energyRefund = user.faction === "grid" ? Math.floor(job.energyCost * 0.10) : 0;
-    let dcMultiplier = 1;
-    if (user.faction === "suits") dcMultiplier = 1.10;
-
-    const dcGained = Math.floor((job.dcMin + Math.random() * (job.dcMax - job.dcMin)) * dcMultiplier);
-    const xpGained = job.xpPerJob;
+    const energyBonus = user.faction === "grid" ? Math.floor(job.energyCost * 0.10) : 0;
+    let dcMultiplier  = user.faction === "suits" ? 1.10 : 1;
+    const dcGained      = Math.floor((job.dcMin + Math.random() * (job.dcMax - job.dcMin)) * dcMultiplier);
+    const xpGained      = job.xpPerJob;
     const cooldownUntil = new Date(Date.now() + job.cooldownMin * 60 * 1000);
 
-    // ATOMIC: check energy AND cooldown, deduct energy, set cooldown in one operation
+    // FULLY ATOMIC: regen computed server-side via pipeline; $expr condition
+    // checks effective energy (including regen) before deducting — zero race window.
     const gated = await User.findOneAndUpdate(
       {
         _id: req.userId,
-        energy: { $gte: job.energyCost },
+        // DB-side regen check: ensures (energy + regenSinceLastTick) >= cost
+        ...energySufficientExpr(job.energyCost),
         $or: [
           { [`jobCooldowns.${job.id}`]: { $exists: false } },
           { [`jobCooldowns.${job.id}`]: { $lte: new Date() } },
         ],
       },
-      {
-        $inc: { energy: -job.energyCost + energyRefund },
-        $set: { job: job.id, [`jobCooldowns.${job.id}`]: cooldownUntil },
-      },
+      buildRegenPipeline({
+        energyCost:  job.energyCost,
+        energyBonus,
+        extraSet: {
+          job: job.id,
+          [`jobCooldowns.${job.id}`]: cooldownUntil,
+        },
+      }),
       { new: true },
     );
 
@@ -117,42 +104,31 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: "Not enough energy or job is on cooldown" });
     }
 
-    // Apply DC/XP rewards and level-up
-    gated.dc = Math.min(gated.dc + dcGained, 100_000_000);
-    gated.xp += xpGained;
-    const leveled = levelUp(gated);
-    await gated.save();
+    // Apply DC + XP atomically with wallet cap via pipeline (separate op — rewards can't race-mint)
+    const rewarded = await User.findByIdAndUpdate(
+      gated._id,
+      [{ $set: { dc: { $min: [{ $add: ["$dc", dcGained] }, 100_000_000] }, xp: { $add: ["$xp", xpGained] } } }],
+      { new: true },
+    );
+    if (!rewarded) return res.status(500).json({ message: "Internal server error" });
+
+    const leveled = levelUp(rewarded);
+    if (leveled) await rewarded.save();
     checkAchievements(String(req.userId)).catch(() => {});
 
-    // 30% chance to trigger the job's assigned mini-game
-    const miniGameTriggered = Math.random() < 0.30;
-    const miniGameType = miniGameTriggered ? job.miniGame : null;
-
     await FeedEvent.create({
-      type: "job",
-      actor: gated.username,
-      actorId: gated._id,
-      message: `${gated.username} completed a shift as ${job.name} and earned ${dcGained} DC`,
-      dc: dcGained,
-      xp: xpGained,
+      type: "job", actor: rewarded.username, actorId: rewarded._id,
+      message: `${rewarded.username} completed a shift as ${job.name} and earned ${dcGained} DC`,
+      dc: dcGained, xp: xpGained,
     }).catch(() => {});
 
+    const miniGameTriggered = Math.random() < 0.30;
     res.json({
-      dcGained,
-      xpGained,
-      leveled,
-      newLevel: leveled ? gated.level : undefined,
-      miniGameTriggered,
-      miniGameType,
+      dcGained, xpGained, leveled,
+      newLevel: leveled ? rewarded.level : undefined,
+      miniGameTriggered, miniGameType: miniGameTriggered ? job.miniGame : null,
       cooldownUntil,
-      user: {
-        dc: gated.dc,
-        energy: gated.energy,
-        maxEnergy: gated.maxEnergy,
-        xp: gated.xp,
-        xpToNext: gated.xpToNext,
-        level: gated.level,
-      },
+      user: { dc: rewarded.dc, energy: rewarded.energy, maxEnergy: rewarded.maxEnergy, xp: rewarded.xp, xpToNext: rewarded.xpToNext, level: rewarded.level },
     });
   } catch (err: any) {
     req.log.error({ err }, "work job error");
@@ -160,19 +136,16 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/jobs/minigame/complete — apply bonus after mini-game
+// POST /api/jobs/minigame/complete — bonus after mini-game
 router.post("/minigame/complete", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { multiplier } = req.body;
-    if (!multiplier || multiplier < 1 || multiplier > 1.6) {
-      return res.status(400).json({ message: "Invalid multiplier" });
-    }
+    if (!multiplier || multiplier < 1 || multiplier > 1.6) return res.status(400).json({ message: "Invalid multiplier" });
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
     const bonus = Math.floor(user.dc * 0.02 * (multiplier - 1) * 100);
-    user.dc = Math.min(user.dc + bonus, 100_000_000);
-    await user.save();
-    res.json({ bonus, newDc: user.dc });
+    await User.findByIdAndUpdate(user._id, [{ $set: { dc: { $min: [{ $add: ["$dc", bonus] }, 100_000_000] } } }]);
+    res.json({ bonus, newDc: Math.min(user.dc + bonus, 100_000_000) });
   } catch (err: any) {
     req.log.error({ err }, "minigame complete error");
     res.status(500).json({ message: "Internal server error" });

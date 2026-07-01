@@ -19,17 +19,26 @@ router.post("/deposit", requireAuth, async (req: AuthRequest, res) => {
     const amount = Math.floor(Number(req.body.amount));
     if (!amount || amount <= 0) return res.status(400).json({ message: "Invalid amount" });
 
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "Not found" });
-    if (user.dc < amount) return res.status(400).json({ message: "Insufficient funds" });
-    if (user.bankBalance + amount > BANK_CAP)
+    // ATOMIC: check wallet has enough AND bank won't overflow, deduct both in one op
+    const updated = await User.findOneAndUpdate(
+      {
+        _id: req.userId,
+        dc: { $gte: amount },
+        bankBalance: { $lte: BANK_CAP - amount },
+      },
+      { $inc: { dc: -amount, bankBalance: amount } },
+      { new: true },
+    );
+
+    if (!updated) {
+      // Distinguish failure reason for a helpful error message
+      const user = await User.findById(req.userId).select("dc bankBalance").lean();
+      if (!user) return res.status(404).json({ message: "Not found" });
+      if ((user as any).dc < amount) return res.status(400).json({ message: "Insufficient funds" });
       return res.status(400).json({ message: `Bank is full — max ${(BANK_CAP / 1_000_000_000).toFixed(0)}B DC` });
+    }
 
-    user.dc -= amount;
-    user.bankBalance += amount;
-    await user.save();
-
-    res.json({ wallet: user.dc, bank: user.bankBalance, message: `Deposited ${amount} DC` });
+    res.json({ wallet: updated.dc, bank: updated.bankBalance, message: `Deposited ${amount.toLocaleString()} DC` });
   } catch (err: any) {
     req.log.error({ err }, "deposit error");
     res.status(500).json({ message: "Internal server error" });
@@ -42,17 +51,25 @@ router.post("/withdraw", requireAuth, async (req: AuthRequest, res) => {
     const amount = Math.floor(Number(req.body.amount));
     if (!amount || amount <= 0) return res.status(400).json({ message: "Invalid amount" });
 
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "Not found" });
-    if (user.bankBalance < amount) return res.status(400).json({ message: "Insufficient funds" });
-    if (user.dc + amount > WALLET_CAP)
+    // ATOMIC: check bank has enough AND wallet won't overflow, deduct both in one op
+    const updated = await User.findOneAndUpdate(
+      {
+        _id: req.userId,
+        bankBalance: { $gte: amount },
+        dc: { $lte: WALLET_CAP - amount },
+      },
+      { $inc: { bankBalance: -amount, dc: amount } },
+      { new: true },
+    );
+
+    if (!updated) {
+      const user = await User.findById(req.userId).select("dc bankBalance").lean();
+      if (!user) return res.status(404).json({ message: "Not found" });
+      if ((user as any).bankBalance < amount) return res.status(400).json({ message: "Insufficient funds" });
       return res.status(400).json({ message: `Wallet is full — max ${(WALLET_CAP / 1_000_000).toFixed(0)}M DC on hand. Deposit some first.` });
+    }
 
-    user.bankBalance -= amount;
-    user.dc += amount;
-    await user.save();
-
-    res.json({ wallet: user.dc, bank: user.bankBalance, message: `Withdrew ${amount} DC` });
+    res.json({ wallet: updated.dc, bank: updated.bankBalance, message: `Withdrew ${amount.toLocaleString()} DC` });
   } catch (err: any) {
     req.log.error({ err }, "withdraw error");
     res.status(500).json({ message: "Internal server error" });
@@ -63,26 +80,33 @@ router.post("/withdraw", requireAuth, async (req: AuthRequest, res) => {
 router.post("/transfer", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { targetUsername, amount: rawAmount } = req.body;
-    const amount = Math.floor(Number(rawAmount));
-    if (!targetUsername || !amount || amount <= 0)
+    if (typeof targetUsername !== "string" || !targetUsername) {
       return res.status(400).json({ message: "targetUsername and amount required" });
+    }
+    const amount = Math.floor(Number(rawAmount));
+    if (!amount || amount <= 0) return res.status(400).json({ message: "Invalid amount" });
 
-    const [sender, recipient] = await Promise.all([
-      User.findById(req.userId),
-      User.findOne({ username: targetUsername }),
-    ]);
-
-    if (!sender) return res.status(404).json({ message: "Not found" });
+    const recipient = await User.findOne({ username: targetUsername }).select("_id username dc").lean();
     if (!recipient) return res.status(404).json({ message: "Recipient not found" });
-    if (String(sender._id) === String(recipient._id))
+    if (String(recipient._id) === req.userId) {
       return res.status(400).json({ message: "Cannot transfer to yourself" });
-    if (sender.dc < amount) return res.status(400).json({ message: "Insufficient funds" });
-    if (recipient.dc + amount > WALLET_CAP)
+    }
+    if ((recipient as any).dc + amount > WALLET_CAP) {
       return res.status(400).json({ message: `Recipient's wallet is full — they can hold max ${(WALLET_CAP / 1_000_000).toFixed(0)}M DC on hand` });
+    }
 
-    sender.dc -= amount;
-    recipient.dc += amount;
-    await Promise.all([sender.save(), recipient.save()]);
+    // ATOMIC: deduct sender DC with balance check
+    const sender = await User.findOneAndUpdate(
+      { _id: req.userId, dc: { $gte: amount } },
+      { $inc: { dc: -amount } },
+      { new: true },
+    );
+    if (!sender) return res.status(400).json({ message: "Insufficient funds" });
+
+    // Credit recipient — aggregation pipeline enforces wallet cap atomically
+    await User.findByIdAndUpdate(recipient._id, [
+      { $set: { dc: { $min: [{ $add: ["$dc", amount] }, WALLET_CAP] } } },
+    ]);
 
     await FeedEvent.create({
       type: "bank",
@@ -90,11 +114,11 @@ router.post("/transfer", requireAuth, async (req: AuthRequest, res) => {
       actorId: sender._id,
       target: recipient.username,
       targetId: recipient._id,
-      message: `${sender.username} transferred ${amount} DC to ${recipient.username}`,
+      message: `${sender.username} transferred ${amount.toLocaleString()} DC to ${recipient.username}`,
       dc: amount,
-    });
+    }).catch(() => {});
 
-    res.json({ wallet: sender.dc, bank: sender.bankBalance, message: `Transferred ${amount} DC to ${recipient.username}` });
+    res.json({ wallet: sender.dc, bank: sender.bankBalance, message: `Transferred ${amount.toLocaleString()} DC to ${recipient.username}` });
   } catch (err: any) {
     req.log.error({ err }, "transfer error");
     res.status(500).json({ message: "Internal server error" });

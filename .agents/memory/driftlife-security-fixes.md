@@ -1,42 +1,72 @@
 ---
 name: DriftLife Security Fixes
-description: Records the security/stability audit fixes applied, patterns used, and known remaining gaps
+description: Durable security/concurrency lessons from the DriftLife audit — patterns to apply consistently.
 ---
 
-## What was fixed
+## Atomic regen: use DB-side pipeline, not app-side computation
 
-**A-1 Atomic locks (race condition prevention):**
-- `jobs.ts`: `User.findOneAndUpdate` with `energy: { $gte: energyCost }` + jobCooldown condition as the gate. Regen is saved first via `User.updateOne`, then atomic update deducts energy + sets cooldown atomically.
-- `crimes.ts`: Same pattern — `nerve: { $gte: nerveCost }` condition, `$inc: { nerve: -cost }` atomically.
-- `combat.ts` NPC: `lastNpcCombatAt` field gated atomically; predicate includes `{ $or: [{ lastNpcCombatAt: null }, { lastNpcCombatAt: { $exists: false } }, { lastNpcCombatAt: { $lte: cooldownThreshold } }] }` — the `null` arm is critical to avoid locking out first fight.
+**Rule:** Never compute regen in application code and write it back. Any read-modify-write creates a mint window under concurrency.
 
-**A-2/A-3 Rate limiting + Helmet:**
-- `app.ts` has `app.set("trust proxy", 1)` BEFORE rate limiters (critical for proxied infra like Render/Replit).
-- Global: 300 req/min. Auth: 20 req/15min. Game actions (/jobs, /crimes, /combat): 60 req/min.
-- Helmet applied with custom CSP (contentSecurityPolicy false would break things).
+**Why:** Two concurrent requests reading the same stale `energyRegenAt` both compute the same large delta (e.g. 60 energy after 3h offline) and both apply `$inc: { energy: delta - cost }`, minting N×delta. Also, app-side `$inc` can't enforce the `maxEnergy` cap.
 
-**A-4 Chat XSS:**
-- `sanitize-html` with `{ allowedTags: [], allowedAttributes: {} }` strips all HTML. Applied to global, district, faction, and DM create paths.
+**How to apply:** Use `energySufficientExpr(cost)` / `nerveSufficientExpr(cost)` from `src/lib/atomicRegen.ts` as the `findOneAndUpdate` filter (embeds `$$NOW`-based regen check), paired with `buildRegenPipeline(opts)` as the update (computes regen delta in Stage 1, applies + caps in Stage 2, cleans up in Stage 3). Requires MongoDB 4.2+ for `$$NOW` in `$expr` and pipeline updates — verify on first deploy.
 
-**A-5 NoSQL injection:**
-- `auth.ts` login + register: `typeof email !== "string"` guards before any DB query.
+- Regen tick rates: energy = 1 per 3 min (180 000 ms), nerve = 1 per 5 min (300 000 ms) — mirrors `applyRegen()` in `User.ts`. Keep in sync.
 
-**A-6 NPC drop deduplication:**
-- `grantNpcDrop` now uses `Item.findOneAndUpdate({ owner, name, type, rarity }, { $inc: {quantity:1}, $setOnInsert: {...} }, { upsert: true })`.
-- Compound index added to `Item` model on `(owner, name, type, rarity)` for deduplication.
+---
 
-**C-2 Friends system:**
-- `FriendRequest` model in `models/FriendRequest.ts`. Unique partial index on `{from,to,status:pending}`.
-- `routes/friends.ts`: GET /, GET /requests, POST /request, POST /accept, DELETE /request/:id, DELETE /:friendId.
-- All ID inputs validated with `mongoose.isValidObjectId()`.
-- `User` model: `friends: [ObjectId]` + `lastNpcCombatAt: Date | null` fields added to both interface and schema.
+## DC cap: always use aggregation pipeline $min, never $inc alone
 
-**C-5 Faction chat:**
-- `chat.ts`: GET/POST `/api/chat/faction`. Channel stored as `` `faction:${user.faction}` ``.
-- `ChatMessage` model: channel type widened from `"global"|"district"|"dm"` to include `` `faction:${string}` ``; schema enum removed (validated in routes instead).
+**Rule:** Any operation that credits DC must use `[{ $set: { dc: { $min: [{ $add: ["$dc", amount] }, 100_000_000] } } }]` (aggregation pipeline update) — not `$inc: { dc: amount }`.
 
-## Remaining known gaps (from code review)
-- Other auth handlers (`resend-otp`, `forgot-password`, `reset-password`) still accept untyped body values — low priority since they use email lookups not `$where`/operator injection.
-- Preliminary checks in jobs/crimes (hospital, jail, level) are still outside the atomic predicate — acceptable gameplay trade-off.
+**Why:** `$inc` with pre-save hook clamping does NOT run in `findByIdAndUpdate`; the pre-save only runs on `doc.save()`. A user near the cap can exceed 100M DC with any plain `$inc`.
 
-**Why:** Pattern for atomic resource deduction: save regen first, then `findOneAndUpdate` with the resource condition as the predicate. Never use `user.save()` for the resource field itself.
+**How to apply:** All reward credits (jobs, crimes, daily, market seller, bank transfer recipient) use the pipeline `$min` pattern. Regular deductions can still use `$inc: { dc: -amount }` since going negative is guarded by a condition predicate.
+
+---
+
+## Atomic two-gate market buy (race between two buyers)
+
+**Rule:** Two separate atomic ops: (1) deduct buyer DC with `findOneAndUpdate({ dc: { $gte: price } }, { $inc: { dc: -price } })`, (2) claim listing with `findOneAndUpdate({ _id, marketListed: true }, { $set: { marketListed: false } })`. If gate-2 fails, refund buyer.
+
+**Why:** A single read-then-update lets two buyers both pass the DC check and both receive the item.
+
+---
+
+## Market: self-buy guard after populate
+
+**Rule:** After `.populate("owner", "username")`, compare `String((listing.owner as any)._id)` vs `req.userId` — NOT `String(listing.owner)` which gives `[object Object]`.
+
+---
+
+## Bank transfer: recipient credit is not end-to-end atomic
+
+**Known gap:** Sender debit is atomic (conditional `findOneAndUpdate`). Recipient credit uses aggregation pipeline `$min` cap but is a separate op. If recipient credit fails after sender debit succeeds, DC is lost. No transaction/compensation exists.
+
+**Why accepted:** MongoDB transactions require replica set sessions (available on Atlas but adds latency and complexity). The failure window is a transient DB error scenario — acceptable game trade-off. If this becomes a player issue, add a `pendingTransfer` field as compensating state.
+
+---
+
+## NoSQL injection guard
+
+**Rule:** In any route that takes user-provided credentials or identifiers and passes them to MongoDB, check `typeof value !== "string"` before any query. Otherwise `{ $gt: "" }` objects bypass checks.
+
+**How to apply:** Implemented in `auth.ts` login + register. Also relevant for any new auth-adjacent routes.
+
+---
+
+## Helmet + trust proxy ordering
+
+**Rule:** `app.set("trust proxy", 1)` MUST come before rate limiters. Without it, `express-rate-limit` sees the proxy IP as the client IP, so all requests share one bucket.
+
+---
+
+## NPC combat cooldown: three-arm `$or` condition
+
+**Rule:** First-fight edge case — `lastNpcCombatAt` can be `null`, `undefined` (field missing), or a Date. The atomic gate must cover all three: `$or: [{ lastNpcCombatAt: null }, { lastNpcCombatAt: { $exists: false } }, { lastNpcCombatAt: { $lte: threshold } }]`.
+
+---
+
+## Friend request ObjectId validation
+
+**Rule:** Always call `mongoose.isValidObjectId(id)` before using any user-supplied ID as a MongoDB `_id`. Prevents CastError 500s and potential query manipulation.
