@@ -131,7 +131,8 @@ router.get("/shop", requireAuth, async (_req, res) => {
     strengthBonus: i.strengthBonus, charismaBonus: i.charismaBonus,
     intelligenceBonus: i.intelligenceBonus, streetCredBonus: i.streetCredBonus,
     defenseBonus: i.defenseBonus, travelEnergyReduction: i.travelEnergyReduction,
-    basePrice: PRICE_OVERRIDES.get(i.id) ?? i.basePrice,
+    basePrice: i.basePrice,
+    price: PRICE_OVERRIDES.get(i.id) ?? i.basePrice,
     description: i.description,
     effect: i.effect ?? null, imageUrl: i.imageUrl,
   })));

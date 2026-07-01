@@ -16,6 +16,7 @@ interface ShopItem {
   streetCredBonus: number;
   defenseBonus: number;
   basePrice: number;
+  price: number;
   description: string;
   effect?: string | null;
   imageUrl?: string | null;
@@ -122,7 +123,7 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>
-            {formatDC(item.basePrice)} DC
+            {formatDC(item.price)} DC
           </span>
           <button
             onClick={onBuy}
@@ -210,7 +211,7 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
             <ShopItemCard
               key={item.id}
               item={item}
-              canAfford={user.dc >= item.basePrice}
+              canAfford={user.dc >= item.price}
               busy={buying === item.id}
               onBuy={() => buyShopItem(item.id)}
             />
