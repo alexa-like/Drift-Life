@@ -6,6 +6,7 @@ import { connectDB } from "./lib/db";
 import { startKeepAlive, stopKeepAlive } from "./lib/keepAlive";
 import { seed } from "./lib/seed";
 import User from "./models/User";
+import { allowedOrigins } from "./lib/cors";
 
 const rawPort = process.env["PORT"] ?? "3000";
 const port = Number(rawPort);
@@ -17,7 +18,7 @@ if (Number.isNaN(port) || port <= 0) {
 const httpServer = createServer(app);
 
 const io = new SocketServer(httpServer, {
-  cors: { origin: "*" },
+  cors: { origin: allowedOrigins, credentials: true },
   path: "/api/socket.io",
 });
 
