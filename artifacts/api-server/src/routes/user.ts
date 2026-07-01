@@ -145,6 +145,132 @@ router.get("/profile/:id", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/user/profile — own profile summary
+router.get("/profile", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const equippedItems = await Item.find({
+      _id: { $in: [user.equippedWeapon, user.equippedArmor, user.equippedClothing, user.equippedVehicle].filter(Boolean) },
+      owner: user._id,
+    }).lean();
+    res.json({
+      id: user._id,
+      username: user.username,
+      tag: user.tag,
+      avatar: user.avatar,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      faction: user.faction,
+      level: user.level,
+      xp: user.xp,
+      xpToNext: user.xpToNext,
+      prestige: user.prestige,
+      rank: user.rank,
+      district: user.district,
+      equippedFrame: user.equippedFrame,
+      equippedFrameColor: (user as any).equippedFrameColor ?? null,
+      equippedTitle: user.equippedTitle,
+      titles: user.titles,
+      equippedItems,
+      wins: user.wins,
+      losses: user.losses,
+      totalCrimes: user.totalCrimes,
+      successfulCrimes: user.successfulCrimes,
+      createdAt: user.createdAt,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "get own profile error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/user/garage — own vehicles
+router.get("/garage", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("_id equippedVehicle");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const vehicles = await Item.find({ owner: user._id, type: "vehicle" }).lean();
+    res.json({
+      vehicles,
+      equippedVehicle: user.equippedVehicle ?? null,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "get garage error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/user/inventory — own items (all types)
+router.get("/inventory", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("_id equippedWeapon equippedArmor equippedClothing equippedVehicle");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const items = await Item.find({ owner: user._id }).sort({ createdAt: -1 }).lean();
+    res.json({
+      items,
+      equipped: {
+        weapon: user.equippedWeapon ?? null,
+        armor: user.equippedArmor ?? null,
+        clothing: user.equippedClothing ?? null,
+        vehicle: user.equippedVehicle ?? null,
+      },
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "get inventory error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/user/wallet — own financial data
+router.get("/wallet", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("dc nc bankBalance");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({
+      dc: user.dc,
+      nc: user.nc,
+      bankBalance: user.bankBalance,
+      total: user.dc + user.bankBalance,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "get wallet error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/user/stats — own combat/crime stats
+router.get("/stats", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select(
+      "strength charisma intelligence streetCred wins losses totalFights totalCrimes successfulCrimes wantedLevel level rank prestige merit skillPoints"
+    );
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({
+      strength: user.strength,
+      charisma: user.charisma,
+      intelligence: user.intelligence,
+      streetCred: user.streetCred,
+      wins: user.wins,
+      losses: user.losses,
+      totalFights: user.totalFights,
+      totalCrimes: user.totalCrimes,
+      successfulCrimes: user.successfulCrimes,
+      wantedLevel: user.wantedLevel,
+      level: user.level,
+      rank: user.rank,
+      prestige: user.prestige,
+      merit: user.merit,
+      skillPoints: user.skillPoints,
+      winRate: user.totalFights > 0 ? Math.round((user.wins / user.totalFights) * 100) : 0,
+      crimeSuccessRate: user.totalCrimes > 0 ? Math.round((user.successfulCrimes / user.totalCrimes) * 100) : 0,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "get stats error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // GET /api/user/:username
 router.get("/:username", requireAuth, async (req: AuthRequest, res) => {
   try {
