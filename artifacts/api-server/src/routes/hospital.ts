@@ -1,4 +1,5 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import User from "../models/User";
 import Item from "../models/Item";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
@@ -28,14 +29,22 @@ router.get("/status", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/hospital/use-item — use a hospital item from inventory
+// POST /api/hospital/use-item — use a consumable item from inventory to restore HP / reduce hospital time
 router.post("/use-item", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { itemId } = req.body;
     if (!itemId) return res.status(400).json({ message: "itemId required" });
 
-    const item = await Item.findOne({ _id: itemId, owner: req.userId });
-    if (!item) return res.status(404).json({ message: "Item not found" });
+    // Validate ObjectId before querying — non-ObjectId strings throw a Mongoose CastError
+    if (!mongoose.isValidObjectId(itemId)) {
+      return res.status(400).json({ message: "Invalid itemId" });
+    }
+
+    const item = await Item.findOne({
+      _id: new mongoose.Types.ObjectId(itemId),
+      owner: new mongoose.Types.ObjectId(String(req.userId)),
+    });
+    if (!item) return res.status(404).json({ message: "Item not found in your inventory" });
     if (item.type !== "consumable") return res.status(400).json({ message: "Not a consumable item" });
 
     const user = await User.findById(req.userId);
