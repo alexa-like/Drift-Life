@@ -36,9 +36,9 @@ export default function GymPage({ user, onUserUpdate }: Props) {
   const [lastGain, setLastGain] = useState<{ stat: string; gain: number } | null>(null);
 
   useEffect(() => {
-    api.get("/gym").then(r => {
-      setGyms(r.data);
-      setSelectedGym(r.data[0] ?? null);
+    api.get<GymDef[]>("/gym").then(r => {
+      setGyms(r);
+      setSelectedGym(r[0] ?? null);
     }).catch(() => {});
   }, []);
 
@@ -47,8 +47,7 @@ export default function GymPage({ user, onUserUpdate }: Props) {
     setLoading(true);
     setMessage(null);
     try {
-      const r = await api.post(`/gym/${selectedGym.id}/train`, { stat: selectedStat });
-      const d = r.data;
+      const d = await api.post<any>(`/gym/${selectedGym.id}/train`, { stat: selectedStat });
       setLastGain({ stat: selectedStat, gain: d.statGain });
       setMessage({ text: `+${d.statGain.toFixed(3)} ${d.stat} at ${d.gym} | Mood ${d.mood}% | ×${d.moodMultiplier.toFixed(2)} mood mult`, type: "success" });
       onUserUpdate({ ...user, [selectedStat]: d.newStat, energy: d.energy, dc: d.dc, stress: user.stress - 2 < 0 ? 0 : user.stress - 2 });

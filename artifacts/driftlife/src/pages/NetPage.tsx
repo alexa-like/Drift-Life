@@ -34,12 +34,12 @@ export default function NetPage({ user, onUserUpdate }: Props) {
   const [darkNewCurrency, setDarkNewCurrency] = useState<"dc" | "sim">("dc");
 
   useEffect(() => {
-    api.get("/net/sim").then(r => setSimData(r.data)).catch(() => {});
+    api.get<{ sim: number; price: number; history: { price: number; at: string }[] }>("/net/sim").then(setSimData).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (tab === "dark") {
-      api.get("/net/dark-market").then(r => setDarkListings(r.data)).catch(() => {});
+      api.get<DarkListing[]>("/net/dark-market").then(setDarkListings).catch(() => {});
     }
   }, [tab]);
 
@@ -60,8 +60,8 @@ export default function NetPage({ user, onUserUpdate }: Props) {
     if (!hackTargetId.trim()) return;
     setLoading(true); setMessage(null);
     try {
-      const r = await api.post("/net/hack/initiate", { targetId: hackTargetId.trim() });
-      setHackSession({ sessionId: r.data.sessionId, sequence: r.data.sequence, timeLimit: r.data.timeLimit });
+      const r = await api.post<any>("/net/hack/initiate", { targetId: hackTargetId.trim() });
+      setHackSession({ sessionId: r.sessionId, sequence: r.sequence, timeLimit: r.timeLimit });
       setHackAnswer([]);
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
@@ -78,12 +78,12 @@ export default function NetPage({ user, onUserUpdate }: Props) {
     if (!hackSession) return;
     setLoading(true);
     try {
-      const r = await api.post("/net/hack/submit", { sessionId: hackSession.sessionId, answer: hackAnswer });
-      if (r.data.success) {
-        setMessage({ text: `Breach successful! +${r.data.simEarned} SIM | Heat +${r.data.heatGain}`, type: "success" });
-        onUserUpdate({ ...user, sim: r.data.sim, heat: Math.min(100, user.heat + r.data.heatGain) });
+      const r = await api.post<any>("/net/hack/submit", { sessionId: hackSession.sessionId, answer: hackAnswer });
+      if (r.success) {
+        setMessage({ text: `Breach successful! +${r.simEarned} SIM | Heat +${r.heatGain}`, type: "success" });
+        onUserUpdate({ ...user, sim: r.sim, heat: Math.min(100, user.heat + r.heatGain) });
       } else {
-        setMessage({ text: r.data.message, type: "error" });
+        setMessage({ text: r.message, type: "error" });
       }
       setHackSession(null);
       setHackAnswer([]);
@@ -95,9 +95,9 @@ export default function NetPage({ user, onUserUpdate }: Props) {
 
   async function upgradeFirewall() {
     try {
-      const r = await api.post("/net/firewall/upgrade", {});
-      setMessage({ text: r.data.message, type: "success" });
-      onUserUpdate({ ...user, firewallLevel: r.data.firewallLevel, dc: r.data.dc });
+      const r = await api.post<any>("/net/firewall/upgrade", {});
+      setMessage({ text: r.message, type: "success" });
+      onUserUpdate({ ...user, firewallLevel: r.firewallLevel, dc: r.dc });
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
     }
@@ -107,10 +107,10 @@ export default function NetPage({ user, onUserUpdate }: Props) {
     const amt = parseInt(simAmount);
     if (!amt || amt < 1) return;
     try {
-      const r = await api.post(simMode === "buy" ? "/net/sim/buy" : "/net/sim/sell", { amount: amt });
-      setMessage({ text: `${simMode === "buy" ? "Bought" : "Sold"} ${amt} SIM. New price: ${r.data.newPrice?.toLocaleString()} DC/SIM`, type: "success" });
-      onUserUpdate({ ...user, sim: r.data.sim, dc: r.data.dc });
-      setSimData(prev => prev ? { ...prev, price: r.data.newPrice, sim: r.data.sim } : prev);
+      const r = await api.post<any>(simMode === "buy" ? "/net/sim/buy" : "/net/sim/sell", { amount: amt });
+      setMessage({ text: `${simMode === "buy" ? "Bought" : "Sold"} ${amt} SIM. New price: ${r.newPrice?.toLocaleString()} DC/SIM`, type: "success" });
+      onUserUpdate({ ...user, sim: r.sim, dc: r.dc });
+      setSimData(prev => prev ? { ...prev, price: r.newPrice, sim: r.sim } : prev);
       setSimAmount("");
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
@@ -120,10 +120,10 @@ export default function NetPage({ user, onUserUpdate }: Props) {
   async function listDark() {
     if (!darkNewName || !darkNewPrice) return;
     try {
-      const r = await api.post("/net/dark-market/list", {
+      const r = await api.post<any>("/net/dark-market/list", {
         itemName: darkNewName, price: parseInt(darkNewPrice), currency: darkNewCurrency,
       });
-      setMessage({ text: `Listed as ${r.data.pseudoHandle}`, type: "success" });
+      setMessage({ text: `Listed as ${r.pseudoHandle}`, type: "success" });
       setDarkNewName(""); setDarkNewPrice("");
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
@@ -132,13 +132,13 @@ export default function NetPage({ user, onUserUpdate }: Props) {
 
   async function buyDark(listingId: string) {
     try {
-      const r = await api.post(`/net/dark-market/buy/${listingId}`, {});
-      if (r.data.stung) {
-        setMessage({ text: r.data.message, type: "warn" });
-        onUserUpdate({ ...user, heat: r.data.heat });
+      const r = await api.post<any>(`/net/dark-market/buy/${listingId}`, {});
+      if (r.stung) {
+        setMessage({ text: r.message, type: "warn" });
+        onUserUpdate({ ...user, heat: r.heat });
       } else {
-        setMessage({ text: `Purchased: ${r.data.item}`, type: "success" });
-        onUserUpdate({ ...user, dc: r.data.dc, sim: r.data.sim });
+        setMessage({ text: `Purchased: ${r.item}`, type: "success" });
+        onUserUpdate({ ...user, dc: r.dc, sim: r.sim });
         setDarkListings(prev => prev.filter(l => l.id !== listingId));
       }
     } catch (e: any) {

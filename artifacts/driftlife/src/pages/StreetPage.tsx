@@ -42,13 +42,13 @@ export default function StreetPage({ user, onUserUpdate }: Props) {
   const [pursuit, setPursuit] = useState(user.pursuiteActive ?? false);
 
   useEffect(() => {
-    api.get("/crimes").then(r => setRuns(r.data)).catch(() => {});
-    api.get("/crimes/mastery").then(r => setMastery(r.data)).catch(() => {});
+    api.get<Run[]>("/crimes").then(setRuns).catch(() => {});
+    api.get<Record<string, number>>("/crimes/mastery").then(setMastery).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (tab === "jail") {
-      api.get("/crimes/jail-list").then(r => setJailList(r.data)).catch(() => {});
+      api.get<any[]>("/crimes/jail-list").then(setJailList).catch(() => {});
     }
   }, [tab]);
 
@@ -60,8 +60,7 @@ export default function StreetPage({ user, onUserUpdate }: Props) {
     setLoading(true);
     setMessage(null);
     try {
-      const r = await api.post(`/crimes/${run.id}/commit`, {});
-      const d = r.data;
+      const d = await api.post<any>(`/crimes/${run.id}/commit`, {});
 
       if (d.pursuitRequired) {
         setPursuit(true);
@@ -91,10 +90,10 @@ export default function StreetPage({ user, onUserUpdate }: Props) {
 
   async function resolvePursuit(outcome: "bribe" | "outrun" | "busted") {
     try {
-      const r = await api.post("/crimes/pursuit/resolve", { outcome });
-      setMessage({ text: r.data.message, type: "success" });
+      const r = await api.post<any>("/crimes/pursuit/resolve", { outcome });
+      setMessage({ text: r.message, type: "success" });
       setPursuit(false);
-      onUserUpdate({ ...user, pursuiteActive: false, heat: r.data.heat });
+      onUserUpdate({ ...user, pursuiteActive: false, heat: r.heat });
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
     }
@@ -102,9 +101,9 @@ export default function StreetPage({ user, onUserUpdate }: Props) {
 
   async function doEscape() {
     try {
-      const r = await api.post("/crimes/escape", {});
-      setMessage({ text: r.data.message, type: r.data.success ? "success" : "error" });
-      if (r.data.success) onUserUpdate({ ...user, jailUntil: null });
+      const r = await api.post<any>("/crimes/escape", {});
+      setMessage({ text: r.message, type: r.success ? "success" : "error" });
+      if (r.success) onUserUpdate({ ...user, jailUntil: null });
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
     }
@@ -112,9 +111,9 @@ export default function StreetPage({ user, onUserUpdate }: Props) {
 
   async function doBribe() {
     try {
-      const r = await api.post("/crimes/bribe", {});
-      setMessage({ text: r.data.message, type: "success" });
-      onUserUpdate({ ...user, dc: r.data.dc, wantedLevel: 0, heat: r.data.heat });
+      const r = await api.post<any>("/crimes/bribe", {});
+      setMessage({ text: r.message, type: "success" });
+      onUserUpdate({ ...user, dc: r.dc, wantedLevel: 0, heat: r.heat });
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
     }
@@ -124,9 +123,9 @@ export default function StreetPage({ user, onUserUpdate }: Props) {
     const amt = parseInt(launderAmount);
     if (!amt || amt < 1) return;
     try {
-      const r = await api.post("/crimes/launder", { amount: amt });
-      setMessage({ text: r.data.message, type: "success" });
-      onUserUpdate({ ...user, dc: r.data.dc, dirtyDc: r.data.dirtyDc });
+      const r = await api.post<any>("/crimes/launder", { amount: amt });
+      setMessage({ text: r.message, type: "success" });
+      onUserUpdate({ ...user, dc: r.dc, dirtyDc: r.dirtyDc });
       setLaunderAmount("");
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
@@ -135,9 +134,9 @@ export default function StreetPage({ user, onUserUpdate }: Props) {
 
   async function doBailout(targetId: string) {
     try {
-      const r = await api.post(`/crimes/bail/${targetId}`, {});
-      setMessage({ text: r.data.message, type: "success" });
-      onUserUpdate({ ...user, dc: user.dc - r.data.bailCost });
+      const r = await api.post<any>(`/crimes/bail/${targetId}`, {});
+      setMessage({ text: r.message, type: "success" });
+      onUserUpdate({ ...user, dc: user.dc - r.bailCost });
       setJailList(prev => prev.filter(p => p.id !== targetId));
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });

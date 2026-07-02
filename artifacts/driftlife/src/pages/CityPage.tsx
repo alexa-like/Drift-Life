@@ -33,30 +33,30 @@ export default function CityPage({ user, onUserUpdate }: Props) {
   const [buyBizName, setBuyBizName] = useState("");
 
   useEffect(() => {
-    api.get("/city/careers").then(r => setCareers(r.data)).catch(() => {});
-    api.get("/city/businesses/catalog").then(r => setCatalog(r.data)).catch(() => {});
+    api.get<Career[]>("/city/careers").then(setCareers).catch(() => {});
+    api.get<BizBlueprint[]>("/city/businesses/catalog").then(setCatalog).catch(() => {});
     refreshBiz();
   }, []);
 
   useEffect(() => {
     if (tab === "court") {
-      api.get("/city/court").then(r => setCourtInfo(r.data)).catch(() => {});
+      api.get<any>("/city/court").then(setCourtInfo).catch(() => {});
     }
   }, [tab]);
 
   async function refreshBiz() {
     try {
-      const r = await api.get("/city/businesses");
-      setBusinesses(r.data);
+      const biz = await api.get<Business[]>("/city/businesses");
+      setBusinesses(biz);
     } catch { /* ignore */ }
   }
 
   async function doWork(careerId: string) {
     setLoading(true); setMessage(null);
     try {
-      const r = await api.post(`/city/careers/${careerId}/work`, {});
-      setMessage({ text: `Salary: +${r.data.salary.toLocaleString()} DC${r.data.leveled ? ` | LEVEL UP → ${r.data.newLevel}!` : ""}`, type: "success" });
-      onUserUpdate({ ...user, dc: r.data.dc, energy: r.data.energy });
+      const r = await api.post<any>(`/city/careers/${careerId}/work`, {});
+      setMessage({ text: `Salary: +${r.salary.toLocaleString()} DC${r.leveled ? ` | LEVEL UP → ${r.newLevel}!` : ""}`, type: "success" });
+      onUserUpdate({ ...user, dc: r.dc, energy: r.energy });
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
     } finally { setLoading(false); }
@@ -66,8 +66,8 @@ export default function CityPage({ user, onUserUpdate }: Props) {
     if (!buyBizType) return;
     setLoading(true);
     try {
-      const r = await api.post("/city/businesses/buy", { type: buyBizType, name: buyBizName || undefined });
-      setMessage({ text: r.data.message, type: "success" });
+      const r = await api.post<any>("/city/businesses/buy", { type: buyBizType, name: buyBizName || undefined });
+      setMessage({ text: r.message, type: "success" });
       const bp = catalog.find(c => c.type === buyBizType);
       onUserUpdate({ ...user, dc: user.dc - (bp?.purchaseCost ?? 0) });
       await refreshBiz();
@@ -79,9 +79,9 @@ export default function CityPage({ user, onUserUpdate }: Props) {
 
   async function collectBiz(bizId: string) {
     try {
-      const r = await api.post(`/city/businesses/${bizId}/collect`, {});
-      setMessage({ text: `Collected ${r.data.collected?.toLocaleString()} DC`, type: "success" });
-      onUserUpdate({ ...user, dc: r.data.dc });
+      const r = await api.post<any>(`/city/businesses/${bizId}/collect`, {});
+      setMessage({ text: `Collected ${r.collected?.toLocaleString()} DC`, type: "success" });
+      onUserUpdate({ ...user, dc: r.dc });
       await refreshBiz();
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
@@ -90,9 +90,9 @@ export default function CityPage({ user, onUserUpdate }: Props) {
 
   async function upgradeBiz(bizId: string) {
     try {
-      const r = await api.post(`/city/businesses/${bizId}/upgrade`, {});
-      setMessage({ text: r.data.message, type: "success" });
-      onUserUpdate({ ...user, dc: r.data.dc });
+      const r = await api.post<any>(`/city/businesses/${bizId}/upgrade`, {});
+      setMessage({ text: r.message, type: "success" });
+      onUserUpdate({ ...user, dc: r.dc });
       await refreshBiz();
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
@@ -103,9 +103,9 @@ export default function CityPage({ user, onUserUpdate }: Props) {
     const amt = parseInt(launderAmount);
     if (!amt || !launderBizId) return;
     try {
-      const r = await api.post(`/city/businesses/${launderBizId}/launder`, { amount: amt });
-      setMessage({ text: r.data.message, type: "success" });
-      onUserUpdate({ ...user, dc: r.data.dc, dirtyDc: r.data.dirtyDc });
+      const r = await api.post<any>(`/city/businesses/${launderBizId}/launder`, { amount: amt });
+      setMessage({ text: r.message, type: "success" });
+      onUserUpdate({ ...user, dc: r.dc, dirtyDc: r.dirtyDc });
       setLaunderAmount("");
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
@@ -114,9 +114,9 @@ export default function CityPage({ user, onUserUpdate }: Props) {
 
   async function doPlead() {
     try {
-      const r = await api.post("/city/court/plead", {});
-      setMessage({ text: r.data.message, type: "success" });
-      onUserUpdate({ ...user, jailUntil: r.data.jailUntil });
+      const r = await api.post<any>("/city/court/plead", {});
+      setMessage({ text: r.message, type: "success" });
+      onUserUpdate({ ...user, jailUntil: r.jailUntil });
       setCourtInfo(null);
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
@@ -125,10 +125,10 @@ export default function CityPage({ user, onUserUpdate }: Props) {
 
   async function doFight() {
     try {
-      const r = await api.post("/city/court/fight", {});
-      setMessage({ text: r.data.message, type: r.data.success ? "success" : "error" });
-      if (r.data.success) onUserUpdate({ ...user, jailUntil: null });
-      else onUserUpdate({ ...user, jailUntil: r.data.jailUntil });
+      const r = await api.post<any>("/city/court/fight", {});
+      setMessage({ text: r.message, type: r.success ? "success" : "error" });
+      if (r.success) onUserUpdate({ ...user, jailUntil: null });
+      else onUserUpdate({ ...user, jailUntil: r.jailUntil });
       setCourtInfo(null);
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });

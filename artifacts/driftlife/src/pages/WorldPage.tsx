@@ -18,17 +18,17 @@ export default function WorldPage({ user }: Props) {
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
-    api.get("/world/state").then(r => setWorld(r.data)).catch(() => {});
-    api.get("/world/season/leaderboard").then(r => setLeaderboard(r.data)).catch(() => {});
-    api.get("/world/companions/mine").then(r => setCompanions(r.data)).catch(() => {});
-    api.get("/world/companions/catalog").then(r => setCatalog(r.data)).catch(() => {});
+    api.get<WorldState>("/world/state").then(setWorld).catch(() => {});
+    api.get<LeaderboardEntry[]>("/world/season/leaderboard").then(setLeaderboard).catch(() => {});
+    api.get<any[]>("/world/companions/mine").then(setCompanions).catch(() => {});
+    api.get<any[]>("/world/companions/catalog").then(setCatalog).catch(() => {});
   }, []);
 
   async function hireCompanion(type: string) {
     try {
-      const r = await api.post("/world/companions/hire", { type });
-      setMessage({ text: r.data.message, type: "success" });
-      setCompanions(prev => [...prev, r.data.companion]);
+      const r = await api.post<any>("/world/companions/hire", { type });
+      setMessage({ text: r.message, type: "success" });
+      setCompanions(prev => [...prev, r.companion]);
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
     }
