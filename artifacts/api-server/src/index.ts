@@ -88,6 +88,14 @@ io.on("connection", (socket) => {
     socket.join("global");
   });
 
+  socket.on("join_faction", (faction: string | null) => {
+    if (faction) socket.join(`faction:${faction}`);
+  });
+
+  socket.on("leave_faction", (faction: string | null) => {
+    if (faction) socket.leave(`faction:${faction}`);
+  });
+
   // Guild room
   socket.on("join_guild", (guildId: string) => {
     socket.join(`guild:${guildId}`);

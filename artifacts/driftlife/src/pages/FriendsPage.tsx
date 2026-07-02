@@ -356,7 +356,18 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
                         <span className="font-mono text-xs" style={{ color: "#39d353" }}>Friends ✓</span>
                       ) : (
                         <button
-                          onClick={() => { setRequestId((r as any).id ?? r._id); setTab("add"); sendRequest(); }}
+                          onClick={async () => {
+                            const targetId = (r as any).id ?? r._id;
+                            setLoading(true);
+                            try {
+                              const res = await api.post<{ message: string }>("/friends/request", { targetId });
+                              addToast(res.message, "success");
+                              setSearchQ("");
+                              setSearchResults([]);
+                            } catch (e: any) {
+                              addToast(e.message ?? "Error sending request", "error");
+                            } finally { setLoading(false); }
+                          }}
                           className="font-mono text-xs px-2 py-1 rounded"
                           style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff30", cursor: "pointer", flexShrink: 0 }}
                         >

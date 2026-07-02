@@ -117,14 +117,17 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
     try {
       const r = await api.post<any>(`/races/accept/${raceId}`, {});
       const d = r;
+      // The accepting player is the defender. Backend returns challengerWins.
+      const defenderWins = !d.challengerWins;
       const resultText = d.raceType === "drift"
-        ? `${d.winner} wins! ${d.challengerScore} vs ${d.defenderScore} pts`
-        : `${d.winner} wins! ${d.challengerTime}s vs ${d.defenderTime}s`;
-      setRaceResult({ ...d, resultText, bonus: 0 });
-      if (d.defenderWins) {
-        onUserUpdate({ ...user, dc: user.dc + (d.prize ?? 0), totalRaces: (user.totalRaces ?? 0) + 1, raceWins: (user.raceWins ?? 0) + 1 });
+        ? `${d.winner} wins!`
+        : `${d.winner} wins!`;
+      setRaceResult({ ...d, resultText, bonus: 0, challengerWins: d.challengerWins, defenderPerspective: true });
+      // Pink-slip races have no DC prize — just update race stats
+      if (defenderWins) {
+        onUserUpdate({ ...user, totalRaces: (user.totalRaces ?? 0) + 1, raceWins: (user.raceWins ?? 0) + 1 });
       } else {
-        onUserUpdate({ ...user, dc: user.dc - (d.prize ?? 0), totalRaces: (user.totalRaces ?? 0) + 1 });
+        onUserUpdate({ ...user, totalRaces: (user.totalRaces ?? 0) + 1 });
       }
       setPendingRaces(prev => prev.filter(pr => pr.raceId !== raceId));
       setRacePhase("result");

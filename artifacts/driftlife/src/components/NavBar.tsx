@@ -54,7 +54,7 @@ const NAV: { id: string; label: string; minStage?: number; group?: string }[] = 
   { id: "inventory",    label: "Gear" },
   { id: "market",       label: "Market" },
   { id: "auction",      label: "Auction" },
-  { id: "friends",      label: "Crew" },
+  { id: "friends",      label: "Friends" },
   { id: "trade",        label: "Trade" },
   { id: "bank",         label: "Bank" },
   { id: "properties",   label: "Estate" },
