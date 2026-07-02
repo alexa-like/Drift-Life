@@ -28,6 +28,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       slot: i.slot,
       marketListed: i.marketListed,
       blackMarket: i.blackMarket,
+      imageUrl: i.imageUrl ?? null,
     })));
   } catch (err: any) {
     req.log.error({ err }, "inventory error");

@@ -276,7 +276,7 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
                         border: `1px solid ${item.equipped ? rarityColor + "60" : rarityColor + "25"}`,
                       }}
                     >
-                      <ItemImage itemId={item.name.toLowerCase().replace(/ /g, "-")} size={44} />
+                      <ItemImage itemId={item.name.toLowerCase().replace(/ /g, "-")} imageUrl={item.imageUrl} size={44} />
                       {item.equipped && (
                         <div
                           className="absolute bottom-0 left-0 right-0 text-center font-mono"

@@ -164,6 +164,7 @@ export interface Item {
   equipped: boolean;
   slot: "weapon" | "armor" | "clothing" | "vehicle" | null;
   marketListed: boolean;
+  imageUrl?: string | null;
 }
 
 export interface Notification {
