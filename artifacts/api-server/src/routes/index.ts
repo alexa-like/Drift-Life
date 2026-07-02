@@ -18,11 +18,19 @@ import marketRouter from "./market";
 import devRouter from "./dev";
 import ownerRouter from "./owner";
 import framesRouter from "./frames";
-import phase2Router from "./phase2";
 import settingsRouter from "./settings";
 import achievementsRouter from "./achievements";
 import chatRouter from "./chat";
 import friendsRouter from "./friends";
+import skillsRouter from "./skills";
+import guildsRouter from "./guilds";
+import auctionRouter from "./auction";
+import propertiesRouter from "./properties";
+import heraldRouter from "./herald";
+import vantaRouter from "./vanta";
+import craftingRouter from "./crafting";
+import cardsRouter from "./cards";
+import tradeRouter from "./trade";
 
 const router: IRouter = Router();
 
@@ -47,8 +55,16 @@ router.use("/settings", settingsRouter);
 router.use("/achievements", achievementsRouter);
 router.use("/chat", chatRouter);
 router.use("/friends", friendsRouter);
+router.use("/skills", skillsRouter);
+router.use("/guilds", guildsRouter);
+router.use("/auction", auctionRouter);
+router.use("/properties", propertiesRouter);
+router.use("/herald", heraldRouter);
+router.use("/vanta", vantaRouter);
+router.use("/crafting", craftingRouter);
+router.use("/cards", cardsRouter);
+router.use("/trade", tradeRouter);
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);
-router.use(phase2Router);
 
 export default router;

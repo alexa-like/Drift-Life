@@ -100,6 +100,10 @@ export interface IUser extends Document {
     weeklyFrame: boolean;
   };
   gang: string | null;
+  guildId: mongoose.Types.ObjectId | null;
+  guildRole: "leader" | "officer" | "member" | "recruit" | null;
+  properties: mongoose.Types.ObjectId[];
+  cards: Array<{ cardId: string; name: string; rarity: string; obtainedAt: Date }>;
   referralCode: string;
   referredBy: string | null;
   referralCount: number;
@@ -213,6 +217,17 @@ const UserSchema = new Schema<IUser>(
       default: () => ({ achievements: true, dms: true, frameGifts: true, xpBoost: true, weeklyFrame: true }),
     },
     gang: { type: String, default: null },
+    guildId: { type: Schema.Types.ObjectId, ref: "Guild", default: null },
+    guildRole: { type: String, enum: ["leader", "officer", "member", "recruit", null], default: null },
+    properties: [{ type: Schema.Types.ObjectId, ref: "Property" }],
+    cards: [
+      {
+        cardId: { type: String, required: true },
+        name: { type: String, required: true },
+        rarity: { type: String, required: true },
+        obtainedAt: { type: Date, default: Date.now },
+      },
+    ],
     referralCode: { type: String, unique: true, sparse: true },
     referredBy: { type: String, default: null },
     referralCount: { type: Number, default: 0 },

@@ -23,6 +23,9 @@ export interface IItem extends Document {
   marketListedAt: Date | null;
   blackMarket: boolean;
   imageUrl: string | null;
+  iconUrl: string | null;
+  ownerId: mongoose.Types.ObjectId | null;
+  auctionId: mongoose.Types.ObjectId | null;
   createdAt: Date;
 }
 
@@ -57,6 +60,9 @@ const ItemSchema = new Schema<IItem>(
     marketListedAt: { type: Date, default: null },
     blackMarket: { type: Boolean, default: false },
     imageUrl: { type: String, default: null },
+    iconUrl: { type: String, default: null },
+    ownerId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    auctionId: { type: Schema.Types.ObjectId, ref: "AuctionListing", default: null },
   },
   { timestamps: true }
 );

@@ -25,6 +25,14 @@ import { FramesStorePage } from "./pages/FramesStorePage";
 import { FrameGalleryPage } from "./pages/FrameGalleryPage";
 import { AchievementsPage } from "./pages/AchievementsPage";
 import { ChatPage } from "./pages/ChatPage";
+import { SkillsPage } from "./pages/SkillsPage";
+import { GuildsPage } from "./pages/GuildsPage";
+import { AuctionPage } from "./pages/AuctionPage";
+import { PropertiesPage } from "./pages/PropertiesPage";
+import { HeraldPage } from "./pages/HeraldPage";
+import { CraftingPage } from "./pages/CraftingPage";
+import { CardsPage } from "./pages/CardsPage";
+import { TradePage } from "./pages/TradePage";
 import { NavBar } from "./components/NavBar";
 import { ToastContainer } from "./components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
@@ -133,6 +141,14 @@ function GameApp() {
       case "gallery":       return <FrameGalleryPage {...pageProps} />;
       case "achievements":  return <AchievementsPage {...pageProps} />;
       case "chat":          return <ChatPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
+      case "skills":        return <SkillsPage user={user!} addToast={addToast} />;
+      case "guilds":        return <GuildsPage user={user!} addToast={addToast} />;
+      case "auction":       return <AuctionPage user={user!} addToast={addToast} />;
+      case "properties":    return <PropertiesPage {...pageProps} />;
+      case "herald":        return <HeraldPage user={user!} addToast={addToast} />;
+      case "crafting":      return <CraftingPage {...pageProps} />;
+      case "cards":         return <CardsPage {...pageProps} />;
+      case "trade":         return <TradePage user={user!} addToast={addToast} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />
