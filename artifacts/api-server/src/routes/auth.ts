@@ -81,6 +81,7 @@ export function safeUser(user: InstanceType<typeof User>) {
     referralCode: user.referralCode,
     attacksToday: user.attacksToday,
     createdAt: user.createdAt,
+    onboardingStage: user.onboardingStage ?? 0,
   };
 }
 

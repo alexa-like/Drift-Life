@@ -57,6 +57,8 @@ router.post("/hack/initiate", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { targetId } = req.body as { targetId: string };
     if (!targetId) return res.status(400).json({ message: "Target required" });
+    if (!mongoose.Types.ObjectId.isValid(targetId))
+      return res.status(400).json({ message: "Invalid target" });
 
     const [hacker, target] = await Promise.all([
       User.findById(req.userId),

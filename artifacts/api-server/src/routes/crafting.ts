@@ -250,7 +250,7 @@ router.post("/:id/collect", requireAuth, async (req: AuthRequest, res) => {
     for (let i = 0; i < job.outputQuantity; i++) {
       const item = await Item.create({
         name: job.outputName,
-        type: job.outputType,
+        type: job.outputType as any,
         rarity: job.outputType === "consumable" ? "common" : "rare",
         description: `Crafted by player`,
         owner: req.userId,

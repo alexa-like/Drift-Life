@@ -61,7 +61,7 @@ router.post("/buy", requireAuth, async (req: AuthRequest, res) => {
     user.dc -= catalog.cost;
     const prop = await Property.create({
       ownerId: user._id,
-      type,
+      type: type as any,
       name: catalog.name,
     });
 

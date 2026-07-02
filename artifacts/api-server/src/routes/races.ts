@@ -162,11 +162,12 @@ router.post("/start", requireAuth, async (req: AuthRequest, res) => {
 // ── POST /api/races/accept/:raceId — accept pink-slip challenge ──────────────
 router.post("/accept/:raceId", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const pending = pendingPinkSlips.get(req.params.raceId);
+    const raceId = String(req.params.raceId);
+    const pending = pendingPinkSlips.get(raceId);
     if (!pending) return res.status(404).json({ message: "Race challenge not found or expired" });
     if (pending.defenderId !== req.userId?.toString()) return res.status(403).json({ message: "Not your challenge" });
     if (pending.expiresAt < new Date()) {
-      pendingPinkSlips.delete(req.params.raceId);
+      pendingPinkSlips.delete(raceId);
       return res.status(410).json({ message: "Challenge expired" });
     }
 
@@ -176,7 +177,7 @@ router.post("/accept/:raceId", requireAuth, async (req: AuthRequest, res) => {
     const defenderCar = await Car.findById(pending.defenderCarId);
     if (!challenger || !defender || !challengerCar || !defenderCar) return res.status(404).json({ message: "Players or cars not found" });
 
-    pendingPinkSlips.delete(req.params.raceId);
+    pendingPinkSlips.delete(raceId);
 
     // Race type from body (default drag for pink-slip)
     const raceType = (req.body.raceType ?? "drag") as "drag" | "circuit" | "drift";

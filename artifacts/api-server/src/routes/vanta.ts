@@ -77,14 +77,17 @@ router.post("/flag", requireAuth, requireStaff, async (req: AuthRequest, res) =>
       details: string;
     };
 
+    const VALID_SEVERITIES = ["low", "medium", "high", "critical"] as const;
     if (!playerId || !trigger || !severity || !details)
       return res.status(400).json({ message: "playerId, trigger, severity, details required" });
+    if (!VALID_SEVERITIES.includes(severity as any))
+      return res.status(400).json({ message: "severity must be low | medium | high | critical" });
 
     const log = await VantaLog.create({
       playerId,
       playerName: playerName ?? "Unknown",
       trigger: "manual_flag",
-      severity,
+      severity: severity as any,
       details: `[Manual by ${req.username ?? "staff"}] ${details}`,
     });
 

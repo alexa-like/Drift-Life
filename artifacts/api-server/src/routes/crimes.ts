@@ -188,7 +188,7 @@ router.get("/jail-list", requireAuth, async (_req, res) => {
 router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
   const RUNS_PER_HOUR_CAP = 30; // anti-abuse rate limit
   try {
-    const run = findRun(req.params.runId);
+    const run = findRun(String(req.params.runId));
     if (!run) return res.status(404).json({ message: "Run not found" });
 
     const user = await User.findById(req.userId);

@@ -34,15 +34,15 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
 
   useEffect(() => {
     refreshCars();
-    api.get("/garage/catalog").then(r => setCatalog(r.data)).catch(() => {});
-    api.get("/garage/parts").then(r => setParts(r.data)).catch(() => {});
+    api.get<CarCatalogEntry[]>("/garage/catalog").then(r => setCatalog(r)).catch(() => {});
+    api.get<PartEntry[]>("/garage/parts").then(r => setParts(r)).catch(() => {});
   }, []);
 
   async function refreshCars() {
     try {
-      const r = await api.get("/garage");
-      setCars(r.data);
-      setSelectedCar(prev => r.data.find((c: Car) => c.id === prev?.id) ?? r.data[0] ?? null);
+      const r = await api.get<Car[]>("/garage");
+      setCars(r);
+      setSelectedCar(prev => r.find((c: Car) => c.id === prev?.id) ?? r[0] ?? null);
     } catch { /* ignore */ }
   }
 
@@ -50,8 +50,8 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
     if (loading) return;
     setLoading(true);
     try {
-      const r = await api.post("/garage/buy", { carIndex: idx, name: buyName || undefined });
-      setMessage({ text: r.data.message, type: "success" });
+      const r = await api.post<{ message: string }>("/garage/buy", { carIndex: idx, name: buyName || undefined });
+      setMessage({ text: r.message, type: "success" });
       await refreshCars();
       onUserUpdate({ ...user, dc: user.dc - catalog[idx].price });
       setTab("garage");
@@ -64,12 +64,12 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
     if (!selectedCar || loading) return;
     setLoading(true);
     try {
-      const r = await api.post(`/garage/${selectedCar.id}/tune`, {
+      const r = await api.post<{ gain: number; dc: number; energy: number }>(`/garage/${selectedCar.id}/tune`, {
         stat: tuneStat, partId: tunePartId || undefined, energyToSpend: tuneEnergy,
       });
-      setMessage({ text: `+${r.data.gain.toFixed(3)} ${tuneStat} — ${selectedCar.name}`, type: "success" });
+      setMessage({ text: `+${r.gain.toFixed(3)} ${tuneStat} — ${selectedCar.name}`, type: "success" });
       await refreshCars();
-      onUserUpdate({ ...user, dc: r.data.dc, energy: r.data.energy });
+      onUserUpdate({ ...user, dc: r.dc, energy: r.energy });
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
     } finally { setLoading(false); }
@@ -88,10 +88,10 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
   async function chopCar(carId: string) {
     if (!confirm("Chop this car for parts? This is irreversible.")) return;
     try {
-      const r = await api.post(`/garage/${carId}/chop`, {});
-      setMessage({ text: r.data.message, type: "success" });
+      const r = await api.post<{ message: string; dirtyDc?: number }>(`/garage/${carId}/chop`, {});
+      setMessage({ text: r.message, type: "success" });
       await refreshCars();
-      onUserUpdate({ ...user, dirtyDc: r.data.dirtyDc });
+      onUserUpdate({ ...user, dirtyDc: r.dirtyDc ?? user.dirtyDc });
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
     }
@@ -101,12 +101,12 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
     if (!opponentId.trim()) return;
     setLoading(true);
     try {
-      const r = await api.post("/races/start", {
+      const r = await api.post<any>("/races/start", {
         defenderId: opponentId.trim(), raceType: raceMode, isPinkSlip: pinkSlip,
         launchBonus: raceMode === "drag" ? bonus : 0,
         cornerBonus: raceMode === "circuit" || raceMode === "drift" ? bonus : 0,
       });
-      const d = r.data;
+      const d = r;
       if (d.raceId) {
         setRaceResult({ pinkSlipChallenge: true, raceId: d.raceId });
       } else {
