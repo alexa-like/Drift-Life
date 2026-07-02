@@ -33,6 +33,12 @@ import { HeraldPage } from "./pages/HeraldPage";
 import { CraftingPage } from "./pages/CraftingPage";
 import { CardsPage } from "./pages/CardsPage";
 import { TradePage } from "./pages/TradePage";
+import StreetPage from "./pages/StreetPage";
+import GymPage from "./pages/GymPage";
+import GaragePage from "./pages/GaragePage";
+import CityPage from "./pages/CityPage";
+import NetPage from "./pages/NetPage";
+import WorldPage from "./pages/WorldPage";
 import { NavBar } from "./components/NavBar";
 import { ToastContainer } from "./components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
@@ -149,6 +155,13 @@ function GameApp() {
       case "crafting":      return <CraftingPage {...pageProps} />;
       case "cards":         return <CardsPage {...pageProps} />;
       case "trade":         return <TradePage user={user!} addToast={addToast} />;
+      // Wire Cartel pages
+      case "street":        return <StreetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
+      case "gym":           return <GymPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
+      case "garage":        return <GaragePage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
+      case "city":          return <CityPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
+      case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
+      case "world":         return <WorldPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />

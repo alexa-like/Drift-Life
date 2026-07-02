@@ -215,6 +215,15 @@ router.post("/treasury/donate", requireAuth, async (req: AuthRequest, res) => {
 
     await Promise.all([user.save(), guild.save()]);
 
+    // Audit ledger entry (Section 6)
+    try {
+      const GuildTreasuryEntry = (await import("../models/GuildTreasuryEntry")).default;
+      await GuildTreasuryEntry.create({
+        guildId: guild._id, actorId: user._id, actorUsername: user.username,
+        amount, reason: "donation", balanceAfter: guild.treasury,
+      });
+    } catch { /* non-critical */ }
+
     res.json({
       message: `Donated ${amount.toLocaleString()} DC to ${guild.name}`,
       treasury: guild.treasury,

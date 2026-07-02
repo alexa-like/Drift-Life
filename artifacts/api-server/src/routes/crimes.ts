@@ -1,106 +1,337 @@
+/**
+ * Street / Runs — Wire Cartel Section 2
+ * Replaces the old flat crimes list with 5-tier car-crime/cyber-crime/street-crime Runs.
+ * All resolution is server-authoritative. Heat rises with activity, mastery improves success.
+ */
 import { Router } from "express";
 import User from "../models/User";
 import FeedEvent from "../models/FeedEvent";
+import ActionMastery, { masteryGain } from "../models/ActionMastery";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { applyRegen, isHospitalized, isJailed, levelUp } from "../lib/regen";
+import { applyRegen, isHospitalized, isJailed, levelUp, stressPenalty } from "../models/User";
 import { checkAchievements } from "./achievements";
-import { nerveSufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
+import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
+import { getWorldState, worldRunModifiers } from "../models/WorldState";
 
 const router = Router();
 
-const CRIMES = [
-  { id: "pickpocket",           name: "Pickpocket",             flavour: "You lifted a wallet. It had a loyalty card and 42 DC. New Vanta is as disappointing as always.",                             nerveCost: 2,  minLevel: 1,  baseSuccess: 0.65, dcMin: 50,    dcMax: 300,   xp: 10,  wantedIncrease: 1, hospitalRisk: 0.10, hospitalDuration: 20*60*1000,   description: "Lift wallets from distracted citizens.",                     riskLevel: "low" },
-  { id: "break_in",             name: "Break-In",               flavour: "You bypassed the mag-lock. Inside: dusty server racks and someone's lunch. Still profitable.",                               nerveCost: 4,  minLevel: 8,  baseSuccess: 0.50, dcMin: 200,   dcMax: 800,   xp: 30,  wantedIncrease: 2, hospitalRisk: 0.20, hospitalDuration: 45*60*1000,   description: "Break into a residential unit or small business.",           riskLevel: "medium" },
-  { id: "vehicle_theft",        name: "Vehicle Theft",          flavour: "The auto-drive fought you for three blocks. You won. The car smells like synthetic coffee.",                                  nerveCost: 5,  minLevel: 10, baseSuccess: 0.40, dcMin: 400,   dcMax: 1500,  xp: 50,  wantedIncrease: 2, hospitalRisk: 0.15, hospitalDuration: 45*60*1000,   description: "Boost a vehicle from the street.",                           riskLevel: "medium" },
-  { id: "scam_operation",       name: "Scam Operation",         flavour: "You sold them a 'certified' datacube. It had a cat video on it. Still counts.",                                               nerveCost: 3,  minLevel: 5,  baseSuccess: 0.55, dcMin: 500,   dcMax: 2000,  xp: 40,  wantedIncrease: 1, hospitalRisk: 0.05, hospitalDuration: 20*60*1000,   description: "Run a social engineering scam on a mark.",                   riskLevel: "low" },
-  { id: "smuggling_run",        name: "Smuggling Run",          flavour: "Checkpoint 7 nearly had you. You made it through with contraband strapped to your spine.",                                    nerveCost: 6,  minLevel: 20, baseSuccess: 0.45, dcMin: 800,   dcMax: 3000,  xp: 80,  wantedIncrease: 3, hospitalRisk: 0.30, hospitalDuration: 2*60*60*1000, description: "Move contraband through New Vanta's checkpoints.",           riskLevel: "high" },
-  { id: "heist_solo",           name: "Heist (Solo)",           flavour: "The vault sang when you cracked it. The alarm sang louder. You ran faster.",                                                  nerveCost: 8,  minLevel: 25, baseSuccess: 0.30, dcMin: 2000,  dcMax: 8000,  xp: 150, wantedIncrease: 4, hospitalRisk: 0.40, hospitalDuration: 2*60*60*1000, description: "Solo heist on a mid-tier corporate facility.",               riskLevel: "high" },
-  { id: "data_breach",          name: "Data Breach",            flavour: "You were inside their system for 4.2 seconds. Long enough to drain six figures.",                                             nerveCost: 5,  minLevel: 15, baseSuccess: 0.50, dcMin: 1000,  dcMax: 4000,  xp: 100, wantedIncrease: 2, hospitalRisk: 0.10, hospitalDuration: 45*60*1000,   description: "Breach a corporate data network and extract credentials.",   riskLevel: "medium" },
-  { id: "corporate_espionage",  name: "Corporate Espionage",    flavour: "Their head of security shook your hand at the door. He had no idea.",                                                         nerveCost: 7,  minLevel: 30, baseSuccess: 0.35, dcMin: 3000,  dcMax: 10000, xp: 200, wantedIncrease: 3, hospitalRisk: 0.25, hospitalDuration: 2*60*60*1000, description: "Infiltrate a corporation and steal classified intelligence.", riskLevel: "high" },
-  { id: "assassination_contract",name:"Assassination Contract", flavour: "Clean shot. The city barely noticed. You noticed the DC transfer.",                                                           nerveCost: 10, minLevel: 40, baseSuccess: 0.25, dcMin: 10000, dcMax: 30000, xp: 500, wantedIncrease: 5, hospitalRisk: 0.50, hospitalDuration: 4*60*60*1000, description: "Take out a high-value target for an anonymous client.",      riskLevel: "extreme" },
-  { id: "vault_crack",          name: "Vault Crack",            flavour: "Fourteen layers of encryption. You peeled them like onion skin. Legendary.",                                                  nerveCost: 12, minLevel: 50, baseSuccess: 0.20, dcMin: 20000, dcMax: 80000, xp: 1000,wantedIncrease: 5, hospitalRisk: 0.60, hospitalDuration: 4*60*60*1000, description: "Crack a maximum-security vault in Downtown Core.",           riskLevel: "extreme" },
+// ── Run catalog ─────────────────────────────────────────────────────────────
+// tier: 1-5; relevantStat drives formula; heatGain = tier * 4
+const RUNS = [
+  // ── Tier 1 — Low heat, low mastery ──────────────────────────────────────
+  {
+    id: "joyriding",          name: "Joyriding",              tier: 1, energyCost: 2, minLevel: 1,
+    baseSuccess: 0.72, dcMin: 80,    dcMax: 400,   xp: 12,  dirtyRatio: 1.0,
+    relevantStat: "streetCred" as const,
+    flavour: "You hotwired a delivery drone and took it for a spin. Returned it. Kind of.",
+    description: "Steal a vehicle for kicks. Low heat, decent practice.",
+    riskLevel: "low", wantedIncrease: 1, hospitalRisk: 0.05,
+  },
+  {
+    id: "meter_scam",         name: "Parking-Meter Scam",     tier: 1, energyCost: 1, minLevel: 1,
+    baseSuccess: 0.80, dcMin: 50,    dcMax: 200,   xp: 8,   dirtyRatio: 1.0,
+    relevantStat: "charisma" as const,
+    flavour: "Reprogrammed six parking meters to feed you instead. Classic.",
+    description: "Scam autonomous parking meters with a signal spoofer.",
+    riskLevel: "low", wantedIncrease: 0, hospitalRisk: 0.02,
+  },
+  {
+    id: "small_fencing",      name: "Small-Time Fencing",     tier: 1, energyCost: 2, minLevel: 1,
+    baseSuccess: 0.70, dcMin: 100,   dcMax: 500,   xp: 15,  dirtyRatio: 1.0,
+    relevantStat: "charisma" as const,
+    flavour: "Moved stolen goods through the back of a noodle stand. The noodles were good.",
+    description: "Fence stolen goods through underground markets.",
+    riskLevel: "low", wantedIncrease: 1, hospitalRisk: 0.05,
+  },
+  // ── Tier 2 — Building heat ──────────────────────────────────────────────
+  {
+    id: "chop_strip",         name: "Chop-Shop Stripping",    tier: 2, energyCost: 3, minLevel: 8,
+    baseSuccess: 0.58, dcMin: 300,   dcMax: 1_200, xp: 40,  dirtyRatio: 1.0,
+    relevantStat: "strength" as const,
+    flavour: "Stripped a luxury sedan to components in under 9 minutes. New personal best.",
+    description: "Break down stolen vehicles into sellable parts.",
+    riskLevel: "medium", wantedIncrease: 2, hospitalRisk: 0.12,
+  },
+  {
+    id: "street_tax",         name: "Street Tax Collection",  tier: 2, energyCost: 3, minLevel: 10,
+    baseSuccess: 0.55, dcMin: 400,   dcMax: 1_500, xp: 50,  dirtyRatio: 1.0,
+    relevantStat: "strength" as const,
+    flavour: "The shopkeeper paid without making eye contact. Smart.",
+    description: "Collect protection fees from businesses in your district.",
+    riskLevel: "medium", wantedIncrease: 2, hospitalRisk: 0.15,
+  },
+  {
+    id: "pickpocket_distract", name: "Pickpocket-by-Distraction", tier: 2, energyCost: 2, minLevel: 5,
+    baseSuccess: 0.62, dcMin: 200,   dcMax: 900,   xp: 30,  dirtyRatio: 1.0,
+    relevantStat: "charisma" as const,
+    flavour: "Your 'lost dog' routine cleared three wallets in thirty seconds.",
+    description: "Social engineering + sleight of hand. Work crowds.",
+    riskLevel: "medium", wantedIncrease: 1, hospitalRisk: 0.08,
+  },
+  // ── Tier 3 — Serious heat ────────────────────────────────────────────────
+  {
+    id: "armed_carjacking",   name: "Armed Carjacking",       tier: 3, energyCost: 4, minLevel: 15,
+    baseSuccess: 0.45, dcMin: 800,   dcMax: 3_500, xp: 100, dirtyRatio: 1.0,
+    relevantStat: "strength" as const,
+    flavour: "The auto-drive tried to lock you out. You were faster.",
+    description: "Force a driver out of a moving vehicle. High risk, high reward.",
+    riskLevel: "high", wantedIncrease: 3, hospitalRisk: 0.25,
+  },
+  {
+    id: "warehouse_run",      name: "Warehouse Smuggling Run", tier: 3, energyCost: 5, minLevel: 20,
+    baseSuccess: 0.42, dcMin: 1_200, dcMax: 5_000, xp: 130, dirtyRatio: 1.0,
+    relevantStat: "streetCred" as const,
+    flavour: "Seven checkpoints. Six bribes. One very profitable night.",
+    description: "Move contraband through New Vanta's industrial checkpoints.",
+    riskLevel: "high", wantedIncrease: 3, hospitalRisk: 0.28,
+  },
+  {
+    id: "race_fraud",         name: "Race-Bet Fraud",         tier: 3, energyCost: 3, minLevel: 18,
+    baseSuccess: 0.50, dcMin: 900,   dcMax: 4_000, xp: 110, dirtyRatio: 1.0,
+    relevantStat: "intelligence" as const,
+    flavour: "You fixed three races before anyone noticed the pattern. Almost.",
+    description: "Manipulate underground race betting pools. Needs smarts.",
+    riskLevel: "high", wantedIncrease: 2, hospitalRisk: 0.15,
+  },
+  // ── Tier 4 — Extreme heat ────────────────────────────────────────────────
+  {
+    id: "bank_truck_heist",   name: "Bank Truck Heist",       tier: 4, energyCost: 6, minLevel: 30,
+    baseSuccess: 0.30, dcMin: 5_000, dcMax: 20_000, xp: 350, dirtyRatio: 1.0,
+    relevantStat: "strength" as const,
+    flavour: "The armoured truck never saw you coming. The cameras did. Not your problem.",
+    description: "Intercept a corp bank transport. Goes loud.",
+    riskLevel: "extreme", wantedIncrease: 4, hospitalRisk: 0.40,
+  },
+  {
+    id: "datacenter_breach",  name: "Data-Centre Break-In",   tier: 4, energyCost: 6, minLevel: 35,
+    baseSuccess: 0.28, dcMin: 6_000, dcMax: 25_000, xp: 400, dirtyRatio: 1.0,
+    relevantStat: "intelligence" as const,
+    flavour: "You were inside their system for 4.2 seconds. Long enough.",
+    description: "Physical + cyber intrusion on a tier-3 data centre.",
+    riskLevel: "extreme", wantedIncrease: 4, hospitalRisk: 0.35,
+  },
+  {
+    id: "cartel_supply_run",  name: "Cartel Supply Run",      tier: 4, energyCost: 7, minLevel: 40,
+    baseSuccess: 0.25, dcMin: 8_000, dcMax: 35_000, xp: 500, dirtyRatio: 1.0,
+    relevantStat: "streetCred" as const,
+    flavour: "You moved twelve crates across four district borders. Clean.",
+    description: "Run supply for the cartel. Don't ask what's in the crates.",
+    riskLevel: "extreme", wantedIncrease: 5, hospitalRisk: 0.45,
+  },
+  // ── Tier 5 — Legacy solo heists (keep for backward compat) ───────────────
+  {
+    id: "vault_crack",        name: "Vault Crack",            tier: 5, energyCost: 8, minLevel: 50,
+    baseSuccess: 0.20, dcMin: 20_000, dcMax: 80_000, xp: 1_000, dirtyRatio: 1.0,
+    relevantStat: "intelligence" as const,
+    flavour: "Fourteen layers of encryption. You peeled them like onion skin. Legendary.",
+    description: "Crack a maximum-security vault in Downtown Core.",
+    riskLevel: "extreme", wantedIncrease: 5, hospitalRisk: 0.60,
+  },
 ];
 
-// GET /api/crimes
+// Keep backward-compat IDs mapping
+const LEGACY_IDS: Record<string, string> = {
+  pickpocket: "pickpocket_distract", break_in: "chop_strip", vehicle_theft: "armed_carjacking",
+  scam_operation: "meter_scam", smuggling_run: "warehouse_run", heist_solo: "bank_truck_heist",
+  data_breach: "datacenter_breach", corporate_espionage: "cartel_supply_run",
+  assassination_contract: "cartel_supply_run",
+};
+
+function findRun(id: string) {
+  return RUNS.find(r => r.id === id) ?? RUNS.find(r => r.id === LEGACY_IDS[id]);
+}
+
+// ── GET /api/crimes — list all runs ────────────────────────────────────────
 router.get("/", requireAuth, (_req, res) => {
-  res.json(CRIMES.map(c => ({
-    id: c.id, name: c.name, flavour: c.flavour, nerveCost: c.nerveCost, minLevel: c.minLevel,
-    baseSuccess: c.baseSuccess, dcRange: [c.dcMin, c.dcMax], xp: c.xp,
-    wantedIncrease: c.wantedIncrease, hospitalRisk: c.hospitalRisk,
-    description: c.description, riskLevel: c.riskLevel,
+  res.json(RUNS.map(r => ({
+    id: r.id, name: r.name, tier: r.tier, flavour: r.flavour, energyCost: r.energyCost,
+    minLevel: r.minLevel, baseSuccess: r.baseSuccess, dcRange: [r.dcMin, r.dcMax],
+    xp: r.xp, heatGain: r.tier * 4, wantedIncrease: r.wantedIncrease,
+    hospitalRisk: r.hospitalRisk, description: r.description, riskLevel: r.riskLevel,
+    relevantStat: r.relevantStat,
+    // legacy fields for old UI
+    nerveCost: r.energyCost,
   })));
 });
 
-// POST /api/crimes/:crimeId/commit
-router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
+// ── GET /api/crimes/mastery — player's mastery per run ─────────────────────
+router.get("/mastery", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const crime = CRIMES.find(c => c.id === req.params.crimeId);
-    if (!crime) return res.status(404).json({ message: "Crime not found" });
+    const records = await ActionMastery.find({ userId: req.userId, actionType: "run" }).lean();
+    const map: Record<string, number> = {};
+    for (const r of records) map[r.actionId] = r.mastery;
+    res.json(map);
+  } catch (err: any) {
+    req.log.error({ err }, "get mastery error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
-    // Read user for preliminary checks only — regen computed DB-side below
+// ── GET /api/crimes/jail-list — public jail list ────────────────────────────
+router.get("/jail-list", requireAuth, async (_req, res) => {
+  try {
+    const now = new Date();
+    const jailed = await User.find({ jailUntil: { $gt: now } })
+      .select("username level tag jailUntil jailDuration dc")
+      .limit(50).lean();
+    res.json(jailed.map(u => ({
+      id: u._id, username: u.username, level: u.level, tag: u.tag,
+      jailUntil: u.jailUntil, jailDuration: u.jailDuration,
+      bailCost: Math.floor(((u.jailDuration ?? 0) / 60000) * 1_000 * 1.5),
+    })));
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/crimes/:runId/commit ─────────────────────────────────────────
+router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
+  const RUNS_PER_HOUR_CAP = 30; // anti-abuse rate limit
+  try {
+    const run = findRun(req.params.runId);
+    if (!run) return res.status(404).json({ message: "Run not found" });
+
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    applyRegen(user); // in-memory for checks only — not saved
+    applyRegen(user);
 
-    if (isHospitalized(user)) return res.status(400).json({ message: "You are hospitalized and cannot commit crimes" });
-    if (isJailed(user))       return res.status(400).json({ message: "You are jailed" });
-    if (user.level < crime.minLevel) return res.status(400).json({ message: `Requires level ${crime.minLevel}` });
-    if (user.wantedLevel >= 5 && ["corporate_espionage","assassination_contract","vault_crack"].includes(crime.id)) {
-      return res.status(400).json({ message: "Too hot. Max wanted level blocks extreme crimes." });
+    if (isHospitalized(user)) return res.status(400).json({ message: "You are hospitalized" });
+    if (isJailed(user)) return res.status(400).json({ message: "You are in jail" });
+    if (user.level < run.minLevel) return res.status(400).json({ message: `Requires level ${run.minLevel}` });
+    if (user.energy < run.energyCost) return res.status(400).json({ message: `Not enough energy (need ${run.energyCost})` });
+
+    // Anti-abuse: rate-limit runs per hour server-side
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentAttempts = await ActionMastery.findOne({ userId: req.userId, actionType: "run" });
+    // Simple check: count recent feed events
+    const recentRuns = await FeedEvent.countDocuments({
+      actorId: user._id, type: "crime", createdAt: { $gt: oneHourAgo },
+    });
+    if (recentRuns >= RUNS_PER_HOUR_CAP) {
+      return res.status(429).json({ message: "Run rate limit reached. Take a break." });
     }
 
-    // FULLY ATOMIC: regen computed server-side in pipeline; $expr condition
-    // checks effective nerve (including regen) before deducting — zero race window.
+    // Pursuit gate: if heat >= 80, a pursuit minigame is pending
+    if (user.heat >= 80 && !user.pursuiteActive) {
+      user.pursuiteActive = true;
+      await user.save();
+      return res.status(402).json({
+        pursuitRequired: true,
+        message: "HEAT CRITICAL — a pursuit event must be resolved before your next run.",
+        heat: user.heat,
+      });
+    }
+
+    // Atomically deduct energy
     const gated = await User.findOneAndUpdate(
-      {
-        _id: req.userId,
-        ...nerveSufficientExpr(crime.nerveCost),
-      },
+      { _id: req.userId, ...energySufficientExpr(run.energyCost) },
       buildRegenPipeline({
-        nerveCost: crime.nerveCost,
-        extraSet:  { totalCrimes: { $add: ["$totalCrimes", 1] } },
+        energyCost: run.energyCost,
+        extraSet: { totalCrimes: { $add: ["$totalCrimes", 1] } },
       }),
       { new: true },
     );
-    if (!gated) {
-      return res.status(400).json({ message: `Not enough nerve (need ${crime.nerveCost})` });
+    if (!gated) return res.status(400).json({ message: `Not enough energy (need ${run.energyCost})` });
+
+    // Get or create mastery record
+    let masteryDoc = await ActionMastery.findOne({ userId: req.userId, actionId: run.id, actionType: "run" });
+    if (!masteryDoc) {
+      masteryDoc = new ActionMastery({ userId: req.userId, actionId: run.id, actionType: "run" });
     }
+    const currentMastery = masteryDoc.mastery;
 
-    const nowDate = new Date();
-    const isFirstCrimeToday = !gated.lastCrimeDate || gated.lastCrimeDate.toDateString() !== nowDate.toDateString();
-    gated.lastCrimeDate = nowDate;
+    // World state modifiers
+    const world = await getWorldState().catch(() => null);
+    const worldMods = world ? worldRunModifiers(world) : { payoutMult: 1, heatGainMult: 1 };
 
-    // Success formula
-    const intBonus     = (gated.intelligence - 5) * 0.01;
-    const factionBonus = (gated.faction === "suits" && ["scam_operation","corporate_espionage"].includes(crime.id)) ? 0.05
-                       : (gated.faction === "street" && ["break_in","heist_solo"].includes(crime.id)) ? 0.05
-                       : (gated.faction === "grid"   && ["data_breach","scam_operation"].includes(crime.id)) ? 0.05 : 0;
-    const successChance = Math.min(0.95, crime.baseSuccess + intBonus + factionBonus);
+    // Success formula (Section 2):
+    // success_chance = base_chance[tier] + (mastery_score*0.4) + (relevant_stat/10) - (stress*0.1)
+    const statValue = (gated as any)[run.relevantStat] ?? 0;
+    const stressPen = stressPenalty(gated);
+    const rawSuccess = run.baseSuccess
+      + (currentMastery * 0.004)   // mastery up to +0.4 at 100
+      + (statValue / 100)          // stat contributes up to ~+0.5 at 50 stat
+      - stressPen;
+    const successChance = Math.min(0.95, Math.max(0.05, rawSuccess));
     const success = Math.random() < successChance;
 
-    let dcGained = 0, xpGained = 0, hospitalized = false, leveled = false, narrative = "";
+    // Update mastery (gain diminishes above 50)
+    const gain = masteryGain(currentMastery);
+    masteryDoc.mastery = Math.min(100, masteryDoc.mastery + gain);
+    masteryDoc.attempts += 1;
+    masteryDoc.lastAttemptAt = new Date();
+    if (success) masteryDoc.successes += 1;
+    await masteryDoc.save();
+
+    // Heat gain = tier * 4 * worldMod
+    const heatGain = Math.round(run.tier * 4 * worldMods.heatGainMult);
+
+    let dcGained = 0, xpGained = 0, hospitalized = false, jailed = false, leveled = false;
+    let narrative = "";
+    let jailUntil: Date | null = null;
+    let jailDuration = 0;
 
     if (success) {
-      dcGained = Math.floor(crime.dcMin + Math.random() * (crime.dcMax - crime.dcMin));
-      xpGained = crime.xp * (isFirstCrimeToday ? 2 : 1);
+      dcGained = Math.round(
+        (run.dcMin + Math.random() * (run.dcMax - run.dcMin)) * worldMods.payoutMult
+      );
+      const isFirstToday = !gated.lastCrimeDate || gated.lastCrimeDate.toDateString() !== new Date().toDateString();
+      xpGained = run.xp * (isFirstToday ? 2 : 1);
+      gated.dirtyDc += dcGained;
       gated.successfulCrimes += 1;
-      gated.wantedLevel = Math.min(5, gated.wantedLevel + crime.wantedIncrease);
+      gated.heat = Math.min(100, gated.heat + heatGain);
+      gated.heatDecayAt = new Date();
+      gated.wantedLevel = Math.min(5, gated.wantedLevel + run.wantedIncrease);
       gated.wantedDecayAt = new Date();
-      narrative = crime.flavour;
+      // Onboarding: first run unlocks stage 1
+      if (gated.onboardingStage === 0 && gated.successfulCrimes >= 2) {
+        gated.onboardingStage = 1;
+      }
+      narrative = run.flavour;
     } else {
-      if (Math.random() < crime.hospitalRisk) {
-        gated.hospitalizedUntil = new Date(Date.now() + crime.hospitalDuration);
-        hospitalized = true;
-        narrative = "The security system flagged your biometrics. You woke up in New Vanta General.";
+      // Failure severity bucket (Section 2)
+      const roll = Math.random();
+      if (roll < 0.60) {
+        // Minor fail — no heat, no cash
+        narrative = "Aborted at the last second. No gains, no heat. Your heart's still racing.";
+        gated.stress = Math.min(100, gated.stress + 5);
+      } else if (roll < 0.90) {
+        // Bad fail — heat spike + fine
+        const fine = Math.floor(run.dcMin * 0.3);
+        gated.dirtyDc = Math.max(0, gated.dirtyDc - fine);
+        gated.heat = Math.min(100, gated.heat + heatGain * 2);
+        gated.wantedLevel = Math.min(5, gated.wantedLevel + run.wantedIncrease);
+        narrative = `Sloppy execution. Lost ${fine} DC and things got hot.`;
+        gated.stress = Math.min(100, gated.stress + 5);
       } else {
-        narrative = "You aborted. No DC. No arrest. Just a close call and a racing heart.";
+        // Severe fail — jail or hospital
+        if (Math.random() < run.hospitalRisk) {
+          const duration = (10 + run.tier * 10) * 60 * 1000;
+          gated.hospitalizedUntil = new Date(Date.now() + duration);
+          hospitalized = true;
+          narrative = "Security caught you clean. You woke up in New Vanta General.";
+          gated.stress = Math.min(100, gated.stress + 10);
+        } else {
+          jailDuration = Math.floor((10 + run.tier * 10) * 60 * 1000);
+          jailUntil = new Date(Date.now() + jailDuration);
+          gated.jailUntil = jailUntil;
+          gated.jailDuration = jailDuration;
+          jailed = true;
+          gated.heat = 0;
+          gated.heatDecayAt = new Date();
+          narrative = "Cuffs on. You're in a holding cell. Bail's open.";
+          gated.stress = Math.min(100, gated.stress + 10);
+        }
       }
     }
 
-    await gated.save(); // saves wantedLevel, hospitalizedUntil, lastCrimeDate, successfulCrimes
+    // Mood update (inversely proportional to stress)
+    gated.mood = Math.max(0, 100 - gated.stress);
+    gated.lastCrimeDate = new Date();
+    await gated.save();
 
-    // Apply DC + XP atomically with wallet cap via pipeline
+    // Apply DC + XP atomically
     let rewarded = gated;
     if (dcGained > 0 || xpGained > 0) {
       const r = await User.findByIdAndUpdate(
@@ -119,43 +350,188 @@ router.post("/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
 
     await FeedEvent.create({
       type: "crime", actor: rewarded.username, actorId: rewarded._id,
-      message: `${rewarded.username} ${success ? "pulled off" : "botched"} a ${crime.name}${dcGained ? ` — +${dcGained} DC` : ""}`,
+      message: `${rewarded.username} ${success ? "pulled off" : "botched"} a ${run.name}${dcGained ? ` — +${dcGained.toLocaleString()} DC` : ""}`,
       dc: dcGained, xp: xpGained,
     }).catch(() => {});
 
     res.json({
-      success, narrative, dcGained, xpGained, hospitalized,
-      hospitalizedUntil: rewarded.hospitalizedUntil,
-      leveled, newLevel: leveled ? rewarded.level : undefined,
-      user: { dc: rewarded.dc, nerve: rewarded.nerve, maxNerve: rewarded.maxNerve, xp: rewarded.xp, xpToNext: rewarded.xpToNext, level: rewarded.level, wantedLevel: rewarded.wantedLevel, hospitalizedUntil: rewarded.hospitalizedUntil },
+      success, narrative, dcGained, dirtyDcGained: dcGained, xpGained,
+      hospitalized, jailed, jailUntil, leveled,
+      newLevel: leveled ? rewarded.level : undefined,
+      heatGained: success ? heatGain : 0,
+      mastery: masteryDoc.mastery,
+      pursuitWarning: rewarded.heat >= 70 && rewarded.heat < 80,
+      user: {
+        dc: rewarded.dc, energy: rewarded.energy, maxEnergy: rewarded.maxEnergy,
+        heat: rewarded.heat, stress: rewarded.stress, xp: rewarded.xp,
+        xpToNext: rewarded.xpToNext, level: rewarded.level, wantedLevel: rewarded.wantedLevel,
+        hospitalizedUntil: rewarded.hospitalizedUntil, jailUntil: rewarded.jailUntil,
+        dirtyDc: rewarded.dirtyDc,
+        // legacy nerve field for UI compat
+        nerve: rewarded.nerve, maxNerve: rewarded.maxNerve,
+      },
     });
   } catch (err: any) {
-    req.log.error({ err }, "commit crime error");
+    req.log.error({ err }, "commit run error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// POST /api/crimes/bribe — clear wanted level
+// ── POST /api/crimes/pursuit/resolve — resolve pursuit event ───────────────
+router.post("/pursuit/resolve", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { outcome } = req.body as { outcome: "bribe" | "outrun" | "busted" };
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.pursuiteActive) return res.status(400).json({ message: "No active pursuit" });
+
+    applyRegen(user);
+    user.pursuiteActive = false;
+
+    let message = "";
+    if (outcome === "bribe") {
+      const bribeCost = Math.floor(user.heat * 500);
+      if (user.dc < bribeCost) return res.status(400).json({ message: `Bribe costs ${bribeCost} DC`, bribeCost });
+      user.dc -= bribeCost;
+      user.heat = 40;
+      message = `Slipped Chief Ralston ${bribeCost.toLocaleString()} DC. Heat reset to 40.`;
+    } else if (outcome === "outrun") {
+      // Skill check: car speed + handling (stub until garage built)
+      const carBonus = 0; // TODO: use activeCar stats
+      const successChance = 0.40 + carBonus;
+      if (Math.random() < successChance) {
+        user.heat = 20;
+        message = "You burned them at the lights. Heat reset to 20.";
+      } else {
+        // Failed outrun → busted
+        const dur = 30 * 60 * 1000;
+        user.jailUntil = new Date(Date.now() + dur);
+        user.jailDuration = dur;
+        user.heat = 0;
+        message = "Boxed in. Busted. 30 minutes in holding.";
+      }
+    } else {
+      // Busted
+      const dur = 20 * 60 * 1000;
+      user.jailUntil = new Date(Date.now() + dur);
+      user.jailDuration = dur;
+      user.heat = 0;
+      message = "Hands on the hood. Heat reset to 0. 20 minutes in jail.";
+    }
+
+    await user.save();
+    res.json({ message, heat: user.heat, jailUntil: user.jailUntil, dc: user.dc });
+  } catch (err: any) {
+    req.log.error({ err }, "pursuit resolve error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/crimes/bail/:targetId — bail out another player ─────────────
+router.post("/bail/:targetId", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const payer = await User.findById(req.userId);
+    const target = await User.findById(req.params.targetId);
+    if (!payer || !target) return res.status(404).json({ message: "User not found" });
+    if (!isJailed(target)) return res.status(400).json({ message: "That player is not in jail" });
+    if (target._id.equals(payer._id)) return res.status(400).json({ message: "Can't bail yourself out here" });
+
+    const remainingMs = target.jailUntil!.getTime() - Date.now();
+    const remainingMin = Math.ceil(remainingMs / 60000);
+    const bailCost = Math.floor(remainingMin * 1_000 * 1.5);
+
+    if (payer.dc < bailCost) return res.status(400).json({ message: `Bail costs ${bailCost.toLocaleString()} DC`, bailCost });
+
+    payer.dc -= bailCost;
+    payer.reputation += 5;
+    target.jailUntil = null;
+    target.jailDuration = 0;
+
+    await Promise.all([payer.save(), target.save()]);
+    res.json({ message: `You bailed out ${target.username} for ${bailCost.toLocaleString()} DC.`, bailCost, reputation: payer.reputation });
+  } catch (err: any) {
+    req.log.error({ err }, "bail error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/crimes/escape — attempt jail break ──────────────────────────
+router.post("/escape", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!isJailed(user)) return res.status(400).json({ message: "You are not in jail" });
+
+    // One escape attempt per jail stay (tracked via a flag we clear on bail/release)
+    // escape_chance = 20% + streetCred/20
+    const escapeChance = 0.20 + (user.streetCred / 20) * 0.01;
+    if (Math.random() < escapeChance) {
+      user.jailUntil = null;
+      user.jailDuration = 0;
+      await user.save();
+      return res.json({ success: true, message: "You slipped through a ventilation shaft. Free." });
+    } else {
+      // Add 10 more minutes
+      user.jailUntil = new Date(user.jailUntil!.getTime() + 10 * 60 * 1000);
+      await user.save();
+      return res.json({ success: false, message: "Guard spotted you. 10 more minutes added.", jailUntil: user.jailUntil });
+    }
+  } catch (err: any) {
+    req.log.error({ err }, "escape error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/crimes/bribe — clear wanted/heat ────────────────────────────
 router.post("/bribe", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
     applyRegen(user);
-    if (user.wantedLevel === 0) return res.status(400).json({ message: "You have no wanted level to clear" });
-    const cost = Math.pow(user.wantedLevel, 2) * 1000;
+    if (user.wantedLevel === 0 && user.heat < 20) return res.status(400).json({ message: "No wanted level to clear" });
+    const cost = Math.pow(user.wantedLevel, 2) * 1_000 + Math.floor(user.heat * 200);
 
     const updated = await User.findOneAndUpdate(
       { _id: req.userId, dc: { $gte: cost } },
-      { $inc: { dc: -cost }, $set: { wantedLevel: 0, wantedDecayAt: new Date() } },
+      { $inc: { dc: -cost }, $set: { wantedLevel: 0, wantedDecayAt: new Date(), heat: Math.max(0, user.heat - 30) } },
       { new: true },
     );
     if (!updated) return res.status(400).json({ message: "Insufficient DC for bribe", cost });
-
-    res.json({ message: `Chief Ralston pockets ${cost.toLocaleString()} DC without making eye contact. Your record is clean.`, cost, dc: updated.dc, wantedLevel: 0 });
+    res.json({ message: `Bribed. Cost ${cost.toLocaleString()} DC. Heat and wanted level reduced.`, cost, dc: updated.dc, wantedLevel: 0, heat: updated.heat });
   } catch (err: any) {
     req.log.error({ err }, "bribe error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
+// ── POST /api/crimes/launder — dirty DC → clean DC via business ───────────
+router.post("/launder", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { amount } = req.body as { amount: number };
+    if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
+
+    const user = await User.findById(req.userId).populate("businesses");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.dirtyDc < amount) return res.status(400).json({ message: "Not enough dirty DC" });
+
+    const businesses = (user.businesses as any[]) || [];
+    if (businesses.length === 0) return res.status(400).json({ message: "You need a business to launder money through" });
+
+    // Use best launder rate across owned businesses
+    const bestRate = Math.min(...businesses.map((b: any) => b.launderRate ?? 0.30));
+    const cleanAmount = Math.floor(amount * (1 - bestRate));
+    const lost = amount - cleanAmount;
+
+    user.dirtyDc -= amount;
+    user.dc = Math.min(100_000_000, user.dc + cleanAmount);
+    await user.save();
+
+    res.json({ message: `Laundered ${amount.toLocaleString()} dirty DC → ${cleanAmount.toLocaleString()} clean DC (lost ${lost.toLocaleString()} DC).`, cleanAmount, lost, dirtyDc: user.dirtyDc, dc: user.dc });
+  } catch (err: any) {
+    req.log.error({ err }, "launder error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+export { RUNS };
 export default router;

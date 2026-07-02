@@ -92,6 +92,13 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
             <StatBar label="HP" value={user.health} max={user.maxHealth} color="#39d353" />
             <StatBar label="Energy" value={user.energy} max={user.maxEnergy} color="#00d4ff" />
             <StatBar label="Nerve" value={user.nerve} max={user.maxNerve} color="#ff6b35" />
+            {/* Wire Cartel vitals */}
+            {(user.heat ?? 0) > 0 || (user.stress ?? 0) > 0 ? (
+              <>
+                <StatBar label={`Heat ${(user.heat ?? 0) >= 80 ? "🚨" : "🔥"}`} value={user.heat ?? 0} max={100} color={user.heat >= 80 ? "#ef4444" : user.heat >= 50 ? "#f97316" : "#eab308"} />
+                <StatBar label="Stress 😤" value={user.stress ?? 0} max={100} color="#a855f7" />
+              </>
+            ) : null}
           </div>
 
           {/* Status alerts */}
@@ -115,10 +122,22 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
               <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>Wallet</span>
               <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>{formatDC(user.dc)} DC</span>
             </div>
+            {(user.dirtyDc ?? 0) > 0 && (
+              <div className="flex justify-between">
+                <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>Dirty DC</span>
+                <span className="text-sm font-mono font-bold" style={{ color: "#f97316" }}>{formatDC(user.dirtyDc)} DC</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>Bank</span>
               <span className="text-sm font-mono font-bold" style={{ color: "#39d353" }}>{formatDC(user.bankBalance)} DC</span>
             </div>
+            {(user.sim ?? 0) > 0 && (
+              <div className="flex justify-between">
+                <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>SIM</span>
+                <span className="text-sm font-mono font-bold" style={{ color: "#22d3ee" }}>{formatDC(user.sim)}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>UC (NeoCoins)</span>
               <span className="text-sm font-mono font-bold" style={{ color: "#a855f7" }}>{formatDC(user.nc)} UC</span>

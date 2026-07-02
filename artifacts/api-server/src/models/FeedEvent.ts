@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export interface IFeedEvent extends Document {
   _id: mongoose.Types.ObjectId;
-  type: "crime" | "fight" | "job" | "level_up" | "market" | "bank" | "system" | "hospital" | "post" | "travel" | "daily" | "frame_gift" | "achievement";
+  type: "crime" | "fight" | "job" | "level_up" | "market" | "bank" | "system" | "hospital" | "post" | "travel" | "daily" | "frame_gift" | "achievement" | "race" | "hack" | "garage";
   actor: string;
   actorId: mongoose.Types.ObjectId | null;
   target: string | null;
@@ -19,7 +19,7 @@ const FeedEventSchema = new Schema<IFeedEvent>(
   {
     type: {
       type: String,
-      enum: ["crime", "fight", "job", "level_up", "market", "bank", "system", "hospital", "post", "travel", "daily", "frame_gift", "achievement"],
+      enum: ["crime", "fight", "job", "level_up", "market", "bank", "system", "hospital", "post", "travel", "daily", "frame_gift", "achievement", "race", "hack", "garage"],
       required: true,
     },
     actor: { type: String, required: true },

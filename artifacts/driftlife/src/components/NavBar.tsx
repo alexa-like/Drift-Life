@@ -27,12 +27,28 @@ function RollingNC({ value }: { value: number }) {
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
-const NAV = [
+// Wire Cartel onboarding-gated nav items
+// minStage: minimum onboardingStage required to see this item
+const NAV: { id: string; label: string; minStage?: number; group?: string }[] = [
+  // Always visible
   { id: "feed",         label: "Feed" },
   { id: "herald",       label: "Herald" },
   { id: "map",          label: "Map" },
-  { id: "crimes",       label: "Crime" },
-  { id: "jobs",         label: "Jobs" },
+  { id: "chat",         label: "Chat" },
+  { id: "daily",        label: "Daily" },
+  { id: "profile",      label: "Profile" },
+  { id: "leaderboard",  label: "Board" },
+  // Wire Cartel — core loop (onboarding gated)
+  { id: "street",       label: "Street",   group: "wc" },         // stage 0 — first thing unlocked
+  { id: "gym",          label: "Gym",      group: "wc" },         // always (helps early)
+  { id: "jobs",         label: "Jobs",     group: "wc" },
+  { id: "garage",       label: "Garage",   group: "wc", minStage: 1 }, // after first run
+  { id: "city",         label: "City",     group: "wc", minStage: 2 }, // after getting car
+  { id: "net",          label: "Net",      group: "wc", minStage: 3 }, // after getting job
+  { id: "world",        label: "World",    group: "wc", minStage: 1 },
+  { id: "guilds",       label: "Crew",     group: "wc", minStage: 2 },
+  // Legacy / full nav (visible for returning users)
+  { id: "crimes",       label: "Crime",    minStage: 99 }, // hidden; redirect to Street
   { id: "combat",       label: "Combat" },
   { id: "inventory",    label: "Gear" },
   { id: "market",       label: "Market" },
@@ -43,13 +59,8 @@ const NAV = [
   { id: "crafting",     label: "Craft" },
   { id: "cards",        label: "Cards" },
   { id: "skills",       label: "Skills" },
-  { id: "guilds",       label: "Guild" },
-  { id: "daily",        label: "Daily" },
   { id: "frames",       label: "Frames" },
   { id: "achievements", label: "Achiev" },
-  { id: "chat",         label: "Chat" },
-  { id: "leaderboard",  label: "Board" },
-  { id: "profile",      label: "Profile" },
 ];
 
 function RollingNumber({ value, color }: { value: number; color: string }) {
@@ -147,6 +158,16 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
             🔒 JAILED
           </span>
         )}
+        {/* Wire Cartel heat indicator */}
+        {(user.heat ?? 0) > 0 && (
+          <span className="font-mono flex-shrink-0 px-1.5 rounded" style={{
+            background: (user.heat ?? 0) >= 80 ? "#ef444420" : "#f9731620",
+            color: (user.heat ?? 0) >= 80 ? "#ef4444" : "#f97316",
+            border: `1px solid ${(user.heat ?? 0) >= 80 ? "#ef444440" : "#f9731640"}`,
+          }}>
+            {(user.heat ?? 0) >= 80 ? "🚨" : "🔥"} {user.heat}%
+          </span>
+        )}
         <div className="flex-1" />
         <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
           Lv.<span style={{ color: "#e2e8f0", fontWeight: "bold" }}>{user.level}</span>
@@ -176,8 +197,14 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
           DRIFT
         </button>
 
-        {/* Nav links */}
-        {NAV.map(item => (
+        {/* Nav links — filtered by onboardingStage */}
+        {NAV.filter(item => {
+          const minStage = item.minStage ?? 0;
+          const stage = user.onboardingStage ?? 0;
+          // Items with minStage 99 are hidden (legacy, redirected)
+          if (minStage === 99) return false;
+          return stage >= minStage;
+        }).map(item => (
           <button
             key={item.id}
             onClick={() => onNav(item.id)}
@@ -185,8 +212,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
             style={{
               fontSize: 11,
               background: active === item.id ? `${fc}18` : "transparent",
-              color: active === item.id ? fc : "#475569",
-              border: active === item.id ? `1px solid ${fc}40` : "1px solid transparent",
+              color: active === item.id ? fc : item.group === "wc" ? "#64748b" : "#475569",
+              border: active === item.id ? `1px solid ${fc}40` : item.group === "wc" && active !== item.id ? "1px solid #1e293b" : "1px solid transparent",
               boxShadow: active === item.id ? `0 0 8px ${fc}20` : "none",
             }}
           >

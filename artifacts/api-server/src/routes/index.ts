@@ -31,6 +31,13 @@ import vantaRouter from "./vanta";
 import craftingRouter from "./crafting";
 import cardsRouter from "./cards";
 import tradeRouter from "./trade";
+// ── Wire Cartel additions ────────────────────────────────────────────────────
+import gymRouter from "./gym";
+import garageRouter from "./garage";
+import racesRouter from "./races";
+import cityRouter from "./city";
+import netRouter from "./net";
+import worldRouter from "./world";
 
 const router: IRouter = Router();
 
@@ -64,6 +71,14 @@ router.use("/vanta", vantaRouter);
 router.use("/crafting", craftingRouter);
 router.use("/cards", cardsRouter);
 router.use("/trade", tradeRouter);
+// ── Wire Cartel ──────────────────────────────────────────────────────────────
+router.use("/gym", gymRouter);
+router.use("/garage", garageRouter);
+router.use("/races", racesRouter);
+router.use("/city", cityRouter);
+router.use("/net", netRouter);
+router.use("/world", worldRouter);
+// ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);
 

@@ -14,45 +14,54 @@ export interface User {
   skillPoints: number;
   dc: number;
   nc: number;
+  dirtyDc: number;
+  sim: number;
   credits: number;
+  bankBalance: number;
   health: number;
   maxHealth: number;
   energy: number;
   maxEnergy: number;
   nerve: number;
   maxNerve: number;
+  // Wire Cartel vitals
+  heat: number;
+  stress: number;
+  mood: number;
   strength: number;
   charisma: number;
   intelligence: number;
   streetCred: number;
+  humanityLoss: number;
+  firewallLevel: number;
+  followers: number;
+  onboardingStage: number;
   district: string;
   job: string | null;
   rank: string;
   wantedLevel: number;
   totalCrimes: number;
   successfulCrimes: number;
+  totalRaces: number;
+  raceWins: number;
   totalFights: number;
   wins: number;
   losses: number;
   attacksToday: number;
   hospitalizedUntil: string | null;
   jailUntil: string | null;
+  pursuiteActive: boolean;
   lastDailyReward: string | null;
   dailyStreak: number;
   role: "player" | "admin" | "staff" | "owner";
   mutedUntil?: string | null;
-  bankBalance: number;
   gang: string | null;
+  guildId?: string | null;
   isEmailVerified: boolean;
   equippedFrame: string | null;
   equippedFrameRarity: string | null;
   equippedFrameColor: string | null;
-  /** Per-surface frame slots. Falls back to equippedFrame when a slot is "ghostFrame". */
-  equippedFrames: {
-    avatar: string;
-    chat: string;
-    feed: string;
-  };
+  equippedFrames: { avatar: string; chat: string; feed: string };
   equippedTitle: string | null;
   titles: string[];
   ownedFrames: string[];
@@ -74,12 +83,17 @@ export interface User {
   skillTree: string | null;
   secondarySkill: string | null;
   seasonXp: number;
+  seasonPoints: number;
   craftingXp: number;
   mutedUsers: string[];
   blockedUsers: string[];
   following: string[];
   referralCode: string;
   createdAt: string;
+  alterEgoName: string | null;
+  cars?: string[];
+  activeCar?: string | null;
+  businesses?: string[];
 }
 
 export interface FeedEvent {
@@ -99,20 +113,27 @@ export interface FeedEvent {
   createdAt: string;
 }
 
-export interface Crime {
+export interface Run {
   id: string;
   name: string;
+  tier: number;
   flavour: string;
-  nerveCost: number;
+  energyCost: number;
+  nerveCost: number; // legacy alias for energyCost
   minLevel: number;
   baseSuccess: number;
   dcRange: [number, number];
   xp: number;
+  heatGain: number;
   wantedIncrease: number;
   hospitalRisk: number;
   description: string;
   riskLevel: string;
+  relevantStat: string;
 }
+
+/** Legacy alias for backward-compat with older UI code */
+export type Crime = Run;
 
 export interface Job {
   id: string;
@@ -283,4 +304,76 @@ export interface NPC {
   xp: number;
   dropRarity: string;
   description: string;
+}
+
+export interface Car {
+  id: string;
+  ownerId: string;
+  name: string;
+  make: string;
+  model: string;
+  year: number;
+  power: number;
+  handling: number;
+  grip: number;
+  nitro: number;
+  durability: number;
+  maxDurability: number;
+  paintId: string;
+  stance: string;
+  plateText: string;
+  isActive?: boolean;
+  raceWins: number;
+  raceLosses: number;
+  pinkSlipWins: number;
+  impoundedUntil: string | null;
+  isStolen: boolean;
+  parts: CarPart[];
+}
+
+export interface CarPart {
+  partId: string;
+  type: string;
+  quality: "common" | "rare" | "legendary";
+  statAffected: string;
+  bonus: number;
+}
+
+export interface Business {
+  id: string;
+  ownerId: string;
+  name: string;
+  type: string;
+  level: number;
+  dailyIncome: number;
+  launderRate: number;
+  launderCapacityPerDay: number;
+  launderedToday: number;
+  maxHolding: number;
+  upgradeCost: number;
+  maxLevel: number;
+  pendingCollection?: number;
+  launderCompletesAt?: string | null;
+}
+
+export interface WorldState {
+  timeOfDay: "day" | "night";
+  weather: "clear" | "rain";
+  seasonId: string;
+  seasonName: string;
+  seasonStartsAt: string;
+  seasonEndsAt: string;
+  simPrice: number;
+  activeEvents: WorldEvent[];
+  nightBonus?: { runPayout: string; heatGain: string } | null;
+  rainPenalty?: { grip: string } | null;
+}
+
+export interface WorldEvent {
+  id: string;
+  name: string;
+  type: string;
+  startsAt: string;
+  endsAt: string;
+  effectModifiers: Record<string, number>;
 }

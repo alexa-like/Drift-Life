@@ -12,8 +12,8 @@
  */
 
 // ── Regen rate constants (ms) ─────────────────────────────────────────────────
-const ENERGY_TICK_MS = 180_000; // 3 min
-const NERVE_TICK_MS  = 300_000; // 5 min
+const ENERGY_TICK_MS = 600_000; // 10 min (Section 1: +1 per 10 min)
+const NERVE_TICK_MS  = 300_000; // 5 min (legacy; heat handled by applyRegen)
 
 // ── $expr filter helpers ──────────────────────────────────────────────────────
 
