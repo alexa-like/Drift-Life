@@ -199,6 +199,7 @@ export interface Frame {
   isVisible?: boolean;
   owned: boolean;
   equipped: boolean;
+  equippedOn?: ("avatar" | "chat" | "feed")[];
 }
 
 export interface Achievement {

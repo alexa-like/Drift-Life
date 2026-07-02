@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { User, Frame } from "../lib/types";
+import { User, Frame, ChatMessage } from "../lib/types";
 import { api } from "../lib/api";
 import { getFrame, RARITY_COLORS } from "../lib/frames";
 import { formatDC } from "../lib/format";
 import { PlayerFrame } from "../components/PlayerFrame";
+import { FrameRectBubble } from "../components/FrameRectBubble";
 
 interface Props {
   user: User;
@@ -16,51 +17,19 @@ const CURRENCY_COLORS: Record<string, string> = { dc: "#f59e0b", merit: "#39d353
 
 const RARITY_ORDER = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
 
-function MiniChatPreview({ frame, colorOverride }: { frame: Frame; colorOverride?: string | null }) {
-  const def = getFrame(frame.frameId);
-  const color = colorOverride || frame.glowColor;
-  const rarity = frame.rarity;
-
-  const glowIntensity = rarity === "mythic" ? 14 : rarity === "legendary" ? 10 : rarity === "epic" ? 7 : rarity === "rare" ? 5 : 2;
-  const headerBg = rarity !== "common"
-    ? `linear-gradient(135deg, ${color}25 0%, ${color}10 100%)`
-    : `${color}10`;
-
-  return (
-    <div style={{
-      borderRadius: 6, overflow: "hidden",
-      border: `1px solid ${rarity !== "common" ? color + "40" : "#1e1e2e"}`,
-      boxShadow: `0 0 ${glowIntensity}px ${color}25`,
-      background: "#0a0a0f",
-      minHeight: 72,
-    }}>
-      {rarity !== "common" && (
-        <div style={{
-          background: headerBg,
-          borderBottom: `1px solid ${color}25`,
-          padding: "4px 10px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: color, boxShadow: `0 0 4px ${color}` }} />
-            <span className="font-mono" style={{ color, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "bold" }}>
-              {def.name}
-            </span>
-          </div>
-          <span className="font-mono" style={{ color: color + "70", fontSize: 8, textTransform: "capitalize" }}>{rarity}</span>
-        </div>
-      )}
-      <div style={{ padding: "6px 10px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-          <span className="font-mono font-bold" style={{ color, fontSize: 11 }}>RUNNER</span>
-          <span className="font-mono" style={{ color: "#334155", fontSize: 9 }}>12:47</span>
-        </div>
-        <p className="font-mono" style={{ color: "#94a3b8", fontSize: 10 }}>You see the city from above...</p>
-      </div>
-    </div>
-  );
+/** Builds a fake ChatMessage so FrameRectBubble can render a live frame preview */
+function fakeMsg(frame: Frame, colorOverride?: string | null): ChatMessage {
+  return {
+    id: `preview-${frame.frameId}`,
+    userId: "preview",
+    username: "RUNNER",
+    faction: null,
+    frame: frame.frameId,
+    frameColor: colorOverride ?? null,
+    title: null,
+    content: "You see the city from above, neon bleeding into rain...",
+    at: "2047-01-01T00:47:00.000Z",
+  };
 }
 
 export function FramesStorePage({ user, refreshUser, addToast }: Props) {
@@ -103,14 +72,30 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
     }
   }
 
-  async function equip(frameId: string) {
+  async function equip(frameId: string, surface?: "avatar" | "chat" | "feed") {
     setActing(frameId);
     try {
-      await api.post<any>(`/frames/equip/${frameId}`);
-      setFrames(prev => prev.map(f => ({ ...f, equipped: f.frameId === frameId })));
-      if (selectedFrame) setSelectedFrame(prev => prev ? { ...prev, equipped: prev.frameId === frameId } : prev);
+      if (surface) {
+        await api.patch<any>("/user/me", { equippedFrames: { [surface]: frameId } });
+        addToast(`${frameId === "ghostFrame" ? "Cleared" : "Equipped"} frame for ${surface}`, "success");
+      } else {
+        await api.post<any>(`/frames/equip/${frameId}`);
+        addToast("Frame equipped on all surfaces", "success");
+      }
+      setFrames(prev => prev.map(f => ({
+        ...f,
+        equipped: surface ? f.equipped : f.frameId === frameId,
+        equippedOn: surface
+          ? f.frameId === frameId
+            ? [...(f.equippedOn || []).filter(s => s !== surface), surface] as ("avatar" | "chat" | "feed")[]
+            : (f.equippedOn || []).filter(s => s !== surface)
+          : (f.frameId === frameId ? ["avatar", "chat", "feed"] as ("avatar" | "chat" | "feed")[] : []),
+      })));
+      if (selectedFrame) setSelectedFrame(prev => prev ? {
+        ...prev,
+        equipped: surface ? prev.equipped : prev.frameId === frameId,
+      } : prev);
       await refreshUser();
-      addToast("Frame equipped", "success");
     } catch (err: any) {
       addToast(err.message, "error");
     } finally {
@@ -257,14 +242,15 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
                   transition: "border-color 0.2s",
                 }}
               >
-                <div style={{ position: "relative", padding: "2px" }}>
-                  <MiniChatPreview frame={f} colorOverride={user.equippedFrameColor} />
-                  {/* NEW badge — show if createdAt is within 7 days */}
+                <div style={{ position: "relative", padding: "4px 4px 0" }}>
+                  <FrameRectBubble message={fakeMsg(f)} />
+                  {/* NEW badge */}
                   {f.createdAt && (Date.now() - new Date(f.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000 && (
                     <span className="font-mono" style={{
-                      position: "absolute", top: 4, right: 6, fontSize: 8, fontWeight: "bold",
+                      position: "absolute", top: 6, right: 8, fontSize: 8, fontWeight: "bold",
                       background: "#00d4ff", color: "#0a0a0f",
                       padding: "1px 5px", borderRadius: 3, letterSpacing: "0.08em",
+                      pointerEvents: "none",
                     }}>NEW</span>
                   )}
                 </div>
@@ -313,8 +299,10 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
 
                 {selectedFrame?.frameId === f.frameId && (
                   <div style={{ padding: "0 12px 12px", borderTop: `1px solid ${rarityColor}20` }}>
-                    {/* Live canvas previews */}
-                    <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 10, marginBottom: 10 }}>
+
+                    {/* ── Live previews: AVATAR + CHAT ── */}
+                    <div style={{ display: "flex", gap: 10, marginTop: 10, marginBottom: 10 }}>
+                      {/* Avatar preview */}
                       <div style={{ flexShrink: 0 }}>
                         <div className="font-mono" style={{ fontSize: 9, color: "#334155", marginBottom: 4, letterSpacing: "0.08em" }}>AVATAR</div>
                         <PlayerFrame frameId={f.frameId} size="xl">
@@ -326,45 +314,61 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
                           </div>
                         </PlayerFrame>
                       </div>
-                      <div className="font-mono" style={{ fontSize: 9, color: "#334155", flex: 1 }}>
-                        <div style={{ marginBottom: 4, letterSpacing: "0.08em" }}>ABOUT</div>
-                        <div style={{ color: "#64748b", lineHeight: 1.6 }}>{f.description}</div>
+
+                      {/* Chat + about */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="font-mono" style={{ fontSize: 9, color: "#334155", marginBottom: 4, letterSpacing: "0.08em" }}>CHAT PREVIEW</div>
+                        <FrameRectBubble message={fakeMsg(f)} />
+                        <div className="font-mono" style={{ fontSize: 9, color: "#64748b", marginTop: 6, lineHeight: 1.5 }}>
+                          {f.description}
+                        </div>
                       </div>
                     </div>
 
                     {f.owned ? (
                       <>
-                        <button
-                          onClick={e => { e.stopPropagation(); equip(f.frameId); }}
-                          disabled={isActing || f.equipped}
-                          className="font-mono text-xs font-bold"
-                          style={{
-                            width: "100%", padding: "7px 0", borderRadius: 6, cursor: f.equipped ? "default" : "pointer",
-                            background: f.equipped ? "#39d35315" : "#00d4ff20",
-                            border: `1px solid ${f.equipped ? "#39d35350" : "#00d4ff50"}`,
-                            color: f.equipped ? "#39d353" : "#00d4ff",
-                            marginBottom: 10,
-                          }}
-                        >
-                          {isActing ? "..." : f.equipped ? "Equipped" : "Equip"}
-                        </button>
+                        {/* ── Per-surface equip ── */}
+                        <div className="font-mono" style={{ fontSize: 9, color: "#475569", marginBottom: 5, letterSpacing: "0.08em" }}>EQUIP ON SURFACE</div>
+                        <div style={{ display: "flex", gap: 5, marginBottom: 10 }}>
+                          {(["avatar", "chat", "feed"] as const).map(surface => {
+                            const isOn = (f.equippedOn || []).includes(surface);
+                            return (
+                              <button
+                                key={surface}
+                                onClick={e => { e.stopPropagation(); equip(f.frameId, surface); }}
+                                disabled={!!isActing}
+                                className="font-mono"
+                                style={{
+                                  flex: 1, padding: "5px 0", borderRadius: 5, fontSize: 9, fontWeight: "bold",
+                                  cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em",
+                                  background: isOn ? rarityColor + "25" : "#111118",
+                                  border: `1px solid ${isOn ? rarityColor + "70" : "#1e1e2e"}`,
+                                  color: isOn ? rarityColor : "#475569",
+                                }}
+                              >
+                                {isActing ? "…" : (isOn ? "✓ " : "") + surface}
+                              </button>
+                            );
+                          })}
+                        </div>
 
-                        {f.equipped && (
-                          <div>
-                            <div className="font-mono" style={{ color: "#475569", fontSize: 10, marginBottom: 6 }}>Frame Color</div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                        {/* ── Frame color (shown when frame is equipped on any surface) ── */}
+                        {(f.equippedOn || []).length > 0 && (
+                          <div style={{ marginBottom: 10 }}>
+                            <div className="font-mono" style={{ color: "#475569", fontSize: 9, marginBottom: 5, letterSpacing: "0.06em" }}>FRAME COLOR</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 5 }}>
                               {PRESET_COLORS.map(c => (
                                 <button
                                   key={c}
                                   onClick={e => { e.stopPropagation(); saveColor(c); }}
                                   style={{
-                                    width: 20, height: 20, borderRadius: 4, background: c, cursor: "pointer",
+                                    width: 18, height: 18, borderRadius: 3, background: c, cursor: "pointer",
                                     border: user.equippedFrameColor === c ? "2px solid #fff" : "1px solid transparent",
                                   }}
                                 />
                               ))}
                             </div>
-                            <div style={{ display: "flex", gap: 6 }}>
+                            <div style={{ display: "flex", gap: 5 }}>
                               <input
                                 value={customColor}
                                 onChange={e => setCustomColor(e.target.value)}
@@ -380,20 +384,14 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
                                 onClick={e => { e.stopPropagation(); if (/^#[0-9a-fA-F]{3,8}$/.test(customColor)) saveColor(customColor); }}
                                 disabled={savingColor}
                                 className="font-mono text-xs"
-                                style={{
-                                  background: "#111118", border: "1px solid #1e1e2e", borderRadius: 4,
-                                  color: "#e2e8f0", padding: "4px 10px", cursor: "pointer",
-                                }}
+                                style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 4, color: "#e2e8f0", padding: "4px 10px", cursor: "pointer" }}
                               >
-                                {savingColor ? "..." : "Set"}
+                                {savingColor ? "…" : "Set"}
                               </button>
                               <button
                                 onClick={e => { e.stopPropagation(); saveColor(null); }}
                                 className="font-mono text-xs"
-                                style={{
-                                  background: "#111118", border: "1px solid #1e1e2e", borderRadius: 4,
-                                  color: "#475569", padding: "4px 8px", cursor: "pointer",
-                                }}
+                                style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 4, color: "#475569", padding: "4px 8px", cursor: "pointer" }}
                               >
                                 Reset
                               </button>

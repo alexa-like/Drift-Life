@@ -148,12 +148,8 @@ router.post("/equip/:frameId", requireAuth, async (req: AuthRequest, res) => {
 
     user.equippedFrame = frame.frameId;
     user.equippedFrameRarity = frame.rarity;
-    // Also default all per-surface slots to this frame on first equip
-    const slots = (user as any).equippedFrames ?? { avatar: "ghostFrame", chat: "ghostFrame", feed: "ghostFrame" };
-    if (slots.avatar === "ghostFrame") slots.avatar = frame.frameId;
-    if (slots.chat === "ghostFrame") slots.chat = frame.frameId;
-    if (slots.feed === "ghostFrame") slots.feed = frame.frameId;
-    (user as any).equippedFrames = slots;
+    // Equip on all three surfaces unconditionally
+    (user as any).equippedFrames = { avatar: frame.frameId, chat: frame.frameId, feed: frame.frameId };
     user.markModified("equippedFrames");
     await user.save();
 

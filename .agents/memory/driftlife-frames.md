@@ -28,8 +28,15 @@ description: Frame catalog structure, equip slots, getFrame alias resolution, su
 
 ## Equip Security
 - `PATCH /api/user/me`: ownership validated for both `equippedFrame` (legacy) and each `equippedFrames` slot
-- `POST /api/frames/equip`: seeds all 3 slots from ghostFrame on first equip (does not overwrite non-ghost slots)
+- `POST /api/frames/equip`: overwrites ALL 3 slots unconditionally ("equip everywhere" action)
 - `equippedOn: string[]` (surfaces) returned in GET /api/frames per frame entry
+
+## FramesStorePage UI
+- Grid thumbnails use `FrameRectBubble` with a `fakeMsg()` helper (not a custom mini preview)
+- Expanded card shows both AVATAR (PlayerFrame) and CHAT (FrameRectBubble) previews side by side
+- Per-surface equip buttons (avatar/chat/feed): call `PATCH /api/user/me` with `{ equippedFrames: { [surface]: frameId } }`
+- Equip-all (no surface): calls `POST /api/frames/equip/:id` which overwrites all 3 slots
+- Frame color panel shows when `equippedOn.length > 0` (any surface equipped), not just global equip
 
 ## Other
 - `ownedFrames` + `equippedFrame` on User model
