@@ -2,12 +2,36 @@
 
 A persistent multiplayer text-based browser RPG set in New Vanta, 2047 — a cyberpunk dystopia. Players commit crimes, work jobs, fight other players, trade gear on the black market, and build their criminal empire.
 
-## Run & Operate
+## Run & Operate (Replit)
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080, served via proxy at /api)
-- `pnpm --filter @workspace/driftlife run dev` — run the frontend (port 24576, served at /)
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- Required env: `MONGODB_URI`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `GMAIL_USER`, `GMAIL_PASS`, `GROQ_API_KEY`, `TELEGRAM_BOT_TOKEN`, `ENCRYPTION_KEY`
+Two workflows must both be running:
+- **`artifacts/api-server: API Server`** — builds and starts Express on port 8080
+- **`artifacts/driftlife: web`** — Vite dev server on port 24576 (preview pane points here)
+
+First-time setup: run `pnpm install` from the workspace root before starting workflows.
+
+Manual commands:
+- `pnpm --filter @workspace/api-server run dev` — API server (port 8080)
+- `pnpm --filter @workspace/driftlife run dev` — frontend (port 24576)
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
+
+### Required Replit Secrets
+Set these in Replit Secrets (not env vars — they are sensitive):
+| Secret | Purpose |
+|---|---|
+| `MONGODB_URI` | MongoDB Atlas connection string |
+| `JWT_SECRET` | Access token signing key (any long random string) |
+| `JWT_REFRESH_SECRET` | Refresh token signing key (different from JWT_SECRET) |
+| `ENCRYPTION_KEY` | 32-char hex string for field encryption |
+| `GMAIL_USER` | Gmail address for OTP emails |
+| `GMAIL_PASS` | Gmail App Password (not login password) |
+
+Optional (Phase 2 — game runs without them):
+- `GROQ_API_KEY` — Groq LLM for NPC dialogue
+- `TELEGRAM_BOT_TOKEN` — Telegram bot notifications
+
+### Deployment
+This project deploys to **Render** (not Replit Deploy). Config is in `render.yaml`. Do not create Replit deployment configuration.
 
 ## Stack
 
