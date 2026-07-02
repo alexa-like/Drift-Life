@@ -61,7 +61,7 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "frames" | "grants";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "frames" | "grants" | "vanta";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -134,6 +134,19 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [settingBoost, setSettingBoost] = useState(false);
   const [grantFrameId, setGrantFrameId] = useState("");
   const [grantingFrame, setGrantingFrame] = useState(false);
+  // Vanta tab
+  const [vantaLogs, setVantaLogs] = useState<{
+    id: string; player: { id: string; name: string }; trigger: string;
+    severity: string; details: string; dismissed: boolean; dismissedBy?: string; createdAt: string;
+  }[]>([]);
+  const [vantaSummary, setVantaSummary] = useState<Record<string, number>>({ low: 0, medium: 0, high: 0, critical: 0 });
+  const [vantaFilter, setVantaFilter] = useState<"active" | "dismissed">("active");
+  const [vantaLoading, setVantaLoading] = useState(false);
+  const [flagPlayerId, setFlagPlayerId] = useState("");
+  const [flagPlayerName, setFlagPlayerName] = useState("");
+  const [flagSeverity, setFlagSeverity] = useState("medium");
+  const [flagDetails, setFlagDetails] = useState("");
+  const [flagging, setFlagging] = useState(false);
 
   const loadStats = useCallback(async () => {
     try {
@@ -187,6 +200,19 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     finally { setFramesLoading(false); }
   }, []);
 
+  const loadVanta = useCallback(async (dismissed = false) => {
+    setVantaLoading(true);
+    try {
+      const [logs, summary] = await Promise.all([
+        api.get<any[]>(`/vanta?dismissed=${dismissed}`),
+        api.get<Record<string, number>>("/vanta/summary"),
+      ]);
+      setVantaLogs(logs);
+      setVantaSummary(summary);
+    } catch { /* silent */ }
+    finally { setVantaLoading(false); }
+  }, []);
+
   useEffect(() => { loadStats(); }, [loadStats]);
   useEffect(() => { if (tab === "users") loadUsers(1); }, [tab, loadUsers]);
   useEffect(() => { if (tab === "activity") loadRecentFeed(); }, [tab, loadRecentFeed]);
@@ -199,6 +225,9 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         .then(setXpBoostInfo).catch(() => {});
     }
   }, [tab]);
+  useEffect(() => {
+    if (tab === "vanta") loadVanta(vantaFilter === "dismissed");
+  }, [tab, vantaFilter, loadVanta]);
 
   async function banUser(userId: string) {
     if (!banReason.trim()) { addToast("Enter a ban reason", "error"); return; }
@@ -498,7 +527,11 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
             {t.label}
           </button>
         ))}
-        {["Economy", "Events", "VantaLog"].map(n => (
+        <button onClick={() => setTab("vanta")} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "vanta" ? "#ff2d5518" : "#111118", color: tab === "vanta" ? "#ff2d55" : "#475569", border: `1px solid ${tab === "vanta" ? "#ff2d5540" : "#1e1e2e"}` }}>
+          VantaLog
+        </button>
+        {["Economy", "Events"].map(n => (
           <button key={n} className="px-4 py-2 rounded font-mono text-xs opacity-40 cursor-not-allowed"
             style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Coming soon — Phase 2">
             {n}
@@ -1142,6 +1175,135 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
               <input value={grantFrameId} onChange={e => setGrantFrameId(e.target.value)} placeholder="frameId (e.g. ghost_wire)" className="font-mono text-xs px-2 py-1.5 rounded flex-1" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
               <button onClick={grantFrame} disabled={grantingFrame || !grantTargetId || !grantFrameId} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
                 {grantingFrame ? "..." : "Grant Frame"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VANTA TAB */}
+      {tab === "vanta" && (
+        <div className="space-y-4">
+          {/* Summary */}
+          <div className="grid grid-cols-4 gap-3">
+            {(["critical","high","medium","low"] as const).map(sev => {
+              const colors: Record<string, string> = { critical: "#ff2d55", high: "#f59e0b", medium: "#a855f7", low: "#39d353" };
+              const c = colors[sev];
+              return (
+                <div key={sev} style={{ ...s, textAlign: "center", borderColor: c + "30" }}>
+                  <div className="font-mono font-bold text-xl" style={{ color: c }}>{vantaSummary[sev] ?? 0}</div>
+                  <div className="font-mono mt-1" style={{ fontSize: 10, color: "#64748b", letterSpacing: "0.05em" }}>{sev.toUpperCase()}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Filter + refresh */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {(["active","dismissed"] as const).map(f => (
+              <button key={f} onClick={() => setVantaFilter(f)} className="font-mono text-xs px-3 py-1.5 rounded"
+                style={{ background: vantaFilter === f ? "#ff2d5518" : "#111118", color: vantaFilter === f ? "#ff2d55" : "#475569", border: `1px solid ${vantaFilter === f ? "#ff2d5540" : "#1e1e2e"}` }}>
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+            <button onClick={() => loadVanta(vantaFilter === "dismissed")} className="font-mono text-xs px-3 py-1.5 rounded ml-auto"
+              style={{ background: "#111118", color: "#475569", border: "1px solid #1e1e2e" }}>
+              ↻ Refresh
+            </button>
+          </div>
+
+          {/* Log list */}
+          {vantaLoading ? (
+            <div style={{ ...s, textAlign: "center" }}><span className="font-mono text-xs" style={{ color: "#475569" }}>Loading…</span></div>
+          ) : vantaLogs.length === 0 ? (
+            <div style={{ ...s, textAlign: "center" }}><span className="font-mono text-xs" style={{ color: "#475569" }}>No {vantaFilter} logs.</span></div>
+          ) : (
+            <div className="space-y-2">
+              {vantaLogs.map(log => {
+                const colors: Record<string, string> = { critical: "#ff2d55", high: "#f59e0b", medium: "#a855f7", low: "#39d353" };
+                const c = colors[log.severity] ?? "#64748b";
+                return (
+                  <div key={log.id} style={{ ...s, borderColor: c + "30" }}>
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded" style={{ background: c + "20", color: c, border: `1px solid ${c}40` }}>
+                            {log.severity.toUpperCase()}
+                          </span>
+                          <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>{log.trigger}</span>
+                          <span className="font-mono" style={{ color: "#334155", fontSize: 10, marginLeft: "auto" }}>
+                            {new Date(log.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>
+                          {log.player.name}
+                          <span className="font-normal ml-2" style={{ color: "#475569" }}>{log.player.id}</span>
+                        </div>
+                        <div className="font-mono text-xs mt-1" style={{ color: "#94a3b8", lineHeight: 1.5 }}>{log.details}</div>
+                        {log.dismissed && log.dismissedBy && (
+                          <div className="font-mono" style={{ color: "#334155", fontSize: 10, marginTop: 4 }}>Dismissed by {log.dismissedBy}</div>
+                        )}
+                      </div>
+                      {!log.dismissed && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await api.post<any>(`/vanta/${log.id}/dismiss`, {});
+                              loadVanta(false);
+                            } catch (e: any) { addToast(e.message ?? "Error", "error"); }
+                          }}
+                          className="font-mono text-xs px-3 py-1 rounded flex-shrink-0"
+                          style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}
+                        >
+                          Dismiss
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Manual flag form */}
+          <div style={{ ...s, borderColor: "#ff2d5520" }}>
+            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#ff2d55", letterSpacing: "0.08em" }}>FLAG A PLAYER MANUALLY</div>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input value={flagPlayerId} onChange={e => setFlagPlayerId(e.target.value)} placeholder="Player ID"
+                  className="px-3 py-2 rounded font-mono text-xs" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }} />
+                <input value={flagPlayerName} onChange={e => setFlagPlayerName(e.target.value)} placeholder="Player name"
+                  className="px-3 py-2 rounded font-mono text-xs" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }} />
+              </div>
+              <select value={flagSeverity} onChange={e => setFlagSeverity(e.target.value)}
+                className="w-full px-3 py-2 rounded font-mono text-xs" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+              <textarea value={flagDetails} onChange={e => setFlagDetails(e.target.value)} placeholder="Details / reason…"
+                rows={3} className="w-full px-3 py-2 rounded font-mono text-xs resize-none"
+                style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }} />
+              <button
+                disabled={flagging || !flagPlayerId.trim() || !flagDetails.trim()}
+                onClick={async () => {
+                  setFlagging(true);
+                  try {
+                    const r = await api.post<{ message: string }>("/vanta/flag", {
+                      playerId: flagPlayerId.trim(), playerName: flagPlayerName.trim() || "Unknown",
+                      trigger: "manual_flag", severity: flagSeverity, details: flagDetails.trim(),
+                    });
+                    addToast(r.message, "success");
+                    setFlagPlayerId(""); setFlagPlayerName(""); setFlagDetails("");
+                    loadVanta(false);
+                  } catch (e: any) { addToast(e.message ?? "Error", "error"); }
+                  finally { setFlagging(false); }
+                }}
+                className="font-mono text-xs px-4 py-2 rounded"
+                style={{ background: flagging ? "#111118" : "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5530" }}
+              >
+                {flagging ? "Flagging…" : "Flag Player"}
               </button>
             </div>
           </div>

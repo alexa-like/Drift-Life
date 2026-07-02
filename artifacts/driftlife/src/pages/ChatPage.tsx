@@ -155,6 +155,64 @@ function DistrictTab({ user, onInspect }: { user: User; onInspect?: (id: string)
   );
 }
 
+function FactionTab({ user, onInspect }: { user: User; onInspect?: (id: string) => void }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { socket } = useSocket();
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.get<ChatMessage[]>("/chat/faction")
+      .then(m => { setMessages(m); setLoading(false); })
+      .catch(e => { setError(e?.message ?? "No faction chat available"); setLoading(false); });
+    socket?.emit("join_faction", user.faction);
+    return () => { socket?.emit("leave_faction", user.faction); };
+  }, [socket, user.faction]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (msg: ChatMessage) => {
+      setMessages(prev => [...prev.slice(-49), msg]);
+    };
+    socket.on("faction_message", handler);
+    return () => { socket.off("faction_message", handler); };
+  }, [socket]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function send(content: string) {
+    try {
+      await api.post<any>("/chat/faction", { content });
+    } catch (err: any) {
+      console.warn("send faction error", err);
+    }
+  }
+
+  const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
+  const fc = user.faction ? FACTION_COLOR[user.faction] ?? "#00d4ff" : "#00d4ff";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div className="font-mono text-xs" style={{ color: "#475569", marginBottom: 8 }}>
+        Faction: <span style={{ color: fc }}>◈ {user.faction?.toUpperCase()}</span>
+        <span style={{ color: "#334155", marginLeft: 8 }}>— only your faction sees this</span>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
+        {loading && <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", padding: 20 }}>Loading...</div>}
+        {error && <div className="font-mono text-xs" style={{ color: "#ff2d55", textAlign: "center", padding: 20 }}>{error}</div>}
+        {messages.map(m => (
+          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={(uid) => onInspect?.(uid)} />
+        ))}
+        <div ref={bottomRef} />
+      </div>
+      {!error && <MessageInput onSend={send} placeholder={`${user.faction ?? "Faction"} chat...`} />}
+    </div>
+  );
+}
+
 function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string) => void }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<string | null>(null);
@@ -351,12 +409,13 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
 }
 
 export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
-  const [tab, setTab] = useState<"global" | "district" | "messages">("global");
+  const [tab, setTab] = useState<"global" | "district" | "faction" | "messages">("global");
 
   const tabs = [
     { id: "global" as const, label: "Global" },
     { id: "district" as const, label: "District" },
-    { id: "messages" as const, label: "Messages" },
+    ...(user.faction ? [{ id: "faction" as const, label: "Faction" }] : []),
+    { id: "messages" as const, label: "DMs" },
   ];
 
   return (
@@ -383,6 +442,7 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
       <div style={{ flex: 1, overflow: "hidden" }}>
         {tab === "global" && <GlobalTab user={user} onInspect={onInspectPlayer} />}
         {tab === "district" && <DistrictTab user={user} onInspect={onInspectPlayer} />}
+        {tab === "faction" && <FactionTab user={user} onInspect={onInspectPlayer} />}
         {tab === "messages" && <MessagesTab user={user} onInspect={onInspectPlayer} />}
       </div>
     </div>

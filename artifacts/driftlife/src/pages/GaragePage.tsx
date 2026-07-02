@@ -31,11 +31,26 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
   const [racePhase, setRacePhase] = useState<"setup" | "minigame" | "result">("setup");
   const [raceBonus, setRaceBonus] = useState(0);
   const [raceResult, setRaceResult] = useState<any>(null);
+  const [pendingRaces, setPendingRaces] = useState<{ raceId: string; challenger: string; raceType: string; prize: number; link: string }[]>([]);
+  const [acceptingRace, setAcceptingRace] = useState<string | null>(null);
+  const [acceptRaceId, setAcceptRaceId] = useState("");
 
   useEffect(() => {
     refreshCars();
     api.get<CarCatalogEntry[]>("/garage/catalog").then(r => setCatalog(r)).catch(() => {});
     api.get<PartEntry[]>("/garage/parts").then(r => setParts(r)).catch(() => {});
+    // Load notifications to surface incoming pink-slip challenges
+    api.get<any[]>("/notifications").then(notifs => {
+      const raceNotifs = notifs.filter(n => n.link && n.link.startsWith("/races/accept/"));
+      const parsed = raceNotifs.map(n => ({
+        raceId: n.link.replace("/races/accept/", ""),
+        challenger: n.message ?? "Challenger",
+        raceType: "pink-slip",
+        prize: 0,
+        link: n.link,
+      }));
+      setPendingRaces(parsed);
+    }).catch(() => {});
   }, []);
 
   async function refreshCars() {
@@ -95,6 +110,28 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
     } catch (e: any) {
       setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
     }
+  }
+
+  async function acceptRace(raceId: string) {
+    setAcceptingRace(raceId);
+    try {
+      const r = await api.post<any>(`/races/accept/${raceId}`, {});
+      const d = r;
+      const resultText = d.raceType === "drift"
+        ? `${d.winner} wins! ${d.challengerScore} vs ${d.defenderScore} pts`
+        : `${d.winner} wins! ${d.challengerTime}s vs ${d.defenderTime}s`;
+      setRaceResult({ ...d, resultText, bonus: 0 });
+      if (d.defenderWins) {
+        onUserUpdate({ ...user, dc: user.dc + (d.prize ?? 0), totalRaces: (user.totalRaces ?? 0) + 1, raceWins: (user.raceWins ?? 0) + 1 });
+      } else {
+        onUserUpdate({ ...user, dc: user.dc - (d.prize ?? 0), totalRaces: (user.totalRaces ?? 0) + 1 });
+      }
+      setPendingRaces(prev => prev.filter(pr => pr.raceId !== raceId));
+      setRacePhase("result");
+      setMessage({ text: "Race accepted and resolved!", type: "success" });
+    } catch (e: any) {
+      setMessage({ text: e.response?.data?.message ?? "Failed to accept race", type: "error" });
+    } finally { setAcceptingRace(null); }
   }
 
   async function startRace(bonus = 0) {
@@ -534,6 +571,50 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
       {/* RACES */}
       {tab === "races" && (
         <div className="space-y-4">
+          {/* Incoming pink-slip challenges */}
+          {(pendingRaces.length > 0 || true) && (
+            <div className="bg-zinc-900 border border-yellow-700/40 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-yellow-400 text-sm">🏆 Incoming Race Challenges</h3>
+                <span className="text-zinc-500 text-xs">Accept using the race ID from your notifications</span>
+              </div>
+              {pendingRaces.map(pr => (
+                <div key={pr.raceId} className="flex items-center gap-3 bg-zinc-800 rounded-lg p-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-white text-sm">{pr.challenger}</p>
+                    <p className="text-zinc-400 text-xs font-mono">ID: {pr.raceId}</p>
+                  </div>
+                  <button
+                    onClick={() => acceptRace(pr.raceId)}
+                    disabled={acceptingRace === pr.raceId}
+                    className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-black font-bold rounded text-xs disabled:opacity-50"
+                  >
+                    {acceptingRace === pr.raceId ? "Accepting…" : "Accept"}
+                  </button>
+                </div>
+              ))}
+              {pendingRaces.length === 0 && (
+                <p className="text-zinc-500 text-xs">No pending challenges found in your notifications.</p>
+              )}
+              {/* Manual accept by ID */}
+              <div className="flex gap-2 pt-1">
+                <input
+                  value={acceptRaceId}
+                  onChange={e => setAcceptRaceId(e.target.value)}
+                  placeholder="Paste race ID to accept manually…"
+                  className="flex-1 bg-zinc-800 border border-zinc-600 rounded px-3 py-1.5 text-white text-xs focus:outline-none focus:border-yellow-500 font-mono"
+                />
+                <button
+                  onClick={() => { if (acceptRaceId.trim()) { acceptRace(acceptRaceId.trim()); setAcceptRaceId(""); } }}
+                  disabled={!acceptRaceId.trim() || !!acceptingRace}
+                  className="px-3 py-1.5 bg-yellow-700 hover:bg-yellow-600 text-white font-bold rounded text-xs disabled:opacity-40"
+                >
+                  Accept
+                </button>
+              </div>
+            </div>
+          )}
+
           {!selectedCar && (
             <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5">
               <p className="text-zinc-400 text-sm">Get a car from the Garage tab first.</p>

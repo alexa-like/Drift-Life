@@ -33,6 +33,7 @@ import { HeraldPage } from "./pages/HeraldPage";
 import { CraftingPage } from "./pages/CraftingPage";
 import { CardsPage } from "./pages/CardsPage";
 import { TradePage } from "./pages/TradePage";
+import { FriendsPage } from "./pages/FriendsPage";
 import StreetPage from "./pages/StreetPage";
 import GymPage from "./pages/GymPage";
 import GaragePage from "./pages/GaragePage";
@@ -156,6 +157,7 @@ function GameApp() {
       case "crafting":      return <CraftingPage {...pageProps} />;
       case "cards":         return <CardsPage {...pageProps} />;
       case "trade":         return <TradePage user={user!} addToast={addToast} />;
+      case "friends":       return <FriendsPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       // Wire Cartel pages
       case "street":        return <StreetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "gym":           return <GymPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { User } from "../lib/types";
+import { User, Item } from "../lib/types";
 
 interface TradeOffer {
   dc: number;
@@ -24,14 +24,36 @@ interface Props {
   addToast: (msg: string, type?: "success" | "error" | "info") => void;
 }
 
+const RARITY_COLOR: Record<string, string> = {
+  common: "#94a3b8", uncommon: "#39d353", rare: "#00d4ff",
+  epic: "#a855f7", legendary: "#f59e0b", mythic: "#ff2d55", event: "#ff6b35",
+};
+
 export function TradePage({ user, addToast }: Props) {
   const qc = useQueryClient();
   const [showOffer, setShowOffer] = useState(false);
+  const [inventory, setInventory] = useState<Item[]>([]);
   const [form, setForm] = useState({
     targetId: "",
     offerDc: 0,
     requestDc: 0,
+    offerItemIds: [] as string[],
   });
+
+  useEffect(() => {
+    if (showOffer) {
+      api.get<Item[]>("/inventory").then(setInventory).catch(() => {});
+    }
+  }, [showOffer]);
+
+  function toggleOfferItem(id: string) {
+    setForm(f => ({
+      ...f,
+      offerItemIds: f.offerItemIds.includes(id)
+        ? f.offerItemIds.filter(x => x !== id)
+        : [...f.offerItemIds, id],
+    }));
+  }
 
   const { data: trades = [], isLoading } = useQuery<Trade[]>({
     queryKey: ["trades"],
@@ -39,11 +61,16 @@ export function TradePage({ user, addToast }: Props) {
   });
 
   const createOffer = useMutation({
-    mutationFn: () => api.post("/trade/offer", { targetId: form.targetId, offerDc: form.offerDc, requestDc: form.requestDc }),
+    mutationFn: () => api.post("/trade/offer", {
+      targetId: form.targetId,
+      offerDc: form.offerDc,
+      requestDc: form.requestDc,
+      offerItemIds: form.offerItemIds,
+    }),
     onSuccess: (r: { message: string }) => {
       addToast(r.message, "success");
       setShowOffer(false);
-      setForm({ targetId: "", offerDc: 0, requestDc: 0 });
+      setForm({ targetId: "", offerDc: 0, requestDc: 0, offerItemIds: [] });
       qc.invalidateQueries({ queryKey: ["trades"] });
     },
     onError: (e: Error) => addToast(e.message, "error"),
@@ -134,12 +161,51 @@ export function TradePage({ user, addToast }: Props) {
               />
             </div>
           </div>
-          <div className="font-mono text-xs" style={{ color: "#334155" }}>
-            Item trading via this panel coming soon. DC-only trades work now.
-          </div>
+          {/* Item picker */}
+          {inventory.length > 0 && (
+            <div>
+              <div className="font-mono text-xs mb-2" style={{ color: "#64748b" }}>
+                Include items from your inventory (optional)
+              </div>
+              <div style={{ maxHeight: 160, overflowY: "auto", border: "1px solid #1e1e2e", borderRadius: 6 }}>
+                {inventory.filter(it => !it.equipped && !it.marketListed).map(it => {
+                  const selected = form.offerItemIds.includes(it.id);
+                  const rc = RARITY_COLOR[it.rarity] ?? "#94a3b8";
+                  return (
+                    <button
+                      key={it.id}
+                      onClick={() => toggleOfferItem(it.id)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8, width: "100%",
+                        padding: "6px 10px", background: selected ? "#00d4ff10" : "transparent",
+                        border: "none", borderBottom: "1px solid #1e1e2e",
+                        cursor: "pointer", textAlign: "left",
+                      }}
+                    >
+                      <div style={{
+                        width: 12, height: 12, borderRadius: 3, flexShrink: 0,
+                        border: `2px solid ${selected ? "#00d4ff" : "#334155"}`,
+                        background: selected ? "#00d4ff" : "transparent",
+                      }} />
+                      <span className="font-mono text-xs font-bold" style={{ color: rc, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {it.name}
+                      </span>
+                      {it.quantity > 1 && <span className="font-mono" style={{ color: "#475569", fontSize: 10 }}>×{it.quantity}</span>}
+                      <span className="font-mono" style={{ color: "#334155", fontSize: 10 }}>{it.type}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {form.offerItemIds.length > 0 && (
+                <div className="font-mono text-xs mt-1" style={{ color: "#00d4ff" }}>
+                  {form.offerItemIds.length} item{form.offerItemIds.length !== 1 ? "s" : ""} selected
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={() => createOffer.mutate()}
-            disabled={createOffer.isPending || !form.targetId || (form.offerDc === 0 && form.requestDc === 0)}
+            disabled={createOffer.isPending || !form.targetId || (form.offerDc === 0 && form.requestDc === 0 && form.offerItemIds.length === 0)}
             className="font-mono text-sm px-6 py-2 rounded"
             style={{ background: "#00d4ff22", color: "#00d4ff", border: "1px solid #00d4ff40", cursor: "pointer" }}
           >
