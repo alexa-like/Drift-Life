@@ -17,6 +17,7 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
   const [lastResult, setLastResult] = useState<any>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [bribing, setBribing] = useState(false);
+  const [pursuiting, setPursuiting] = useState(false);
 
   useEffect(() => {
     api.get<Crime[]>("/crimes").then(setCrimes).catch(() => {});
@@ -28,6 +29,11 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
     try {
       const data = await api.post<any>(`/crimes/${crimeId}/commit`);
       setLastResult({ ...data, crimeId });
+      if (data.pursuitRequired) {
+        addToast("HEAT CRITICAL — resolve the pursuit event first!", "warning");
+        await refreshUser();
+        return;
+      }
       if (data.success) {
         addToast(`${crimes.find(c => c.id === crimeId)?.name} — success! +${data.dcGained} DC`, "success");
       } else {
@@ -54,12 +60,122 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
     }
   }
 
+  async function resolvePursuit(outcome: "bribe" | "outrun" | "busted") {
+    setPursuiting(true);
+    try {
+      const data = await api.post<any>("/crimes/pursuit/resolve", { outcome });
+      addToast(data.message, outcome === "busted" ? "error" : outcome === "outrun" && data.jailUntil ? "error" : "success");
+      await refreshUser();
+    } catch (err: any) {
+      addToast(err.message, "error");
+    } finally {
+      setPursuiting(false);
+    }
+  }
+
   const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
   const bribeCost = user.wantedLevel > 0 ? Math.pow(user.wantedLevel, 2) * 1000 : 0;
+  const pursuitBribeCost = Math.floor(user.heat * 500);
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
+
+      {/* PURSUIT MODAL — blocks until resolved when heat >= 80 triggers it */}
+      {user.pursuiteActive && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.92)", backdropFilter: "blur(8px)" }}
+        >
+          <div className="w-full max-w-sm rounded-xl p-6 space-y-5" style={{ background: "#111118", border: "2px solid #ff6b35", boxShadow: "0 0 40px #ff6b3540" }}>
+            {/* Header */}
+            <div className="text-center space-y-1">
+              <div className="font-mono text-2xl font-black tracking-widest" style={{ color: "#ff6b35" }}>
+                ⚡ PURSUIT ⚡
+              </div>
+              <div className="font-mono text-xs" style={{ color: "#94a3b8" }}>
+                Heat critical — {user.heat}/100 — sirens closing in
+              </div>
+            </div>
+
+            {/* Heat bar */}
+            <div className="space-y-1">
+              <div className="h-2 rounded-full" style={{ background: "#1e1e2e" }}>
+                <div className="h-2 rounded-full" style={{ width: `${user.heat}%`, background: "#ff6b35", boxShadow: "0 0 10px #ff6b3580" }} />
+              </div>
+            </div>
+
+            <p className="font-mono text-xs text-center" style={{ color: "#64748b" }}>
+              Choose your move. This cannot be skipped.
+            </p>
+
+            <div className="space-y-3">
+              {/* Bribe */}
+              <button
+                onClick={() => resolvePursuit("bribe")}
+                disabled={pursuiting || user.dc < pursuitBribeCost}
+                className="w-full rounded-lg p-3 font-mono text-sm transition-all"
+                style={{
+                  background: user.dc >= pursuitBribeCost ? "#f59e0b18" : "#1e1e2e",
+                  border: `1px solid ${user.dc >= pursuitBribeCost ? "#f59e0b60" : "#334155"}`,
+                  color: user.dc >= pursuitBribeCost ? "#f59e0b" : "#475569",
+                  cursor: user.dc >= pursuitBribeCost && !pursuiting ? "pointer" : "not-allowed",
+                }}
+              >
+                <div className="font-bold">💰 BRIBE</div>
+                <div className="text-xs opacity-70">
+                  {user.dc >= pursuitBribeCost
+                    ? `Pay ${pursuitBribeCost.toLocaleString()} DC → heat resets to 40`
+                    : `Need ${pursuitBribeCost.toLocaleString()} DC (you have ${user.dc.toLocaleString()})`}
+                </div>
+              </button>
+
+              {/* Outrun */}
+              <button
+                onClick={() => resolvePursuit("outrun")}
+                disabled={pursuiting}
+                className="w-full rounded-lg p-3 font-mono text-sm transition-all"
+                style={{
+                  background: "#00d4ff18",
+                  border: "1px solid #00d4ff60",
+                  color: "#00d4ff",
+                  cursor: pursuiting ? "not-allowed" : "pointer",
+                }}
+              >
+                <div className="font-bold">🏎️ OUTRUN</div>
+                <div className="text-xs opacity-70">
+                  Use your car — success depends on power + handling. Heat → 20 if clean.
+                </div>
+              </button>
+
+              {/* Give up / Busted */}
+              <button
+                onClick={() => resolvePursuit("busted")}
+                disabled={pursuiting}
+                className="w-full rounded-lg p-3 font-mono text-sm transition-all"
+                style={{
+                  background: "#ff2d5512",
+                  border: "1px solid #ff2d5540",
+                  color: "#ff2d55",
+                  cursor: pursuiting ? "not-allowed" : "pointer",
+                }}
+              >
+                <div className="font-bold">🙅 GIVE UP — BUSTED</div>
+                <div className="text-xs opacity-70">
+                  Hands on hood. 20 min in holding. Heat → 0.
+                </div>
+              </button>
+            </div>
+
+            {pursuiting && (
+              <div className="font-mono text-xs text-center" style={{ color: "#64748b" }}>
+                Resolving...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <h2 className="font-mono font-bold text-lg" style={{ color: "#ff2d55" }}>CRIME BOARD</h2>
         <div className="flex gap-4 font-mono text-xs">

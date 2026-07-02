@@ -310,4 +310,121 @@ router.post("/kick", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TURF WAR SYSTEM — Section 6
+// Districts have a controlling guild. Guilds earn weeklyTurfPoints by winning
+// turf races. Every Monday the guild with most points in each district takes control.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TURF_DISTRICTS = [
+  { id: "residential-north", name: "Residential North", tier: 1, raceCost: 2_000, defenderPower: 25, income: 500 },
+  { id: "industrial-east",   name: "Industrial East",   tier: 2, raceCost: 5_000, defenderPower: 40, income: 1_200 },
+  { id: "tech-quarter",      name: "Tech Quarter",      tier: 3, raceCost: 10_000, defenderPower: 55, income: 2_500 },
+  { id: "downtown-core",     name: "Downtown Core",     tier: 4, raceCost: 20_000, defenderPower: 70, income: 5_000 },
+  { id: "the-outskirts",     name: "The Outskirts",     tier: 2, raceCost: 6_000, defenderPower: 45, income: 1_500 },
+];
+
+// GET /api/guilds/turf — district control standings
+router.get("/turf", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const guilds = await Guild.find({ weeklyTurfPoints: { $gt: 0 } })
+      .select("name tag weeklyTurfPoints controlledDistricts")
+      .sort({ weeklyTurfPoints: -1 })
+      .limit(20)
+      .lean();
+
+    // For each district, find controlling guild (one that has it in controlledDistricts)
+    const controlMap: Record<string, { guildName: string; guildTag: string } | null> = {};
+    for (const d of TURF_DISTRICTS) {
+      const ctrl = (await Guild.findOne({ controlledDistricts: d.id }).select("name tag").lean()) as any;
+      controlMap[d.id] = ctrl ? { guildName: ctrl.name, guildTag: ctrl.tag } : null;
+    }
+
+    res.json({
+      districts: TURF_DISTRICTS.map(d => ({
+        ...d,
+        controlling: controlMap[d.id],
+      })),
+      leaderboard: guilds.map(g => ({
+        name: g.name, tag: g.tag, points: g.weeklyTurfPoints, districts: g.controlledDistricts,
+      })),
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST /api/guilds/turf/race/:districtId — run a turf race for a district
+// Officer or leader only; costs guild treasury DC; resolved against district defender NPC stats
+router.post("/turf/race/:districtId", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const districtId = String(req.params.districtId);
+    const district = TURF_DISTRICTS.find(d => d.id === districtId);
+    if (!district) return res.status(404).json({ message: "District not found" });
+
+    const user = await User.findById(req.userId).select("guildId guildRole level");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.guildId) return res.status(400).json({ message: "You must be in a guild to race for turf" });
+    if (user.guildRole !== "leader" && user.guildRole !== "officer")
+      return res.status(403).json({ message: "Only officers and the leader can initiate turf races" });
+
+    // ── Atomic treasury deduction ─────────────────────────────────────────────
+    // Using findOneAndUpdate with $gte guard prevents double-spend under load.
+    const guild = await Guild.findOneAndUpdate(
+      { _id: user.guildId, treasury: { $gte: district.raceCost } },
+      { $inc: { treasury: -district.raceCost } },
+      { new: true }
+    );
+    if (!guild) return res.status(400).json({ message: `Guild treasury needs at least ${district.raceCost.toLocaleString()} DC` });
+
+    // ── Weekly reset ──────────────────────────────────────────────────────────
+    // Lazily reset weekly points on first race of a new week (Monday 00:00 UTC).
+    const now = new Date();
+    const lastReset = guild.lastTurfResetAt ?? new Date(0);
+    const mondayThisWeek = new Date(now);
+    mondayThisWeek.setUTCHours(0, 0, 0, 0);
+    mondayThisWeek.setUTCDate(mondayThisWeek.getUTCDate() - ((mondayThisWeek.getUTCDay() + 6) % 7));
+    if (lastReset < mondayThisWeek) {
+      guild.weeklyTurfPoints = 0;
+      guild.lastTurfResetAt = now;
+    }
+
+    // Race resolution: user level + random vs district defender power
+    const challengerPower = user.level * 2 + Math.floor(Math.random() * 20);
+    const defenderPower = district.defenderPower + Math.floor(Math.random() * 20);
+    const won = challengerPower > defenderPower;
+
+    const pointsEarned = won ? district.tier * 10 : district.tier * 2;
+    guild.weeklyTurfPoints = (guild.weeklyTurfPoints ?? 0) + pointsEarned;
+
+    // District control: transfer ownership on win (permanent until next challenger wins)
+    const alreadyControls = guild.controlledDistricts?.includes(districtId);
+    if (won && !alreadyControls) {
+      // Atomically remove from any other guild, then add to this one
+      await Guild.updateMany({ _id: { $ne: guild._id }, controlledDistricts: districtId }, { $pull: { controlledDistricts: districtId } });
+      guild.controlledDistricts = [...(guild.controlledDistricts ?? []), districtId];
+    }
+
+    await guild.save();
+
+    res.json({
+      won,
+      districtId,
+      districtName: district.name,
+      challengerPower,
+      defenderPower,
+      pointsEarned,
+      weeklyTurfPoints: guild.weeklyTurfPoints,
+      controlledDistricts: guild.controlledDistricts,
+      message: won
+        ? `Victory! ${guild.name} now controls ${district.name}. +${pointsEarned} turf points.`
+        : `Defeat. ${district.name} held its ground. +${pointsEarned} points for effort.`,
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 export default router;

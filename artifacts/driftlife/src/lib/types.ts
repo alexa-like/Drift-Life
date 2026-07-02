@@ -57,6 +57,7 @@ export interface User {
   mutedUntil?: string | null;
   gang: string | null;
   guildId?: string | null;
+  guildRole?: "leader" | "officer" | "member" | "recruit" | null;
   isEmailVerified: boolean;
   equippedFrame: string | null;
   equippedFrameRarity: string | null;
@@ -91,6 +92,7 @@ export interface User {
   referralCode: string;
   createdAt: string;
   alterEgoName: string | null;
+  implants?: Array<{ id: string; name: string; slot: string; installedAt: string }>;
   cars?: string[];
   activeCar?: string | null;
   businesses?: string[];

@@ -15,6 +15,10 @@ export interface IGuild extends Document {
   xp: number;
   emblem: string | null;
   maxMembers: number;
+  // Turf war fields (Section 6)
+  weeklyTurfPoints: number;
+  controlledDistricts: string[];
+  lastTurfResetAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +38,9 @@ const GuildSchema = new Schema<IGuild>(
     xp: { type: Number, default: 0 },
     emblem: { type: String, default: null },
     maxMembers: { type: Number, default: 15 },
+    weeklyTurfPoints: { type: Number, default: 0 },
+    controlledDistricts: [{ type: String }],
+    lastTurfResetAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

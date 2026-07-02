@@ -42,9 +42,10 @@ const ROLE_COLORS: Record<string, string> = {
 
 export function GuildsPage({ user, addToast }: Props) {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"mine" | "browse" | "create">("mine");
+  const [tab, setTab] = useState<"mine" | "browse" | "create" | "turf">("mine");
   const [createForm, setCreateForm] = useState({ name: "", tag: "", description: "" });
   const [donateAmount, setDonateAmount] = useState("");
+  const [turfRacing, setTurfRacing] = useState<string | null>(null);
 
   const { data: myGuild, isLoading: myGuildLoading } = useQuery<MyGuild | null>({
     queryKey: ["guild-mine"],
@@ -96,7 +97,26 @@ export function GuildsPage({ user, addToast }: Props) {
     onError: (e: Error) => addToast(e.message, "error"),
   });
 
-  const TABS = myGuild ? ["mine", "browse"] : ["mine", "browse", "create"];
+  const { data: turfData } = useQuery<{
+    districts: Array<{ id: string; name: string; tier: number; raceCost: number; income: number; controlling: { guildName: string; guildTag: string } | null }>;
+    leaderboard: Array<{ name: string; tag: string; points: number; districts: string[] }>;
+  }>({
+    queryKey: ["guilds-turf"],
+    queryFn: () => api.get("/guilds/turf"),
+    enabled: tab === "turf",
+  });
+
+  const turfRace = useMutation({
+    mutationFn: (districtId: string) => api.post(`/guilds/turf/race/${districtId}`, {}),
+    onSuccess: (r: any) => {
+      addToast(r.message, r.won ? "success" : "info");
+      qc.invalidateQueries({ queryKey: ["guilds-turf", "guild-mine"] });
+      setTurfRacing(null);
+    },
+    onError: (e: Error) => { addToast(e.message, "error"); setTurfRacing(null); },
+  });
+
+  const TABS = myGuild ? ["mine", "browse", "turf"] : ["mine", "browse", "create", "turf"];
 
   return (
     <div className="space-y-4">
@@ -242,6 +262,92 @@ export function GuildsPage({ user, addToast }: Props) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === "turf" && (
+        <div className="space-y-4">
+          <div className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>DISTRICT CONTROL MAP</div>
+
+          {!turfData && (
+            <div className="font-mono text-xs text-center py-8" style={{ color: "#334155" }}>Loading...</div>
+          )}
+
+          {turfData?.districts.map(d => {
+            const tierColor = d.tier >= 4 ? "#ff2d55" : d.tier >= 3 ? "#f59e0b" : d.tier >= 2 ? "#ff6b35" : "#39d353";
+            const canRace = myGuild && (user.guildRole === "leader" || user.guildRole === "officer");
+            const isRacing = turfRacing === d.id;
+            return (
+              <div key={d.id} className="rounded-lg p-4" style={{ background: "#111118", border: `1px solid ${tierColor}30` }}>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{d.name}</span>
+                      <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ background: tierColor + "22", color: tierColor }}>
+                        T{d.tier}
+                      </span>
+                    </div>
+                    <div className="flex gap-3 mt-1 font-mono text-xs flex-wrap">
+                      <span style={{ color: "#f59e0b" }}>+{d.income.toLocaleString()} DC/week income</span>
+                      <span style={{ color: "#64748b" }}>Race cost: {d.raceCost.toLocaleString()} DC treasury</span>
+                    </div>
+                    {d.controlling ? (
+                      <div className="font-mono text-xs mt-1" style={{ color: "#a855f7" }}>
+                        Controlled by [{d.controlling.guildTag}] {d.controlling.guildName}
+                      </div>
+                    ) : (
+                      <div className="font-mono text-xs mt-1" style={{ color: "#334155" }}>Unclaimed</div>
+                    )}
+                  </div>
+                  {canRace && (
+                    <button
+                      onClick={() => { setTurfRacing(d.id); turfRace.mutate(d.id); }}
+                      disabled={turfRace.isPending || isRacing}
+                      className="font-mono text-xs px-3 py-1 rounded flex-shrink-0"
+                      style={{
+                        background: "#ff6b3518",
+                        color: "#ff6b35",
+                        border: "1px solid #ff6b3540",
+                        cursor: turfRace.isPending ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {isRacing ? "Racing..." : "🏁 Race for Turf"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {!myGuild && (
+            <div className="font-mono text-xs text-center py-4" style={{ color: "#64748b" }}>
+              Join or create a guild to race for turf control.
+            </div>
+          )}
+
+          {myGuild && user.guildRole !== "leader" && user.guildRole !== "officer" && (
+            <div className="font-mono text-xs text-center py-2" style={{ color: "#64748b" }}>
+              Only officers and the guild leader can initiate turf races.
+            </div>
+          )}
+
+          {(turfData?.leaderboard.length ?? 0) > 0 && (
+            <div className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
+              <div className="font-mono text-xs font-bold mb-3" style={{ color: "#94a3b8" }}>WEEKLY POINTS LEADERBOARD</div>
+              {turfData!.leaderboard.map((g, i) => (
+                <div key={g.tag} className="flex items-center justify-between py-1.5" style={{ borderTop: i > 0 ? "1px solid #1e1e2e" : undefined }}>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs" style={{ color: "#334155" }}>#{i + 1}</span>
+                    <span className="font-mono text-sm" style={{ color: "#e2e8f0" }}>[{g.tag}] {g.name}</span>
+                  </div>
+                  <div className="flex items-center gap-3 font-mono text-xs">
+                    <span style={{ color: "#64748b" }}>{g.districts.length} districts</span>
+                    <span style={{ color: "#f59e0b" }}>{g.points} pts</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

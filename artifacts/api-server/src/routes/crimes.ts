@@ -397,7 +397,17 @@ router.post("/pursuit/resolve", requireAuth, async (req: AuthRequest, res) => {
       message = `Slipped Chief Ralston ${bribeCost.toLocaleString()} DC. Heat reset to 40.`;
     } else if (outcome === "outrun") {
       // Skill check: car speed + handling (stub until garage built)
-      const carBonus = 0; // TODO: use activeCar stats
+      // Use active car power+handling to compute outrun bonus (0 to 0.40)
+      let carBonus = 0;
+      if (user.activeCar) {
+        try {
+          const Car = (await import("../models/Car")).default;
+          const activeCar = await Car.findById(user.activeCar).select("power handling").lean();
+          if (activeCar) {
+            carBonus = Math.min(0.40, ((activeCar as any).power + (activeCar as any).handling) / 500);
+          }
+        } catch { /* ignore — fallback to 0 */ }
+      }
       const successChance = 0.40 + carBonus;
       if (Math.random() < successChance) {
         user.heat = 20;

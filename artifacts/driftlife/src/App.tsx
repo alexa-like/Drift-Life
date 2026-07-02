@@ -39,6 +39,7 @@ import GaragePage from "./pages/GaragePage";
 import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import WorldPage from "./pages/WorldPage";
+import CyberPage from "./pages/CyberPage";
 import { NavBar } from "./components/NavBar";
 import { ToastContainer } from "./components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
@@ -162,6 +163,7 @@ function GameApp() {
       case "city":          return <CityPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "world":         return <WorldPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
+      case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />

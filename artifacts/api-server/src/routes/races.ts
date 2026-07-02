@@ -109,9 +109,15 @@ router.post("/start", requireAuth, async (req: AuthRequest, res) => {
     const gripMod = world?.weather === "rain" ? 0.9 : 1.0;
     const prizeMult = world?.activeEvents.find(e => e.type === "race_week" && e.endsAt > new Date())?.effectModifiers.racePrizeMult ?? 1;
 
+    // ── Server-side bonus clamping ────────────────────────────────────────────
+    // Client minigames produce a value in [0, 1]; clamp strictly before use
+    // so a tampered API call cannot exceed what a perfect minigame produces.
+    const safeLaunchBonus  = Math.max(0, Math.min(1, Number(launchBonus)  || 0));
+    const safeCornerBonus  = Math.max(0, Math.min(1, Number(cornerBonus)  || 0));
+
     let result: any;
-    if (raceType === "drag")    result = resolveDrag(challengerCar, defenderCar, launchBonus * 0.3);
-    if (raceType === "circuit") result = resolveCircuit(challengerCar, defenderCar, cornerBonus * 0.5);
+    if (raceType === "drag")    result = resolveDrag(challengerCar, defenderCar, safeLaunchBonus * 0.3);
+    if (raceType === "circuit") result = resolveCircuit(challengerCar, defenderCar, safeCornerBonus * 0.5);
     if (raceType === "drift")   result = resolveDrift(challengerCar, defenderCar, gripMod);
 
     const { challengerWins } = result;

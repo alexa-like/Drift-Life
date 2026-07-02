@@ -160,6 +160,23 @@ router.post("/:gymId/train", requireAuth, async (req: AuthRequest, res) => {
     mast.lastAttemptAt = new Date();
     await mast.save();
 
+    // ── Mastery milestone rewards ─────────────────────────────────────────────
+    // Awarded once when the attempt count hits exactly the milestone threshold.
+    const MILESTONES: Array<{ at: number; dc: number; title?: string }> = [
+      { at: 10,  dc: 500,    title: `${gym.name} Regular` },
+      { at: 25,  dc: 1_500 },
+      { at: 50,  dc: 5_000,  title: `${stat[0].toUpperCase()}${stat.slice(1)} Veteran` },
+      { at: 100, dc: 15_000, title: `${stat[0].toUpperCase()}${stat.slice(1)} Master` },
+    ];
+    const milestone = MILESTONES.find(m => m.at === mast.attempts);
+    let milestoneReward: { dc: number; title?: string } | null = null;
+    if (milestone) {
+      const updates: Record<string, any> = { $inc: { dc: milestone.dc } };
+      if (milestone.title) updates.$addToSet = { titles: milestone.title };
+      await User.findByIdAndUpdate(req.userId, updates);
+      milestoneReward = { dc: milestone.dc, title: milestone.title };
+    }
+
     res.json({
       statGain: parseFloat(statGain.toFixed(3)),
       newStat: (gated as any)[stat],
@@ -170,6 +187,8 @@ router.post("/:gymId/train", requireAuth, async (req: AuthRequest, res) => {
       gymMultiplier: gymMult,
       energy: gated.energy,
       dc: gated.dc,
+      masteryAttempts: mast.attempts,
+      milestoneReward,
     });
   } catch (err: any) {
     req.log.error({ err }, "train error");

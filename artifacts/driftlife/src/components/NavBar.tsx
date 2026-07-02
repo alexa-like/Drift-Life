@@ -45,6 +45,7 @@ const NAV: { id: string; label: string; minStage?: number; group?: string }[] = 
   { id: "garage",       label: "Garage",   group: "wc", minStage: 1 }, // after first run
   { id: "city",         label: "City",     group: "wc", minStage: 2 }, // after getting car
   { id: "net",          label: "Net",      group: "wc", minStage: 3 }, // after getting job
+  { id: "cyber",        label: "Cyber",    group: "wc", minStage: 3 }, // after getting job (same gate as Net)
   { id: "world",        label: "World",    group: "wc", minStage: 1 },
   { id: "guilds",       label: "Crew",     group: "wc", minStage: 2 },
   // Legacy / full nav (visible for returning users)

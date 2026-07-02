@@ -133,6 +133,7 @@ export interface IUser extends Document {
   lastNpcCombatAt: Date | null;
   friends: mongoose.Types.ObjectId[];
   pinkSlipWins: number;
+  implants: Array<{ id: string; name: string; slot: string; installedAt: Date }>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -279,6 +280,15 @@ const UserSchema = new Schema<IUser>(
     jobCooldowns: { type: Map, of: Date, default: {} },
     lastNpcCombatAt: { type: Date, default: null },
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    implants: {
+      type: [{
+        id: { type: String, required: true },
+        name: { type: String, required: true },
+        slot: { type: String, required: true },
+        installedAt: { type: Date, default: Date.now },
+      }],
+      default: [],
+    },
   },
   { timestamps: true }
 );
