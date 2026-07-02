@@ -12,6 +12,9 @@ services:
         value: production
       - key: PORT
         value: 10000
+      # CORS: RENDER_EXTERNAL_URL is injected automatically by Render at runtime —
+      # the server uses it to whitelist the deployed domain. No manual ALLOWED_ORIGIN needed.
+      # If you ever add a custom domain, set ALLOWED_ORIGIN to that domain here.
       # --- Required secrets — fill these in the Render dashboard ---
       - key: MONGODB_URI
         sync: false
