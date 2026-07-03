@@ -6,7 +6,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import User from "../models/User";
 import Car from "../models/Car";
-import FeedEvent from "../models/FeedEvent";
+
 import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { getWorldState } from "../models/WorldState";

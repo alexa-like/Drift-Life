@@ -5,7 +5,18 @@
  */
 import { Router } from "express";
 import User from "../models/User";
-import FeedEvent from "../models/FeedEvent";
+// In-memory hourly run counter — replaces the old FeedEvent-based approach
+const _runCounters = new Map<string, { count: number; resetAt: number }>();
+function _getCrimeRuns(userId: string): number {
+  const e = _runCounters.get(userId);
+  return (!e || Date.now() > e.resetAt) ? 0 : e.count;
+}
+function _incrementCrimeRuns(userId: string): void {
+  const e = _runCounters.get(userId);
+  if (!e || Date.now() > e.resetAt) {
+    _runCounters.set(userId, { count: 1, resetAt: Date.now() + 3_600_000 });
+  } else { e.count += 1; }
+}
 import ActionMastery, { masteryGain } from "../models/ActionMastery";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp, stressPenalty } from "../models/User";
@@ -201,14 +212,8 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     if (user.level < run.minLevel) return res.status(400).json({ message: `Requires level ${run.minLevel}` });
     if (user.energy < run.energyCost) return res.status(400).json({ message: `Not enough energy (need ${run.energyCost})` });
 
-    // Anti-abuse: rate-limit runs per hour server-side
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const recentAttempts = await ActionMastery.findOne({ userId: req.userId, actionType: "run" });
-    // Simple check: count recent feed events
-    const recentRuns = await FeedEvent.countDocuments({
-      actorId: user._id, type: "crime", createdAt: { $gt: oneHourAgo },
-    });
-    if (recentRuns >= RUNS_PER_HOUR_CAP) {
+    // Anti-abuse: rate-limit runs per hour via in-memory counter
+    if (_getCrimeRuns(String(req.userId)) >= RUNS_PER_HOUR_CAP) {
       return res.status(429).json({ message: "Run rate limit reached. Take a break." });
     }
 
@@ -352,8 +357,7 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     }
 
     checkAchievements(String(req.userId)).catch(() => {});
-
-    // crimes stay private — no feed post
+    _incrementCrimeRuns(String(req.userId)); // track hourly rate limit
 
     res.json({
       success, narrative, dcGained, dirtyDcGained: dcGained, xpGained,

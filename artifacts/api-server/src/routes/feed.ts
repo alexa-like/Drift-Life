@@ -30,7 +30,7 @@ router.get("/", requireAuth, async (req, res) => {
       const engagement = (reactions as number) * 2 + comments * 3;
       // jitter: reproducible per post per ~5-minute window so scrolling isn't too jumpy
       const windowSeed = Math.floor(now / 300_000);
-      const jitter     = ((parseInt(String(p._id).slice(-4), 16) ^ windowSeed) % 1000) / 1000;
+      const jitter     = Math.abs(parseInt(String(p._id).slice(-4), 16) ^ windowSeed) % 1000 / 1000;
       const score      = recency * 60 + engagement * 30 + jitter * 10;
       return { p, score };
     });
