@@ -2,6 +2,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { User } from "../lib/types";
 
+function timeSinceCollect(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const h  = Math.floor(ms / 3_600_000);
+  const m  = Math.floor((ms % 3_600_000) / 60_000);
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h ago`;
+  if (h > 0)   return `${h}h ${m}m ago`;
+  return `${m}m ago`;
+}
+
 interface OwnedProp {
   id: string;
   upgradeLevel: number;
@@ -124,10 +133,27 @@ export function PropertiesPage({ user, refreshUser, addToast }: Props) {
                     const upgradeCost = Math.floor(entry.cost * 0.3 * (prop.upgradeLevel + 1));
                     const income = Math.floor(entry.baseIncome * (1 + prop.upgradeLevel * 0.2));
                     return (
-                      <div key={prop.id} className="rounded p-3" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e" }}>
+                      <div key={prop.id} className="rounded p-3 space-y-2" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e" }}>
+                        {/* Income buffer progress bar */}
+                        {(() => {
+                          const maxStorage = income * 24 * 7; // 7-day cap
+                          const fillPct    = Math.min(100, (prop.pendingIncome / maxStorage) * 100);
+                          const fillColor  = fillPct >= 90 ? "#ff2d55" : fillPct >= 60 ? "#f59e0b" : "#39d353";
+                          return (
+                            <div>
+                              <div className="flex justify-between font-mono text-xs mb-1" style={{ color: "#64748b" }}>
+                                <span>Buffer: {prop.pendingIncome.toLocaleString()} / {maxStorage.toLocaleString()} DC</span>
+                                <span>{fillPct.toFixed(0)}% full · collected {timeSinceCollect(prop.lastCollectedAt)}</span>
+                              </div>
+                              <div style={{ height: 4, background: "#1e1e2e", borderRadius: 2 }}>
+                                <div style={{ height: 4, width: `${fillPct}%`, background: fillColor, borderRadius: 2, transition: "width 0.4s" }} />
+                              </div>
+                            </div>
+                          );
+                        })()}
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <div className="font-mono text-xs" style={{ color: "#94a3b8" }}>
-                            Level {prop.upgradeLevel}/5 upgrade · {income.toLocaleString()} DC/hr · {prop.pendingIncome.toLocaleString()} DC pending
+                            Level {prop.upgradeLevel}/5 · {income.toLocaleString()} DC/hr
                           </div>
                           <div className="flex gap-2">
                             {prop.pendingIncome >= 1 && (

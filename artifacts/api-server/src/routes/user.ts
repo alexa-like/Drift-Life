@@ -1,10 +1,15 @@
 import { Router } from "express";
+import sanitizeHtml from "sanitize-html";
 import User from "../models/User";
 import Item from "../models/Item";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen } from "../lib/regen";
 import { safeUser } from "./auth";
 import bcrypt from "bcryptjs";
+
+function stripHtml(raw: unknown): string {
+  return sanitizeHtml(String(raw ?? ""), { allowedTags: [], allowedAttributes: {} });
+}
 
 const router = Router();
 
@@ -39,7 +44,7 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
         return res.status(400).json({ message: "Avatar URL must be from image.pollinations.ai" });
       }
     }
-    if (bio !== undefined) user.bio = String(bio).slice(0, 300);
+    if (bio !== undefined) user.bio = stripHtml(bio).slice(0, 300);
     if (equippedFrame !== undefined) {
       // Ownership check: ghostFrame is always allowed; any other frame must be owned
       if (equippedFrame !== null && equippedFrame !== "ghostFrame" && !(user.ownedFrames || []).includes(equippedFrame)) {

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { verifyAccess } from "../lib/jwt";
+import { verifyAccess, JwtPayload } from "../lib/jwt";
 import User from "../models/User";
 
 export interface AuthRequest extends Request {
@@ -15,19 +15,36 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     return;
   }
   const token = header.slice(7);
+  let payload: JwtPayload;
   try {
-    const payload = verifyAccess(token);
-    req.userId = payload.userId;
-    req.username = payload.username;
-    req.role = payload.role;
-    User.updateOne(
-      { _id: payload.userId, lastActiveAt: { $lt: new Date(Date.now() - 60000) } },
-      { lastActiveAt: new Date() }
-    ).catch(() => {});
-    next();
+    payload = verifyAccess(token);
   } catch {
     res.status(401).json({ message: "Invalid or expired token" });
+    return;
   }
+
+  req.userId   = payload.userId;
+  req.username = payload.username;
+  req.role     = payload.role;
+
+  // Check banned status on every request — a banned user with a valid 15-min token must
+  // not be able to continue acting. Fail open on DB error so a transient outage doesn't
+  // lock everyone out.
+  User.findById(payload.userId)
+    .select("banned lastActiveAt")
+    .lean()
+    .then((user) => {
+      if (!user || (user as any).banned) {
+        res.status(401).json({ message: "Account suspended" });
+        return;
+      }
+      const lastActive: Date | undefined = (user as any).lastActiveAt;
+      if (!lastActive || Date.now() - lastActive.getTime() > 60_000) {
+        User.updateOne({ _id: payload.userId }, { lastActiveAt: new Date() }).catch(() => {});
+      }
+      next();
+    })
+    .catch(() => next()); // DB error — fail open
 }
 
 export function requireOwner(req: AuthRequest, res: Response, next: NextFunction): void {

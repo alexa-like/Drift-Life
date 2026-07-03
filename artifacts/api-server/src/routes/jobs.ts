@@ -104,10 +104,15 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: "Not enough energy or job is on cooldown" });
     }
 
-    // Apply DC + XP atomically with wallet cap via pipeline (separate op — rewards can't race-mint)
+    // Apply DC + XP + season points atomically (rewards can't race-mint)
+    const jobSeasonPts = Math.max(1, Math.floor(xpGained / 5));
     const rewarded = await User.findByIdAndUpdate(
       gated._id,
-      [{ $set: { dc: { $min: [{ $add: ["$dc", dcGained] }, 100_000_000] }, xp: { $add: ["$xp", xpGained] } } }],
+      [{ $set: {
+        dc:           { $min: [{ $add: ["$dc",           dcGained] },    100_000_000] },
+        xp:           { $add: ["$xp",           xpGained] },
+        seasonPoints: { $add: ["$seasonPoints", jobSeasonPts] },
+      } }],
       { new: true },
     );
     if (!rewarded) return res.status(500).json({ message: "Internal server error" });

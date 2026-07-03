@@ -18,7 +18,7 @@ const RARITY_COLORS: Record<string, string> = {
   mythic: "#ff2d55",
 };
 
-type View = "inventory" | "trade" | "list";
+type View = "inventory" | "trade" | "list" | "auction";
 
 export function InventoryPage({ user, refreshUser, addToast }: Props) {
   const [items, setItems] = useState<Item[]>([]);
@@ -31,6 +31,12 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
   const [listItemId, setListItemId] = useState<string>("");
   const [listPrice, setListPrice] = useState<string>("");
   const [listing, setListing] = useState(false);
+  // Auction state
+  const [auctionItemId, setAuctionItemId] = useState<string>("");
+  const [auctionStart, setAuctionStart] = useState<string>("");
+  const [auctionHours, setAuctionHours] = useState<string>("24");
+  const [auctionBuyout, setAuctionBuyout] = useState<string>("");
+  const [auctioning, setAuctioning] = useState(false);
 
   const loadInventory = () =>
     api.get<Item[]>("/inventory").then(setItems).catch(() => {});
@@ -125,6 +131,31 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
     }
   }
 
+  async function listOnAuction() {
+    const startPrice = Number(auctionStart);
+    const hours      = Number(auctionHours);
+    const buyout     = auctionBuyout ? Number(auctionBuyout) : undefined;
+    if (!auctionItemId || !startPrice || startPrice <= 0) { addToast("Select an item and enter a starting bid", "error"); return; }
+    if (hours < 1 || hours > 72) { addToast("Duration must be 1–72 hours", "error"); return; }
+    if (user.level < 25) { addToast("Auction House requires level 25", "error"); return; }
+    setAuctioning(true);
+    try {
+      const data = await api.post<any>("/auction/list", {
+        itemId: auctionItemId,
+        startingPrice: startPrice,
+        durationHours: hours,
+        ...(buyout ? { buyoutPrice: buyout } : {}),
+      });
+      addToast(data.message, "success");
+      setAuctionItemId(""); setAuctionStart(""); setAuctionHours("24"); setAuctionBuyout("");
+      await loadInventory();
+    } catch (err: any) {
+      addToast(err.message, "error");
+    } finally {
+      setAuctioning(false);
+    }
+  }
+
   async function listOnMarket() {
     const price = Number(listPrice);
     if (!listItemId || !price || price <= 0) { addToast("Select an item and enter a valid price", "error"); return; }
@@ -170,7 +201,7 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
 
       {/* Tabs */}
       <div className="flex gap-2">
-        {(["inventory", "trade", "list"] as View[]).map(v => (
+        {(["inventory", "trade", "list", "auction"] as View[]).map(v => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -245,6 +276,79 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
           >
             {listing ? "..." : "List on Market"}
           </button>
+        </div>
+      )}
+
+      {view === "auction" && (
+        <div className="rounded-lg p-4 space-y-3" style={{ background: "#111118", border: "1px solid #f59e0b30" }}>
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-mono font-bold" style={{ color: "#f59e0b" }}>⚡ AUCTION HOUSE</div>
+            {user.level < 25 && (
+              <span className="font-mono text-xs" style={{ color: "#475569" }}>Requires level 25</span>
+            )}
+          </div>
+          {user.level < 25 ? (
+            <p className="font-mono text-xs" style={{ color: "#334155" }}>
+              Reach level 25 to access the Auction House and list items for competitive bidding.
+            </p>
+          ) : (
+            <>
+              <select
+                value={auctionItemId}
+                onChange={e => setAuctionItemId(e.target.value)}
+                className="w-full px-3 py-2 rounded font-mono text-xs"
+                style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+              >
+                <option value="">Select item to auction…</option>
+                {tradeable.filter(i => i.type !== "consumable").map(i => (
+                  <option key={i.id} value={i.id}>{i.name} ({i.rarity})</option>
+                ))}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Starting bid (DC)</label>
+                  <input
+                    value={auctionStart}
+                    onChange={e => setAuctionStart(e.target.value)}
+                    placeholder="Min. 1 DC"
+                    type="number" min="1"
+                    className="w-full px-3 py-2 rounded font-mono text-xs"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                  />
+                </div>
+                <div>
+                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Duration (1–72 hrs)</label>
+                  <input
+                    value={auctionHours}
+                    onChange={e => setAuctionHours(e.target.value)}
+                    placeholder="24"
+                    type="number" min="1" max="72"
+                    className="w-full px-3 py-2 rounded font-mono text-xs"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Buyout price (DC) — optional</label>
+                <input
+                  value={auctionBuyout}
+                  onChange={e => setAuctionBuyout(e.target.value)}
+                  placeholder="Leave blank for auction-only"
+                  type="number" min="1"
+                  className="w-full px-3 py-2 rounded font-mono text-xs"
+                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                />
+              </div>
+              <button
+                onClick={listOnAuction}
+                disabled={auctioning || !auctionItemId || !auctionStart}
+                className="w-full py-2 rounded font-mono text-xs font-bold"
+                style={{ background: "#f59e0b22", color: "#f59e0b", border: "1px solid #f59e0b40" }}
+              >
+                {auctioning ? "Listing…" : "Create Auction"}
+              </button>
+            </>
+          )}
         </div>
       )}
 

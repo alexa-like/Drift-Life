@@ -331,12 +331,17 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     gated.lastCrimeDate = new Date();
     await gated.save();
 
-    // Apply DC + XP atomically
+    // Apply DC + XP + season points atomically
+    const crimeSeasonPts = success ? Math.max(1, Math.floor(xpGained / 10)) : 0;
     let rewarded = gated;
     if (dcGained > 0 || xpGained > 0) {
       const r = await User.findByIdAndUpdate(
         gated._id,
-        [{ $set: { dc: { $min: [{ $add: ["$dc", dcGained] }, 100_000_000] }, xp: { $add: ["$xp", xpGained] } } }],
+        [{ $set: {
+          dc:           { $min: [{ $add: ["$dc",           dcGained] },       100_000_000] },
+          xp:           { $add: ["$xp",           xpGained] },
+          seasonPoints: { $add: ["$seasonPoints", crimeSeasonPts] },
+        } }],
         { new: true },
       );
       if (r) {
