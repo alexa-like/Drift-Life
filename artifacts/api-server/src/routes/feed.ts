@@ -5,54 +5,81 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 
-// GET /api/feed
+// GET /api/feed — returns manual posts only, ranked algorithmically
+// Scoring: engagement (reactions × 2 + comments × 3) + recency decay (24h window) + random jitter
+// This produces a TikTok/Facebook-style feed where every refresh surfaces different posts.
 router.get("/", requireAuth, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 30, 100);
-    const skip = Number(req.query.skip) || 0;
-    const events = await FeedEvent.find()
+
+    // Fetch a larger pool so the ranking has material to work with
+    const pool = await FeedEvent.find({ type: "post" })
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
+      .limit(200)
       .lean();
 
-    // Batch-fetch actor frame data for events that have an actorId
+    // Score each post
+    const now = Date.now();
+    const scored = pool.map(p => {
+      const ageMs      = now - new Date((p as any).createdAt).getTime();
+      const ageHours   = ageMs / 3_600_000;
+      const recency    = Math.max(0, 1 - ageHours / 24);         // 1 → 0 over 24 h
+      const reactions  = Object.values((p as any).reactions ?? {} as Record<string, number>)
+        .reduce((s: number, v: unknown) => s + Number(v), 0);
+      const comments   = ((p as any).comments ?? []).length;
+      const engagement = (reactions as number) * 2 + comments * 3;
+      // jitter: reproducible per post per ~5-minute window so scrolling isn't too jumpy
+      const windowSeed = Math.floor(now / 300_000);
+      const jitter     = ((parseInt(String(p._id).slice(-4), 16) ^ windowSeed) % 1000) / 1000;
+      const score      = recency * 60 + engagement * 30 + jitter * 10;
+      return { p, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const events = scored.slice(0, limit).map(s => s.p);
+
+    // Batch-fetch actor cosmetics
     const actorIds = [...new Set(events.map(e => e.actorId).filter(Boolean))];
-    const actorMap: Record<string, { equippedFrame?: string | null; equippedFrames?: { feed?: string } | null; equippedFrameColor?: string | null; avatarUrl?: string | null }> = {};
+    const actorMap: Record<string, {
+      equippedFrame?: string | null;
+      equippedFrames?: { feed?: string } | null;
+      equippedFrameColor?: string | null;
+      avatarUrl?: string | null;
+    }> = {};
     if (actorIds.length > 0) {
       const actors = await User.find({ _id: { $in: actorIds } })
         .select("_id equippedFrame equippedFrames equippedFrameColor avatarUrl")
         .lean();
       for (const a of actors) {
         actorMap[String(a._id)] = {
-          equippedFrame: (a as any).equippedFrame ?? null,
-          equippedFrames: (a as any).equippedFrames ?? null,
+          equippedFrame:      (a as any).equippedFrame      ?? null,
+          equippedFrames:     (a as any).equippedFrames     ?? null,
           equippedFrameColor: (a as any).equippedFrameColor ?? null,
-          avatarUrl: (a as any).avatarUrl ?? null,
+          avatarUrl:          (a as any).avatarUrl          ?? null,
         };
       }
     }
 
     res.json(events.map(e => {
-      const actorData = e.actorId ? actorMap[String(e.actorId)] : undefined;
-      // Resolve feed surface slot; fall back to legacy equippedFrame
-      const feedSlot = actorData?.equippedFrames?.feed;
-      const resolvedFrame = (feedSlot && feedSlot !== "ghostFrame") ? feedSlot : (actorData?.equippedFrame ?? null);
+      const actorData    = e.actorId ? actorMap[String(e.actorId)] : undefined;
+      const feedSlot     = actorData?.equippedFrames?.feed;
+      const resolvedFrame = (feedSlot && feedSlot !== "ghostFrame")
+        ? feedSlot
+        : (actorData?.equippedFrame ?? null);
       return {
-        id: e._id,
-        type: e.type,
-        actor: e.actor,
-        actorId: e.actorId,
-        actorFrame: resolvedFrame ?? (e as any).actorFrame ?? null,
+        id:              e._id,
+        type:            e.type,
+        actor:           e.actor,
+        actorId:         e.actorId,
+        actorFrame:      resolvedFrame ?? (e as any).actorFrame ?? null,
         actorFrameColor: actorData?.equippedFrameColor ?? (e as any).actorFrameColor ?? null,
-        actorAvatarUrl: actorData?.avatarUrl ?? (e as any).actorAvatarUrl ?? null,
-        target: e.target,
-        message: e.message,
-        dc: e.dc,
-        xp: e.xp,
-        reactions: (e as any).reactions || { like: 0, laugh: 0, shock: 0, respect: 0 },
-        comments: (e as any).comments || [],
-        createdAt: e.createdAt,
+        actorAvatarUrl:  actorData?.avatarUrl          ?? (e as any).actorAvatarUrl  ?? null,
+        target:          e.target,
+        message:         e.message,
+        dc:              e.dc,
+        xp:              e.xp,
+        reactions:       (e as any).reactions ?? { like: 0, laugh: 0, shock: 0, respect: 0 },
+        comments:        (e as any).comments  ?? [],
+        createdAt:       e.createdAt,
       };
     }));
   } catch (err: any) {

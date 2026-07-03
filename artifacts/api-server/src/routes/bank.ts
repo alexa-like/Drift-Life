@@ -1,7 +1,7 @@
 import { Router } from "express";
 import User from "../models/User";
 import { WALLET_CAP, BANK_CAP } from "../models/User";
-import FeedEvent from "../models/FeedEvent";
+
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
@@ -108,15 +108,7 @@ router.post("/transfer", requireAuth, async (req: AuthRequest, res) => {
       { $set: { dc: { $min: [{ $add: ["$dc", amount] }, WALLET_CAP] } } },
     ]);
 
-    await FeedEvent.create({
-      type: "bank",
-      actor: sender.username,
-      actorId: sender._id,
-      target: recipient.username,
-      targetId: recipient._id,
-      message: `${sender.username} transferred ${amount.toLocaleString()} DC to ${recipient.username}`,
-      dc: amount,
-    }).catch(() => {});
+    // transfers are private — no feed post
 
     res.json({ wallet: sender.dc, bank: sender.bankBalance, message: `Transferred ${amount.toLocaleString()} DC to ${recipient.username}` });
   } catch (err: any) {

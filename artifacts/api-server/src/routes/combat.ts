@@ -1,6 +1,6 @@
 import { Router } from "express";
 import User from "../models/User";
-import FeedEvent from "../models/FeedEvent";
+
 import Notification from "../models/Notification";
 import Item, { IItem } from "../models/Item";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
@@ -123,17 +123,7 @@ router.post("/npc/:npcId", requireAuth, async (req: AuthRequest, res) => {
     await user.save();
     checkAchievements(String(req.userId)).catch(() => {});
 
-    await FeedEvent.create({
-      type: "fight",
-      actor: user.username,
-      actorId: user._id,
-      target: npc.name,
-      message: playerWins
-        ? `${user.username} took down ${npc.name} for ${dcGained} DC`
-        : `${user.username} was beaten by ${npc.name}`,
-      dc: dcGained,
-      xp: xpGained,
-    }).catch(() => {});
+    // combat results go to notifications only, not the public feed
 
     res.json({
       playerWins,
@@ -402,18 +392,7 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
     await Promise.all([attacker.save(), defender.save()]);
     checkAchievements(String(req.userId)).catch(() => {});
 
-    await FeedEvent.create({
-      type: "fight",
-      actor: attacker.username,
-      actorId: attacker._id,
-      target: defender.username,
-      targetId: defender._id,
-      message: attackerWins
-        ? `${attacker.username} defeated ${defender.username} in combat, seizing ${dcGained} DC`
-        : `${attacker.username} attacked ${defender.username} and was repelled`,
-      dc: dcGained,
-      xp: xpGained,
-    }).catch(() => {});
+    // pvp results go to notifications only, not the public feed
 
     res.json({
       attackerWins,

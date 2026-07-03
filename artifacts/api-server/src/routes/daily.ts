@@ -1,7 +1,7 @@
 import { Router } from "express";
 import User from "../models/User";
 import Item from "../models/Item";
-import FeedEvent from "../models/FeedEvent";
+
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { checkAchievements } from "./achievements";
 import { levelUp } from "../lib/regen";
@@ -186,14 +186,7 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
 
     checkAchievements(String(req.userId)).catch(() => {});
 
-    await FeedEvent.create({
-      type: "daily",
-      actor: updated.username,
-      actorId: updated._id,
-      message: `${updated.username} claimed Day ${newStreak} daily reward: +${reward.dc.toLocaleString()} DC${itemGranted ? ` + ${itemGranted}` : ""}`,
-      dc: reward.dc,
-      xp: reward.xp,
-    }).catch(() => {});
+    // daily rewards are private — no feed post
 
     const nextClaimAt = new Date();
     nextClaimAt.setHours(24, 0, 0, 0);

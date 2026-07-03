@@ -6,7 +6,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import User from "../models/User";
 import Car, { generateVin, tuningStat, PartQuality } from "../models/Car";
-import FeedEvent from "../models/FeedEvent";
+
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed } from "../models/User";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
@@ -185,11 +185,7 @@ router.post("/:carId/chop", requireAuth, async (req: AuthRequest, res) => {
     await car.deleteOne();
     await user.save();
 
-    await FeedEvent.create({
-      type: "crime", actor: user.username, actorId: user._id,
-      message: `${user.username} chopped a ${car.name} for ${chopValue.toLocaleString()} DC in parts`,
-      dc: chopValue, xp: 0,
-    }).catch(() => {});
+    // chops are private — no feed post
 
     res.json({ message: "Car chopped for parts.", parts, chopValue, dirtyDc: user.dirtyDc });
   } catch (err: any) {

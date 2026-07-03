@@ -146,11 +146,7 @@ router.post("/start", requireAuth, async (req: AuthRequest, res) => {
 
     await Promise.all([winner.save(), loser.save(), loserCar.save()]);
 
-    await FeedEvent.create({
-      type: "race", actor: winner.username, actorId: winner._id,
-      message: `${winner.username} beat ${loser.username} in a ${raceType} race — +${prize.toLocaleString()} DC`,
-      dc: prize, xp: 25,
-    }).catch(() => {});
+    // race results stay in notifications, not the public feed
 
     res.json({ ...result, raceType, winner: winner.username, loser: loser.username, prize, challengerWins });
   } catch (err: any) {
@@ -205,11 +201,7 @@ router.post("/accept/:raceId", requireAuth, async (req: AuthRequest, res) => {
 
     await Promise.all([winner.save(), loser.save(), loserCar.save()]);
 
-    await FeedEvent.create({
-      type: "race", actor: winner.username, actorId: winner._id,
-      message: `PINK SLIP: ${winner.username} won ${loserCar.name} from ${loser.username} in a ${raceType} race!`,
-      dc: 0, xp: 100,
-    }).catch(() => {});
+    // pink-slip results stay in notifications, not the public feed
 
     res.json({ ...result, raceType, winner: winner.username, loser: loser.username, pinkSlip: true, transferredCar: loserCar.name });
   } catch (err: any) {

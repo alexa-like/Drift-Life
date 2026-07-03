@@ -1,6 +1,6 @@
 import { Router } from "express";
 import User from "../models/User";
-import FeedEvent from "../models/FeedEvent";
+
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp } from "../lib/regen";
 import { checkAchievements } from "./achievements";
@@ -121,11 +121,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
     if (leveled) await rewarded.save();
     checkAchievements(String(req.userId)).catch(() => {});
 
-    await FeedEvent.create({
-      type: "job", actor: rewarded.username, actorId: rewarded._id,
-      message: `${rewarded.username} completed a shift as ${job.name} and earned ${dcGained} DC`,
-      dc: dcGained, xp: xpGained,
-    }).catch(() => {});
+    // job completions are private — no feed post
 
     const miniGameTriggered = Math.random() < 0.30;
     res.json({

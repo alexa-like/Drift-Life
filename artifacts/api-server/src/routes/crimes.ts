@@ -353,11 +353,7 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
 
     checkAchievements(String(req.userId)).catch(() => {});
 
-    await FeedEvent.create({
-      type: "crime", actor: rewarded.username, actorId: rewarded._id,
-      message: `${rewarded.username} ${success ? "pulled off" : "botched"} a ${run.name}${dcGained ? ` — +${dcGained.toLocaleString()} DC` : ""}`,
-      dc: dcGained, xp: xpGained,
-    }).catch(() => {});
+    // crimes stay private — no feed post
 
     res.json({
       success, narrative, dcGained, dirtyDcGained: dcGained, xpGained,

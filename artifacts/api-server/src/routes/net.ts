@@ -6,7 +6,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import User from "../models/User";
 import ActionMastery, { masteryGain } from "../models/ActionMastery";
-import FeedEvent from "../models/FeedEvent";
+
 import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed } from "../models/User";
@@ -181,11 +181,7 @@ router.post("/hack/submit", requireAuth, async (req: AuthRequest, res) => {
     world.simBuyVolume += simEarned;
     await world.save();
 
-    await FeedEvent.create({
-      type: "hack", actor: hacker.username, actorId: hacker._id,
-      message: `${hacker.username} breached a firewall — +${simEarned} SIM`,
-      dc: 0, xp: session.difficulty * 10,
-    }).catch(() => {});
+    // net hacks are private — no feed post
 
     res.json({ success: true, simEarned, heatGain: session.difficulty * 2, sim: hacker.sim, mastery: mast.mastery });
   } catch (err: any) {

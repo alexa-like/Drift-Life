@@ -6,10 +6,9 @@ import { AvatarWithFrame } from "../components/AvatarWithFrame";
 import { formatDC } from "../lib/format";
 import { getFrame } from "../lib/frames";
 
+// Feed only shows manual posts now; kept minimal for future post types
 const TYPE_COLORS: Record<string, string> = {
-  crime: "#ff2d55", fight: "#ff6b35", job: "#39d353",
-  market: "#00d4ff", bank: "#f59e0b", system: "#a855f7",
-  level_up: "#f59e0b", hospital: "#ff2d55", post: "#94a3b8",
+  post: "#94a3b8",
 };
 const REACTIONS = ["like", "laugh", "shock", "respect"] as const;
 const REACTION_EMOJI: Record<string, string> = { like: "👍", laugh: "😂", shock: "😱", respect: "🫡" };
@@ -32,7 +31,8 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 15000);
+    // Refresh every 60 s — algorithmic feed doesn't need hammering
+    const interval = setInterval(load, 60_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -84,7 +84,10 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="font-mono font-bold text-lg" style={{ color: "#94a3b8" }}>CITY FEED</h2>
+        <div>
+          <h2 className="font-mono font-bold text-lg" style={{ color: "#94a3b8" }}>CITY FEED</h2>
+          <p className="font-mono text-xs" style={{ color: "#334155" }}>Posts from players across New Vanta</p>
+        </div>
         <button onClick={load} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>
           Refresh
         </button>
@@ -120,7 +123,7 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
         <div className="text-center py-12 font-mono text-xs" style={{ color: "#1e1e2e" }}>Loading feed...</div>
       ) : events.length === 0 ? (
         <div className="text-center py-12 font-mono text-xs" style={{ color: "#475569" }}>
-          No events yet. Start playing to fill the feed.
+          No posts yet. Be the first to share something in New Vanta.
         </div>
       ) : (
         <div className="space-y-2">

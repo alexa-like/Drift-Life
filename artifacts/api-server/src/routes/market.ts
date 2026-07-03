@@ -1,7 +1,7 @@
 import { Router } from "express";
 import User from "../models/User";
 import Item from "../models/Item";
-import FeedEvent from "../models/FeedEvent";
+
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
@@ -278,15 +278,7 @@ router.post("/listings/:id/buy", requireAuth, async (req: AuthRequest, res) => {
 
     await Promise.all([buyer.save(), seller.save(), item.save()]);
 
-    await FeedEvent.create({
-      type: "market",
-      actor: buyer.username,
-      actorId: buyer._id,
-      target: seller.username,
-      message: `${buyer.username} bought ${item.name} from ${seller.username} for ${price.toLocaleString()} DC`,
-      dc: price,
-      xp: 0,
-    });
+    // market purchases are private — no feed post
 
     res.json({ message: `Purchased ${item.name} for ${price.toLocaleString()} DC`, dc: buyer.dc });
   } catch (err: any) {
