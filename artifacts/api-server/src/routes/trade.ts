@@ -107,6 +107,14 @@ router.post("/offer", requireAuth, async (req: AuthRequest, res) => {
       message: `${initiator.username} sent you a trade offer`,
     });
 
+    const io = req.app.locals["io"];
+    if (io) {
+      io.to(`user:${target._id}`).emit("trade_offer", {
+        tradeId: trade._id,
+        fromUsername: initiator.username,
+      });
+    }
+
     res.status(201).json({ message: "Trade offer sent", tradeId: trade._id });
   } catch (err) {
     req.log.error(err);
@@ -173,6 +181,12 @@ router.post("/:id/accept", requireAuth, async (req: AuthRequest, res) => {
       message: `Trade with ${target.username} completed`,
     });
 
+    const io = req.app.locals["io"];
+    if (io) {
+      io.to(`user:${initiator._id}`).emit("trade_completed", { tradeId: trade._id, withUsername: target.username });
+      io.to(`user:${target._id}`).emit("trade_completed", { tradeId: trade._id, withUsername: initiator.username });
+    }
+
     res.json({ message: "Trade completed successfully" });
   } catch (err) {
     req.log.error(err);
@@ -197,6 +211,11 @@ router.post("/:id/decline", requireAuth, async (req: AuthRequest, res) => {
       type: "system",
       message: `Your trade offer was declined`,
     });
+
+    const io = req.app.locals["io"];
+    if (io) {
+      io.to(`user:${otherId}`).emit("trade_declined", { tradeId: trade._id });
+    }
 
     res.json({ message: "Trade declined" });
   } catch (err) {

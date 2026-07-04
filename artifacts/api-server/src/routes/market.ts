@@ -3,6 +3,8 @@ import User from "../models/User";
 import Item from "../models/Item";
 import PriceOverride from "../models/PriceOverride";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { validateBody } from "../middlewares/validate";
+import { marketShopBuySchema, marketListingCreateSchema } from "../lib/schemas";
 
 const router = Router();
 
@@ -127,7 +129,7 @@ router.get("/shop", requireAuth, async (_req, res) => {
 });
 
 // POST /api/market/shop/buy
-router.post("/shop/buy", requireAuth, async (req: AuthRequest, res) => {
+router.post("/shop/buy", requireAuth, validateBody(marketShopBuySchema), async (req: AuthRequest, res) => {
   try {
     await ensureOverridesLoaded();
     const { itemId, quantity = 1 } = req.body;
@@ -221,10 +223,9 @@ router.get("/listings", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/market/listings — list an item for P2P sale
-router.post("/listings", requireAuth, async (req: AuthRequest, res) => {
+router.post("/listings", requireAuth, validateBody(marketListingCreateSchema), async (req: AuthRequest, res) => {
   try {
     const { itemId, price } = req.body;
-    if (!itemId || !price || price < 1) return res.status(400).json({ message: "itemId and price required" });
 
     const item = await Item.findOne({ _id: itemId, owner: req.userId });
     if (!item) return res.status(404).json({ message: "Item not found" });

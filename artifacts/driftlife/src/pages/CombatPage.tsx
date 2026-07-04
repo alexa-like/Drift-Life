@@ -170,6 +170,9 @@ export function CombatPage({ user, refreshUser, addToast }: Props) {
             {(lastResult.playerWins || lastResult.attackerWins) ? "VICTORY" : "DEFEAT"}
           </div>
           <p className="text-xs mb-2" style={{ color: "#94a3b8", fontStyle: "italic" }}>{lastResult.narrative}</p>
+          {lastResult.npcDialogue && (
+            <p className="text-xs mb-2" style={{ color: "#00d4ff", fontStyle: "italic" }}>{lastResult.npcDialogue}</p>
+          )}
           <div className="flex gap-4 text-xs flex-wrap">
             {lastResult.dcGained > 0 && <span style={{ color: "#f59e0b" }}>+{formatDC(lastResult.dcGained)} DC</span>}
             {lastResult.xpGained > 0 && <span style={{ color: "#a855f7" }}>+{lastResult.xpGained} XP</span>}

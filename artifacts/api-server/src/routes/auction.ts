@@ -4,6 +4,8 @@ import Item from "../models/Item";
 import User from "../models/User";
 import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { validateBody } from "../middlewares/validate";
+import { auctionListSchema, auctionBidSchema } from "../lib/schemas";
 
 const router = Router();
 
@@ -68,7 +70,7 @@ router.get("/mine", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/auction/list — create an auction listing
-router.post("/list", requireAuth, async (req: AuthRequest, res) => {
+router.post("/list", requireAuth, validateBody(auctionListSchema), async (req: AuthRequest, res) => {
   try {
     const { itemId, startingPrice, buyoutPrice, durationHours } = req.body as {
       itemId: string;
@@ -76,11 +78,6 @@ router.post("/list", requireAuth, async (req: AuthRequest, res) => {
       buyoutPrice?: number;
       durationHours: number;
     };
-
-    if (!itemId || !startingPrice || !durationHours)
-      return res.status(400).json({ message: "itemId, startingPrice, and durationHours required" });
-    if (startingPrice < 1) return res.status(400).json({ message: "Starting price must be at least 1 DC" });
-    if (durationHours < 1 || durationHours > 72) return res.status(400).json({ message: "Duration must be 1-72 hours" });
 
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -124,10 +121,9 @@ router.post("/list", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/auction/:id/bid — place a bid
-router.post("/:id/bid", requireAuth, async (req: AuthRequest, res) => {
+router.post("/:id/bid", requireAuth, validateBody(auctionBidSchema), async (req: AuthRequest, res) => {
   try {
     const { amount } = req.body as { amount: number };
-    if (!amount || amount < 1) return res.status(400).json({ message: "Invalid bid amount" });
 
     const listing = await AuctionListing.findById(req.params.id);
     if (!listing || listing.status !== "active") return res.status(404).json({ message: "Listing not found or closed" });
@@ -156,6 +152,14 @@ router.post("/:id/bid", requireAuth, async (req: AuthRequest, res) => {
           type: "system",
           message: `You were outbid on "${listing.itemSnapshot.name}". Your ${previousBid.toLocaleString()} DC was refunded.`,
         });
+        const io = req.app.locals["io"];
+        if (io) {
+          io.to(`user:${prevBidder._id}`).emit("auction_outbid", {
+            listingId: listing._id,
+            itemName: listing.itemSnapshot.name,
+            newBid: amount,
+          });
+        }
       }
     }
 
@@ -181,6 +185,14 @@ router.post("/:id/bid", requireAuth, async (req: AuthRequest, res) => {
         message: `Your "${listing.itemSnapshot.name}" sold via buyout for ${amount.toLocaleString()} DC (fee: ${feeAmount.toLocaleString()} DC)`,
       });
       await Item.findByIdAndUpdate(listing.itemId, { owner: bidder._id, auctionId: null });
+      const io = req.app.locals["io"];
+      if (io) {
+        io.to(`user:${listing.sellerId}`).emit("auction_sold", {
+          listingId: listing._id,
+          itemName: listing.itemSnapshot.name,
+          amount,
+        });
+      }
     }
 
     await Promise.all([bidder.save(), listing.save()]);

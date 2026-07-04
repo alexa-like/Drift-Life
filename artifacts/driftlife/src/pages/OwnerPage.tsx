@@ -52,6 +52,15 @@ interface PatchNote {
   scheduledFor: string | null;
 }
 
+interface AuditLogRow {
+  _id: string;
+  actorUsername: string;
+  action: string;
+  targetUsername?: string;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
 const ROLE_COLOR: Record<string, string> = {
   owner: "#f59e0b",
   admin: "#a855f7",
@@ -83,6 +92,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [muteTargetId, setMuteTargetId] = useState<string | null>(null);
   const [muteMins, setMuteMins] = useState("60");
   const [recentFeed, setRecentFeed] = useState<FeedRow[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditLogRow[]>([]);
   const [patchNotes, setPatchNotes] = useState<PatchNote[]>([]);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
@@ -175,6 +185,13 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     } catch { /* silent */ }
   }, []);
 
+  const loadAuditLog = useCallback(async () => {
+    try {
+      const res = await api.get<{ logs: AuditLogRow[] }>("/owner/audit-log?limit=50");
+      setAuditLog(res.logs);
+    } catch { /* silent */ }
+  }, []);
+
   const loadPatchNotes = useCallback(async () => {
     try {
       const notes = await api.get<PatchNote[]>("/owner/patch-notes");
@@ -215,7 +232,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
 
   useEffect(() => { loadStats(); }, [loadStats]);
   useEffect(() => { if (tab === "users") loadUsers(1); }, [tab, loadUsers]);
-  useEffect(() => { if (tab === "activity") loadRecentFeed(); }, [tab, loadRecentFeed]);
+  useEffect(() => { if (tab === "activity") { loadRecentFeed(); loadAuditLog(); } }, [tab, loadRecentFeed, loadAuditLog]);
   useEffect(() => { if (tab === "patch-notes") loadPatchNotes(); }, [tab, loadPatchNotes]);
   useEffect(() => { if (tab === "items") loadShopItems(); }, [tab, loadShopItems]);
   useEffect(() => { if (tab === "frames") loadFrames(); }, [tab, loadFrames]);
@@ -744,6 +761,36 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                     <span className="font-mono text-xs ml-auto" style={{ color: "#334155" }}>{new Date(e.createdAt).toLocaleString()}</span>
                   </div>
                   {e.message && <div className="font-mono mt-1" style={{ fontSize: 11, color: "#64748b" }}>{e.message}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between" style={{ marginTop: 20 }}>
+            <div className="font-mono text-xs" style={{ color: "#64748b" }}>Admin audit log</div>
+            <button onClick={loadAuditLog} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740" }}>Refresh</button>
+          </div>
+          {auditLog.length === 0 ? (
+            <div style={{ ...s, textAlign: "center" }} className="font-mono text-xs">
+              <span style={{ color: "#475569" }}>No admin actions recorded</span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {auditLog.map(a => (
+                <div key={a._id} style={{ background: "#111118", border: "1px solid #a855f730", borderRadius: 8, padding: 12 }}>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono px-1.5 py-0.5 rounded" style={{ fontSize: 10, color: "#a855f7", background: "#a855f718", border: "1px solid #a855f740" }}>
+                      {a.action.toUpperCase()}
+                    </span>
+                    <span className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{a.actorUsername}</span>
+                    {a.targetUsername && <><span style={{ color: "#475569" }}>→</span><span className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{a.targetUsername}</span></>}
+                    <span className="font-mono text-xs ml-auto" style={{ color: "#334155" }}>{new Date(a.createdAt).toLocaleString()}</span>
+                  </div>
+                  {a.details && (
+                    <div className="font-mono mt-1" style={{ fontSize: 11, color: "#64748b" }}>
+                      {JSON.stringify(a.details)}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

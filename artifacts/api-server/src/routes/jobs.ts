@@ -5,6 +5,8 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp } from "../lib/regen";
 import { checkAchievements } from "./achievements";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
+import { validateBody } from "../middlewares/validate";
+import { jobsMinigameCompleteSchema } from "../lib/schemas";
 
 const router = Router();
 
@@ -138,7 +140,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/jobs/minigame/complete — bonus after mini-game
-router.post("/minigame/complete", requireAuth, async (req: AuthRequest, res) => {
+router.post("/minigame/complete", requireAuth, validateBody(jobsMinigameCompleteSchema), async (req: AuthRequest, res) => {
   try {
     const { multiplier } = req.body;
     if (!multiplier || multiplier < 1 || multiplier > 1.6) return res.status(400).json({ message: "Invalid multiplier" });

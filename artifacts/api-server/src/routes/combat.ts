@@ -6,6 +6,10 @@ import Item, { IItem } from "../models/Item";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp } from "../lib/regen";
 import { checkAchievements } from "./achievements";
+import { validateBody } from "../middlewares/validate";
+import { combatAttackSchema } from "../lib/schemas";
+import { notifyTelegram } from "../lib/telegram";
+import { generateNpcDialogue } from "../lib/groq";
 
 const router = Router();
 
@@ -125,9 +129,12 @@ router.post("/npc/:npcId", requireAuth, async (req: AuthRequest, res) => {
 
     // combat results go to notifications only, not the public feed
 
+    const npcDialogue = await generateNpcDialogue(npc, playerWins ? "player-won" : "player-lost").catch(() => "");
+
     res.json({
       playerWins,
       narrative,
+      npcDialogue,
       dcGained,
       xpGained,
       leveled,
@@ -266,10 +273,9 @@ router.get("/targets", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/combat/attack
-router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
+router.post("/attack", requireAuth, validateBody(combatAttackSchema), async (req: AuthRequest, res) => {
   try {
     const { targetId } = req.body;
-    if (!targetId) return res.status(400).json({ message: "targetId required" });
     if (targetId === req.userId) return res.status(400).json({ message: "Cannot attack yourself" });
 
     const [attacker, defender] = await Promise.all([
@@ -374,6 +380,17 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
         type: "combat",
         message: `${attacker.username} attacked and defeated you. You lost ${dcGained} DC.${defenderHospitalized ? " You were hospitalized." : ""}`,
       }).catch(() => {});
+
+      const io = req.app.locals["io"];
+      if (io) {
+        io.to(`user:${defender._id}`).emit("attack_notification", {
+          attackerUsername: attacker.username,
+          won: false,
+          dcLost: dcGained,
+          hospitalized: defenderHospitalized,
+        });
+      }
+      notifyTelegram(defender, `${attacker.username} attacked and defeated you. You lost ${dcGained.toLocaleString()} DC.${defenderHospitalized ? " You were hospitalized." : ""}`).catch(() => {});
     } else {
       attacker.losses += 1;
       defender.wins += 1;
@@ -394,6 +411,16 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
         type: "combat",
         message: `${attacker.username} attacked you, but you fought them off!`,
       }).catch(() => {});
+
+      const io = req.app.locals["io"];
+      if (io) {
+        io.to(`user:${defender._id}`).emit("attack_notification", {
+          attackerUsername: attacker.username,
+          won: true,
+          dcLost: 0,
+          hospitalized: false,
+        });
+      }
     }
 
     // Atomic updates — use $inc so concurrent attacks on the same users don't overwrite each other.

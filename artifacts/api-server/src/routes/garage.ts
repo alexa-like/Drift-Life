@@ -10,6 +10,8 @@ import Car, { generateVin, tuningStat, PartQuality } from "../models/Car";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed } from "../models/User";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
+import { validateBody } from "../middlewares/validate";
+import { garageBuySchema, garageTuneSchema, garageSetActiveSchema } from "../lib/schemas";
 
 const router = Router();
 
@@ -50,7 +52,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /api/garage/buy — buy a car from catalog ──────────────────────────
-router.post("/buy", requireAuth, async (req: AuthRequest, res) => {
+router.post("/buy", requireAuth, validateBody(garageBuySchema), async (req: AuthRequest, res) => {
   try {
     const { carIndex, name } = req.body as { carIndex: number; name?: string };
     const blueprint = STARTER_CARS[carIndex];
@@ -97,11 +99,9 @@ router.get("/catalog", requireAuth, (_req, res) => {
 router.get("/parts", requireAuth, (_req, res) => res.json(PARTS_CATALOG));
 
 // ── POST /api/garage/:carId/tune — tune a stat ──────────────────────────────
-router.post("/:carId/tune", requireAuth, async (req: AuthRequest, res) => {
+router.post("/:carId/tune", requireAuth, validateBody(garageTuneSchema), async (req: AuthRequest, res) => {
   try {
     const { stat, partId, energyToSpend = 3 } = req.body as { stat: "power"|"handling"|"grip"|"nitro"|"durability"; partId?: string; energyToSpend?: number };
-    const TUNABLE = ["power","handling","grip","nitro","durability"];
-    if (!TUNABLE.includes(stat)) return res.status(400).json({ message: "Invalid stat" });
 
     const car = await Car.findOne({ _id: req.params.carId, ownerId: req.userId });
     if (!car) return res.status(404).json({ message: "Car not found" });
@@ -224,7 +224,7 @@ router.post("/:carId/impound-release", requireAuth, async (req: AuthRequest, res
 });
 
 // ── POST /api/garage/set-active — switch active car ─────────────────────────
-router.post("/set-active", requireAuth, async (req: AuthRequest, res) => {
+router.post("/set-active", requireAuth, validateBody(garageSetActiveSchema), async (req: AuthRequest, res) => {
   try {
     const { carId } = req.body as { carId: string };
     const user = await User.findById(req.userId);

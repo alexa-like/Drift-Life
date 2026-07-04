@@ -6,6 +6,7 @@ import { levelUp, xpForLevel } from "../models/User";
 import { SHOP_ITEMS, PRICE_OVERRIDES } from "./market";
 import Frame from "../models/Frame";
 import ServerConfig from "../models/ServerConfig";
+import AdminAuditLog, { logAdminAction } from "../models/AdminAuditLog";
 
 const router = Router();
 router.use(requireStaff as any);
@@ -89,6 +90,7 @@ router.post("/ban", async (req: AuthRequest, res) => {
     user.banned = true;
     user.banReason = reason ?? "No reason given";
     await user.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "ban", targetId: user.id, targetUsername: user.username, details: { reason: user.banReason } });
     res.json({ message: `${user.username} banned` });
   } catch (err: any) {
     req.log.error({ err }, "ban error");
@@ -105,6 +107,7 @@ router.post("/unban", async (req: AuthRequest, res) => {
     user.banned = false;
     user.banReason = null;
     await user.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "unban", targetId: user.id, targetUsername: user.username });
     res.json({ message: `${user.username} unbanned` });
   } catch (err: any) {
     req.log.error({ err }, "unban error");
@@ -122,6 +125,7 @@ router.post("/mute", async (req: AuthRequest, res) => {
     if (user.role === "owner") return res.status(403).json({ message: "Cannot mute owner" });
     user.mutedUntil = new Date(Date.now() + mins * 60 * 1000);
     await user.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "mute", targetId: user.id, targetUsername: user.username, details: { minutes: mins } });
     res.json({ message: `${user.username} muted for ${mins} minutes`, mutedUntil: user.mutedUntil });
   } catch (err: any) {
     req.log.error({ err }, "mute error");
@@ -137,6 +141,7 @@ router.post("/unmute", async (req: AuthRequest, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     user.mutedUntil = null;
     await user.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "unmute", targetId: user.id, targetUsername: user.username });
     res.json({ message: `${user.username} unmuted` });
   } catch (err: any) {
     req.log.error({ err }, "unmute error");
@@ -154,6 +159,7 @@ router.post("/set-role", async (req: AuthRequest, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     user.role = role;
     await user.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "set-role", targetId: user.id, targetUsername: user.username, details: { role } });
     res.json({ message: `${user.username} role set to ${role}` });
   } catch (err: any) {
     req.log.error({ err }, "set-role error");
@@ -171,6 +177,7 @@ router.post("/adjust-dc", async (req: AuthRequest, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     user.dc = Math.max(0, user.dc + delta);
     await user.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "adjust-dc", targetId: user.id, targetUsername: user.username, details: { delta } });
     res.json({ message: `${delta >= 0 ? "+" : ""}${delta} DC applied to ${user.username}`, dc: user.dc });
   } catch (err: any) {
     req.log.error({ err }, "adjust-dc error");
@@ -188,6 +195,7 @@ router.post("/adjust-nc", async (req: AuthRequest, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     user.nc = Math.max(0, user.nc + delta);
     await user.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "adjust-nc", targetId: user.id, targetUsername: user.username, details: { delta } });
     res.json({ message: `${delta >= 0 ? "+" : ""}${delta} NC applied to ${user.username}`, nc: user.nc });
   } catch (err: any) {
     req.log.error({ err }, "adjust-nc error");
@@ -208,9 +216,30 @@ router.post("/set-level", async (req: AuthRequest, res) => {
     user.xpToNext = xpForLevel(lvl);
     user.skillPoints = lvl >= 10 ? Math.floor((lvl - 10) / 5) + 1 : 0;
     await user.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "set-level", targetId: user.id, targetUsername: user.username, details: { level: lvl } });
     res.json({ message: `${user.username} set to level ${lvl}`, level: lvl });
   } catch (err: any) {
     req.log.error({ err }, "owner set-level error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/owner/audit-log — recent admin actions
+router.get("/audit-log", async (req, res) => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const [logs, total] = await Promise.all([
+      AdminAuditLog.find({})
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      AdminAuditLog.countDocuments({}),
+    ]);
+    res.json({ logs, total, page, pages: Math.ceil(total / limit) });
+  } catch (err: any) {
+    req.log.error({ err }, "owner audit-log error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -247,6 +276,7 @@ router.post("/patch-notes", async (req: AuthRequest, res) => {
       scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : null,
     };
     patchNotes.push(note);
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "patch-note-create", details: { title: note.title } });
     res.status(201).json(note);
   } catch (err: any) {
     req.log.error({ err }, "patch-notes create error");
@@ -287,6 +317,7 @@ router.post("/shop-items/:id/price", requireOwner as any, async (req: AuthReques
     return res.json({ message: `${item.name} price reset to default (${item.basePrice.toLocaleString()} DC)`, price: item.basePrice });
   }
   PRICE_OVERRIDES.set(item.id, price);
+  logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "set-shop-price", details: { itemId: item.id, oldPrice: item.basePrice, newPrice: price } });
   req.log.info({ itemId: item.id, oldPrice: item.basePrice, newPrice: price }, "owner set item price");
   res.json({ message: `${item.name} price set to ${price.toLocaleString()} DC`, price });
 });
@@ -330,6 +361,7 @@ router.post("/xp-boost", requireOwner as any, async (req: AuthRequest, res) => {
     const msg = mult === 1
       ? "XP boost cancelled"
       : `${mult}x XP boost active for ${hours}h`;
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "xp-boost", details: { multiplier: mult, hours } });
     req.log.info({ multiplier: mult, hours }, "owner set xp boost");
     res.json({ message: msg, multiplier: mult, expiresAt });
   } catch (err: any) {
@@ -348,6 +380,7 @@ router.post("/grant/merit", requireOwner as any, async (req: AuthRequest, res) =
     if (!user) return res.status(404).json({ message: "User not found" });
     user.merit = Math.max(0, (user.merit || 0) + delta);
     await user.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "grant-merit", targetId: user.id, targetUsername: user.username, details: { delta } });
     req.log.info({ userId, delta }, "owner granted merit");
     res.json({ message: `${delta >= 0 ? "+" : ""}${delta} M granted to ${user.username}`, merit: user.merit });
   } catch (err: any) {
@@ -367,6 +400,7 @@ router.post("/grant/xp", requireOwner as any, async (req: AuthRequest, res) => {
     user.xp = Math.max(0, user.xp + delta);
     const leveled = delta > 0 ? levelUp(user) : false;
     await user.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "grant-xp", targetId: user.id, targetUsername: user.username, details: { delta, leveled } });
     req.log.info({ userId, delta }, "owner granted xp");
     res.json({ message: `${delta >= 0 ? "+" : ""}${delta} XP granted to ${user.username}${leveled ? " (leveled up!)" : ""}`, xp: user.xp, level: user.level });
   } catch (err: any) {

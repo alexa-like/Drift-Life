@@ -109,4 +109,28 @@ if (process.env["NODE_ENV"] === "production") {
   });
 }
 
+// 404 for unmatched API routes
+app.use("/api/{*splat}", (req, res) => {
+  res.status(404).json({ message: "Not found", code: "NOT_FOUND" });
+});
+
+// Global error-handling middleware — must be registered last.
+// Catches any error passed to next(err) or thrown in a sync handler so the
+// process never crashes from an unhandled route-level exception.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const log = (req as any).log ?? logger;
+  log.error({ err }, "Unhandled error in request pipeline");
+  if (res.headersSent) return;
+  if (err?.type === "entity.parse.failed") {
+    res.status(400).json({ message: "Malformed JSON body", code: "BAD_JSON" });
+    return;
+  }
+  if (typeof err?.message === "string" && err.message.startsWith("CORS:")) {
+    res.status(403).json({ message: "Origin not allowed", code: "CORS_REJECTED" });
+    return;
+  }
+  res.status(500).json({ message: "Internal server error", code: "INTERNAL_ERROR" });
+});
+
 export default app;

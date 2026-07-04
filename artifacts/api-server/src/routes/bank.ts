@@ -3,6 +3,8 @@ import User from "../models/User";
 import { WALLET_CAP, BANK_CAP } from "../models/User";
 
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { validateBody } from "../middlewares/validate";
+import { bankAmountSchema, bankTransferSchema } from "../lib/schemas";
 
 const router = Router();
 
@@ -14,7 +16,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/bank/deposit
-router.post("/deposit", requireAuth, async (req: AuthRequest, res) => {
+router.post("/deposit", requireAuth, validateBody(bankAmountSchema), async (req: AuthRequest, res) => {
   try {
     const amount = Math.floor(Number(req.body.amount));
     if (!amount || amount <= 0) return res.status(400).json({ message: "Invalid amount" });
@@ -46,7 +48,7 @@ router.post("/deposit", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/bank/withdraw
-router.post("/withdraw", requireAuth, async (req: AuthRequest, res) => {
+router.post("/withdraw", requireAuth, validateBody(bankAmountSchema), async (req: AuthRequest, res) => {
   try {
     const amount = Math.floor(Number(req.body.amount));
     if (!amount || amount <= 0) return res.status(400).json({ message: "Invalid amount" });
@@ -77,7 +79,7 @@ router.post("/withdraw", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/bank/transfer — 7% wire fee on all player-to-player transfers
-router.post("/transfer", requireAuth, async (req: AuthRequest, res) => {
+router.post("/transfer", requireAuth, validateBody(bankTransferSchema), async (req: AuthRequest, res) => {
   try {
     const { targetUsername, amount: rawAmount } = req.body;
     if (typeof targetUsername !== "string" || !targetUsername) {

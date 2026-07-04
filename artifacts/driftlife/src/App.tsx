@@ -34,15 +34,70 @@ import GaragePage from "./pages/GaragePage";
 import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
+import { HeraldPage } from "./pages/HeraldPage";
+import { CardsPage } from "./pages/CardsPage";
 import { NavBar } from "./components/NavBar";
 import { ToastContainer } from "./components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
 import { PlayerInspectModal } from "./components/PlayerInspectModal";
-import { SocketProvider } from "./context/SocketContext";
+import { SocketProvider, useSocket } from "./context/SocketContext";
 import { api } from "./lib/api";
 import { Notification } from "./lib/types";
 
 const queryClient = new QueryClient();
+
+function SocketEvents({ addToast, onUserUpdate }: { addToast: (message: string, type?: "success" | "error" | "info" | "warning") => void; onUserUpdate: () => void }) {
+  const { socket } = useSocket();
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const onAttack = (data: { attackerUsername: string; won: boolean; dcLost: number; hospitalized: boolean }) => {
+      if (data.won) {
+        addToast(`You fought off an attack from ${data.attackerUsername}!`, "success");
+      } else {
+        addToast(`${data.attackerUsername} attacked and took ${data.dcLost.toLocaleString()} DC from you${data.hospitalized ? " — you were hospitalized" : ""}`, "error");
+      }
+      onUserUpdate();
+    };
+    const onTradeOffer = (data: { fromUsername: string }) => {
+      addToast(`${data.fromUsername} sent you a trade offer`, "info");
+    };
+    const onTradeCompleted = (data: { withUsername: string }) => {
+      addToast(`Trade with ${data.withUsername} completed`, "success");
+      onUserUpdate();
+    };
+    const onTradeDeclined = () => {
+      addToast("Your trade offer was declined", "warning");
+    };
+    const onAuctionOutbid = (data: { itemName: string; newBid: number }) => {
+      addToast(`You were outbid on "${data.itemName}" — new bid ${data.newBid.toLocaleString()} DC`, "warning");
+      onUserUpdate();
+    };
+    const onAuctionSold = (data: { itemName: string; amount: number }) => {
+      addToast(`Your "${data.itemName}" sold for ${data.amount.toLocaleString()} DC`, "success");
+      onUserUpdate();
+    };
+
+    socket.on("attack_notification", onAttack);
+    socket.on("trade_offer", onTradeOffer);
+    socket.on("trade_completed", onTradeCompleted);
+    socket.on("trade_declined", onTradeDeclined);
+    socket.on("auction_outbid", onAuctionOutbid);
+    socket.on("auction_sold", onAuctionSold);
+
+    return () => {
+      socket.off("attack_notification", onAttack);
+      socket.off("trade_offer", onTradeOffer);
+      socket.off("trade_completed", onTradeCompleted);
+      socket.off("trade_declined", onTradeDeclined);
+      socket.off("auction_outbid", onAuctionOutbid);
+      socket.off("auction_sold", onAuctionSold);
+    };
+  }, [socket, addToast, onUserUpdate]);
+
+  return null;
+}
 
 function GameApp() {
   const { user, loading, login, logout, refreshUser } = useAuth();
@@ -152,6 +207,8 @@ function GameApp() {
       case "city":          return <CityPage user={user!} onUserUpdate={() => { refreshUser(); }} refreshUser={refreshUser} addToast={addToast} />;
       case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
+      case "herald":        return <HeraldPage {...pageProps} />;
+      case "cards":         return <CardsPage {...pageProps} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />
@@ -162,6 +219,7 @@ function GameApp() {
 
   return (
     <SocketProvider userId={user!.id}>
+      <SocketEvents addToast={addToast} onUserUpdate={refreshUser} />
       <div className="scanlines" style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e2e8f0" }}>
         <NavBar
           user={user!}

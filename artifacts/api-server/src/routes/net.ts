@@ -13,6 +13,8 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed } from "../models/User";
 import { getWorldState, recalcSimPrice } from "../models/WorldState";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
+import { validateBody } from "../middlewares/validate";
+import { netHackInitiateSchema, netHackSubmitSchema, netSimAmountSchema, netDarkListSchema } from "../lib/schemas";
 
 const router = Router();
 
@@ -42,12 +44,9 @@ router.get("/status", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /api/net/hack/initiate — start a hack session ──────────────────────
-router.post("/hack/initiate", requireAuth, async (req: AuthRequest, res) => {
+router.post("/hack/initiate", requireAuth, validateBody(netHackInitiateSchema), async (req: AuthRequest, res) => {
   try {
     const { targetId } = req.body as { targetId: string };
-    if (!targetId) return res.status(400).json({ message: "Target required" });
-    if (!mongoose.Types.ObjectId.isValid(targetId))
-      return res.status(400).json({ message: "Invalid target" });
 
     const [hacker, target] = await Promise.all([
       User.findById(req.userId),
@@ -104,7 +103,7 @@ router.post("/hack/initiate", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /api/net/hack/submit — submit hack attempt ─────────────────────────
-router.post("/hack/submit", requireAuth, async (req: AuthRequest, res) => {
+router.post("/hack/submit", requireAuth, validateBody(netHackSubmitSchema), async (req: AuthRequest, res) => {
   try {
     const { sessionId, answer } = req.body as { sessionId: string; answer: string[] };
     // findByIdAndDelete atomically claims + deletes the session — prevents replay attacks
@@ -193,7 +192,7 @@ router.get("/sim", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /api/net/sim/buy — buy SIM with DC ──────────────────────────────────
-router.post("/sim/buy", requireAuth, async (req: AuthRequest, res) => {
+router.post("/sim/buy", requireAuth, validateBody(netSimAmountSchema), async (req: AuthRequest, res) => {
   try {
     const { amount } = req.body as { amount: number };
     if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
@@ -223,7 +222,7 @@ router.post("/sim/buy", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /api/net/sim/sell — sell SIM for DC ─────────────────────────────────
-router.post("/sim/sell", requireAuth, async (req: AuthRequest, res) => {
+router.post("/sim/sell", requireAuth, validateBody(netSimAmountSchema), async (req: AuthRequest, res) => {
   try {
     const { amount } = req.body as { amount: number };
     if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
@@ -274,10 +273,9 @@ router.get("/dark-market", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /api/net/dark-market/list — create dark listing ─────────────────────
-router.post("/dark-market/list", requireAuth, async (req: AuthRequest, res) => {
+router.post("/dark-market/list", requireAuth, validateBody(netDarkListSchema), async (req: AuthRequest, res) => {
   try {
     const { itemName, price, currency = "dc" } = req.body as { itemName: string; price: number; currency?: "dc" | "sim" };
-    if (!itemName || !price || price < 1) return res.status(400).json({ message: "Invalid listing" });
 
     const adjectives = ["Shadow", "Ghost", "Neon", "Void", "Rust"];
     const nouns = ["Dealer", "Courier", "Broker", "Runner", "Phantom"];

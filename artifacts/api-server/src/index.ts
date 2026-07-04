@@ -226,6 +226,16 @@ function shutdown(signal: string) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT",  () => shutdown("SIGINT"));
 
+// Last-resort safety nets — log and keep the process alive instead of
+// crashing on a stray unhandled promise rejection or synchronous throw
+// that slipped past route-level try/catch and Express error middleware.
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "Unhandled promise rejection");
+});
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "Uncaught exception");
+});
+
 async function start() {
   await connectDB();
   await seed();

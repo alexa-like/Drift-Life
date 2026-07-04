@@ -23,6 +23,8 @@ import { applyRegen, isHospitalized, isJailed, levelUp, stressPenalty } from "..
 import { checkAchievements } from "./achievements";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
 import { getWorldState, worldRunModifiers } from "../models/WorldState";
+import { validateBody } from "../middlewares/validate";
+import { pursuitResolveSchema, crimesLaunderSchema } from "../lib/schemas";
 
 const router = Router();
 
@@ -386,7 +388,7 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /api/crimes/pursuit/resolve — resolve pursuit event ───────────────
-router.post("/pursuit/resolve", requireAuth, async (req: AuthRequest, res) => {
+router.post("/pursuit/resolve", requireAuth, validateBody(pursuitResolveSchema), async (req: AuthRequest, res) => {
   try {
     const { outcome } = req.body as { outcome: "bribe" | "outrun" | "busted" };
     const user = await User.findById(req.userId);
@@ -523,10 +525,9 @@ router.post("/bribe", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /api/crimes/launder — dirty DC → clean DC via business ───────────
-router.post("/launder", requireAuth, async (req: AuthRequest, res) => {
+router.post("/launder", requireAuth, validateBody(crimesLaunderSchema), async (req: AuthRequest, res) => {
   try {
     const { amount } = req.body as { amount: number };
-    if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
 
     const user = await User.findById(req.userId).populate("businesses");
     if (!user) return res.status(404).json({ message: "User not found" });

@@ -4,6 +4,8 @@ import Guild from "../models/Guild";
 import User from "../models/User";
 import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { validateBody } from "../middlewares/validate";
+import { guildCreateSchema, guildTreasuryDonateSchema, guildTargetSchema } from "../lib/schemas";
 
 const router = Router();
 
@@ -85,10 +87,9 @@ router.get("/mine", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/guilds — create a guild
-router.post("/", requireAuth, async (req: AuthRequest, res) => {
+router.post("/", requireAuth, validateBody(guildCreateSchema), async (req: AuthRequest, res) => {
   try {
     const { name, tag, description } = req.body as { name: string; tag: string; description?: string };
-    if (!name?.trim() || !tag?.trim()) return res.status(400).json({ message: "Name and tag are required" });
 
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -190,10 +191,9 @@ router.post("/leave", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/guilds/treasury/donate — donate DC to treasury
-router.post("/treasury/donate", requireAuth, async (req: AuthRequest, res) => {
+router.post("/treasury/donate", requireAuth, validateBody(guildTreasuryDonateSchema), async (req: AuthRequest, res) => {
   try {
     const { amount } = req.body as { amount: number };
-    if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
 
     const user = await User.findById(req.userId);
     if (!user || !user.guildId) return res.status(400).json({ message: "Not in a guild" });
@@ -237,7 +237,7 @@ router.post("/treasury/donate", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/guilds/promote — promote a member
-router.post("/promote", requireAuth, async (req: AuthRequest, res) => {
+router.post("/promote", requireAuth, validateBody(guildTargetSchema), async (req: AuthRequest, res) => {
   try {
     const { targetId } = req.body as { targetId: string };
     const user = await User.findById(req.userId);
@@ -279,7 +279,7 @@ router.post("/promote", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/guilds/kick — kick a member
-router.post("/kick", requireAuth, async (req: AuthRequest, res) => {
+router.post("/kick", requireAuth, validateBody(guildTargetSchema), async (req: AuthRequest, res) => {
   try {
     const { targetId } = req.body as { targetId: string };
     const user = await User.findById(req.userId);
