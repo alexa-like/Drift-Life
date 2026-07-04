@@ -6,26 +6,15 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import User from "../models/User";
 import ActionMastery, { masteryGain } from "../models/ActionMastery";
-
 import Notification from "../models/Notification";
+import DarkListingModel from "../models/DarkListing";
+import HackSession from "../models/HackSession";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed } from "../models/User";
 import { getWorldState, recalcSimPrice } from "../models/WorldState";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
 
 const router = Router();
-
-// In-memory dark web listings (production: use DB collection)
-interface DarkListing {
-  id: string; pseudoHandle: string; itemName: string; price: number; currency: "dc" | "sim";
-  stingRisk: number; createdAt: Date; sellerId: string;
-}
-const darkListings: DarkListing[] = [];
-
-// Pending hacking sessions (server-side sequence store)
-const hackSessions: Map<string, {
-  targetId: string; sequence: string[]; difficulty: number; expiresAt: Date;
-}> = new Map();
 
 const HACK_COOLDOWN_MS = 60_000; // 1 min between hack attempts on same target
 const HACKS_PER_HOUR = 15;
@@ -96,16 +85,16 @@ router.post("/hack/initiate", requireAuth, async (req: AuthRequest, res) => {
     const effectiveDifficulty = Math.max(1, difficulty - intReduction);
     const adjustedSeq = generateSequence(effectiveDifficulty);
 
-    const sessionId = new mongoose.Types.ObjectId().toString();
-    hackSessions.set(sessionId, {
-      targetId: target._id.toString(),
+    const session = await HackSession.create({
+      hackerId: hacker._id,
+      targetId: target._id,
       sequence: adjustedSeq,
       difficulty: effectiveDifficulty,
-      expiresAt: new Date(Date.now() + 30_000), // 30 sec to complete
+      expiresAt: new Date(Date.now() + 30_000), // 30 sec to complete — TTL index auto-cleans
     });
 
     res.json({
-      sessionId, sequence: adjustedSeq, difficulty: effectiveDifficulty,
+      sessionId: session._id.toString(), sequence: adjustedSeq, difficulty: effectiveDifficulty,
       timeLimit: 30, targetFirewall: target.firewallLevel,
     });
   } catch (err: any) {
@@ -118,18 +107,16 @@ router.post("/hack/initiate", requireAuth, async (req: AuthRequest, res) => {
 router.post("/hack/submit", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { sessionId, answer } = req.body as { sessionId: string; answer: string[] };
-    const session = hackSessions.get(sessionId);
+    // findByIdAndDelete atomically claims + deletes the session — prevents replay attacks
+    const session = await HackSession.findOneAndDelete({ _id: sessionId, hackerId: req.userId });
     if (!session) return res.status(404).json({ message: "Session not found or expired" });
     if (session.expiresAt < new Date()) {
-      hackSessions.delete(sessionId);
       return res.status(410).json({ message: "Session expired" });
     }
 
     const hacker = await User.findById(req.userId);
     const target = await User.findById(session.targetId);
     if (!hacker || !target) return res.status(404).json({ message: "User not found" });
-
-    hackSessions.delete(sessionId);
 
     // Verify answer matches sequence
     const correct = session.sequence.every((s, i) => s === answer[i]) && answer.length === session.sequence.length;
@@ -273,12 +260,11 @@ router.get("/dark-market", requireAuth, async (req: AuthRequest, res) => {
     if (user.successfulCrimes < 3) {
       return res.status(403).json({ message: "You need to complete at least 3 runs to access the Dark Market." });
     }
-    // Filter expired listings
-    const now = new Date();
-    const active = darkListings.filter(l => l.createdAt > new Date(now.getTime() - 48 * 60 * 60 * 1000));
+    // Fetch active listings from DB (TTL index handles expiry automatically)
+    const active = await DarkListingModel.find().sort({ _id: -1 }).limit(200).lean();
     // Never expose real sellerId
     res.json(active.map(l => ({
-      id: l.id, pseudoHandle: l.pseudoHandle, itemName: l.itemName,
+      id: l._id.toString(), pseudoHandle: l.pseudoHandle, itemName: l.itemName,
       price: l.price, currency: l.currency, stingRisk: l.stingRisk,
     })));
   } catch (err: any) {
@@ -297,17 +283,14 @@ router.post("/dark-market/list", requireAuth, async (req: AuthRequest, res) => {
     const nouns = ["Dealer", "Courier", "Broker", "Runner", "Phantom"];
     const pseudoHandle = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}#${Math.floor(1000 + Math.random() * 8999)}`;
 
-    const listing: DarkListing = {
-      id: new mongoose.Types.ObjectId().toString(),
+    const listing = await DarkListingModel.create({
       pseudoHandle, itemName, price, currency,
-      stingRisk: 0.03, // 3% sting risk per purchase
-      createdAt: new Date(),
-      sellerId: req.userId!.toString(),
-    };
-    darkListings.push(listing);
-    if (darkListings.length > 500) darkListings.shift();
+      stingRisk: 0.03,
+      sellerId: req.userId,
+      expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000), // 48h TTL
+    });
 
-    res.status(201).json({ message: "Listed on dark market.", pseudoHandle, id: listing.id });
+    res.status(201).json({ message: "Listed on dark market.", pseudoHandle, id: listing._id.toString() });
   } catch (err: any) {
     req.log.error({ err }, "dark list error");
     res.status(500).json({ message: "Internal server error" });
@@ -317,39 +300,43 @@ router.post("/dark-market/list", requireAuth, async (req: AuthRequest, res) => {
 // ── POST /api/net/dark-market/buy/:listingId — buy from dark market ──────────
 router.post("/dark-market/buy/:listingId", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const listing = darkListings.find(l => l.id === req.params.listingId);
-    if (!listing) return res.status(404).json({ message: "Listing not found" });
-    if (listing.sellerId === req.userId?.toString()) return res.status(400).json({ message: "Can't buy your own listing" });
+    // Atomically claim the listing — prevents two buyers from purchasing simultaneously
+    const listing = await DarkListingModel.findOneAndDelete({ _id: req.params.listingId });
+    if (!listing) return res.status(404).json({ message: "Listing not found or already sold" });
+    if (listing.sellerId.equals(req.userId as string)) {
+      // Restore listing — can't buy your own
+      await DarkListingModel.create(listing.toObject());
+      return res.status(400).json({ message: "Can't buy your own listing" });
+    }
 
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    // Sting risk check (3% — item confiscation + heat spike)
+    // Sting risk check (3% — item confiscation + heat spike, capped at 100)
     if (Math.random() < listing.stingRisk) {
-      user.heat = Math.min(100, user.heat + 20);
-      await user.save();
-      return res.json({ success: false, stung: true, message: "STING OPERATION. Item confiscated. Heat +20.", heat: user.heat });
+      const u = await User.findOneAndUpdate(
+        { _id: req.userId },
+        [{ $set: { heat: { $min: [100, { $add: ["$heat", 20] }] } } }],
+        { new: true },
+      ).select("heat").lean();
+      return res.json({ success: false, stung: true, message: "STING OPERATION. Item confiscated. Heat +20.", heat: u?.heat ?? 0 });
     }
 
-    if (listing.currency === "dc") {
-      if (user.dc < listing.price) return res.status(400).json({ message: "Not enough DC" });
-      user.dc -= listing.price;
-    } else {
-      if (user.sim < listing.price) return res.status(400).json({ message: "Not enough SIM" });
-      user.sim -= listing.price;
+    // Atomically deduct from buyer — restore listing if insufficient funds
+    const currencyField = listing.currency === "dc" ? "dc" : "sim";
+    const buyer = await User.findOneAndUpdate(
+      { _id: req.userId, [currencyField]: { $gte: listing.price } },
+      { $inc: { [currencyField]: -listing.price } },
+      { new: true },
+    );
+    if (!buyer) {
+      await DarkListingModel.create(listing.toObject());
+      return res.status(400).json({ message: `Not enough ${listing.currency.toUpperCase()}` });
     }
 
-    // Remove listing
-    const idx = darkListings.findIndex(l => l.id === listing.id);
-    if (idx !== -1) darkListings.splice(idx, 1);
-
-    // Pay seller (anonymously)
+    // Pay seller anonymously
     await User.findByIdAndUpdate(listing.sellerId, {
       $inc: listing.currency === "dc" ? { dirtyDc: listing.price } : { sim: listing.price },
     });
 
-    await user.save();
-    res.json({ success: true, item: listing.itemName, dc: user.dc, sim: user.sim });
+    res.json({ success: true, item: listing.itemName, dc: buyer.dc, sim: buyer.sim });
   } catch (err: any) {
     req.log.error({ err }, "dark buy error");
     res.status(500).json({ message: "Internal server error" });

@@ -3,18 +3,14 @@
  * Drag, Circuit, Drift, and Pink-Slip races. All resolution server-authoritative.
  */
 import { Router } from "express";
-import mongoose from "mongoose";
 import User from "../models/User";
 import Car from "../models/Car";
-
 import Notification from "../models/Notification";
+import PinkSlipChallenge from "../models/PinkSlipChallenge";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { getWorldState } from "../models/WorldState";
 
 const router = Router();
-
-// In-memory pending pink-slip confirmations (clears on restart — production would use Redis/DB)
-const pendingPinkSlips: Map<string, { challengerId: string; defenderId: string; challengerCarId: string; defenderCarId: string; raceType: "drag" | "circuit" | "drift"; expiresAt: Date }> = new Map();
 
 // ── Race resolution helpers ─────────────────────────────────────────────────
 
@@ -84,16 +80,16 @@ router.post("/start", requireAuth, async (req: AuthRequest, res) => {
     }
 
     if (isPinkSlip) {
-      // Pink-slip requires confirmation from both sides — create pending
-      const raceId = new mongoose.Types.ObjectId().toString();
-      pendingPinkSlips.set(raceId, {
-        challengerId: challenger._id.toString(),
-        defenderId: defender._id.toString(),
-        challengerCarId: challengerCar._id.toString(),
-        defenderCarId: defenderCar._id.toString(),
+      // Pink-slip requires confirmation from both sides — persist to DB (survives restarts)
+      const challenge = await PinkSlipChallenge.create({
+        challengerId: challenger._id,
+        defenderId: defender._id,
+        challengerCarId: challengerCar._id,
+        defenderCarId: defenderCar._id,
         raceType,   // locked at challenge time — cannot be changed on accept
         expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       });
+      const raceId = challenge._id.toString();
 
       await Notification.create({
         userId: defender._id,
@@ -160,11 +156,12 @@ router.post("/start", requireAuth, async (req: AuthRequest, res) => {
 router.post("/accept/:raceId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const raceId = String(req.params.raceId);
-    const pending = pendingPinkSlips.get(raceId);
-    if (!pending) return res.status(404).json({ message: "Race challenge not found or expired" });
-    if (pending.defenderId !== req.userId?.toString()) return res.status(403).json({ message: "Not your challenge" });
+    // Atomically claim the challenge by filtering on both _id AND defenderId.
+    // If two concurrent accepts arrive, only one findOneAndDelete will return a document.
+    const pending = await PinkSlipChallenge.findOneAndDelete({ _id: raceId, defenderId: req.userId });
+    if (!pending) return res.status(404).json({ message: "Race challenge not found, expired, or not yours" });
     if (pending.expiresAt < new Date()) {
-      pendingPinkSlips.delete(raceId);
+      // Already deleted above — just return the error (TTL would have cleaned it anyway)
       return res.status(410).json({ message: "Challenge expired" });
     }
 
@@ -181,8 +178,7 @@ router.post("/accept/:raceId", requireAuth, async (req: AuthRequest, res) => {
     if (challengerCar.impoundedUntil && challengerCar.impoundedUntil > new Date()) return res.status(409).json({ message: "Challenger's car is impounded. Challenge void." });
     if (defenderCar.impoundedUntil && defenderCar.impoundedUntil > new Date()) return res.status(409).json({ message: "Defender's car is impounded. Challenge void." });
 
-    pendingPinkSlips.delete(raceId);
-
+    // Challenge already deleted by findOneAndDelete above — proceed to resolve
     // Race type was locked when the challenge was created — ignore body to prevent swapping
     const raceType = pending.raceType;
     let result: any;

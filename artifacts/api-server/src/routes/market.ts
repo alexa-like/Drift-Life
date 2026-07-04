@@ -1,15 +1,22 @@
 import { Router } from "express";
 import User from "../models/User";
 import Item from "../models/Item";
-
+import PriceOverride from "../models/PriceOverride";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 
 const MARKET_FEE = 0.05;
 
-// Price overrides set by owner — in-memory, resets on restart
+// Price overrides — in-memory cache backed by DB; loaded lazily on first shop request
 export const PRICE_OVERRIDES: Map<string, number> = new Map();
+let _overridesLoaded = false;
+async function ensureOverridesLoaded(): Promise<void> {
+  if (_overridesLoaded) return;
+  const rows = await PriceOverride.find().lean();
+  for (const r of rows) PRICE_OVERRIDES.set(r.itemId, r.price);
+  _overridesLoaded = true;
+}
 
 function strHash(s: string): number {
   let h = 5381;
@@ -106,6 +113,7 @@ export const SHOP_ITEMS: Array<{
 
 // GET /api/market/shop
 router.get("/shop", requireAuth, async (_req, res) => {
+  await ensureOverridesLoaded();
   res.json(SHOP_ITEMS.map(i => ({
     id: i.id, name: i.name, type: i.type, rarity: i.rarity, slot: i.slot,
     strengthBonus: i.strengthBonus, charismaBonus: i.charismaBonus,
@@ -121,6 +129,7 @@ router.get("/shop", requireAuth, async (_req, res) => {
 // POST /api/market/shop/buy
 router.post("/shop/buy", requireAuth, async (req: AuthRequest, res) => {
   try {
+    await ensureOverridesLoaded();
     const { itemId, quantity = 1 } = req.body;
     const shopItem = SHOP_ITEMS.find(i => i.id === itemId);
     if (!shopItem) return res.status(404).json({ message: "Item not found in shop" });
@@ -253,38 +262,43 @@ router.delete("/listings/:id", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/market/listings/:id/buy — buy a P2P listing
+// POST /api/market/listings/:id/buy — buy a P2P listing (atomic — no double-sell)
 router.post("/listings/:id/buy", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const item = await Item.findOne({ _id: req.params.id, marketListed: true });
+    // Step 1: Atomically claim the listing — only one buyer can win this race
+    const item = await Item.findOneAndUpdate(
+      { _id: req.params.id, marketListed: true },
+      { $set: { marketListed: false, marketPrice: null, marketListedAt: null, equipped: false } },
+      { new: false }, // return pre-update doc so we have price + original owner
+    );
     if (!item) return res.status(404).json({ message: "Listing not found or already sold" });
-    if (item.owner.equals(req.userId as string)) return res.status(400).json({ message: "Cannot buy your own item" });
+
+    if (item.owner.equals(req.userId as string)) {
+      // Reverse claim — can't buy your own item
+      await Item.findByIdAndUpdate(item._id, { $set: { marketListed: true, marketPrice: item.marketPrice, marketListedAt: item.marketListedAt } });
+      return res.status(400).json({ message: "Cannot buy your own item" });
+    }
 
     const price = item.marketPrice ?? 0;
-
-    const [buyer, seller] = await Promise.all([
-      User.findById(req.userId),
-      User.findById(item.owner),
-    ]);
-
-    if (!buyer || !seller) return res.status(404).json({ message: "User not found" });
-    if (buyer.dc < price) return res.status(400).json({ message: `Not enough DC. Price: ${price.toLocaleString()} DC` });
-
     const fee = Math.floor(price * MARKET_FEE);
     const sellerProfit = price - fee;
 
-    buyer.dc -= price;
-    seller.dc += sellerProfit;
+    // Step 2: Atomically deduct from buyer — reverse claim if they can't afford it
+    const buyer = await User.findOneAndUpdate(
+      { _id: req.userId, dc: { $gte: price } },
+      { $inc: { dc: -price } },
+      { new: true },
+    );
+    if (!buyer) {
+      await Item.findByIdAndUpdate(item._id, { $set: { marketListed: true, marketPrice: item.marketPrice, marketListedAt: item.marketListedAt } });
+      return res.status(400).json({ message: `Not enough DC. Price: ${price.toLocaleString()} DC` });
+    }
 
-    item.owner = buyer._id;
-    item.marketListed = false;
-    item.marketPrice = null;
-    item.marketListedAt = null;
-    item.equipped = false;
-
-    await Promise.all([buyer.save(), seller.save(), item.save()]);
-
-    // market purchases are private — no feed post
+    // Step 3: Credit seller + transfer ownership (both are independent atomic ops)
+    await Promise.all([
+      User.findByIdAndUpdate(item.owner, { $inc: { dc: sellerProfit } }),
+      Item.findByIdAndUpdate(item._id, { $set: { owner: buyer._id } }),
+    ]);
 
     res.json({ message: `Purchased ${item.name} for ${price.toLocaleString()} DC`, dc: buyer.dc });
   } catch (err: any) {
@@ -309,11 +323,13 @@ router.post("/price-override", requireAuth, async (req: AuthRequest, res) => {
 
   if (price === null || price === undefined) {
     PRICE_OVERRIDES.delete(itemId);
+    await PriceOverride.findOneAndDelete({ itemId });
     return res.json({ message: `Price override cleared for ${itemId}` });
   }
 
   if (price < 0) return res.status(400).json({ message: "Price must be >= 0" });
   PRICE_OVERRIDES.set(itemId, price);
+  await PriceOverride.findOneAndUpdate({ itemId }, { price }, { upsert: true });
   res.json({ message: `Price of ${itemId} set to ${price} DC` });
 });
 

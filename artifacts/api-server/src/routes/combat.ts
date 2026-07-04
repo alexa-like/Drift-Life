@@ -335,6 +335,8 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
     let attackerHospitalized = false;
     let leveled = false;
     let narrative = "";
+    let atkHpLoss = 0;
+    let defHpLoss = 0;
 
     if (attackerWins) {
       attacker.wins += 1;
@@ -352,11 +354,11 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
       leveled = levelUp(attacker);
 
       // Attacker loses some HP
-      const atkHpLoss = Math.floor(5 + Math.random() * 15);
+      atkHpLoss = Math.floor(5 + Math.random() * 15);
       attacker.health = Math.max(0, attacker.health - atkHpLoss);
 
       // Defender takes full damage
-      const defHpLoss = Math.floor(20 + Math.random() * 30);
+      defHpLoss = Math.floor(20 + Math.random() * 30);
       defender.health = Math.max(0, defender.health - defHpLoss);
       if (defender.health <= 0) {
         const hospDur = 20 + Math.floor(Math.random() * 10);
@@ -376,7 +378,7 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
       attacker.losses += 1;
       defender.wins += 1;
 
-      const atkHpLoss = Math.floor(15 + Math.random() * 20);
+      atkHpLoss = Math.floor(15 + Math.random() * 20);
       attacker.health = Math.max(0, attacker.health - atkHpLoss);
       if (attacker.health <= 0) {
         const hospDur = 20 + Math.floor(Math.random() * 10);
@@ -394,7 +396,47 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
       }).catch(() => {});
     }
 
-    await Promise.all([attacker.save(), defender.save()]);
+    // Atomic updates — use $inc so concurrent attacks on the same users don't overwrite each other.
+    // attacksToday uses $set (not $inc) so a daily reset is reflected correctly in DB.
+    const atkInc: Record<string, number> = { totalFights: 1 };
+    const atkSet: Record<string, any> = {
+      attacksToday: attacker.attacksToday,  // computed in-memory; handles reset + increment
+      attackCooldowns: attacker.attackCooldowns,
+      attackResetAt: attacker.attackResetAt,
+    };
+    if (attackerWins) {
+      atkInc.wins = 1;
+      atkInc.dc = dcGained;
+      atkInc.xp = xpGained;
+      if (attackerHospitalized) { atkSet.health = 0; atkSet.hospitalizedUntil = attacker.hospitalizedUntil; }
+      else { atkInc.health = -atkHpLoss; }
+      if (leveled) {
+        atkSet.level = attacker.level; atkSet.xpToNext = attacker.xpToNext;
+        atkSet.maxHealth = attacker.maxHealth; atkSet.maxEnergy = attacker.maxEnergy;
+        atkSet.maxNerve = attacker.maxNerve; atkSet.rank = attacker.rank;
+        atkSet.skillPoints = attacker.skillPoints;
+      }
+    } else {
+      atkInc.losses = 1;
+      if (attackerHospitalized) { atkSet.health = 0; atkSet.hospitalizedUntil = attacker.hospitalizedUntil; }
+      else { atkInc.health = -atkHpLoss; }
+    }
+
+    const defInc: Record<string, number> = { totalFights: 1 };
+    const defSet: Record<string, any> = {};
+    if (attackerWins) {
+      defInc.losses = 1;
+      defInc.dc = -dcGained;
+      if (defenderHospitalized) { defSet.health = 0; defSet.hospitalizedUntil = defender.hospitalizedUntil; }
+      else { defInc.health = -defHpLoss; }
+    } else {
+      defInc.wins = 1;
+    }
+
+    await Promise.all([
+      User.findByIdAndUpdate(attacker._id, { $inc: atkInc, $set: atkSet }),
+      User.findByIdAndUpdate(defender._id, { $inc: defInc, ...(Object.keys(defSet).length ? { $set: defSet } : {}) }),
+    ]);
     checkAchievements(String(req.userId)).catch(() => {});
 
     // pvp results go to notifications only, not the public feed
