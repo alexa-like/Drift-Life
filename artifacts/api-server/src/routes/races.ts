@@ -14,7 +14,7 @@ import { getWorldState } from "../models/WorldState";
 const router = Router();
 
 // In-memory pending pink-slip confirmations (clears on restart — production would use Redis/DB)
-const pendingPinkSlips: Map<string, { challengerId: string; defenderId: string; challengerCarId: string; defenderCarId: string; expiresAt: Date }> = new Map();
+const pendingPinkSlips: Map<string, { challengerId: string; defenderId: string; challengerCarId: string; defenderCarId: string; raceType: "drag" | "circuit" | "drift"; expiresAt: Date }> = new Map();
 
 // ── Race resolution helpers ─────────────────────────────────────────────────
 
@@ -91,6 +91,7 @@ router.post("/start", requireAuth, async (req: AuthRequest, res) => {
         defenderId: defender._id.toString(),
         challengerCarId: challengerCar._id.toString(),
         defenderCarId: defenderCar._id.toString(),
+        raceType,   // locked at challenge time — cannot be changed on accept
         expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       });
 
@@ -173,10 +174,17 @@ router.post("/accept/:raceId", requireAuth, async (req: AuthRequest, res) => {
     const defenderCar = await Car.findById(pending.defenderCarId);
     if (!challenger || !defender || !challengerCar || !defenderCar) return res.status(404).json({ message: "Players or cars not found" });
 
+    // Re-validate ownership — cars could have been sold/transferred since the challenge was issued
+    if (!challengerCar.ownerId.equals(challenger._id)) return res.status(409).json({ message: "Challenger no longer owns their car. Challenge void." });
+    if (!defenderCar.ownerId.equals(defender._id)) return res.status(409).json({ message: "Defender no longer owns their car. Challenge void." });
+    // Re-validate neither car is impounded
+    if (challengerCar.impoundedUntil && challengerCar.impoundedUntil > new Date()) return res.status(409).json({ message: "Challenger's car is impounded. Challenge void." });
+    if (defenderCar.impoundedUntil && defenderCar.impoundedUntil > new Date()) return res.status(409).json({ message: "Defender's car is impounded. Challenge void." });
+
     pendingPinkSlips.delete(raceId);
 
-    // Race type from body (default drag for pink-slip)
-    const raceType = (req.body.raceType ?? "drag") as "drag" | "circuit" | "drift";
+    // Race type was locked when the challenge was created — ignore body to prevent swapping
+    const raceType = pending.raceType;
     let result: any;
     if (raceType === "drag")    result = resolveDrag(challengerCar, defenderCar);
     if (raceType === "circuit") result = resolveCircuit(challengerCar, defenderCar);

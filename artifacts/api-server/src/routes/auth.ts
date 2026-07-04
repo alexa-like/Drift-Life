@@ -25,7 +25,7 @@ export function safeUser(user: InstanceType<typeof User>) {
     skillPoints: user.skillPoints,
     dc: user.dc,
     nc: user.nc,
-    credits: user.nc,
+
     health: user.health,
     maxHealth: user.maxHealth,
     energy: user.energy,
@@ -105,6 +105,10 @@ router.post("/register", async (req, res) => {
     if (existingEmail) {
       // If account exists but is unverified, resend OTP so the player can complete verification
       if (!existingEmail.isEmailVerified) {
+        // Same 60-second cooldown as /resend-otp to prevent email spam
+        if (existingEmail.emailOtpExpiry && existingEmail.emailOtpExpiry.getTime() - Date.now() > 9 * 60 * 1000) {
+          return res.status(429).json({ message: "Please wait at least 60 seconds before requesting another code.", userId: existingEmail._id, needsVerification: true, email: existingEmail.email });
+        }
         const otp = generateOtp();
         existingEmail.emailOtp = otp;
         existingEmail.emailOtpExpiry = new Date(Date.now() + 10 * 60 * 1000);
@@ -219,6 +223,11 @@ router.post("/resend-otp", async (req, res) => {
     const user = await User.findOne({ email: email?.toLowerCase().trim() });
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.isEmailVerified) return res.status(400).json({ message: "Email already verified" });
+    // 60-second cooldown: emailOtpExpiry is set to now+10min on send,
+    // so if it's still >9 min away the code was sent less than 1 minute ago.
+    if (user.emailOtpExpiry && user.emailOtpExpiry.getTime() - Date.now() > 9 * 60 * 1000) {
+      return res.status(429).json({ message: "Please wait at least 60 seconds before requesting another code." });
+    }
     const otp = generateOtp();
     user.emailOtp = otp;
     user.emailOtpExpiry = new Date(Date.now() + 10 * 60 * 1000);
@@ -349,7 +358,8 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
 router.post("/admin-setup", async (req, res) => {
   try {
     const { setupKey, email, username, password } = req.body;
-    const validKey = process.env["SETUP_KEY"] || "DRIFTLIFE_SETUP_2047";
+    const validKey = process.env["SETUP_KEY"];
+    if (!validKey) return res.status(503).json({ message: "Admin setup not configured. Set the SETUP_KEY environment variable." });
     if (setupKey !== validKey) return res.status(403).json({ message: "Invalid setup key" });
     if (!email && !username) return res.status(400).json({ message: "email or username required" });
 
