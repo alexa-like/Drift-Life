@@ -6,10 +6,24 @@ import { AvatarWithFrame } from "../components/AvatarWithFrame";
 import { formatDC } from "../lib/format";
 import { getFrame } from "../lib/frames";
 
-// Feed only shows manual posts now; kept minimal for future post types
 const TYPE_COLORS: Record<string, string> = {
-  post: "#94a3b8",
+  post:    "#94a3b8",
+  crime:   "#ff6b35",
+  job:     "#39d353",
+  combat:  "#ff2d55",
+  system:  "#a855f7",
+  bank:    "#f59e0b",
+  market:  "#00d4ff",
 };
+
+const FEED_FILTERS: { id: string; label: string }[] = [
+  { id: "all",    label: "ALL"    },
+  { id: "post",   label: "POSTS"  },
+  { id: "crime",  label: "CRIMES" },
+  { id: "combat", label: "FIGHTS" },
+  { id: "job",    label: "JOBS"   },
+];
+
 const REACTIONS = ["like", "laugh", "shock", "respect"] as const;
 const REACTION_EMOJI: Record<string, string> = { like: "👍", laugh: "😂", shock: "😱", respect: "🫡" };
 
@@ -17,17 +31,27 @@ interface Props { user?: User; onInspectPlayer?: (id: string) => void; }
 
 export function FeedPage({ user, onInspectPlayer }: Props) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
+  const [allEvents, setAllEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [postContent, setPostContent] = useState("");
   const [posting, setPosting] = useState(false);
   const [commentOpen, setCommentOpen] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
   const load = () => {
     setLoading(true);
-    api.get<FeedEvent[]>("/feed?limit=50")
-      .then(setEvents).catch(() => {}).finally(() => setLoading(false));
+    api.get<FeedEvent[]>("/feed?limit=100")
+      .then(data => { setAllEvents(data); }).catch(() => {}).finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    if (typeFilter === "all") {
+      setEvents(allEvents);
+    } else {
+      setEvents(allEvents.filter(e => e.type === typeFilter));
+    }
+  }, [typeFilter, allEvents]);
 
   useEffect(() => {
     load();
@@ -86,11 +110,38 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="font-mono font-bold text-lg" style={{ color: "#94a3b8" }}>CITY FEED</h2>
-          <p className="font-mono text-xs" style={{ color: "#334155" }}>Posts from players across New Vanta</p>
+          <p className="font-mono text-xs" style={{ color: "#334155" }}>Live from New Vanta</p>
         </div>
         <button onClick={load} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>
           Refresh
         </button>
+      </div>
+
+      {/* Type filter */}
+      <div className="flex gap-2 flex-wrap">
+        {FEED_FILTERS.map(f => {
+          const color = TYPE_COLORS[f.id] ?? "#64748b";
+          const isActive = typeFilter === f.id;
+          return (
+            <button
+              key={f.id}
+              onClick={() => setTypeFilter(f.id)}
+              className="font-mono text-xs px-3 py-1 rounded transition-all"
+              style={{
+                background: isActive ? (f.id === "all" ? "#ffffff08" : color + "18") : "#111118",
+                color: isActive ? (f.id === "all" ? "#94a3b8" : color) : "#475569",
+                border: `1px solid ${isActive ? (f.id === "all" ? "#1e1e2e" : color + "40") : "#1e1e2e"}`,
+              }}
+            >
+              {f.label}
+              {f.id !== "all" && allEvents.filter(e => e.type === f.id).length > 0 && (
+                <span style={{ marginLeft: 4, opacity: 0.6 }}>
+                  {allEvents.filter(e => e.type === f.id).length}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Post composer — wrapped in user's own frame */}

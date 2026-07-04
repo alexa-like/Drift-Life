@@ -106,11 +106,35 @@ function AnimatedBorderRow({ color, children, rank }: { color: string; children:
   );
 }
 
+function useWeeklyReset() {
+  const [countdown, setCountdown] = useState("");
+  useEffect(() => {
+    function calc() {
+      const now = new Date();
+      // Next Monday 00:00 UTC
+      const next = new Date(now);
+      next.setUTCHours(0, 0, 0, 0);
+      const day = next.getUTCDay(); // 0=Sun, 1=Mon
+      next.setUTCDate(next.getUTCDate() + ((8 - day) % 7 || 7));
+      const diff = next.getTime() - Date.now();
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      setCountdown(d > 0 ? `${d}d ${h}h` : `${h}h ${m}m`);
+    }
+    calc();
+    const iv = setInterval(calc, 30000);
+    return () => clearInterval(iv);
+  }, []);
+  return countdown;
+}
+
 export function LeaderboardPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [sortType, setSortType] = useState<SortType>("level");
   const [loading, setLoading] = useState(true);
   const [inspectId, setInspectId] = useState<string | null>(null);
+  const weeklyCountdown = useWeeklyReset();
   void inspectId;
 
   useEffect(() => {
@@ -140,11 +164,18 @@ export function LeaderboardPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="mb-6">
-        <h1 className="font-mono text-lg font-bold" style={{ color: "#f59e0b", textShadow: "0 0 12px #f59e0b40" }}>
-          NEW VANTA RANKINGS
-        </h1>
-        <p className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>Who runs this city</p>
+      <div className="mb-6 flex justify-between items-end flex-wrap gap-2">
+        <div>
+          <h1 className="font-mono text-lg font-bold" style={{ color: "#f59e0b", textShadow: "0 0 12px #f59e0b40" }}>
+            NEW VANTA RANKINGS
+          </h1>
+          <p className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>Who runs this city</p>
+        </div>
+        {weeklyCountdown && (
+          <div className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#111118", border: "1px solid #1e1e2e", color: "#64748b" }}>
+            WEEKLY RESET IN <span style={{ color: "#f59e0b" }}>{weeklyCountdown}</span>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 flex-wrap mb-6">

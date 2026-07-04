@@ -366,6 +366,13 @@ export function levelUp(user: IUser): boolean {
     user.maxEnergy = derivedMaxEnergy(user.level);
     user.maxNerve = Math.min(100, Math.floor(50 + user.level * 0.3));
     if (user.level >= 10 && (user.level - 10) % 5 === 0) user.skillPoints += 1;
+    // Stat bonuses every 5 levels — +1 to all primary stats
+    if (user.level % 5 === 0) {
+      user.strength     = (user.strength     ?? 1) + 1;
+      user.charisma     = (user.charisma     ?? 1) + 1;
+      user.intelligence = (user.intelligence ?? 1) + 1;
+      user.streetCred   = (user.streetCred   ?? 1) + 1;
+    }
     leveled = true;
   }
   if (leveled) {

@@ -7,6 +7,7 @@ import { StatBar } from "../components/StatBar";
 import { AvatarWithFrame } from "../components/AvatarWithFrame";
 import { FrameCardWrapper } from "../components/FrameCardWrapper";
 import { FRAME_CATALOG as FRAMES, FrameDef, RARITY_COLORS as RARITY_COLOR, getFrame } from "../lib/frames";
+import { InventoryPage } from "./InventoryPage";
 
 const FACTION_LABEL: Record<string, string> = { suits: "The Suits", street: "The Street", grid: "The Grid" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
@@ -32,7 +33,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const [avatarPrompt, setAvatarPrompt] = useState("");
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
   const [equippingFrame, setEquippingFrame] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "achievements" | "frames" | "combat-log">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "inventory" | "achievements" | "frames" | "combat-log">("overview");
   const [achievements, setAchievements] = useState<any[]>([]);
   const [savingColor, setSavingColor] = useState(false);
   const [apiFrames, setApiFrames] = useState<Frame[]>([]);
@@ -251,6 +252,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
       <div className="flex gap-2 flex-wrap">
         {[
           { id: "overview"    as const, label: "Overview" },
+          { id: "inventory"   as const, label: "Inventory" },
           { id: "achievements" as const, label: `Achievements` },
           { id: "frames"      as const, label: `Frames (${ownedFrames.length})` },
           { id: "combat-log"  as const, label: "Combat Log" },
@@ -329,6 +331,38 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
               ))}
             </div>
           </div>
+
+          {/* Activity summary */}
+          {(() => {
+            const totalFights = (user.wins ?? 0) + (user.losses ?? 0);
+            const winRate = totalFights > 0 ? ((user.wins ?? 0) / totalFights * 100).toFixed(0) : "—";
+            const crimeSuccessRate = (user.totalCrimes ?? 0) > 0
+              ? ((user.successfulCrimes ?? 0) / (user.totalCrimes ?? 0) * 100).toFixed(0)
+              : "—";
+            const raceWinRate = (user.totalRaces ?? 0) > 0
+              ? ((user.raceWins ?? 0) / (user.totalRaces ?? 0) * 100).toFixed(0)
+              : "—";
+            const stats = [
+              { label: "FIGHT W/R", value: `${winRate}%`, sub: `${user.wins}W ${user.losses}L`, color: "#39d353" },
+              { label: "CRIME RATE", value: `${crimeSuccessRate}%`, sub: `${user.successfulCrimes}/${user.totalCrimes ?? 0}`, color: "#ff6b35" },
+              { label: "RACE W/R", value: `${raceWinRate}%`, sub: `${user.raceWins ?? 0}/${user.totalRaces ?? 0}`, color: "#00d4ff" },
+              { label: "STREAK", value: `${user.dailyStreak ?? 0}d`, sub: "daily check-in", color: "#f59e0b" },
+            ];
+            return (
+              <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
+                <div className="font-mono text-xs font-bold mb-3" style={{ color: "#64748b", letterSpacing: "0.1em" }}>ACTIVITY SUMMARY</div>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {stats.map(s => (
+                    <div key={s.label} style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
+                      <div className="font-mono" style={{ fontSize: 9, color: "#475569", letterSpacing: "0.08em" }}>{s.label}</div>
+                      <div className="font-mono font-bold mt-0.5" style={{ fontSize: 18, color: s.color }}>{s.value}</div>
+                      <div className="font-mono" style={{ fontSize: 9, color: "#334155" }}>{s.sub}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Faction */}
           {user.faction && (
@@ -426,6 +460,10 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
             );
           })()}
         </div>
+      )}
+
+      {activeTab === "inventory" && (
+        <InventoryPage user={user} refreshUser={refreshUser as any} addToast={addToast} />
       )}
 
       {activeTab === "combat-log" && (

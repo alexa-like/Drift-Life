@@ -20,12 +20,27 @@ interface GymDef {
   districtMatch: boolean;
 }
 
-const STATS: { key: string; label: string; color: string; icon: string }[] = [
-  { key: "strength",     label: "Strength",     color: "bg-red-500",    icon: "💪" },
-  { key: "charisma",     label: "Charisma",     color: "bg-pink-500",   icon: "🗣️" },
-  { key: "intelligence", label: "Intelligence", color: "bg-blue-500",   icon: "🧠" },
-  { key: "streetCred",   label: "Street Cred",  color: "bg-yellow-500", icon: "⭐" },
+const STATS: { key: string; label: string; color: string }[] = [
+  { key: "strength",     label: "STRENGTH",     color: "#ff6b35" },
+  { key: "charisma",     label: "CHARISMA",     color: "#a855f7" },
+  { key: "intelligence", label: "INTELLIGENCE", color: "#00d4ff" },
+  { key: "streetCred",   label: "STREET CRED",  color: "#f59e0b" },
 ];
+
+function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
+  const pct = Math.min(100, (value / 200) * 100);
+  return (
+    <div style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 14px" }}>
+      <div className="flex justify-between items-center mb-1">
+        <span className="font-mono" style={{ fontSize: 10, color: "#64748b", letterSpacing: "0.1em" }}>{label}</span>
+        <span className="font-mono font-bold" style={{ color, fontSize: 14 }}>{typeof value === "number" ? value.toFixed(1) : value}</span>
+      </div>
+      <div style={{ height: 3, background: "#1e1e2e", borderRadius: 2 }}>
+        <div style={{ width: `${pct}%`, height: 3, background: color, borderRadius: 2, transition: "width 0.4s ease", boxShadow: `0 0 6px ${color}60` }} />
+      </div>
+    </div>
+  );
+}
 
 export default function GymPage({ user, onUserUpdate }: Props) {
   const [gyms, setGyms] = useState<GymDef[]>([]);
@@ -34,11 +49,12 @@ export default function GymPage({ user, onUserUpdate }: Props) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [lastGain, setLastGain] = useState<{ stat: string; gain: number } | null>(null);
+  const [flash, setFlash] = useState(false);
 
   useEffect(() => {
     api.get<GymDef[]>("/gym").then(r => {
       setGyms(r);
-      setSelectedGym(r[0] ?? null);
+      setSelectedGym(r.find(g => g.available) ?? r[0] ?? null);
     }).catch(() => {});
   }, []);
 
@@ -46,64 +62,74 @@ export default function GymPage({ user, onUserUpdate }: Props) {
     if (!selectedGym || loading) return;
     setLoading(true);
     setMessage(null);
+    setLastGain(null);
     try {
       const d = await api.post<any>(`/gym/${selectedGym.id}/train`, { stat: selectedStat });
       setLastGain({ stat: selectedStat, gain: d.statGain });
-      setMessage({ text: `+${d.statGain.toFixed(3)} ${d.stat} at ${d.gym} | Mood ${d.mood}% | ×${d.moodMultiplier.toFixed(2)} mood mult`, type: "success" });
-      onUserUpdate({ ...user, [selectedStat]: d.newStat, energy: d.energy, dc: d.dc, stress: user.stress - 2 < 0 ? 0 : user.stress - 2 });
+      setMessage({ text: `+${d.statGain.toFixed(3)} ${d.stat.toUpperCase()} — ${d.gym} — Mood ${d.mood}% (×${d.moodMultiplier.toFixed(2)})`, type: "success" });
+      setFlash(true);
+      setTimeout(() => setFlash(false), 600);
+      onUserUpdate({ ...user, [selectedStat]: d.newStat, energy: d.energy, dc: d.dc, stress: Math.max(0, (user.stress ?? 0) + 2) });
     } catch (e: any) {
-      setMessage({ text: e.response?.data?.message ?? "Error", type: "error" });
+      setMessage({ text: e.response?.data?.message ?? "Training failed", type: "error" });
     } finally {
       setLoading(false);
     }
   }
 
-  const statValue = (key: string) => (user as any)[key] ?? 0;
-  const moodMult = 0.7 + (user.mood ?? 100) / 100 * 0.3;
+  const statValue = (key: string): number => (user as any)[key] ?? 0;
+  const moodMult = 0.7 + ((user.mood ?? 100) / 100) * 0.3;
+  const canTrain = !loading && selectedGym && user.energy >= (selectedGym?.energyCostPerTrain ?? 0) && user.dc >= (selectedGym?.costPerUse ?? 0);
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="max-w-3xl mx-auto space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-white">Gym</h1>
-          <p className="text-zinc-400 text-sm">Train hard. Diminishing returns apply.</p>
+          <h2 className="font-mono font-bold text-lg" style={{ color: "#94a3b8", letterSpacing: "0.05em" }}>GYM</h2>
+          <p className="font-mono text-xs" style={{ color: "#334155" }}>Build stats. Diminishing returns apply above 50.</p>
         </div>
-        <div className="text-right text-sm space-y-1">
-          <p className="text-zinc-400">Energy: <span className="text-blue-300 font-mono">{user.energy}/{user.maxEnergy}</span></p>
-          <p className="text-zinc-400">Mood: <span className={`font-mono ${(user.mood ?? 100) >= 70 ? "text-green-400" : "text-yellow-400"}`}>{user.mood ?? 100}%</span></p>
-          <p className="text-zinc-500 text-xs">×{moodMult.toFixed(2)} gain mult</p>
+        <div className="text-right">
+          <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+            ENERGY <span style={{ color: "#00d4ff" }}>{user.energy}</span>/<span style={{ color: "#334155" }}>{user.maxEnergy}</span>
+            &nbsp;&nbsp;MOOD <span style={{ color: (user.mood ?? 100) >= 70 ? "#39d353" : "#f59e0b" }}>{user.mood ?? 100}%</span>
+            &nbsp;&nbsp;<span style={{ color: "#64748b" }}>×{moodMult.toFixed(2)}</span>
+          </div>
         </div>
       </div>
 
       {/* Stress bar */}
-      {user.stress > 0 && (
-        <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-3">
-          <div className="flex justify-between text-xs text-zinc-400 mb-1">
-            <span>Stress (reduces gains if {'>'} 70)</span>
-            <span>{user.stress}%</span>
+      {(user.stress ?? 0) > 0 && (
+        <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 16px" }}>
+          <div className="flex justify-between items-center mb-1">
+            <span className="font-mono text-xs" style={{ color: "#64748b" }}>STRESS — reduces gains above 70%</span>
+            <span className="font-mono text-xs font-bold" style={{ color: (user.stress ?? 0) > 70 ? "#ff2d55" : "#a855f7" }}>{user.stress ?? 0}%</span>
           </div>
-          <div className="h-2 bg-zinc-700 rounded-full">
-            <div
-              className={`h-2 rounded-full transition-all ${user.stress > 70 ? "bg-red-500" : "bg-purple-500"}`}
-              style={{ width: `${user.stress}%` }}
-            />
+          <div style={{ height: 3, background: "#1e1e2e", borderRadius: 2 }}>
+            <div style={{ width: `${user.stress ?? 0}%`, height: 3, background: (user.stress ?? 0) > 70 ? "#ff2d55" : "#a855f7", borderRadius: 2, transition: "width 0.4s ease" }} />
           </div>
         </div>
       )}
 
-      {/* Stats display */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {STATS.map(s => (
-          <div key={s.key} className="bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-center">
-            <div className="text-2xl mb-1">{s.icon}</div>
-            <div className="text-xs text-zinc-400">{s.label}</div>
-            <div className="text-xl font-bold text-white">{statValue(s.key).toFixed ? statValue(s.key).toFixed(1) : statValue(s.key)}</div>
-          </div>
-        ))}
+      {/* Stat summary */}
+      <div className="grid grid-cols-2 gap-3" style={{ transition: "opacity 0.2s", opacity: flash ? 0.5 : 1 }}>
+        {STATS.map(s => <StatBar key={s.key} label={s.label} value={statValue(s.key)} color={s.color} />)}
       </div>
 
+      {/* Flash gain indicator */}
+      {lastGain && (
+        <div className="font-mono text-center py-1" style={{ color: "#39d353", fontSize: 13, letterSpacing: "0.05em" }}>
+          +{lastGain.gain.toFixed(3)} {lastGain.stat.toUpperCase()}
+        </div>
+      )}
+
+      {/* Message */}
       {message && (
-        <div className={`rounded-xl px-4 py-3 text-sm font-medium ${message.type === "success" ? "bg-green-900/50 border border-green-600 text-green-300" : "bg-red-900/50 border border-red-600 text-red-300"}`}>
+        <div className="font-mono text-xs px-4 py-3 rounded" style={{
+          background: message.type === "success" ? "#39d35318" : "#ff2d5518",
+          border: `1px solid ${message.type === "success" ? "#39d35340" : "#ff2d5540"}`,
+          color: message.type === "success" ? "#39d353" : "#ff2d55",
+        }}>
           {message.text}
         </div>
       )}
@@ -111,21 +137,35 @@ export default function GymPage({ user, onUserUpdate }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Gym selector */}
         <div className="space-y-2">
-          <h2 className="text-zinc-300 text-sm font-bold uppercase tracking-wider">Select Gym</h2>
+          <div className="font-mono text-xs font-bold mb-2" style={{ color: "#64748b", letterSpacing: "0.1em" }}>SELECT GYM</div>
           {gyms.map(gym => (
-            <button key={gym.id} onClick={() => setSelectedGym(gym)} disabled={!gym.available}
-              className={`w-full text-left p-3 rounded-xl border transition-all ${selectedGym?.id === gym.id ? "border-blue-500 bg-zinc-800" : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800"} ${!gym.available ? "opacity-50" : ""}`}>
+            <button
+              key={gym.id}
+              onClick={() => gym.available && setSelectedGym(gym)}
+              disabled={!gym.available}
+              className="w-full text-left rounded transition-all"
+              style={{
+                padding: "10px 14px",
+                background: selectedGym?.id === gym.id ? "#00d4ff0d" : "#111118",
+                border: `1px solid ${selectedGym?.id === gym.id ? "#00d4ff40" : "#1e1e2e"}`,
+                borderRadius: 8,
+                opacity: gym.available ? 1 : 0.4,
+                cursor: gym.available ? "pointer" : "not-allowed",
+              }}
+            >
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="font-bold text-white text-sm">{gym.name}</p>
-                  <p className="text-zinc-500 text-xs">{gym.district}</p>
+                  <div className="font-mono text-xs font-bold" style={{ color: selectedGym?.id === gym.id ? "#00d4ff" : "#94a3b8" }}>{gym.name}</div>
+                  <div className="font-mono mt-0.5" style={{ fontSize: 10, color: "#475569" }}>{gym.district}</div>
                 </div>
-                {gym.districtMatch && <span className="text-xs text-green-400">Home</span>}
+                {gym.districtMatch && (
+                  <span className="font-mono px-1 rounded" style={{ fontSize: 9, background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}>HOME</span>
+                )}
               </div>
-              <div className="mt-1 flex gap-2 text-xs text-zinc-400 flex-wrap">
-                <span>💰 {gym.costPerUse.toLocaleString()} DC</span>
-                <span>⚡ {gym.energyCostPerTrain}</span>
-                {!gym.available && <span className="text-red-400">Lv{gym.minLevel} req</span>}
+              <div className="flex gap-3 mt-2">
+                <span className="font-mono" style={{ fontSize: 10, color: "#f59e0b" }}>{gym.costPerUse.toLocaleString()} DC</span>
+                <span className="font-mono" style={{ fontSize: 10, color: "#00d4ff" }}>{gym.energyCostPerTrain} NRG</span>
+                {!gym.available && <span className="font-mono" style={{ fontSize: 10, color: "#ff2d55" }}>LVL {gym.minLevel}</span>}
               </div>
             </button>
           ))}
@@ -133,44 +173,84 @@ export default function GymPage({ user, onUserUpdate }: Props) {
 
         {/* Stat selector & action */}
         {selectedGym && (
-          <div className="lg:col-span-2 space-y-4">
-            <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4">
-              <h2 className="font-bold text-white mb-1">{selectedGym.name}</h2>
-              <p className="text-zinc-400 text-sm mb-4">{selectedGym.description}</p>
+          <div className="lg:col-span-2 space-y-3">
+            <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 16 }}>
+              <div className="font-mono font-bold text-xs mb-0.5" style={{ color: "#94a3b8" }}>{selectedGym.name}</div>
+              <div className="font-mono text-xs mb-4" style={{ color: "#475569" }}>{selectedGym.description}</div>
 
-              {/* Multiplier breakdown */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                {STATS.map(s => (
-                  <div key={s.key} className="bg-zinc-800 rounded-lg p-2 text-center">
-                    <div className="text-xs text-zinc-500">{s.label}</div>
-                    <div className={`text-sm font-bold ${(selectedGym.multipliers[s.key] ?? 1) >= 1.5 ? "text-green-400" : (selectedGym.multipliers[s.key] ?? 1) < 0.8 ? "text-red-400" : "text-white"}`}>
-                      ×{(selectedGym.multipliers[s.key] ?? 1).toFixed(1)}
+              {/* Gym multiplier breakdown */}
+              <div className="font-mono text-xs font-bold mb-2" style={{ color: "#64748b", letterSpacing: "0.1em" }}>GYM MULTIPLIERS</div>
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                {STATS.map(s => {
+                  const mult = selectedGym.multipliers[s.key] ?? 1;
+                  const color = mult >= 1.5 ? "#39d353" : mult < 0.8 ? "#ff2d55" : "#94a3b8";
+                  return (
+                    <div key={s.key} style={{ background: "#0a0a0f", borderRadius: 6, padding: "8px", textAlign: "center" }}>
+                      <div className="font-mono mb-0.5" style={{ fontSize: 9, color: "#64748b" }}>{s.label.split(" ")[0]}</div>
+                      <div className="font-mono font-bold" style={{ color, fontSize: 13 }}>×{mult.toFixed(1)}</div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              <h3 className="text-zinc-300 text-sm font-bold mb-2">Train which stat?</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                {STATS.map(s => (
-                  <button key={s.key} onClick={() => setSelectedStat(s.key)}
-                    className={`p-3 rounded-xl border transition-all text-sm font-bold ${selectedStat === s.key ? "border-blue-500 bg-zinc-700 text-white" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>
-                    {s.icon} {s.label}
-                    <div className="text-xs text-zinc-500 mt-0.5">×{(selectedGym.multipliers[s.key] ?? 1).toFixed(1)}</div>
-                  </button>
-                ))}
+              {/* Stat selector */}
+              <div className="font-mono text-xs font-bold mb-2" style={{ color: "#64748b", letterSpacing: "0.1em" }}>TRAIN</div>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {STATS.map(s => {
+                  const mult = selectedGym.multipliers[s.key] ?? 1;
+                  const effectiveMult = mult * moodMult;
+                  const isSelected = selectedStat === s.key;
+                  return (
+                    <button
+                      key={s.key}
+                      onClick={() => setSelectedStat(s.key)}
+                      className="text-left rounded transition-all"
+                      style={{
+                        padding: "10px 12px",
+                        background: isSelected ? s.color + "14" : "#0a0a0f",
+                        border: `1px solid ${isSelected ? s.color + "50" : "#1e1e2e"}`,
+                        borderRadius: 6,
+                      }}
+                    >
+                      <div className="font-mono text-xs font-bold" style={{ color: isSelected ? s.color : "#475569" }}>{s.label}</div>
+                      <div className="font-mono mt-0.5" style={{ fontSize: 10, color: "#64748b" }}>
+                        <span style={{ color: "#94a3b8" }}>{statValue(s.key).toFixed(1)}</span>
+                        &nbsp;·&nbsp;×{effectiveMult.toFixed(2)} total
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="bg-zinc-800 rounded-lg p-3 text-sm text-zinc-300 mb-4 space-y-1">
-                <p>Cost: <span className="text-yellow-400">{selectedGym.costPerUse.toLocaleString()} DC</span> + <span className="text-blue-400">{selectedGym.energyCostPerTrain} energy</span></p>
-                <p>Gain multiplier: <span className="text-green-400">×{((selectedGym.multipliers[selectedStat] ?? 1) * moodMult).toFixed(2)}</span> (gym ×{(selectedGym.multipliers[selectedStat] ?? 1).toFixed(1)} × mood ×{moodMult.toFixed(2)})</p>
-                <p>Current {STATS.find(s => s.key === selectedStat)?.label}: <span className="text-white font-bold">{statValue(selectedStat)}</span></p>
-                <p className="text-zinc-500 text-xs">Diminishing returns apply above stat 50.</p>
+              {/* Cost summary */}
+              <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e" }}>
+                <div className="flex justify-between">
+                  <span style={{ color: "#64748b" }}>Cost</span>
+                  <span>
+                    <span style={{ color: "#f59e0b" }}>{selectedGym.costPerUse.toLocaleString()} DC</span>
+                    <span style={{ color: "#475569" }}> + </span>
+                    <span style={{ color: "#00d4ff" }}>{selectedGym.energyCostPerTrain} energy</span>
+                  </span>
+                </div>
+                <div className="flex justify-between mt-0.5">
+                  <span style={{ color: "#64748b" }}>Effective multiplier</span>
+                  <span style={{ color: "#39d353" }}>×{((selectedGym.multipliers[selectedStat] ?? 1) * moodMult).toFixed(2)}</span>
+                </div>
               </div>
 
-              <button onClick={doTrain} disabled={loading || user.energy < selectedGym.energyCostPerTrain || user.dc < selectedGym.costPerUse}
-                className={`w-full py-3 rounded-xl font-bold text-lg transition-all ${!loading && user.energy >= selectedGym.energyCostPerTrain && user.dc >= selectedGym.costPerUse ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}`}>
-                {loading ? "Training…" : "Train Now"}
+              <button
+                onClick={doTrain}
+                disabled={!canTrain}
+                className="w-full font-mono font-bold text-sm py-3 rounded transition-all"
+                style={{
+                  background: canTrain ? "#00d4ff18" : "#1e1e2e",
+                  border: `1px solid ${canTrain ? "#00d4ff40" : "#1e1e2e"}`,
+                  color: canTrain ? "#00d4ff" : "#334155",
+                  cursor: canTrain ? "pointer" : "not-allowed",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                {loading ? "TRAINING..." : canTrain ? "TRAIN NOW" : user.energy < (selectedGym.energyCostPerTrain ?? 0) ? "NO ENERGY" : "INSUFFICIENT DC"}
               </button>
             </div>
           </div>

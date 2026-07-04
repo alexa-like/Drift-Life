@@ -32,36 +32,25 @@ const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b
 const NAV: { id: string; label: string; minStage?: number; group?: string }[] = [
   // Always visible
   { id: "feed",         label: "Feed" },
-  { id: "herald",       label: "Herald" },
-  { id: "map",          label: "Map" },
   { id: "chat",         label: "Chat" },
-  { id: "daily",        label: "Daily" },
   { id: "profile",      label: "Profile" },
   { id: "leaderboard",  label: "Board" },
   // Wire Cartel — core loop (onboarding gated)
-  { id: "street",       label: "Street",   group: "wc" },         // stage 0 — first thing unlocked
-  { id: "gym",          label: "Gym",      group: "wc" },         // always (helps early)
+  { id: "city",         label: "City",     group: "wc" },         // stage 0 — hub for street/district/careers
+  { id: "gym",          label: "Gym",      group: "wc" },
   { id: "jobs",         label: "Jobs",     group: "wc" },
-  { id: "garage",       label: "Garage",   group: "wc", minStage: 1 }, // after first run
-  { id: "city",         label: "City",     group: "wc", minStage: 2 }, // after getting car
-  { id: "net",          label: "Net",      group: "wc", minStage: 3 }, // after getting job
-  { id: "cyber",        label: "Cyber",    group: "wc", minStage: 3 }, // after getting job (same gate as Net)
-  { id: "world",        label: "World",    group: "wc", minStage: 1 },
+  { id: "garage",       label: "Garage",   group: "wc", minStage: 1 },
+  { id: "net",          label: "Net",      group: "wc", minStage: 3 },
+  { id: "cyber",        label: "Cyber",    group: "wc", minStage: 3 },
   { id: "guilds",       label: "Crew",     group: "wc", minStage: 2 },
-  // Legacy / full nav (visible for returning users)
-  { id: "crimes",       label: "Crime",    minStage: 99 }, // hidden; redirect to Street
+  // Economy & social
   { id: "combat",       label: "Combat" },
-  { id: "inventory",    label: "Gear" },
   { id: "market",       label: "Market" },
-  { id: "auction",      label: "Auction" },
   { id: "friends",      label: "Friends" },
-  { id: "trade",        label: "Trade" },
   { id: "bank",         label: "Bank" },
   { id: "properties",   label: "Estate" },
   { id: "crafting",     label: "Craft" },
-  { id: "cards",        label: "Cards" },
   { id: "skills",       label: "Skills" },
-  { id: "frames",       label: "Frames" },
   { id: "achievements", label: "Achiev" },
 ];
 
@@ -167,7 +156,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
             color: (user.heat ?? 0) >= 80 ? "#ef4444" : "#f97316",
             border: `1px solid ${(user.heat ?? 0) >= 80 ? "#ef444440" : "#f9731640"}`,
           }}>
-            {(user.heat ?? 0) >= 80 ? "🚨" : "🔥"} {user.heat}%
+            {(user.heat ?? 0) >= 80 ? "[!]" : ""} {user.heat}% HEAT
           </span>
         )}
         <div className="flex-1" />

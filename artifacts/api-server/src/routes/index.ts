@@ -26,10 +26,8 @@ import skillsRouter from "./skills";
 import guildsRouter from "./guilds";
 import auctionRouter from "./auction";
 import propertiesRouter from "./properties";
-import heraldRouter from "./herald";
 import vantaRouter from "./vanta";
 import craftingRouter from "./crafting";
-import cardsRouter from "./cards";
 import tradeRouter from "./trade";
 // ── Wire Cartel additions ────────────────────────────────────────────────────
 import gymRouter from "./gym";
@@ -67,10 +65,8 @@ router.use("/skills", skillsRouter);
 router.use("/guilds", guildsRouter);
 router.use("/auction", auctionRouter);
 router.use("/properties", propertiesRouter);
-router.use("/herald", heraldRouter);
 router.use("/vanta", vantaRouter);
 router.use("/crafting", craftingRouter);
-router.use("/cards", cardsRouter);
 router.use("/trade", tradeRouter);
 // ── Wire Cartel ──────────────────────────────────────────────────────────────
 router.use("/gym", gymRouter);

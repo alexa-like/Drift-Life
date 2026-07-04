@@ -215,6 +215,7 @@ async function grantNpcDrop(userId: string, dropRarity: string): Promise<void> {
 }
 
 // GET /api/combat/targets
+// Optional query params: district (override district filter), minLevel, maxLevel
 router.get("/targets", requireAuth, async (req: AuthRequest, res) => {
   try {
     const me = await User.findById(req.userId).lean();
@@ -223,11 +224,15 @@ router.get("/targets", requireAuth, async (req: AuthRequest, res) => {
     const now = new Date();
     const myAttackCooldowns: Array<{ targetId: string; until: Date }> = (me as any).attackCooldowns || [];
 
+    const district = (req.query.district as string) || me.district;
+    const minLevel = req.query.minLevel ? Math.max(1, parseInt(req.query.minLevel as string)) : Math.max(1, me.level - 25);
+    const maxLevel = req.query.maxLevel ? parseInt(req.query.maxLevel as string) : me.level + 25;
+
     const targets = await User.find({
       _id: { $ne: req.userId },
       banned: false,
-      district: me.district,
-      level: { $gte: me.level - 25, $lte: me.level + 25 },
+      district,
+      level: { $gte: minLevel, $lte: maxLevel },
       isEmailVerified: true,
     })
       .select("username avatar faction level rank district wins losses health maxHealth wantedLevel equippedFrame")

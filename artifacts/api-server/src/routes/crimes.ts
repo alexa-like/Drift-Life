@@ -318,14 +318,17 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
           narrative = "Security caught you clean. You woke up in New Vanta General.";
           gated.stress = Math.min(100, gated.stress + 10);
         } else {
-          jailDuration = Math.floor((10 + run.tier * 10) * 60 * 1000);
+          // Wanted level scales jail time: each wanted star adds 30% more time
+          const wantedMult = 1 + (gated.wantedLevel ?? 0) * 0.3;
+          jailDuration = Math.floor((10 + run.tier * 10) * 60 * 1000 * wantedMult);
           jailUntil = new Date(Date.now() + jailDuration);
           gated.jailUntil = jailUntil;
           gated.jailDuration = jailDuration;
           jailed = true;
           gated.heat = 0;
           gated.heatDecayAt = new Date();
-          narrative = "Cuffs on. You're in a holding cell. Bail's open.";
+          const wantedStr = gated.wantedLevel >= 4 ? " MOST WANTED — extended sentence." : gated.wantedLevel >= 2 ? " Prior record noted — sentence extended." : "";
+          narrative = `Cuffs on. You're in a holding cell.${wantedStr} Bail's open.`;
           gated.stress = Math.min(100, gated.stress + 10);
         }
       }

@@ -174,9 +174,15 @@ router.post("/shop/buy", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/market/listings
+// GET /api/market/listings — auto-expires listings older than 30 days
 router.get("/listings", requireAuth, async (req: AuthRequest, res) => {
   try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // Expire stale listings silently
+    await Item.updateMany(
+      { marketListed: true, marketListedAt: { $lt: thirtyDaysAgo } },
+      { $set: { marketListed: false, marketPrice: null, marketListedAt: null } }
+    );
     const items = await Item.find({ marketListed: true })
       .populate("owner", "username")
       .lean();

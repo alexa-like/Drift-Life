@@ -66,10 +66,10 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
               </span>
             </div>
             <div
-              className="w-12 h-12 rounded flex items-center justify-center text-2xl"
-              style={{ background: "#0a0a0f", border: "1px solid #1e1e2e" }}
+              className="w-12 h-12 rounded flex items-center justify-center font-mono font-bold"
+              style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#00d4ff", fontSize: 11, letterSpacing: "0.05em" }}
             >
-              {user.avatar === "ghost" ? "👻" : "🤖"}
+              {user.username.slice(0, 2).toUpperCase()}
             </div>
           </div>
 
@@ -95,8 +95,8 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
             {/* Wire Cartel vitals */}
             {(user.heat ?? 0) > 0 || (user.stress ?? 0) > 0 ? (
               <>
-                <StatBar label={`Heat ${(user.heat ?? 0) >= 80 ? "🚨" : "🔥"}`} value={user.heat ?? 0} max={100} color={user.heat >= 80 ? "#ef4444" : user.heat >= 50 ? "#f97316" : "#eab308"} />
-                <StatBar label="Stress 😤" value={user.stress ?? 0} max={100} color="#a855f7" />
+                <StatBar label={`Heat${(user.heat ?? 0) >= 80 ? " [CRIT]" : ""}`} value={user.heat ?? 0} max={100} color={user.heat >= 80 ? "#ef4444" : user.heat >= 50 ? "#f97316" : "#eab308"} />
+                <StatBar label="Stress" value={user.stress ?? 0} max={100} color="#a855f7" />
               </>
             ) : null}
           </div>
@@ -175,47 +175,139 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
           </div>
         </div>
 
-        {/* Daily reward */}
+        {/* Daily reward — 7-day streak calendar */}
         {dailyStatus && (
           <div className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
-            <h3 className="text-xs font-mono uppercase mb-2" style={{ color: "#475569" }}>Daily Reward</h3>
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center mb-3">
               <div>
-                <div className="text-xs font-mono" style={{ color: "#94a3b8" }}>
-                  Streak: <span style={{ color: "#f59e0b" }}>{dailyStatus.streak} days</span>
+                <h3 className="text-xs font-mono uppercase" style={{ color: "#475569", letterSpacing: "0.1em" }}>Daily Reward</h3>
+                <div className="text-xs font-mono mt-0.5" style={{ color: "#64748b" }}>
+                  Streak: <span style={{ color: "#f59e0b" }}>{dailyStatus.streak ?? 0} days</span>
                 </div>
-                {!dailyStatus.claimed && dailyStatus.nextReward && (
-                  <div className="text-xs font-mono mt-1" style={{ color: "#39d353" }}>
-                    +{dailyStatus.nextReward.dc} DC / +{dailyStatus.nextReward.xp} XP
-                  </div>
-                )}
               </div>
               {!dailyStatus.claimed ? (
                 <button
                   onClick={claimDaily}
                   disabled={claimingDaily}
-                  className="px-3 py-1.5 rounded text-xs font-mono font-bold"
+                  className="px-3 py-1.5 rounded text-xs font-mono font-bold transition-all"
                   style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}
                 >
                   {claimingDaily ? "..." : "Claim"}
                 </button>
               ) : (
-                <span className="text-xs font-mono" style={{ color: "#475569" }}>Claimed</span>
+                <span className="text-xs font-mono" style={{ color: "#475569" }}>Claimed today</span>
               )}
             </div>
+
+            {/* 7-day calendar track */}
+            {(() => {
+              const schedule = dailyStatus.rewardSchedule ?? [1,2,3,4,5,6,7].map((d: number) => ({ day: d, dc: d * 50, xp: d * 10 }));
+              const streak = dailyStatus.streak ?? 0;
+              const posInCycle = streak % 7; // 0 = just completed a cycle, 1-7 = position in current cycle
+              const todayDay = dailyStatus.claimed ? posInCycle : (posInCycle + 1); // day we're claiming today (1-7)
+
+              return (
+                <div className="grid grid-cols-7 gap-1">
+                  {schedule.map((slot: any) => {
+                    const dayNum = slot.day;
+                    const isToday = dayNum === todayDay || (posInCycle === 0 && dayNum === 7 && !dailyStatus.claimed);
+                    const isPast = dayNum < todayDay || (dailyStatus.claimed && dayNum <= posInCycle) || (dailyStatus.claimed && dayNum === todayDay);
+                    const isMilestone = slot.itemRarity != null;
+                    const color = isMilestone ? "#f59e0b" : "#64748b";
+                    return (
+                      <div
+                        key={dayNum}
+                        className="flex flex-col items-center gap-0.5"
+                        style={{
+                          background: isToday ? "#f59e0b14" : isPast ? "#39d35308" : "#0a0a0f",
+                          border: `1px solid ${isToday ? "#f59e0b50" : isPast ? "#39d35330" : "#1e1e2e"}`,
+                          borderRadius: 4,
+                          padding: "4px 2px",
+                        }}
+                      >
+                        <div className="font-mono" style={{ fontSize: 8, color: isToday ? "#f59e0b" : isPast ? "#39d353" : "#334155", letterSpacing: 0 }}>
+                          D{dayNum}
+                        </div>
+                        <div style={{ fontSize: 8, color: isPast ? "#39d353" : isToday ? "#f59e0b" : color }}>
+                          {isPast ? "✓" : isMilestone ? "*" : "+"}
+                        </div>
+                        <div className="font-mono" style={{ fontSize: 7, color: isPast ? "#39d35380" : isToday ? "#f59e0b" : "#334155", textAlign: "center", lineHeight: 1.2 }}>
+                          {(slot.dc / 1000).toFixed(slot.dc < 1000 ? 1 : 0)}k
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {!dailyStatus.claimed && dailyStatus.nextReward && (
+              <div className="text-xs font-mono mt-2" style={{ color: "#39d353" }}>
+                Today: +{dailyStatus.nextReward.dc?.toLocaleString()} DC / +{dailyStatus.nextReward.xp} XP
+                {dailyStatus.nextReward.bonus && <span style={{ color: "#f59e0b" }}> + {dailyStatus.nextReward.bonus}</span>}
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Right — Feed + Quick actions */}
       <div className="md:col-span-2 flex flex-col gap-4">
+        {/* What to do next — contextual action card */}
+        {(() => {
+          const jailed = user.jailUntil && new Date(user.jailUntil) > new Date();
+          const hospitalized = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
+          const dailyReady = dailyStatus && !dailyStatus.claimed;
+          const heatCritical = (user.heat ?? 0) >= 80;
+          const nerveAvail = (user.nerve ?? 0) > 0;
+          const energyAvail = (user.energy ?? 0) > 0;
+          const dirtyDcPending = (user.dirtyDc ?? 0) > 50_000;
+
+          let card: { label: string; desc: string; nav?: string; action?: string; color: string } | null = null;
+
+          if (jailed) {
+            card = { label: "Fight the Charges", desc: "You're in jail. Go to court to plead or fight.", nav: "city", color: "#f59e0b" };
+          } else if (hospitalized) {
+            card = { label: "Visit Hospital", desc: "You're hospitalized — pay to discharge early.", nav: "hospital", color: "#ff2d55" };
+          } else if (dailyReady) {
+            card = { label: "Claim Daily Reward", desc: `Day ${dailyStatus.streak} streak — +${dailyStatus.nextReward?.dc?.toLocaleString() ?? "?"} DC`, action: "daily", color: "#f59e0b" };
+          } else if (heatCritical && dirtyDcPending) {
+            card = { label: "Launder Dirty DC", desc: "Heat is critical and you're sitting on dirty money.", nav: "city", color: "#ff2d55" };
+          } else if (nerveAvail) {
+            card = { label: "Run a Crime", desc: `${user.nerve}/${user.maxNerve} nerve ready — hit the streets.`, nav: "city", color: "#ff6b35" };
+          } else if (energyAvail) {
+            card = { label: "Work a Shift", desc: `${user.energy}/${user.maxEnergy} energy available — earn clean DC.`, nav: "jobs", color: "#39d353" };
+          } else if (dirtyDcPending) {
+            card = { label: "Launder Dirty DC", desc: `${(user.dirtyDc ?? 0).toLocaleString()} dirty DC sitting idle — clean it.`, nav: "city", color: "#a855f7" };
+          } else {
+            card = { label: "Train at the Gym", desc: "Low on resources — build your stats while you wait.", nav: "gym", color: "#00d4ff" };
+          }
+
+          return card ? (
+            <button
+              onClick={() => card!.action === "daily" ? claimDaily() : onNav(card!.nav!)}
+              disabled={card.action === "daily" && claimingDaily}
+              className="p-3 rounded-lg flex items-center justify-between gap-3 text-left transition-all hover:opacity-90 w-full"
+              style={{ background: `${card.color}10`, border: `1px solid ${card.color}30` }}
+            >
+              <div>
+                <div className="font-mono font-bold text-sm" style={{ color: card.color }}>{card.label}</div>
+                <div className="font-mono text-xs mt-0.5" style={{ color: "#64748b" }}>{card.desc}</div>
+              </div>
+              <span className="font-mono text-xs flex-shrink-0 px-2 py-1 rounded" style={{ background: `${card.color}20`, color: card.color }}>
+                {card.action === "daily" && claimingDaily ? "..." : "Go"}
+              </span>
+            </button>
+          ) : null;
+        })()}
+
         {/* Quick actions */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { id: "crimes", label: "Commit Crime", color: "#ff2d55", icon: "skull" },
-            { id: "jobs", label: "Work a Job", color: "#39d353", icon: "work" },
-            { id: "combat", label: "Attack", color: "#ff6b35", icon: "fight" },
-            { id: "market", label: "Market", color: "#00d4ff", icon: "shop" },
+            { id: "crimes", label: "Commit Crime", color: "#ff2d55" },
+            { id: "jobs", label: "Work a Job", color: "#39d353" },
+            { id: "combat", label: "Attack", color: "#ff6b35" },
+            { id: "market", label: "Market", color: "#00d4ff" },
           ].map(a => (
             <button
               key={a.id}
@@ -297,7 +389,7 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
               </div>
             </div>
             <button
-              onClick={() => onNav("district")}
+              onClick={() => onNav("city")}
               className="px-3 py-1.5 rounded text-xs font-mono"
               style={{ background: "#1e1e2e", color: "#94a3b8", border: "1px solid #1e1e2e" }}
             >

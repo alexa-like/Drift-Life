@@ -3,6 +3,8 @@ import { User } from "../lib/types";
 import { api } from "../lib/api";
 import { ItemImage } from "../components/ItemImage";
 import { formatDC } from "../lib/format";
+import { AuctionPage } from "./AuctionPage";
+import { TradePage } from "./TradePage";
 
 interface ShopItem {
   id: string;
@@ -48,7 +50,7 @@ const RARITY_COLORS: Record<string, string> = {
   legendary: "#f59e0b",
 };
 
-type Tab = "shop" | "listings";
+type Tab = "shop" | "listings" | "auction" | "trade";
 
 export function MarketPage({ user, refreshUser, addToast }: Props) {
   const [tab, setTab] = useState<Tab>("shop");
@@ -188,19 +190,19 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
         <span className="text-xs font-mono" style={{ color: "#f59e0b" }}>{formatDC(user.dc)} DC</span>
       </div>
 
-      <div className="flex gap-2">
-        {(["shop", "listings"] as Tab[]).map(t => (
+      <div className="flex gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+        {(["shop", "listings", "auction", "trade"] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className="flex-1 py-2 rounded text-xs font-mono uppercase"
+            className="flex-shrink-0 py-1.5 px-3 rounded text-xs font-mono uppercase"
             style={{
               background: tab === t ? "#00d4ff18" : "transparent",
               color: tab === t ? "#00d4ff" : "#475569",
               border: `1px solid ${tab === t ? "#00d4ff40" : "#1e1e2e"}`,
             }}
           >
-            {t === "shop" ? "Corp Shop" : "Player Market"}
+            {t === "shop" ? "Corp Shop" : t === "listings" ? "P2P Market" : t === "auction" ? "Auction" : "Trades"}
           </button>
         ))}
       </div>
@@ -237,6 +239,14 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
             ))
           )}
         </div>
+      )}
+
+      {tab === "auction" && (
+        <AuctionPage user={user} addToast={addToast} />
+      )}
+
+      {tab === "trade" && (
+        <TradePage user={user} addToast={addToast} />
       )}
     </div>
   );

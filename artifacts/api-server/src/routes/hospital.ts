@@ -7,14 +7,27 @@ import { isHospitalized } from "../models/User";
 
 const router = Router();
 
-// GET /api/hospital/status
+// GET /api/hospital/status — returns tier (light/serious/critical) based on time remaining
 router.get("/status", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId).lean();
     if (!user) return res.status(404).json({ message: "Not found" });
     const hosp = user.hospitalizedUntil && user.hospitalizedUntil > new Date();
     const timeRemaining = hosp ? Math.ceil((user.hospitalizedUntil!.getTime() - Date.now()) / 1000) : 0;
-    const dischargeCost = hosp ? Math.ceil(timeRemaining / 60) * 50 : 0;
+    const minsRemaining = Math.ceil(timeRemaining / 60);
+
+    // Triage tier determines cost per minute and label
+    let tier: "light" | "serious" | "critical";
+    let costPerMin: number;
+    if (minsRemaining <= 5) {
+      tier = "light";      costPerMin = 25;
+    } else if (minsRemaining <= 30) {
+      tier = "serious";    costPerMin = 50;
+    } else {
+      tier = "critical";   costPerMin = 75;
+    }
+    const dischargeCost = hosp ? Math.max(25, minsRemaining * costPerMin) : 0;
+
     res.json({
       hospitalized: !!hosp,
       health: user.health,
@@ -22,6 +35,8 @@ router.get("/status", requireAuth, async (req: AuthRequest, res) => {
       releaseAt: user.hospitalizedUntil,
       timeRemaining,
       dischargeCost,
+      tier,
+      minsRemaining,
     });
   } catch (err: any) {
     req.log.error({ err }, "hospital status error");
@@ -124,7 +139,7 @@ router.post("/use-item", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/hospital/discharge — early paid discharge at 50 DC per remaining minute
+// POST /api/hospital/discharge — tiered discharge cost (light 25/min, serious 50/min, critical 75/min)
 router.post("/discharge", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId);
@@ -133,7 +148,8 @@ router.post("/discharge", requireAuth, async (req: AuthRequest, res) => {
 
     const timeLeftMs = user.hospitalizedUntil!.getTime() - Date.now();
     const minsLeft = Math.ceil(timeLeftMs / 60000);
-    const cost = Math.max(50, minsLeft * 50);
+    const costPerMin = minsLeft <= 5 ? 25 : minsLeft <= 30 ? 50 : 75;
+    const cost = Math.max(25, minsLeft * costPerMin);
 
     if (user.dc < cost) return res.status(400).json({ message: `Early discharge costs ${cost} DC (${minsLeft} min remaining)` });
 

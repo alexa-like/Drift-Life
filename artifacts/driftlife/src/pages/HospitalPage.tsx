@@ -104,6 +104,16 @@ export function HospitalPage({ user, refreshUser, addToast }: Props) {
               <p className="text-xs font-mono mt-2" style={{ color: "#475569" }}>
                 Time remaining in hospital
               </p>
+              {status?.tier && (
+                <div className="mt-2 px-3 py-1 rounded font-mono text-xs font-bold inline-block" style={{
+                  background: status.tier === "light" ? "#39d35318" : status.tier === "serious" ? "#f59e0b18" : "#ff2d5518",
+                  color: status.tier === "light" ? "#39d353" : status.tier === "serious" ? "#f59e0b" : "#ff2d55",
+                  border: `1px solid ${status.tier === "light" ? "#39d35340" : status.tier === "serious" ? "#f59e0b40" : "#ff2d5540"}`,
+                }}>
+                  TRIAGE: {status.tier.toUpperCase()}
+                  {status.tier === "light" ? " — 25 DC/min" : status.tier === "serious" ? " — 50 DC/min" : " — 75 DC/min"}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-between text-xs font-mono">

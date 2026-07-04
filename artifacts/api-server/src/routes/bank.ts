@@ -76,7 +76,7 @@ router.post("/withdraw", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/bank/transfer
+// POST /api/bank/transfer — 7% wire fee on all player-to-player transfers
 router.post("/transfer", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { targetUsername, amount: rawAmount } = req.body;
@@ -85,6 +85,10 @@ router.post("/transfer", requireAuth, async (req: AuthRequest, res) => {
     }
     const amount = Math.floor(Number(rawAmount));
     if (!amount || amount <= 0) return res.status(400).json({ message: "Invalid amount" });
+
+    const WIRE_FEE_PCT = 0.07;
+    const fee = Math.max(1, Math.floor(amount * WIRE_FEE_PCT));
+    const totalCost = amount + fee;
 
     const recipient = await User.findOne({ username: targetUsername }).select("_id username dc").lean();
     if (!recipient) return res.status(404).json({ message: "Recipient not found" });
@@ -95,22 +99,25 @@ router.post("/transfer", requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: `Recipient's wallet is full — they can hold max ${(WALLET_CAP / 1_000_000).toFixed(0)}M DC on hand` });
     }
 
-    // ATOMIC: deduct sender DC with balance check
+    // ATOMIC: deduct sender DC + fee with balance check
     const sender = await User.findOneAndUpdate(
-      { _id: req.userId, dc: { $gte: amount } },
-      { $inc: { dc: -amount } },
+      { _id: req.userId, dc: { $gte: totalCost } },
+      { $inc: { dc: -totalCost } },
       { new: true },
     );
-    if (!sender) return res.status(400).json({ message: "Insufficient funds" });
+    if (!sender) return res.status(400).json({ message: `Insufficient funds — transfer costs ${totalCost.toLocaleString()} DC (${amount.toLocaleString()} + ${fee.toLocaleString()} wire fee)` });
 
     // Credit recipient — aggregation pipeline enforces wallet cap atomically
     await User.findByIdAndUpdate(recipient._id, [
       { $set: { dc: { $min: [{ $add: ["$dc", amount] }, WALLET_CAP] } } },
     ]);
 
-    // transfers are private — no feed post
-
-    res.json({ wallet: sender.dc, bank: sender.bankBalance, message: `Transferred ${amount.toLocaleString()} DC to ${recipient.username}` });
+    res.json({
+      wallet: sender.dc,
+      bank: sender.bankBalance,
+      fee,
+      message: `Transferred ${amount.toLocaleString()} DC to ${recipient.username} (${fee.toLocaleString()} DC wire fee)`,
+    });
   } catch (err: any) {
     req.log.error({ err }, "transfer error");
     res.status(500).json({ message: "Internal server error" });

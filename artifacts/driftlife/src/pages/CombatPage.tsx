@@ -26,6 +26,16 @@ interface Props {
 
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
+const ALL_DISTRICTS = [
+  { id: "residential-north", name: "Residential North" },
+  { id: "industrial-east",   name: "Industrial East" },
+  { id: "the-boulevard",     name: "The Boulevard" },
+  { id: "port-district",     name: "Port District" },
+  { id: "downtown-core",     name: "Downtown Core" },
+  { id: "tech-quarter",      name: "Tech Quarter" },
+  { id: "the-outskirts",     name: "The Outskirts" },
+];
+
 export function CombatPage({ user, refreshUser, addToast }: Props) {
   const [tab, setTab] = useState<"npc" | "pvp">("npc");
   const [npcs, setNpcs] = useState<NPC[]>([]);
@@ -33,6 +43,8 @@ export function CombatPage({ user, refreshUser, addToast }: Props) {
   const [attacking, setAttacking] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [filterDistrict, setFilterDistrict] = useState(user.district);
+  const [levelRange, setLevelRange] = useState<"tight" | "wide" | "any">("tight");
 
   useEffect(() => {
     if (tab === "npc") loadNpcs();
@@ -48,10 +60,15 @@ export function CombatPage({ user, refreshUser, addToast }: Props) {
     finally { setLoading(false); }
   }
 
-  async function loadTargets() {
+  async function loadTargets(districtOverride?: string, range?: "tight" | "wide" | "any") {
     setLoading(true);
+    const dist = districtOverride ?? filterDistrict;
+    const lvlRange = range ?? levelRange;
+    const minLevel = lvlRange === "tight" ? Math.max(1, user.level - 10) : lvlRange === "wide" ? Math.max(1, user.level - 25) : 1;
+    const maxLevel = lvlRange === "tight" ? user.level + 10 : lvlRange === "wide" ? user.level + 25 : 999;
     try {
-      const data = await api.get<Target[]>("/combat/targets");
+      const params = new URLSearchParams({ district: dist, minLevel: String(minLevel), maxLevel: String(maxLevel) });
+      const data = await api.get<Target[]>(`/combat/targets?${params}`);
       setTargets(data);
     } catch { addToast("Failed to load targets", "error"); }
     finally { setLoading(false); }
@@ -231,11 +248,42 @@ export function CombatPage({ user, refreshUser, addToast }: Props) {
       {/* PvP Tab */}
       {tab === "pvp" && pvpUnlocked && (
         <>
+          {/* Filter bar */}
+          <div className="p-3 rounded space-y-2" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
+            <div className="flex gap-2 flex-wrap items-center">
+              <select
+                value={filterDistrict}
+                onChange={e => { setFilterDistrict(e.target.value); loadTargets(e.target.value, levelRange); }}
+                className="px-2 py-1 rounded font-mono text-xs focus:outline-none"
+                style={{ background: "#0a0a0f", border: "1px solid #2d2d3e", color: "#94a3b8" }}
+              >
+                {ALL_DISTRICTS.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}{d.id === user.district ? " (you)" : ""}</option>
+                ))}
+              </select>
+              <div className="flex gap-1">
+                {(["tight", "wide", "any"] as const).map(r => (
+                  <button key={r} onClick={() => { setLevelRange(r); loadTargets(filterDistrict, r); }}
+                    className="px-2 py-1 rounded font-mono text-xs font-bold"
+                    style={{
+                      background: levelRange === r ? "#ff6b3518" : "transparent",
+                      color: levelRange === r ? "#ff6b35" : "#475569",
+                      border: levelRange === r ? "1px solid #ff6b3540" : "1px solid #1e1e2e",
+                    }}>
+                    {r === "tight" ? "±10" : r === "wide" ? "±25" : "Any"}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => loadTargets()} className="px-2 py-1 rounded font-mono text-xs ml-auto"
+                style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>
+                Refresh
+              </button>
+            </div>
+          </div>
           <div className="flex justify-between items-center">
             <span className="font-mono text-xs" style={{ color: "#64748b" }}>
-              Players in {user.district.replace(/-/g, " ")} (±25 levels)
+              {targets.length} targets found
             </span>
-            <button onClick={loadTargets} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>Refresh</button>
           </div>
           {loading ? (
             <div className="text-center py-8 font-mono text-xs" style={{ color: "#1e1e2e" }}>Scanning for targets...</div>

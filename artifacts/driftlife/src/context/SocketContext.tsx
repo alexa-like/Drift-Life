@@ -18,17 +18,39 @@ export function SocketProvider({ userId, children }: { userId: string | null; ch
     const socket = io(window.location.origin, {
       path: "/api/socket.io",
       transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      timeout: 20000,
     });
 
     socketRef.current = socket;
 
-    socket.on("connect", () => {
-      setConnected(true);
+    function authenticate() {
       socket.emit("auth", userId);
       socket.emit("join_global");
+    }
+
+    socket.on("connect", () => {
+      setConnected(true);
+      authenticate();
     });
 
     socket.on("disconnect", () => {
+      setConnected(false);
+    });
+
+    socket.on("reconnect", () => {
+      setConnected(true);
+      authenticate();
+    });
+
+    socket.on("reconnect_attempt", () => {
+      setConnected(false);
+    });
+
+    socket.on("reconnect_error", () => {
       setConnected(false);
     });
 
