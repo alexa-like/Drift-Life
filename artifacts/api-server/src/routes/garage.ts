@@ -99,9 +99,13 @@ router.get("/catalog", requireAuth, (_req, res) => {
 router.get("/parts", requireAuth, (_req, res) => res.json(PARTS_CATALOG));
 
 // ── POST /api/garage/:carId/tune — tune a stat ──────────────────────────────
+// Server-fixed energy cost per tune action — never accept a cost multiplier
+// from the client; the cost/gain balance must be entirely server-determined.
+const TUNE_ENERGY_COST = 3;
+
 router.post("/:carId/tune", requireAuth, validateBody(garageTuneSchema), async (req: AuthRequest, res) => {
   try {
-    const { stat, partId, energyToSpend = 3 } = req.body as { stat: "power"|"handling"|"grip"|"nitro"|"durability"; partId?: string; energyToSpend?: number };
+    const { stat, partId } = req.body as { stat: "power"|"handling"|"grip"|"nitro"|"durability"; partId?: string };
 
     const car = await Car.findOne({ _id: req.params.carId, ownerId: req.userId });
     if (!car) return res.status(404).json({ message: "Car not found" });
@@ -123,8 +127,8 @@ router.post("/:carId/tune", requireAuth, validateBody(garageTuneSchema), async (
       if (user.dc < partCost) return res.status(400).json({ message: `Part costs ${partCost.toLocaleString()} DC` });
     }
 
-    // Energy cost
-    const energyCost = Math.min(10, Math.max(1, energyToSpend));
+    // Energy cost — fixed server constant, not client-influenced
+    const energyCost = TUNE_ENERGY_COST;
     const gated = await User.findOneAndUpdate(
       { _id: req.userId, ...energySufficientExpr(energyCost) },
       buildRegenPipeline({ energyCost }),

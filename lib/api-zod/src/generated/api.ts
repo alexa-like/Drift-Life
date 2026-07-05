@@ -348,10 +348,10 @@ export const UpdateMeResponse = zod.object({
 
 
 /**
- * @summary Get player by tag
+ * @summary Get player by username
  */
 export const GetPlayerByTagParams = zod.object({
-  "tag": zod.coerce.string()
+  "username": zod.coerce.string()
 })
 
 export const GetPlayerByTagResponse = zod.object({
@@ -578,8 +578,8 @@ export const GetPvpTargetsResponse = zod.array(GetPvpTargetsResponseItem)
 /**
  * @summary Attack another player
  */
-export const AttackPlayerParams = zod.object({
-  "targetId": zod.coerce.string()
+export const AttackPlayerBody = zod.object({
+  "targetId": zod.string()
 })
 
 export const AttackPlayerResponse = zod.object({
@@ -655,6 +655,35 @@ export const SalvageItemResponse = zod.object({
  */
 export const SalvageAllCommonsResponse = zod.object({
   "dc": zod.number(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary List an inventory item on the player market
+ */
+export const ListInventoryItemParams = zod.object({
+  "itemId": zod.coerce.string()
+})
+
+export const ListInventoryItemBody = zod.object({
+  "price": zod.number()
+})
+
+export const ListInventoryItemResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Directly trade an item to another player
+ */
+export const TradeInventoryItemBody = zod.object({
+  "itemId": zod.string(),
+  "targetUserId": zod.string()
+})
+
+export const TradeInventoryItemResponse = zod.object({
   "message": zod.string()
 })
 
@@ -812,6 +841,34 @@ export const GetHospitalStatusResponse = zod.object({
  * @summary Early paid discharge
  */
 export const HospitalDischargeResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Use a healing item while hospitalized
+ */
+export const HospitalUseItemBody = zod.object({
+  "itemId": zod.string()
+})
+
+export const HospitalUseItemResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Pay DC to fully heal while hospitalized
+ */
+export const HospitalHealResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Pay DC to release early from hospital (alias of discharge)
+ */
+export const HospitalReleaseEarlyResponse = zod.object({
   "message": zod.string()
 })
 
@@ -1130,7 +1187,7 @@ export const GetOwnerStatsResponse = zod.object({
 
 
 /**
- * @summary Search players
+ * @summary List/search players
  */
 export const SearchPlayersQueryParams = zod.object({
   "q": zod.coerce.string().optional(),
@@ -1189,30 +1246,62 @@ export const SearchPlayersResponse = zod.object({
 
 
 /**
- * @summary Adjust player DC, NC, level
+ * @summary Get a single player's admin detail
  */
-export const AdjustPlayerParams = zod.object({
-  "userId": zod.coerce.string()
+export const GetPlayerDetailParams = zod.object({
+  "id": zod.coerce.string()
 })
 
-export const AdjustPlayerBody = zod.object({
-  "dc": zod.number().optional(),
-  "nc": zod.number().optional(),
-  "level": zod.number().optional()
-})
-
-export const AdjustPlayerResponse = zod.object({
-  "message": zod.string()
+export const GetPlayerDetailResponse = zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "tag": zod.string(),
+  "email": zod.string().optional(),
+  "faction": zod.string(),
+  "level": zod.number(),
+  "xp": zod.number(),
+  "xpToNext": zod.number(),
+  "prestige": zod.number().optional(),
+  "skillPoints": zod.number().optional(),
+  "dc": zod.number(),
+  "nc": zod.number(),
+  "bankBalance": zod.number(),
+  "strength": zod.number(),
+  "charisma": zod.number(),
+  "intelligence": zod.number(),
+  "streetCred": zod.number(),
+  "energy": zod.number(),
+  "maxEnergy": zod.number(),
+  "nerve": zod.number(),
+  "maxNerve": zod.number(),
+  "health": zod.number(),
+  "maxHealth": zod.number(),
+  "wantedLevel": zod.number(),
+  "hospitalized": zod.boolean(),
+  "hospitalReleaseAt": zod.string().nullish(),
+  "currentDistrict": zod.string(),
+  "avatar": zod.number(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "equippedTitle": zod.string().nullish(),
+  "equippedFrame": zod.string().nullish(),
+  "equippedFrameRarity": zod.string().nullish(),
+  "equippedWeaponId": zod.string().nullish(),
+  "equippedClothingId": zod.string().nullish(),
+  "equippedVehicleId": zod.string().nullish(),
+  "role": zod.string(),
+  "devMode": zod.boolean(),
+  "titles": zod.array(zod.string()).optional(),
+  "attacksToday": zod.number().optional(),
+  "lastLoginAt": zod.string().nullish(),
+  "referralCode": zod.string().optional(),
+  "referralCount": zod.number().optional()
 })
 
 
 /**
  * @summary Ban a player
  */
-export const BanPlayerParams = zod.object({
-  "userId": zod.coerce.string()
-})
-
 export const BanPlayerBody = zod.object({
   "reason": zod.string()
 })
@@ -1225,8 +1314,8 @@ export const BanPlayerResponse = zod.object({
 /**
  * @summary Unban a player
  */
-export const UnbanPlayerParams = zod.object({
-  "userId": zod.coerce.string()
+export const UnbanPlayerBody = zod.object({
+  "userId": zod.string()
 })
 
 export const UnbanPlayerResponse = zod.object({
@@ -1237,15 +1326,206 @@ export const UnbanPlayerResponse = zod.object({
 /**
  * @summary Mute a player
  */
-export const MutePlayerParams = zod.object({
-  "userId": zod.coerce.string()
-})
-
 export const MutePlayerBody = zod.object({
   "durationMinutes": zod.number()
 })
 
 export const MutePlayerResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Unmute a player
+ */
+export const UnmutePlayerBody = zod.object({
+  "userId": zod.string()
+})
+
+export const UnmutePlayerResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Set a player's role (admin/staff/player)
+ */
+export const SetPlayerRoleBody = zod.object({
+  "userId": zod.string(),
+  "role": zod.enum(['player', 'admin', 'staff', 'owner'])
+})
+
+export const SetPlayerRoleResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Adjust a player's DC balance
+ */
+export const AdjustPlayerDcBody = zod.object({
+  "userId": zod.string(),
+  "amount": zod.number()
+})
+
+export const AdjustPlayerDcResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Adjust a player's NC (premium currency) balance
+ */
+export const AdjustPlayerNcBody = zod.object({
+  "userId": zod.string(),
+  "amount": zod.number()
+})
+
+export const AdjustPlayerNcResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Set a player's level
+ */
+export const SetPlayerLevelBody = zod.object({
+  "userId": zod.string(),
+  "level": zod.number()
+})
+
+export const SetPlayerLevelResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary View admin action audit log
+ */
+export const GetAuditLogResponseItem = zod.object({
+
+}).passthrough()
+export const GetAuditLogResponse = zod.array(GetAuditLogResponseItem)
+
+
+/**
+ * @summary View recent city feed events (moderation view)
+ */
+export const GetRecentFeedAdminResponseItem = zod.object({
+
+}).passthrough()
+export const GetRecentFeedAdminResponse = zod.array(GetRecentFeedAdminResponseItem)
+
+
+/**
+ * @summary List corp-shop price overrides
+ */
+export const GetShopItemOverridesResponseItem = zod.object({
+
+}).passthrough()
+export const GetShopItemOverridesResponse = zod.array(GetShopItemOverridesResponseItem)
+
+
+/**
+ * @summary Override a corp-shop item's price
+ */
+export const SetShopItemPriceParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const SetShopItemPriceBody = zod.object({
+  "price": zod.number()
+})
+
+export const SetShopItemPriceResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Clear a corp-shop item's price override
+ */
+export const ClearShopItemPriceParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ClearShopItemPriceResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Get active global XP boost
+ */
+export const GetXpBoostResponse = zod.object({
+  "active": zod.boolean().optional(),
+  "multiplier": zod.number().optional(),
+  "expiresAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Set a global XP boost event
+ */
+export const SetXpBoostBody = zod.object({
+  "multiplier": zod.number(),
+  "durationHours": zod.number()
+})
+
+export const SetXpBoostResponse = zod.object({
+  "message": zod.string().optional(),
+  "multiplier": zod.number().optional(),
+  "expiresAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Grant merit points to a player
+ */
+export const GrantMeritBody = zod.object({
+  "userId": zod.string(),
+  "amount": zod.number()
+})
+
+export const GrantMeritResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Grant XP to a player
+ */
+export const GrantXpBody = zod.object({
+  "userId": zod.string(),
+  "amount": zod.number()
+})
+
+export const GrantXpResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary List frame economics (cost/availability overrides)
+ */
+export const GetFrameOverridesResponseItem = zod.object({
+
+}).passthrough()
+export const GetFrameOverridesResponse = zod.array(GetFrameOverridesResponseItem)
+
+
+/**
+ * @summary Update a frame's cost/availability override
+ */
+export const UpdateFrameOverrideParams = zod.object({
+  "frameId": zod.coerce.string()
+})
+
+export const UpdateFrameOverrideBody = zod.object({
+
+}).passthrough()
+
+export const UpdateFrameOverrideResponse = zod.object({
   "message": zod.string()
 })
 
@@ -1327,6 +1607,150 @@ export const DevClearWantedResponse = zod.object({
 
 
 /**
+ * @summary Dev: Give NC (premium currency)
+ */
+export const DevGiveNcBody = zod.object({
+  "amount": zod.number()
+})
+
+export const DevGiveNcResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Dev: Grant a cosmetic frame
+ */
+export const DevGiveFrameBody = zod.object({
+  "frameId": zod.string()
+})
+
+export const DevGiveFrameResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Dev: Add merit points
+ */
+export const DevAddMeritBody = zod.object({
+  "amount": zod.number()
+})
+
+export const DevAddMeritResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Get net status (firewall level, SIM balance, active hack session)
+ */
+export const GetNetStatusResponse = zod.object({
+
+}).passthrough()
+
+
+/**
+ * @summary Start a hacking session against a target player
+ */
+export const InitiateHackBody = zod.object({
+  "targetId": zod.string()
+})
+
+export const InitiateHackResponse = zod.object({
+
+}).passthrough()
+
+
+/**
+ * @summary Submit hack sequence answer
+ */
+export const SubmitHackBody = zod.object({
+  "sessionId": zod.string(),
+  "answer": zod.array(zod.string())
+})
+
+export const SubmitHackResponse = zod.object({
+
+}).passthrough()
+
+
+/**
+ * @summary Get SIM (net currency) balance and exchange rate
+ */
+export const GetSimBalanceResponse = zod.object({
+
+}).passthrough()
+
+
+/**
+ * @summary Buy SIM with DC
+ */
+export const BuySimBody = zod.object({
+  "amount": zod.number()
+})
+
+export const BuySimResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Sell SIM for DC
+ */
+export const SellSimBody = zod.object({
+  "amount": zod.number()
+})
+
+export const SellSimResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Get dark-market listings (SIM-denominated black market)
+ */
+export const GetDarkMarketListingsResponseItem = zod.object({
+
+}).passthrough()
+export const GetDarkMarketListingsResponse = zod.array(GetDarkMarketListingsResponseItem)
+
+
+/**
+ * @summary List an item on the dark market
+ */
+export const CreateDarkMarketListingBody = zod.object({
+  "itemName": zod.string(),
+  "price": zod.number(),
+  "currency": zod.enum(['dc', 'sim']).optional()
+})
+
+export const CreateDarkMarketListingResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Buy a dark-market listing
+ */
+export const BuyDarkMarketListingParams = zod.object({
+  "listingId": zod.coerce.string()
+})
+
+export const BuyDarkMarketListingResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Upgrade personal firewall level
+ */
+export const UpgradeFirewallResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary [Phase 2] Crafting recipes
  */
 export const GetCraftingRecipesResponse = zod.object({
@@ -1343,11 +1767,111 @@ export const GetSkillTreesResponse = zod.object({
 
 
 /**
- * @summary [Phase 2] Guilds
+ * @summary List all guilds
  */
-export const GetGuildsResponse = zod.object({
+export const GetGuildsResponseItem = zod.object({
+
+}).passthrough()
+export const GetGuildsResponse = zod.array(GetGuildsResponseItem)
+
+
+/**
+ * @summary Create a new guild
+ */
+export const CreateGuildBody = zod.object({
+  "name": zod.string(),
+  "tag": zod.string(),
+  "description": zod.string().optional()
+})
+
+export const CreateGuildResponse = zod.object({
+
+}).passthrough()
+
+
+/**
+ * @summary Get the current player's guild
+ */
+export const GetMyGuildResponse = zod.object({
+
+}).passthrough()
+
+
+/**
+ * @summary Join a guild
+ */
+export const JoinGuildParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const JoinGuildResponse = zod.object({
   "message": zod.string()
 })
+
+
+/**
+ * @summary Leave current guild
+ */
+export const LeaveGuildResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Donate DC to guild treasury
+ */
+export const DonateToTreasuryBody = zod.object({
+  "amount": zod.number()
+})
+
+export const DonateToTreasuryResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Promote a guild member
+ */
+export const PromoteGuildMemberBody = zod.object({
+  "targetId": zod.string()
+})
+
+export const PromoteGuildMemberResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Kick a guild member
+ */
+export const KickGuildMemberBody = zod.object({
+  "targetId": zod.string()
+})
+
+export const KickGuildMemberResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Get district turf control status
+ */
+export const GetTurfResponseItem = zod.object({
+
+}).passthrough()
+export const GetTurfResponse = zod.array(GetTurfResponseItem)
+
+
+/**
+ * @summary Run a turf-war race minigame for district control
+ */
+export const RaceForTurfParams = zod.object({
+  "districtId": zod.coerce.string()
+})
+
+export const RaceForTurfResponse = zod.object({
+
+}).passthrough()
 
 
 /**

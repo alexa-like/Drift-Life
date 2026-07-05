@@ -21,7 +21,7 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
   const [tab, setTab] = useState<"garage" | "buy" | "tune" | "races">("garage");
   const [tuneStat, setTuneStat] = useState<string>("power");
   const [tunePartId, setTunePartId] = useState<string>("");
-  const [tuneEnergy, setTuneEnergy] = useState(3);
+  const TUNE_ENERGY_COST = 3;
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [raceMode, setRaceMode] = useState<"drag" | "circuit" | "drift">("drag");
@@ -80,7 +80,7 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
     setLoading(true);
     try {
       const r = await api.post<{ gain: number; dc: number; energy: number }>(`/garage/${selectedCar.id}/tune`, {
-        stat: tuneStat, partId: tunePartId || undefined, energyToSpend: tuneEnergy,
+        stat: tuneStat, partId: tunePartId || undefined,
       });
       setMessage({ text: `+${r.gain.toFixed(3)} ${tuneStat} — ${selectedCar.name}`, type: "success" });
       await refreshCars();
@@ -557,13 +557,11 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
               </div>
 
               <div>
-                <p className="text-zinc-400 text-sm mb-1">Energy to spend: <span className="text-blue-300">{tuneEnergy}</span></p>
-                <input type="range" min={1} max={10} value={tuneEnergy} onChange={e => setTuneEnergy(Number(e.target.value))}
-                  className="w-full" />
+                <p className="text-zinc-400 text-sm mb-1">Energy cost: <span className="text-blue-300">{TUNE_ENERGY_COST}</span></p>
               </div>
 
-              <button onClick={tuneCar} disabled={loading || user.energy < tuneEnergy}
-                className={`w-full py-3 rounded-xl font-bold ${!loading && user.energy >= tuneEnergy ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}`}>
+              <button onClick={tuneCar} disabled={loading || user.energy < TUNE_ENERGY_COST}
+                className={`w-full py-3 rounded-xl font-bold ${!loading && user.energy >= TUNE_ENERGY_COST ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}`}>
                 {loading ? "Tuning…" : `Tune ${STAT_ICONS[tuneStat]} ${tuneStat}`}
               </button>
             </div>

@@ -38,7 +38,7 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [working, setWorking] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<any>(null);
-  const [miniGame, setMiniGame] = useState<{ type: "typing" | "pattern" | "timing" | "rhythm" } | null>(null);
+  const [miniGame, setMiniGame] = useState<{ type: "typing" | "pattern" | "timing" | "rhythm"; token: string } | null>(null);
   const [filterDistrict, setFilterDistrict] = useState<"all" | "here" | "any">("all");
 
   const loadJobs = useCallback(() => {
@@ -60,8 +60,8 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
       addToast(`${jobs.find(j => j.id === jobId)?.name} — +${data.dcGained} DC${data.leveled ? " + LEVEL UP!" : ""}`, "success");
       await refreshUser();
       loadJobs();
-      if (data.miniGameTriggered && data.miniGameType) {
-        setMiniGame({ type: data.miniGameType });
+      if (data.miniGameTriggered && data.miniGameType && data.miniGameToken) {
+        setMiniGame({ type: data.miniGameType, token: data.miniGameToken });
       }
     } catch (err: any) {
       addToast(err.message, "error");
@@ -71,10 +71,15 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
   }
 
   async function handleMiniGameComplete(multiplier: number) {
+    const token = miniGame?.token;
     setMiniGame(null);
-    if (multiplier > 1.0) {
+    if (multiplier > 1.0 && token) {
       try {
-        const r = await api.post<any>("/jobs/minigame/complete", { multiplier });
+        // Server derives the DC bonus itself from a 0-100 score bound to the
+        // session token issued at /work — the client can no longer just POST
+        // a raw multiplier for free DC.
+        const score = Math.round(((multiplier - 1) / 0.6) * 100);
+        const r = await api.post<any>("/jobs/minigame/complete", { token, score });
         if (r.bonus > 0) {
           addToast(`Mini-game bonus: +${r.bonus} DC`, "success");
           await refreshUser();

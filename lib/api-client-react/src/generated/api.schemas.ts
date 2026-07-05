@@ -558,12 +558,29 @@ export interface DevSetLevelInput {
   level: number;
 }
 
+export type AttackPlayerBody = {
+  targetId: string;
+};
+
+export type ListInventoryItemBody = {
+  price: number;
+};
+
+export type TradeInventoryItemBody = {
+  itemId: string;
+  targetUserId: string;
+};
+
 export type GetMarketListingsParams = {
 category?: string;
 rarity?: string;
 minPrice?: number;
 maxPrice?: number;
 sort?: string;
+};
+
+export type HospitalUseItemBody = {
+  itemId: string;
 };
 
 export type GetFeedParams = {
@@ -585,4 +602,164 @@ export type SearchPlayersParams = {
 q?: string;
 page?: number;
 };
+
+export type UnbanPlayerBody = {
+  userId: string;
+};
+
+export type UnmutePlayerBody = {
+  userId: string;
+};
+
+export type SetPlayerRoleBodyRole = typeof SetPlayerRoleBodyRole[keyof typeof SetPlayerRoleBodyRole];
+
+
+export const SetPlayerRoleBodyRole = {
+  player: 'player',
+  admin: 'admin',
+  staff: 'staff',
+  owner: 'owner',
+} as const;
+
+export type SetPlayerRoleBody = {
+  userId: string;
+  role: SetPlayerRoleBodyRole;
+};
+
+export type AdjustPlayerDcBody = {
+  userId: string;
+  amount: number;
+};
+
+export type AdjustPlayerNcBody = {
+  userId: string;
+  amount: number;
+};
+
+export type SetPlayerLevelBody = {
+  userId: string;
+  level: number;
+};
+
+export type GetAuditLog200Item = { [key: string]: unknown };
+
+export type GetRecentFeedAdmin200Item = { [key: string]: unknown };
+
+export type GetShopItemOverrides200Item = { [key: string]: unknown };
+
+export type SetShopItemPriceBody = {
+  price: number;
+};
+
+export type GetXpBoost200 = {
+  active?: boolean;
+  multiplier?: number;
+  expiresAt?: string;
+};
+
+export type SetXpBoostBody = {
+  multiplier: number;
+  durationHours: number;
+};
+
+export type SetXpBoost200 = {
+  message?: string;
+  multiplier?: number;
+  expiresAt?: string;
+};
+
+export type GrantMeritBody = {
+  userId: string;
+  amount: number;
+};
+
+export type GrantXpBody = {
+  userId: string;
+  amount: number;
+};
+
+export type GetFrameOverrides200Item = { [key: string]: unknown };
+
+export type UpdateFrameOverrideBody = { [key: string]: unknown };
+
+export type DevGiveNcBody = {
+  amount: number;
+};
+
+export type DevGiveFrameBody = {
+  frameId: string;
+};
+
+export type DevAddMeritBody = {
+  amount: number;
+};
+
+export type GetNetStatus200 = { [key: string]: unknown };
+
+export type InitiateHackBody = {
+  targetId: string;
+};
+
+export type InitiateHack200 = { [key: string]: unknown };
+
+export type SubmitHackBody = {
+  sessionId: string;
+  answer: string[];
+};
+
+export type SubmitHack200 = { [key: string]: unknown };
+
+export type GetSimBalance200 = { [key: string]: unknown };
+
+export type BuySimBody = {
+  amount: number;
+};
+
+export type SellSimBody = {
+  amount: number;
+};
+
+export type GetDarkMarketListings200Item = { [key: string]: unknown };
+
+export type CreateDarkMarketListingBodyCurrency = typeof CreateDarkMarketListingBodyCurrency[keyof typeof CreateDarkMarketListingBodyCurrency];
+
+
+export const CreateDarkMarketListingBodyCurrency = {
+  dc: 'dc',
+  sim: 'sim',
+} as const;
+
+export type CreateDarkMarketListingBody = {
+  itemName: string;
+  price: number;
+  currency?: CreateDarkMarketListingBodyCurrency;
+};
+
+export type GetGuilds200Item = { [key: string]: unknown };
+
+export type CreateGuildBody = {
+  name: string;
+  tag: string;
+  description?: string;
+};
+
+export type CreateGuild201 = { [key: string]: unknown };
+
+export type GetMyGuild200 = { [key: string]: unknown };
+
+export type DonateToTreasuryBody = {
+  amount: number;
+};
+
+export type PromoteGuildMemberBody = {
+  targetId: string;
+};
+
+export type KickGuildMemberBody = {
+  targetId: string;
+};
+
+export type GetTurf200Item = { [key: string]: unknown };
+
+export type RaceForTurf200 = { [key: string]: unknown };
 

@@ -28,8 +28,8 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   req.role     = payload.role;
 
   // Check banned status on every request — a banned user with a valid 15-min token must
-  // not be able to continue acting. Fail open on DB error so a transient outage doesn't
-  // lock everyone out.
+  // not be able to continue acting. Fail CLOSED on DB error: a transient Mongo hiccup
+  // must never let a banned (or unverifiable) user continue acting.
   User.findById(payload.userId)
     .select("banned lastActiveAt")
     .lean()
@@ -44,7 +44,10 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
       }
       next();
     })
-    .catch(() => next()); // DB error — fail open
+    .catch((err) => {
+      req.log?.error({ err }, "auth ban-check DB lookup failed — failing closed");
+      res.status(503).json({ message: "Service temporarily unavailable" });
+    });
 }
 
 export function requireOwner(req: AuthRequest, res: Response, next: NextFunction): void {

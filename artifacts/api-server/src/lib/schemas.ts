@@ -40,7 +40,8 @@ export const auctionBidSchema = z.object({
 
 // ── Jobs ─────────────────────────────────────────────────────────────────
 export const jobsMinigameCompleteSchema = z.object({
-  multiplier: z.coerce.number().finite().min(1).max(1.6),
+  token: z.string().trim().min(1),
+  score: z.coerce.number().finite().min(0).max(100),
 });
 
 // ── Garage ───────────────────────────────────────────────────────────────
@@ -51,7 +52,6 @@ export const garageBuySchema = z.object({
 export const garageTuneSchema = z.object({
   stat: z.enum(["power", "handling", "grip", "nitro", "durability"]),
   partId: z.string().trim().min(1).optional(),
-  energyToSpend: z.coerce.number().int().min(1).max(10).optional().default(3),
 });
 export const garageSetActiveSchema = z.object({
   carId: objectId,

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "crypto";
 import User from "../models/User";
 
 import { requireAuth, AuthRequest } from "../middlewares/auth";
@@ -120,16 +121,29 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
     if (!rewarded) return res.status(500).json({ message: "Internal server error" });
 
     const leveled = levelUp(rewarded);
-    if (leveled) await rewarded.save();
+
+    // Server-issued minigame session — bonus completion must present this exact
+    // token; the client can never just POST an arbitrary multiplier for free DC.
+    const miniGameTriggered = Math.random() < 0.30;
+    let miniGameToken: string | null = null;
+    if (miniGameTriggered) {
+      miniGameToken = crypto.randomBytes(16).toString("hex");
+      rewarded.pendingMinigame = {
+        token: miniGameToken,
+        jobId: job.id,
+        expiresAt: new Date(Date.now() + 45_000),
+      };
+    }
+    if (leveled || miniGameTriggered) await rewarded.save();
     checkAchievements(String(req.userId)).catch(() => {});
 
     // job completions are private — no feed post
 
-    const miniGameTriggered = Math.random() < 0.30;
     res.json({
       dcGained, xpGained, leveled,
       newLevel: leveled ? rewarded.level : undefined,
       miniGameTriggered, miniGameType: miniGameTriggered ? job.miniGame : null,
+      miniGameToken,
       cooldownUntil,
       user: { dc: rewarded.dc, energy: rewarded.energy, maxEnergy: rewarded.maxEnergy, xp: rewarded.xp, xpToNext: rewarded.xpToNext, level: rewarded.level },
     });
@@ -140,15 +154,41 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/jobs/minigame/complete — bonus after mini-game
+// Requires the exact session token issued by /work; the client reports a
+// performance score (0-100) which the server converts into the DC bonus —
+// there is no way to claim a bonus without a live, unexpired session token
+// that was actually issued for a real job completion.
 router.post("/minigame/complete", requireAuth, validateBody(jobsMinigameCompleteSchema), async (req: AuthRequest, res) => {
   try {
-    const { multiplier } = req.body;
-    if (!multiplier || multiplier < 1 || multiplier > 1.6) return res.status(400).json({ message: "Invalid multiplier" });
+    const { token, score } = req.body as { token: string; score: number };
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
+
+    const pending = user.pendingMinigame;
+    if (!pending || pending.token !== token) {
+      return res.status(400).json({ message: "No matching minigame session" });
+    }
+    if (pending.expiresAt.getTime() < Date.now()) {
+      user.pendingMinigame = null;
+      await user.save();
+      return res.status(400).json({ message: "Minigame session expired" });
+    }
+
+    // Consume the session immediately so it can never be replayed.
+    const multiplier = 1 + (Math.max(0, Math.min(100, score)) / 100) * 0.6; // 1.0–1.6
     const bonus = Math.floor(user.dc * 0.02 * (multiplier - 1) * 100);
-    await User.findByIdAndUpdate(user._id, [{ $set: { dc: { $min: [{ $add: ["$dc", bonus] }, 100_000_000] } } }]);
-    res.json({ bonus, newDc: Math.min(user.dc + bonus, 100_000_000) });
+
+    const rewarded = await User.findByIdAndUpdate(
+      user._id,
+      [{ $set: {
+        dc: { $min: [{ $add: ["$dc", bonus] }, 100_000_000] },
+        pendingMinigame: null,
+      } }],
+      { new: true },
+    );
+    if (!rewarded) return res.status(500).json({ message: "Internal server error" });
+
+    res.json({ bonus, newDc: rewarded.dc });
   } catch (err: any) {
     req.log.error({ err }, "minigame complete error");
     res.status(500).json({ message: "Internal server error" });

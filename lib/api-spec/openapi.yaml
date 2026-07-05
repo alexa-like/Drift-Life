@@ -66,7 +66,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /auth/verify-otp:
+  /auth/verify-email:
     post:
       operationId: verifyOtp
       tags: [auth]
@@ -226,15 +226,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Player"
 
-  /user/by-tag/{tag}:
+  /user/{username}:
     get:
       operationId: getPlayerByTag
       tags: [user]
-      summary: Get player by tag
+      summary: Get player by username
       security:
         - bearerAuth: []
       parameters:
-        - name: tag
+        - name: username
           in: path
           required: true
           schema:
@@ -496,7 +496,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /combat/pvp/targets:
+  /combat/targets:
     get:
       operationId: getPvpTargets
       tags: [combat]
@@ -513,19 +513,23 @@ paths:
                 items:
                   $ref: "#/components/schemas/PvpTarget"
 
-  /combat/pvp/{targetId}/attack:
+  /combat/attack:
     post:
       operationId: attackPlayer
       tags: [combat]
       summary: Attack another player
       security:
         - bearerAuth: []
-      parameters:
-        - name: targetId
-          in: path
-          required: true
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetId]
+              properties:
+                targetId:
+                  type: string
       responses:
         "200":
           description: PvP result
@@ -627,7 +631,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SalvageResult"
 
-  /inventory/salvage-commons:
+  /inventory/salvage-all-commons:
     post:
       operationId: salvageAllCommons
       tags: [inventory]
@@ -641,6 +645,70 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SalvageResult"
+
+  /inventory/{itemId}/list:
+    post:
+      operationId: listInventoryItem
+      tags: [inventory]
+      summary: List an inventory item on the player market
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [price]
+              properties:
+                price:
+                  type: number
+      responses:
+        "200":
+          description: Listed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /inventory/trade:
+    post:
+      operationId: tradeInventoryItem
+      tags: [inventory]
+      summary: Directly trade an item to another player
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemId, targetUserId]
+              properties:
+                itemId:
+                  type: string
+                targetUserId:
+                  type: string
+      responses:
+        "200":
+          description: Traded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Invalid trade
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ─── MARKET ──────────────────────────────────────────────────────────────
   /market/listings:
@@ -867,6 +935,67 @@ paths:
       responses:
         "200":
           description: Discharged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Not hospitalized or not enough DC
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /hospital/use-item:
+    post:
+      operationId: hospitalUseItem
+      tags: [hospital]
+      summary: Use a healing item while hospitalized
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemId]
+              properties:
+                itemId:
+                  type: string
+      responses:
+        "200":
+          description: Item used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /hospital/heal:
+    post:
+      operationId: hospitalHeal
+      tags: [hospital]
+      summary: Pay DC to fully heal while hospitalized
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Healed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /hospital/release-early:
+    post:
+      operationId: hospitalReleaseEarly
+      tags: [hospital]
+      summary: Pay DC to release early from hospital (alias of discharge)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Released
           content:
             application/json:
               schema:
@@ -1195,11 +1324,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/OwnerStats"
 
-  /owner/players:
+  /owner/users:
     get:
       operationId: searchPlayers
       tags: [owner]
-      summary: Search players
+      summary: List/search players
       security:
         - bearerAuth: []
       parameters:
@@ -1219,46 +1348,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/PlayerSearchResult"
 
-  /owner/players/{userId}/adjust:
-    post:
-      operationId: adjustPlayer
+  /owner/users/{id}:
+    get:
+      operationId: getPlayerDetail
       tags: [owner]
-      summary: Adjust player DC, NC, level
+      summary: Get a single player's admin detail
       security:
         - bearerAuth: []
       parameters:
-        - name: userId
+        - name: id
           in: path
           required: true
           schema:
             type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PlayerAdjustInput"
       responses:
         "200":
-          description: Adjusted
+          description: Player detail
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MessageResponse"
+                $ref: "#/components/schemas/Player"
 
-  /owner/players/{userId}/ban:
+  /owner/ban:
     post:
       operationId: banPlayer
       tags: [owner]
       summary: Ban a player
       security:
         - bearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
@@ -1273,19 +1390,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
-  /owner/players/{userId}/unban:
+  /owner/unban:
     post:
       operationId: unbanPlayer
       tags: [owner]
       summary: Unban a player
       security:
         - bearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
       responses:
         "200":
           description: Unbanned
@@ -1294,19 +1415,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
-  /owner/players/{userId}/mute:
+  /owner/mute:
     post:
       operationId: mutePlayer
       tags: [owner]
       summary: Mute a player
       security:
         - bearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
@@ -1316,6 +1431,394 @@ paths:
       responses:
         "200":
           description: Muted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/unmute:
+    post:
+      operationId: unmutePlayer
+      tags: [owner]
+      summary: Unmute a player
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+      responses:
+        "200":
+          description: Unmuted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/set-role:
+    post:
+      operationId: setPlayerRole
+      tags: [owner]
+      summary: Set a player's role (admin/staff/player)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, role]
+              properties:
+                userId:
+                  type: string
+                role:
+                  type: string
+                  enum: [player, admin, staff, owner]
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/adjust-dc:
+    post:
+      operationId: adjustPlayerDc
+      tags: [owner]
+      summary: Adjust a player's DC balance
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, amount]
+              properties:
+                userId:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: Adjusted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/adjust-nc:
+    post:
+      operationId: adjustPlayerNc
+      tags: [owner]
+      summary: Adjust a player's NC (premium currency) balance
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, amount]
+              properties:
+                userId:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: Adjusted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/set-level:
+    post:
+      operationId: setPlayerLevel
+      tags: [owner]
+      summary: Set a player's level
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, level]
+              properties:
+                userId:
+                  type: string
+                level:
+                  type: integer
+      responses:
+        "200":
+          description: Level set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/audit-log:
+    get:
+      operationId: getAuditLog
+      tags: [owner]
+      summary: View admin action audit log
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /owner/feed/recent:
+    get:
+      operationId: getRecentFeedAdmin
+      tags: [owner]
+      summary: View recent city feed events (moderation view)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Recent feed events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /owner/shop-items:
+    get:
+      operationId: getShopItemOverrides
+      tags: [owner]
+      summary: List corp-shop price overrides
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Shop item overrides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /owner/shop-items/{id}/price:
+    post:
+      operationId: setShopItemPrice
+      tags: [owner]
+      summary: Override a corp-shop item's price
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [price]
+              properties:
+                price:
+                  type: number
+      responses:
+        "200":
+          description: Price overridden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+    delete:
+      operationId: clearShopItemPrice
+      tags: [owner]
+      summary: Clear a corp-shop item's price override
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Override cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/xp-boost:
+    get:
+      operationId: getXpBoost
+      tags: [owner]
+      summary: Get active global XP boost
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active boost info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active:
+                    type: boolean
+                  multiplier:
+                    type: number
+                  expiresAt:
+                    type: string
+                    format: date-time
+    post:
+      operationId: setXpBoost
+      tags: [owner]
+      summary: Set a global XP boost event
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [multiplier, durationHours]
+              properties:
+                multiplier:
+                  type: number
+                durationHours:
+                  type: number
+      responses:
+        "200":
+          description: Boost set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  multiplier:
+                    type: number
+                  expiresAt:
+                    type: string
+                    format: date-time
+
+  /owner/grant/merit:
+    post:
+      operationId: grantMerit
+      tags: [owner]
+      summary: Grant merit points to a player
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, amount]
+              properties:
+                userId:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: Merit granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/grant/xp:
+    post:
+      operationId: grantXp
+      tags: [owner]
+      summary: Grant XP to a player
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, amount]
+              properties:
+                userId:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: XP granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /owner/frames:
+    get:
+      operationId: getFrameOverrides
+      tags: [owner]
+      summary: List frame economics (cost/availability overrides)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Frame overrides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /owner/frames/{frameId}:
+    patch:
+      operationId: updateFrameOverride
+      tags: [owner]
+      summary: Update a frame's cost/availability override
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: frameId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Frame updated
           content:
             application/json:
               schema:
@@ -1445,6 +1948,317 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
+  /dev/give-nc:
+    post:
+      operationId: devGiveNc
+      tags: [dev]
+      summary: "Dev: Give NC (premium currency)"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: NC given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /dev/give-frame:
+    post:
+      operationId: devGiveFrame
+      tags: [dev]
+      summary: "Dev: Grant a cosmetic frame"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [frameId]
+              properties:
+                frameId:
+                  type: string
+      responses:
+        "200":
+          description: Frame granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /dev/add-merit:
+    post:
+      operationId: devAddMerit
+      tags: [dev]
+      summary: "Dev: Add merit points"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: Merit added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ─── NET (HACKING / SIM CURRENCY / DARK MARKET) ───────────────────────────
+  /net/status:
+    get:
+      operationId: getNetStatus
+      tags: [net]
+      summary: Get net status (firewall level, SIM balance, active hack session)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Net status
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /net/hack/initiate:
+    post:
+      operationId: initiateHack
+      tags: [net]
+      summary: Start a hacking session against a target player
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetId]
+              properties:
+                targetId:
+                  type: string
+      responses:
+        "200":
+          description: Hack session started
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Cannot hack (firewall too strong, cooldown, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /net/hack/submit:
+    post:
+      operationId: submitHack
+      tags: [net]
+      summary: Submit hack sequence answer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId, answer]
+              properties:
+                sessionId:
+                  type: string
+                answer:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Hack result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /net/sim:
+    get:
+      operationId: getSimBalance
+      tags: [net]
+      summary: Get SIM (net currency) balance and exchange rate
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: SIM balance
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /net/sim/buy:
+    post:
+      operationId: buySim
+      tags: [net]
+      summary: Buy SIM with DC
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: integer
+      responses:
+        "200":
+          description: SIM purchased
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /net/sim/sell:
+    post:
+      operationId: sellSim
+      tags: [net]
+      summary: Sell SIM for DC
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: integer
+      responses:
+        "200":
+          description: SIM sold
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /net/dark-market:
+    get:
+      operationId: getDarkMarketListings
+      tags: [net]
+      summary: Get dark-market listings (SIM-denominated black market)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /net/dark-market/list:
+    post:
+      operationId: createDarkMarketListing
+      tags: [net]
+      summary: List an item on the dark market
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemName, price]
+              properties:
+                itemName:
+                  type: string
+                price:
+                  type: number
+                currency:
+                  type: string
+                  enum: [dc, sim]
+      responses:
+        "201":
+          description: Listed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /net/dark-market/buy/{listingId}:
+    post:
+      operationId: buyDarkMarketListing
+      tags: [net]
+      summary: Buy a dark-market listing
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Purchased
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Cannot buy (insufficient funds, listing gone, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /net/firewall/upgrade:
+    post:
+      operationId: upgradeFirewall
+      tags: [net]
+      summary: Upgrade personal firewall level
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Firewall upgraded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Not enough DC or already max level
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ─── PHASE 2 STUBS ───────────────────────────────────────────────────────
   /crafting/recipes:
     get:
@@ -1480,16 +2294,215 @@ paths:
     get:
       operationId: getGuilds
       tags: [guilds]
-      summary: "[Phase 2] Guilds"
+      summary: List all guilds
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: Coming soon
+          description: Guild list
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ComingSoon"
+                type: array
+                items:
+                  type: object
+    post:
+      operationId: createGuild
+      tags: [guilds]
+      summary: Create a new guild
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, tag]
+              properties:
+                name:
+                  type: string
+                tag:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Guild created
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /guilds/mine:
+    get:
+      operationId: getMyGuild
+      tags: [guilds]
+      summary: Get the current player's guild
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: My guild
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /guilds/{id}/join:
+    post:
+      operationId: joinGuild
+      tags: [guilds]
+      summary: Join a guild
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Joined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /guilds/leave:
+    post:
+      operationId: leaveGuild
+      tags: [guilds]
+      summary: Leave current guild
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Left guild
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /guilds/treasury/donate:
+    post:
+      operationId: donateToTreasury
+      tags: [guilds]
+      summary: Donate DC to guild treasury
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: Donated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /guilds/promote:
+    post:
+      operationId: promoteGuildMember
+      tags: [guilds]
+      summary: Promote a guild member
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetId]
+              properties:
+                targetId:
+                  type: string
+      responses:
+        "200":
+          description: Promoted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /guilds/kick:
+    post:
+      operationId: kickGuildMember
+      tags: [guilds]
+      summary: Kick a guild member
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetId]
+              properties:
+                targetId:
+                  type: string
+      responses:
+        "200":
+          description: Kicked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /guilds/turf:
+    get:
+      operationId: getTurf
+      tags: [guilds]
+      summary: Get district turf control status
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Turf status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /guilds/turf/race/{districtId}:
+    post:
+      operationId: raceForTurf
+      tags: [guilds]
+      summary: Run a turf-war race minigame for district control
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: districtId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Race result
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Cannot race (cooldown, not in guild, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /properties:
     get:

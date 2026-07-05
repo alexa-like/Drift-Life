@@ -129,6 +129,7 @@ export interface IUser extends Document {
   referredBy: string | null;
   referralCount: number;
   jobCooldowns: Record<string, Date>;
+  pendingMinigame: { token: string; jobId: string; expiresAt: Date } | null;
   lastNpcCombatAt: Date | null;
   friends: mongoose.Types.ObjectId[];
   pinkSlipWins: number;
@@ -269,6 +270,13 @@ const UserSchema = new Schema<IUser>(
     referredBy: { type: String, default: null },
     referralCount: { type: Number, default: 0 },
     jobCooldowns: { type: Map, of: Date, default: {} },
+    pendingMinigame: {
+      type: new Schema(
+        { token: String, jobId: String, expiresAt: Date },
+        { _id: false },
+      ),
+      default: null,
+    },
     lastNpcCombatAt: { type: Date, default: null },
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     implants: {

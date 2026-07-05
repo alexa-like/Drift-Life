@@ -391,12 +391,22 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
 router.post("/pursuit/resolve", requireAuth, validateBody(pursuitResolveSchema), async (req: AuthRequest, res) => {
   try {
     const { outcome } = req.body as { outcome: "bribe" | "outrun" | "busted" };
+
+    // Atomically flip pursuiteActive true -> false. This is the server's record that
+    // a pursuit was actually offered; if two requests race (or the pursuit was already
+    // resolved), only one can win this update — the loser is rejected instead of both
+    // being allowed to apply conflicting outcomes to the same pursuit event.
+    const claimed = await User.findOneAndUpdate(
+      { _id: req.userId, pursuiteActive: true },
+      { $set: { pursuiteActive: false } },
+      { new: false },
+    );
+    if (!claimed) return res.status(400).json({ message: "No active pursuit" });
+
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-    if (!user.pursuiteActive) return res.status(400).json({ message: "No active pursuit" });
 
     applyRegen(user);
-    user.pursuiteActive = false;
 
     let message = "";
     if (outcome === "bribe") {

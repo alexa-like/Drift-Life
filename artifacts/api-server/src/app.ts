@@ -61,6 +61,20 @@ app.use("/api/jobs", actionLimiter);
 app.use("/api/crimes", actionLimiter);
 app.use("/api/combat", actionLimiter);
 
+// Economy limiter — 15 req/min per IP for currency-moving endpoints
+// (bank transfer, market/auction/dark-market purchases). Tighter than the
+// generic action limiter since these directly move DC/SIM between players.
+const economyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 15,
+  message: { message: "Too many transactions — slow down" },
+});
+app.use("/api/bank/transfer", economyLimiter);
+app.use("/api/market/shop/buy", economyLimiter);
+app.use("/api/market/listings/:id/buy", economyLimiter);
+app.use("/api/auction/:id/bid", economyLimiter);
+app.use("/api/net/dark-market/buy/:listingId", economyLimiter);
+
 app.use(
   pinoHttp({
     logger,
