@@ -19,7 +19,6 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { FactionSelectPage } from "./pages/FactionSelectPage";
 import { OwnerPage } from "./pages/OwnerPage";
 import { FramesStorePage } from "./pages/FramesStorePage";
-import { FrameGalleryPage } from "./pages/FrameGalleryPage";
 import { AchievementsPage } from "./pages/AchievementsPage";
 import { ChatPage } from "./pages/ChatPage";
 import { SkillsPage } from "./pages/SkillsPage";
@@ -34,8 +33,6 @@ import GaragePage from "./pages/GaragePage";
 import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
-import { HeraldPage } from "./pages/HeraldPage";
-import { CardsPage } from "./pages/CardsPage";
 import { NavBar } from "./components/NavBar";
 import { ToastContainer } from "./components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
@@ -191,7 +188,6 @@ function GameApp() {
       case "settings":     return <SettingsPage {...pageProps} onLogout={handleLogout} />;
       case "notifications":return <NotificationsPage onUnreadChange={setUnreadNotifs} />;
       case "frames":        return <FramesStorePage {...pageProps} />;
-      case "gallery":       return <FrameGalleryPage {...pageProps} />;
       case "achievements":  return <AchievementsPage {...pageProps} />;
       case "chat":          return <ChatPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       case "skills":        return <SkillsPage user={user!} addToast={addToast} />;
@@ -207,8 +203,6 @@ function GameApp() {
       case "city":          return <CityPage user={user!} onUserUpdate={() => { refreshUser(); }} refreshUser={refreshUser} addToast={addToast} />;
       case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
-      case "herald":        return <HeraldPage {...pageProps} />;
-      case "cards":         return <CardsPage {...pageProps} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />

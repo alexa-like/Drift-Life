@@ -1,6 +1,6 @@
 /**
  * Net — Wire Cartel Section 4
- * Hacking minigame, SIM coin, dark web marketplace, firewall, drones.
+ * Hacking minigame, SIM coin, dark web marketplace, firewall.
  */
 import { Router } from "express";
 import mongoose from "mongoose";

@@ -125,7 +125,6 @@ export interface IUser extends Document {
   activeCar: mongoose.Types.ObjectId | null;
   businesses: mongoose.Types.ObjectId[];
   companions: mongoose.Types.ObjectId[];
-  cards: Array<{ cardId: string; name: string; rarity: string; obtainedAt: Date }>;
   referralCode: string;
   referredBy: string | null;
   referralCount: number;
@@ -266,14 +265,6 @@ const UserSchema = new Schema<IUser>(
     activeCar: { type: Schema.Types.ObjectId, ref: "Car", default: null },
     businesses: [{ type: Schema.Types.ObjectId, ref: "Business" }],
     companions: [{ type: Schema.Types.ObjectId, ref: "Companion" }],
-    cards: [
-      {
-        cardId: { type: String, required: true },
-        name: { type: String, required: true },
-        rarity: { type: String, required: true },
-        obtainedAt: { type: Date, default: Date.now },
-      },
-    ],
     referralCode: { type: String, unique: true, sparse: true },
     referredBy: { type: String, default: null },
     referralCount: { type: Number, default: 0 },

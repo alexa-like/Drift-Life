@@ -1,11 +1,11 @@
 /**
  * Street / Runs — Wire Cartel Section 2
- * Replaces the old flat crimes list with 5-tier car-crime/cyber-crime/street-crime Runs.
+ * 5-tier car-crime/cyber-crime/street-crime Runs.
  * All resolution is server-authoritative. Heat rises with activity, mastery improves success.
  */
 import { Router } from "express";
 import User from "../models/User";
-// In-memory hourly run counter — replaces the old FeedEvent-based approach
+// In-memory hourly run counter
 const _runCounters = new Map<string, { count: number; resetAt: number }>();
 function _getCrimeRuns(userId: string): number {
   const e = _runCounters.get(userId);
