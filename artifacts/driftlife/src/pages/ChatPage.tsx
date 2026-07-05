@@ -5,6 +5,12 @@ import { api } from "../lib/api";
 import { useSocket } from "../context/SocketContext";
 import { CyberButton } from "../components/CyberButton";
 import { ChatFrameRenderer } from "../components/ChatFrameRenderer";
+import { MentionInput } from "../components/MentionInput";
+import { MentionText } from "../components/MentionText";
+
+function handleLocNav(loc: string) {
+  (window as any).__setPage?.(loc);
+}
 
 function MessageBubble({ message, isOwn, onUsernameClick }: {
   message: ChatMessage;
@@ -13,6 +19,15 @@ function MessageBubble({ message, isOwn, onUsernameClick }: {
 }) {
   const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
   const fc = message.faction ? FACTION_COLOR[message.faction] || "#94a3b8" : "#94a3b8";
+
+  async function handleMentionUser(username: string) {
+    if (!onUsernameClick) return;
+    try {
+      const results = await api.get<Array<{ id: string; username: string }>>(`/user/search?q=${encodeURIComponent(username)}`);
+      const exact = results.find(u => u.username.toLowerCase() === username.toLowerCase());
+      if (exact) onUsernameClick(exact.id);
+    } catch { /* ignore */ }
+  }
 
   if (message.chatFrame) {
     return (
@@ -31,7 +46,11 @@ function MessageBubble({ message, isOwn, onUsernameClick }: {
           {message.title && (
             <span className="font-mono mr-1" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
           )}
-          {message.content}
+          <MentionText
+            text={message.content}
+            onUserClick={handleMentionUser}
+            onLocationClick={handleLocNav}
+          />
         </ChatFrameRenderer>
       </div>
     );
@@ -64,7 +83,11 @@ function MessageBubble({ message, isOwn, onUsernameClick }: {
           wordBreak: "break-word",
         }}
       >
-        {message.content}
+        <MentionText
+          text={message.content}
+          onUserClick={handleMentionUser}
+          onLocationClick={handleLocNav}
+        />
       </div>
     </div>
   );
@@ -77,7 +100,7 @@ interface Props {
 }
 
 function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void; placeholder?: string }) {
-  const [text,     setText]     = useState("");
+  const [text, setText] = useState("");
   const lastSent = useRef(0);
 
   function submit() {
@@ -92,14 +115,16 @@ function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void;
 
   return (
     <div className="flex gap-2 pt-2.5">
-      <input
-        value={text}
-        onChange={e => setText(e.target.value.slice(0, 256))}
-        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-        className="flex-1 font-mono text-xs px-3 py-2 rounded"
-        placeholder={placeholder || "Message..."}
-        style={{ background: "#111118", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-      />
+      <div className="flex-1">
+        <MentionInput
+          value={text}
+          onChange={setText}
+          onSubmit={submit}
+          placeholder={placeholder || "Message... (@player /location)"}
+          maxLength={256}
+          style={{ background: "#111118" }}
+        />
+      </div>
       <CyberButton size="sm" variant="primary" onClick={submit}>
         Send
       </CyberButton>
