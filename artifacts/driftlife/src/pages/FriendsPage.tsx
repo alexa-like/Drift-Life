@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { api } from "../lib/api";
 import type { User } from "../lib/types";
+import { CyberButton } from "../components/CyberButton";
+import { CyberSectionHeader } from "../components/CyberSectionHeader";
+import { AnimatedCard } from "../components/AnimatedCard";
 
 interface Props {
   user: User;
@@ -26,18 +30,17 @@ interface FriendRequest {
   createdAt: string;
 }
 
-const s = { background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 16 };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
 
 export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [requests, setRequests] = useState<FriendRequest[]>([]);
-  const [tab, setTab] = useState<"friends" | "requests" | "add">("friends");
-  const [loading, setLoading] = useState(false);
-  const [searchQ, setSearchQ] = useState("");
+  const [friends,       setFriends]       = useState<Friend[]>([]);
+  const [requests,      setRequests]      = useState<FriendRequest[]>([]);
+  const [tab,           setTab]           = useState<"friends" | "requests" | "add">("friends");
+  const [loading,       setLoading]       = useState(false);
+  const [searchQ,       setSearchQ]       = useState("");
   const [searchResults, setSearchResults] = useState<Friend[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [requestId, setRequestId] = useState("");
+  const [searching,     setSearching]     = useState(false);
+  const [requestId,     setRequestId]     = useState("");
 
   async function loadFriends() {
     try {
@@ -69,9 +72,7 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
       const r = await api.post<{ message: string }>("/friends/accept", { requestId: reqId });
       addToast(r.message, "success");
       loadFriends();
-    } catch (e: any) {
-      addToast(e.message ?? "Error", "error");
-    }
+    } catch (e: any) { addToast(e.message ?? "Error", "error"); }
   }
 
   async function declineRequest(reqId: string) {
@@ -79,9 +80,7 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
       const r = await api.delete<{ message: string }>(`/friends/request/${reqId}`);
       addToast(r.message, "info");
       setRequests(prev => prev.filter(r => r._id !== reqId));
-    } catch (e: any) {
-      addToast(e.message ?? "Error", "error");
-    }
+    } catch (e: any) { addToast(e.message ?? "Error", "error"); }
   }
 
   async function removeFriend(friendId: string) {
@@ -90,9 +89,7 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
       const r = await api.delete<{ message: string }>(`/friends/${friendId}`);
       addToast(r.message, "info");
       setFriends(prev => prev.filter(f => f._id !== friendId));
-    } catch (e: any) {
-      addToast(e.message ?? "Error", "error");
-    }
+    } catch (e: any) { addToast(e.message ?? "Error", "error"); }
   }
 
   async function doSearch(q: string) {
@@ -108,93 +105,87 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
   function FriendCard({ f }: { f: Friend }) {
     const fc = f.faction ? FACTION_COLOR[f.faction] ?? "#64748b" : "#64748b";
     return (
-      <div style={{ ...s, display: "flex", alignItems: "center", gap: 12 }}>
+      <AnimatedCard accent={fc} className="flex items-center gap-3">
         <div
-          style={{
-            width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-            background: "#0a0a0f", border: `2px solid ${fc}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 16, overflow: "hidden",
-          }}
+          className="flex-shrink-0 flex items-center justify-center rounded-full overflow-hidden"
+          style={{ width: 38, height: 38, background: "#0a0a0f", border: `2px solid ${fc}` }}
         >
-          {f.avatarUrl ? <img src={f.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : f.avatar}
+          {f.avatarUrl
+            ? <img src={f.avatarUrl} alt="" className="w-full h-full object-cover" />
+            : <span className="font-mono font-bold text-sm" style={{ color: fc }}>
+                {f.username.slice(0, 2).toUpperCase()}
+              </span>}
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 13 }}>
+        <div className="flex-1 min-w-0">
+          <div className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>
             {f.username}
             <span className="font-normal ml-2" style={{ color: "#475569", fontSize: 11 }}>#{f.tag}</span>
           </div>
-          <div className="font-mono" style={{ color: "#475569", fontSize: 11 }}>
+          <div className="font-mono text-xs" style={{ color: "#475569" }}>
             Lv.{f.level}
             {f.faction && <span style={{ color: fc, marginLeft: 8 }}>◈ {f.faction.toUpperCase()}</span>}
             {f.district && <span style={{ marginLeft: 8 }}>{f.district}</span>}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+        <div className="flex gap-2 flex-shrink-0">
           {onInspectPlayer && (
-            <button
-              onClick={() => onInspectPlayer(f._id)}
-              className="font-mono text-xs px-2 py-1 rounded"
-              style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff30", cursor: "pointer" }}
-            >
+            <CyberButton size="sm" variant="primary" onClick={() => onInspectPlayer(f._id)}>
               View
-            </button>
+            </CyberButton>
           )}
-          <button
-            onClick={() => removeFriend(f._id)}
-            className="font-mono text-xs px-2 py-1 rounded"
-            style={{ background: "#ff2d5514", color: "#ff2d55", border: "1px solid #ff2d5530", cursor: "pointer" }}
-          >
+          <CyberButton size="sm" variant="danger" onClick={() => removeFriend(f._id)}>
             Remove
-          </button>
+          </CyberButton>
         </div>
-      </div>
+      </AnimatedCard>
     );
   }
 
   const TABS = [
-    { id: "friends" as const, label: `Friends (${friends.length})` },
+    { id: "friends"  as const, label: `Friends (${friends.length})` },
     { id: "requests" as const, label: requests.length > 0 ? `Requests (${requests.length})` : "Requests" },
-    { id: "add" as const, label: "Add Friend" },
+    { id: "add"      as const, label: "Add Friend" },
   ];
 
   return (
     <div className="space-y-4" style={{ maxWidth: 640, margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ ...s, borderColor: "#00d4ff20" }}>
-        <div className="font-mono font-bold" style={{ color: "#00d4ff", letterSpacing: "0.08em" }}>CREW NETWORK</div>
-        <div className="font-mono text-xs mt-1" style={{ color: "#475569" }}>
+      <AnimatedCard accent="#00d4ff">
+        <CyberSectionHeader title="CREW NETWORK" accent="#00d4ff" cursor />
+        <p className="font-mono text-xs" style={{ color: "#475569" }}>
           Manage your connections in New Vanta.
-        </div>
-      </div>
+        </p>
+      </AnimatedCard>
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 6 }}>
+      {/* Tab bar */}
+      <div className="flex gap-2">
         {TABS.map(t => (
-          <button
+          <motion.button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className="font-mono text-xs font-bold"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            className="relative flex-1 font-mono text-xs font-bold py-2 rounded uppercase tracking-wide"
             style={{
-              flex: 1, padding: "8px 0", borderRadius: 6, cursor: "pointer",
               background: tab === t.id ? "#00d4ff20" : "#111118",
-              border: `1px solid ${tab === t.id ? "#00d4ff" : "#1e1e2e"}`,
-              color: tab === t.id ? "#00d4ff" : "#475569",
-              textTransform: "uppercase", letterSpacing: "0.06em",
-              position: "relative",
+              border:     `1px solid ${tab === t.id ? "#00d4ff" : "#1e1e2e"}`,
+              color:      tab === t.id ? "#00d4ff" : "#475569",
             }}
           >
             {t.label}
             {t.id === "requests" && requests.length > 0 && (
-              <span style={{
-                position: "absolute", top: -4, right: -4,
-                background: "#ff2d55", color: "#fff",
-                borderRadius: "50%", width: 16, height: 16,
-                fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: "bold",
-              }}>{requests.length}</span>
+              <span
+                className="absolute flex items-center justify-center font-bold"
+                style={{
+                  top: -5, right: -5,
+                  width: 16, height: 16, borderRadius: "50%",
+                  background: "#ff2d55", color: "#fff", fontSize: 9,
+                }}
+              >
+                {requests.length}
+              </span>
             )}
-          </button>
+          </motion.button>
         ))}
       </div>
 
@@ -202,11 +193,11 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
       {tab === "friends" && (
         <div className="space-y-2">
           {friends.length === 0 ? (
-            <div style={{ ...s, textAlign: "center", padding: 40 }}>
-              <div className="font-mono text-xs" style={{ color: "#334155" }}>
+            <AnimatedCard className="text-center py-10">
+              <p className="font-mono text-xs" style={{ color: "#334155" }}>
                 No friends yet. Use the Add Friend tab to connect with other players.
-              </div>
-            </div>
+              </p>
+            </AnimatedCard>
           ) : (
             friends.map(f => <FriendCard key={f._id} f={f} />)
           )}
@@ -217,57 +208,43 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
       {tab === "requests" && (
         <div className="space-y-3">
           {requests.length === 0 ? (
-            <div style={{ ...s, textAlign: "center", padding: 40 }}>
-              <div className="font-mono text-xs" style={{ color: "#334155" }}>No pending friend requests.</div>
-            </div>
+            <AnimatedCard className="text-center py-10">
+              <p className="font-mono text-xs" style={{ color: "#334155" }}>No pending friend requests.</p>
+            </AnimatedCard>
           ) : (
             requests.map(req => {
-              const f = req.from;
+              const f  = req.from;
               const fc = f.faction ? FACTION_COLOR[f.faction] ?? "#64748b" : "#64748b";
               return (
-                <div key={req._id} style={{ ...s, borderColor: "#39d35320" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                      background: "#0a0a0f", border: `2px solid ${fc}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 16, overflow: "hidden",
-                    }}>
-                      {f.avatarUrl
-                        ? <img src={f.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        : f.avatar}
+                <AnimatedCard key={req._id} accent="#39d353" className="flex items-center gap-3">
+                  <div
+                    className="flex-shrink-0 flex items-center justify-center rounded-full overflow-hidden"
+                    style={{ width: 38, height: 38, background: "#0a0a0f", border: `2px solid ${fc}` }}
+                  >
+                    {f.avatarUrl
+                      ? <img src={f.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      : <span className="font-mono font-bold text-sm" style={{ color: fc }}>
+                          {f.username.slice(0, 2).toUpperCase()}
+                        </span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>
+                      {f.username}
+                      <span style={{ color: "#475569", fontSize: 11, fontWeight: "normal", marginLeft: 8 }}>#{f.tag}</span>
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 13 }}>
-                        {f.username}
-                        <span style={{ color: "#475569", fontSize: 11, fontWeight: "normal", marginLeft: 8 }}>#{f.tag}</span>
-                      </div>
-                      <div className="font-mono" style={{ color: "#475569", fontSize: 11 }}>
-                        Lv.{f.level}
-                        {f.faction && <span style={{ color: fc, marginLeft: 8 }}>◈ {f.faction.toUpperCase()}</span>}
-                      </div>
+                    <div className="font-mono text-xs" style={{ color: "#475569" }}>
+                      Lv.{f.level}
+                      {f.faction && <span style={{ color: fc, marginLeft: 8 }}>◈ {f.faction.toUpperCase()}</span>}
                     </div>
-                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      <button
-                        onClick={() => acceptRequest(req._id)}
-                        className="font-mono text-xs px-3 py-1 rounded"
-                        style={{ background: "#39d35322", color: "#39d353", border: "1px solid #39d35340", cursor: "pointer" }}
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => declineRequest(req._id)}
-                        className="font-mono text-xs px-3 py-1 rounded"
-                        style={{ background: "#ff2d5514", color: "#ff2d55", border: "1px solid #ff2d5530", cursor: "pointer" }}
-                      >
-                        Decline
-                      </button>
+                    <div className="font-mono" style={{ fontSize: 10, color: "#334155", marginTop: 2 }}>
+                      Sent {new Date(req.createdAt).toLocaleDateString()}
                     </div>
                   </div>
-                  <div className="font-mono" style={{ color: "#334155", fontSize: 10, marginTop: 6 }}>
-                    Sent {new Date(req.createdAt).toLocaleDateString()}
+                  <div className="flex gap-2 flex-shrink-0">
+                    <CyberButton size="sm" variant="success" onClick={() => acceptRequest(req._id)}>Accept</CyberButton>
+                    <CyberButton size="sm" variant="danger"  onClick={() => declineRequest(req._id)}>Decline</CyberButton>
                   </div>
-                </div>
+                </AnimatedCard>
               );
             })
           )}
@@ -277,109 +254,88 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
       {/* ADD FRIEND TAB */}
       {tab === "add" && (
         <div className="space-y-4">
-          {/* Send by ID */}
-          <div style={{ ...s }}>
-            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#64748b", letterSpacing: "0.08em" }}>
-              SEND BY PLAYER ID
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
+          <AnimatedCard accent="#00d4ff">
+            <CyberSectionHeader title="SEND BY PLAYER ID" accent="#64748b" size="sm" />
+            <div className="flex gap-2">
               <input
                 value={requestId}
                 onChange={e => setRequestId(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") sendRequest(); }}
                 placeholder="Paste player ID..."
-                className="font-mono text-xs"
-                style={{
-                  flex: 1, background: "#0a0a0f", border: "1px solid #1e1e2e",
-                  borderRadius: 6, color: "#e2e8f0", padding: "8px 12px", outline: "none",
-                }}
+                className="flex-1 px-3 py-2 rounded font-mono text-xs"
+                style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
               />
-              <button
+              <CyberButton
+                variant="primary"
+                size="sm"
+                loading={loading}
+                disabled={!requestId.trim()}
                 onClick={sendRequest}
-                disabled={loading || !requestId.trim()}
-                className="font-mono text-xs font-bold"
-                style={{
-                  padding: "8px 16px", borderRadius: 6, cursor: loading ? "not-allowed" : "pointer",
-                  background: requestId.trim() ? "#00d4ff20" : "#111118",
-                  color: requestId.trim() ? "#00d4ff" : "#334155",
-                  border: `1px solid ${requestId.trim() ? "#00d4ff40" : "#1e1e2e"}`,
-                  flexShrink: 0,
-                }}
               >
-                {loading ? "Sending…" : "Send"}
-              </button>
+                Send
+              </CyberButton>
             </div>
-            <div className="font-mono text-xs mt-2" style={{ color: "#334155" }}>
+            <p className="font-mono text-xs mt-2" style={{ color: "#334155" }}>
               Find a player's ID by inspecting their profile.
-            </div>
-          </div>
+            </p>
+          </AnimatedCard>
 
-          {/* Search by name */}
-          <div style={{ ...s }}>
-            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#64748b", letterSpacing: "0.08em" }}>
-              SEARCH PLAYERS
-            </div>
+          <AnimatedCard accent="#00d4ff">
+            <CyberSectionHeader title="SEARCH PLAYERS" accent="#64748b" size="sm" />
             <input
               value={searchQ}
               onChange={e => { setSearchQ(e.target.value); doSearch(e.target.value); }}
               placeholder="Search by username..."
-              className="font-mono text-xs"
-              style={{
-                width: "100%", background: "#0a0a0f", border: "1px solid #1e1e2e",
-                borderRadius: 6, color: "#e2e8f0", padding: "8px 12px", outline: "none",
-                boxSizing: "border-box",
-              }}
+              className="w-full font-mono text-xs px-3 py-2 rounded"
+              style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
             />
             {searching && (
-              <div className="font-mono text-xs mt-2" style={{ color: "#475569" }}>Searching…</div>
+              <div className="font-mono text-xs mt-2" style={{ color: "#475569" }}>Searching...</div>
             )}
             {searchResults.length > 0 && (
-              <div className="space-y-1 mt-2">
+              <div className="space-y-1 mt-3">
                 {searchResults.map(r => {
                   const fc = r.faction ? FACTION_COLOR[r.faction] ?? "#64748b" : "#64748b";
                   const alreadyFriend = friends.some(f => f._id === (r as any).id || f._id === (r as any)._id);
                   return (
                     <div
                       key={(r as any).id ?? r._id}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 10,
-                        padding: "8px 10px", borderRadius: 6,
-                        background: "#0a0a0f", border: "1px solid #1e1e2e",
-                      }}
+                      className="flex items-center gap-3 px-3 py-2 rounded"
+                      style={{ background: "#0a0a0f", border: "1px solid #1e1e2e" }}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <span className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 12 }}>{r.username}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-mono font-bold text-xs" style={{ color: "#e2e8f0" }}>{r.username}</span>
                         <span className="font-mono ml-2" style={{ color: "#475569", fontSize: 11 }}>#{r.tag} · Lv.{r.level}</span>
                         {r.faction && <span className="font-mono ml-2" style={{ color: fc, fontSize: 11 }}>◈ {r.faction}</span>}
                       </div>
                       {alreadyFriend ? (
-                        <span className="font-mono text-xs" style={{ color: "#39d353" }}>Friends ✓</span>
+                        <span className="font-mono text-xs" style={{ color: "#39d353" }}>Connected</span>
                       ) : (
-                        <button
+                        <CyberButton
+                          size="sm"
+                          variant="primary"
+                          loading={loading}
                           onClick={async () => {
                             const targetId = (r as any).id ?? r._id;
                             setLoading(true);
                             try {
                               const res = await api.post<{ message: string }>("/friends/request", { targetId });
                               addToast(res.message, "success");
-                              setSearchQ("");
-                              setSearchResults([]);
+                              setSearchQ(""); setSearchResults([]);
                             } catch (e: any) {
                               addToast(e.message ?? "Error sending request", "error");
                             } finally { setLoading(false); }
                           }}
-                          className="font-mono text-xs px-2 py-1 rounded"
-                          style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff30", cursor: "pointer", flexShrink: 0 }}
                         >
                           + Add
-                        </button>
+                        </CyberButton>
                       )}
                     </div>
                   );
                 })}
               </div>
             )}
-          </div>
+          </AnimatedCard>
         </div>
       )}
     </div>

@@ -1,19 +1,22 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { FeedEvent, User } from "../lib/types";
 import { api } from "../lib/api";
 import { FrameCardWrapper } from "../components/FrameCardWrapper";
 import { AvatarWithFrame } from "../components/AvatarWithFrame";
 import { formatDC } from "../lib/format";
 import { getFrame } from "../lib/frames";
+import { CyberButton } from "../components/CyberButton";
+import { CyberSectionHeader } from "../components/CyberSectionHeader";
 
 const TYPE_COLORS: Record<string, string> = {
-  post:    "#94a3b8",
-  crime:   "#ff6b35",
-  job:     "#39d353",
-  combat:  "#ff2d55",
-  system:  "#a855f7",
-  bank:    "#f59e0b",
-  market:  "#00d4ff",
+  post:   "#94a3b8",
+  crime:  "#ff6b35",
+  job:    "#39d353",
+  combat: "#ff2d55",
+  system: "#a855f7",
+  bank:   "#f59e0b",
+  market: "#00d4ff",
 };
 
 const FEED_FILTERS: { id: string; label: string }[] = [
@@ -25,37 +28,34 @@ const FEED_FILTERS: { id: string; label: string }[] = [
 ];
 
 const REACTIONS = ["like", "laugh", "shock", "respect"] as const;
-const REACTION_EMOJI: Record<string, string> = { like: "👍", laugh: "😂", shock: "😱", respect: "🫡" };
+const REACTION_LABEL: Record<string, string> = { like: "+", laugh: "heh", shock: "!!!", respect: "/\\/" };
 
 interface Props { user?: User; onInspectPlayer?: (id: string) => void; }
 
 export function FeedPage({ user, onInspectPlayer }: Props) {
-  const [events, setEvents] = useState<FeedEvent[]>([]);
-  const [allEvents, setAllEvents] = useState<FeedEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [events,      setEvents]      = useState<FeedEvent[]>([]);
+  const [allEvents,   setAllEvents]   = useState<FeedEvent[]>([]);
+  const [loading,     setLoading]     = useState(true);
   const [postContent, setPostContent] = useState("");
-  const [posting, setPosting] = useState(false);
+  const [posting,     setPosting]     = useState(false);
   const [commentOpen, setCommentOpen] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [typeFilter,  setTypeFilter]  = useState<string>("all");
 
   const load = () => {
     setLoading(true);
     api.get<FeedEvent[]>("/feed?limit=100")
-      .then(data => { setAllEvents(data); }).catch(() => {}).finally(() => setLoading(false));
+      .then(data => { setAllEvents(data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    if (typeFilter === "all") {
-      setEvents(allEvents);
-    } else {
-      setEvents(allEvents.filter(e => e.type === typeFilter));
-    }
+    setEvents(typeFilter === "all" ? allEvents : allEvents.filter(e => e.type === typeFilter));
   }, [typeFilter, allEvents]);
 
   useEffect(() => {
     load();
-    // Refresh every 60 s — algorithmic feed doesn't need hammering
     const interval = setInterval(load, 60_000);
     return () => clearInterval(interval);
   }, []);
@@ -67,9 +67,7 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
       await api.post("/feed", { content: postContent.trim() });
       setPostContent("");
       load();
-    } catch { /* ignore */ } finally {
-      setPosting(false);
-    }
+    } catch { /* ignore */ } finally { setPosting(false); }
   }
 
   async function react(eventId: string, reaction: string) {
@@ -101,50 +99,50 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
     } catch { /* ignore */ }
   }
 
-  // composer frame is the current user's feed-surface frame
-  const myFrame = (user?.equippedFrames?.feed && user.equippedFrames.feed !== "ghostFrame") ? user.equippedFrames.feed : (user?.equippedFrame || null);
+  const myFrame      = (user?.equippedFrames?.feed && user.equippedFrames.feed !== "ghostFrame") ? user.equippedFrames.feed : (user?.equippedFrame || null);
   const myFrameColor = user?.equippedFrameColor || null;
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="font-mono font-bold text-lg" style={{ color: "#94a3b8" }}>CITY FEED</h2>
-          <p className="font-mono text-xs" style={{ color: "#334155" }}>Live from New Vanta</p>
-        </div>
-        <button onClick={load} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>
-          Refresh
-        </button>
-      </div>
+      {/* Header */}
+      <CyberSectionHeader
+        title="CITY FEED"
+        accent="#00d4ff"
+        cursor
+        right={
+          <CyberButton variant="ghost" size="sm" onClick={load} loading={loading}>
+            Refresh
+          </CyberButton>
+        }
+      />
 
-      {/* Type filter */}
+      {/* Type filters */}
       <div className="flex gap-2 flex-wrap">
         {FEED_FILTERS.map(f => {
-          const color = TYPE_COLORS[f.id] ?? "#64748b";
+          const color    = TYPE_COLORS[f.id] ?? "#64748b";
           const isActive = typeFilter === f.id;
+          const count    = f.id !== "all" ? allEvents.filter(e => e.type === f.id).length : 0;
           return (
-            <button
+            <motion.button
               key={f.id}
               onClick={() => setTypeFilter(f.id)}
-              className="font-mono text-xs px-3 py-1 rounded transition-all"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="font-mono text-xs px-3 py-1 rounded transition-colors"
               style={{
-                background: isActive ? (f.id === "all" ? "#ffffff08" : color + "18") : "#111118",
-                color: isActive ? (f.id === "all" ? "#94a3b8" : color) : "#475569",
-                border: `1px solid ${isActive ? (f.id === "all" ? "#1e1e2e" : color + "40") : "#1e1e2e"}`,
+                background: isActive ? (f.id === "all" ? "#ffffff08" : `${color}18`) : "transparent",
+                color:      isActive ? (f.id === "all" ? "#94a3b8"   : color)        : "#475569",
+                border:     `1px solid ${isActive ? (f.id === "all" ? "#1e1e2e" : `${color}40`) : "#1e1e2e"}`,
               }}
             >
               {f.label}
-              {f.id !== "all" && allEvents.filter(e => e.type === f.id).length > 0 && (
-                <span style={{ marginLeft: 4, opacity: 0.6 }}>
-                  {allEvents.filter(e => e.type === f.id).length}
-                </span>
-              )}
-            </button>
+              {count > 0 && <span style={{ marginLeft: 4, opacity: 0.6 }}>{count}</span>}
+            </motion.button>
           );
         })}
       </div>
 
-      {/* Post composer — wrapped in user's own frame */}
+      {/* Post composer */}
       <FrameCardWrapper frameId={myFrame} colorOverride={myFrameColor}>
         <div style={{ background: "#111118", borderRadius: 8, padding: 16 }}>
           <textarea
@@ -158,18 +156,20 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
           />
           <div className="flex justify-between items-center">
             <span className="font-mono text-xs" style={{ color: "#64748b" }}>{postContent.length}/280</span>
-            <button
+            <CyberButton
+              size="sm"
+              variant="primary"
+              loading={posting}
+              disabled={!postContent.trim()}
               onClick={sendPost}
-              disabled={posting || !postContent.trim()}
-              className="font-mono text-xs px-3 py-1 rounded"
-              style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff30" }}
             >
-              {posting ? "Posting..." : "Post"}
-            </button>
+              Post
+            </CyberButton>
           </div>
         </div>
       </FrameCardWrapper>
 
+      {/* Feed events */}
       {loading && events.length === 0 ? (
         <div className="text-center py-12 font-mono text-xs" style={{ color: "#1e1e2e" }}>Loading feed...</div>
       ) : events.length === 0 ? (
@@ -178,145 +178,162 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
         </div>
       ) : (
         <div className="space-y-2">
-          {events.map(ev => {
-            const tc = TYPE_COLORS[ev.type] ?? "#94a3b8";
+          {events.map((ev, i) => {
+            const tc          = TYPE_COLORS[ev.type] ?? "#94a3b8";
             const isCommentOpen = commentOpen === ev.id;
-            const reactions = ev.reactions || { like: 0, laugh: 0, shock: 0, respect: 0 };
-            const comments = ev.comments || [];
-            const evFrame = ev.actorFrame || null;
+            const reactions   = ev.reactions || { like: 0, laugh: 0, shock: 0, respect: 0 };
+            const comments    = ev.comments || [];
+            const evFrame     = ev.actorFrame || null;
             const evFrameColor = ev.actorFrameColor || null;
-            const evFrameDef = evFrame ? getFrame(evFrame) : null;
+            const evFrameDef  = evFrame ? getFrame(evFrame) : null;
 
             return (
-              <FrameCardWrapper
+              <motion.div
                 key={ev.id}
-                frameId={evFrame}
-                colorOverride={evFrameColor}
-                borderRadius={8}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(i * 0.02, 0.3), duration: 0.2 }}
               >
-                <div style={{ background: "#111118", borderRadius: 8 }}>
-                  <div className="flex items-start gap-3 px-4 py-3">
-                    {/* Actor avatar with frame */}
-                    {ev.actor && (
-                      <AvatarWithFrame
-                        username={ev.actor}
-                        avatarUrl={ev.actorAvatarUrl}
-                        frameId={evFrame}
-                        frameColor={evFrameColor}
-                        size="xs"
-                      />
-                    )}
-                    {!ev.actor && (
-                      <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: tc, boxShadow: `0 0 4px ${tc}` }} />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      {ev.actor && (
-                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <button
-                            className="font-mono text-xs font-bold hover:underline text-left"
-                            style={{ color: evFrameDef ? (evFrameColor || evFrameDef.glowColor) : "#94a3b8", background: "none", border: "none", padding: 0, cursor: "pointer" }}
-                            onClick={() => ev.actorId && onInspectPlayer?.(ev.actorId)}
-                          >
-                            {ev.actor}
-                          </button>
-                          {evFrameDef && (
-                            <span
-                              className="font-mono px-1 rounded"
+                <FrameCardWrapper frameId={evFrame} colorOverride={evFrameColor} borderRadius={8}>
+                  <div style={{ background: "#111118", borderRadius: 8 }}>
+                    {/* Main content */}
+                    <div className="flex items-start gap-3 px-4 py-3">
+                      {ev.actor ? (
+                        <AvatarWithFrame
+                          username={ev.actor}
+                          avatarUrl={ev.actorAvatarUrl}
+                          frameId={evFrame}
+                          frameColor={evFrameColor}
+                          size="xs"
+                        />
+                      ) : (
+                        <div
+                          className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
+                          style={{ background: tc, boxShadow: `0 0 4px ${tc}` }}
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        {ev.actor && (
+                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                            <button
+                              className="font-mono text-xs font-bold hover:underline text-left"
                               style={{
-                                fontSize: 9,
-                                background: (evFrameColor || evFrameDef.glowColor) + "20",
-                                color: evFrameColor || evFrameDef.glowColor,
-                                border: `1px solid ${(evFrameColor || evFrameDef.glowColor)}40`,
-                                textTransform: "capitalize",
+                                color: evFrameDef ? (evFrameColor || evFrameDef.glowColor) : "#94a3b8",
+                                background: "none", border: "none", padding: 0, cursor: "pointer",
                               }}
+                              onClick={() => ev.actorId && onInspectPlayer?.(ev.actorId)}
                             >
-                              {evFrameDef.name}
-                            </span>
-                          )}
+                              {ev.actor}
+                            </button>
+                            {evFrameDef && (
+                              <span
+                                className="font-mono px-1 rounded"
+                                style={{
+                                  fontSize: 9,
+                                  background: `${evFrameColor || evFrameDef.glowColor}20`,
+                                  color:      evFrameColor || evFrameDef.glowColor,
+                                  border:     `1px solid ${(evFrameColor || evFrameDef.glowColor)}40`,
+                                  textTransform: "capitalize",
+                                }}
+                              >
+                                {evFrameDef.name}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <p className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{ev.message}</p>
+                        <div className="flex gap-3 mt-0.5 flex-wrap">
+                          {ev.dc > 0 && <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>+{formatDC(ev.dc)} DC</span>}
+                          {ev.xp > 0 && <span className="font-mono text-xs" style={{ color: "#a855f7" }}>+{ev.xp} XP</span>}
                         </div>
-                      )}
-                      <p className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{ev.message}</p>
-                      <div className="flex gap-3 mt-0.5 flex-wrap">
-                        {ev.dc > 0 && <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>+{formatDC(ev.dc)} DC</span>}
-                        {ev.xp > 0 && <span className="font-mono text-xs" style={{ color: "#a855f7" }}>+{ev.xp} XP</span>}
                       </div>
+                      <span className="font-mono text-xs flex-shrink-0" style={{ color: "#334155" }}>
+                        {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
                     </div>
-                    <span className="font-mono text-xs flex-shrink-0" style={{ color: "#334155" }}>
-                      {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
 
-                  {/* Reactions + comments bar */}
-                  <div className="flex items-center gap-3 px-4 pb-2 flex-wrap" style={{ borderTop: "1px solid #1e1e2e08" }}>
-                    <div className="flex gap-1">
-                      {REACTIONS.map(r => (
-                        <button
-                          key={r}
-                          onClick={() => react(ev.id, r)}
-                          className="font-mono rounded px-1.5 py-0.5 transition-all"
-                          style={{ fontSize: 12, background: reactions[r] > 0 ? "#1e1e2e" : "transparent", border: "1px solid transparent" }}
-                          title={r}
-                        >
-                          {REACTION_EMOJI[r]}{reactions[r] > 0 && <span style={{ fontSize: 10, color: "#64748b", marginLeft: 2 }}>{reactions[r]}</span>}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => setCommentOpen(isCommentOpen ? null : ev.id)}
-                      className="font-mono text-xs"
-                      style={{ color: "#64748b" }}
+                    {/* Reaction + comment bar */}
+                    <div
+                      className="flex items-center gap-3 px-4 pb-2 flex-wrap"
+                      style={{ borderTop: "1px solid #1e1e2e08" }}
                     >
-                      {comments.length > 0 ? `${comments.length} comment${comments.length > 1 ? "s" : ""}` : "Reply"}
-                    </button>
-                    <div className="flex-1" />
-                    {ev.type === "post" && ev.actorId && user && String(ev.actorId) === user.id && (
+                      <div className="flex gap-1">
+                        {REACTIONS.map(r => (
+                          <button
+                            key={r}
+                            onClick={() => react(ev.id, r)}
+                            className="font-mono rounded px-1.5 py-0.5 transition-all"
+                            style={{
+                              fontSize: 10,
+                              background: reactions[r] > 0 ? "#1e1e2e" : "transparent",
+                              border: "1px solid transparent",
+                              color: reactions[r] > 0 ? "#94a3b8" : "#334155",
+                            }}
+                            title={r}
+                          >
+                            {REACTION_LABEL[r]}
+                            {reactions[r] > 0 && (
+                              <span style={{ fontSize: 9, color: "#64748b", marginLeft: 2 }}>{reactions[r]}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
                       <button
-                        onClick={() => deletePost(ev.id)}
-                        className="font-mono text-xs px-2 py-0.5 rounded"
-                        style={{ color: "#ff2d55", border: "1px solid #ff2d5530", background: "transparent" }}
-                        title="Delete post"
+                        onClick={() => setCommentOpen(isCommentOpen ? null : ev.id)}
+                        className="font-mono text-xs"
+                        style={{ color: "#64748b" }}
                       >
-                        Delete
+                        {comments.length > 0 ? `${comments.length} reply${comments.length > 1 ? "s" : ""}` : "Reply"}
                       </button>
-                    )}
-                    <span className="font-mono text-xs" style={{ color: "#1e1e2e", fontSize: 10 }}>
-                      {(() => {
-                        const diff = Date.now() - new Date(ev.createdAt).getTime();
-                        const remaining = 86400000 - diff;
-                        if (remaining <= 0) return "expiring";
-                        const h = Math.floor(remaining / 3600000);
-                        return `${h}h left`;
-                      })()}
-                    </span>
-                  </div>
-
-                  {/* Comments */}
-                  {(isCommentOpen || comments.length > 0) && (
-                    <div style={{ borderTop: "1px solid #1e1e2e", padding: "8px 16px" }}>
-                      {comments.slice(-3).map((c, i) => (
-                        <div key={i} className="font-mono text-xs mb-1">
-                          <span style={{ color: "#00d4ff" }}>{c.username}:</span>{" "}
-                          <span style={{ color: "#94a3b8" }}>{c.content}</span>
-                        </div>
-                      ))}
-                      {isCommentOpen && (
-                        <div className="flex gap-2 mt-2">
-                          <input
-                            value={commentText}
-                            onChange={e => setCommentText(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && sendComment(ev.id)}
-                            placeholder="Reply..."
-                            maxLength={280}
-                            className="flex-1 px-2 py-1 rounded font-mono text-xs"
-                            style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-                          />
-                          <button onClick={() => sendComment(ev.id)} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#1e1e2e", color: "#94a3b8" }}>Send</button>
-                        </div>
+                      <div className="flex-1" />
+                      {ev.type === "post" && ev.actorId && user && String(ev.actorId) === user.id && (
+                        <button
+                          onClick={() => deletePost(ev.id)}
+                          className="font-mono text-xs px-2 py-0.5 rounded"
+                          style={{ color: "#ff2d55", border: "1px solid #ff2d5530", background: "transparent" }}
+                        >
+                          Delete
+                        </button>
                       )}
+                      <span className="font-mono" style={{ fontSize: 10, color: "#1e1e2e" }}>
+                        {(() => {
+                          const remaining = 86400000 - (Date.now() - new Date(ev.createdAt).getTime());
+                          if (remaining <= 0) return "expiring";
+                          return `${Math.floor(remaining / 3600000)}h left`;
+                        })()}
+                      </span>
                     </div>
-                  )}
-                </div>
-              </FrameCardWrapper>
+
+                    {/* Comments */}
+                    {(isCommentOpen || comments.length > 0) && (
+                      <div style={{ borderTop: "1px solid #1e1e2e", padding: "8px 16px" }}>
+                        {comments.slice(-3).map((c, ci) => (
+                          <div key={ci} className="font-mono text-xs mb-1">
+                            <span style={{ color: "#00d4ff" }}>{c.username}:</span>{" "}
+                            <span style={{ color: "#94a3b8" }}>{c.content}</span>
+                          </div>
+                        ))}
+                        {isCommentOpen && (
+                          <div className="flex gap-2 mt-2">
+                            <input
+                              value={commentText}
+                              onChange={e => setCommentText(e.target.value)}
+                              onKeyDown={e => e.key === "Enter" && sendComment(ev.id)}
+                              placeholder="Reply..."
+                              maxLength={280}
+                              className="flex-1 px-2 py-1 rounded font-mono text-xs"
+                              style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                            />
+                            <CyberButton size="sm" variant="ghost" onClick={() => sendComment(ev.id)}>
+                              Send
+                            </CyberButton>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </FrameCardWrapper>
+              </motion.div>
             );
           })}
         </div>

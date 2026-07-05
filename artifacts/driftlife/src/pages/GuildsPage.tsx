@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { User } from "../lib/types";
+import { CyberButton } from "../components/CyberButton";
+import { CyberSectionHeader } from "../components/CyberSectionHeader";
+import { AnimatedCard } from "../components/AnimatedCard";
 
 interface GuildSummary {
   id: string;
@@ -34,28 +37,34 @@ interface Props {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  leader: "#f59e0b",
+  leader:  "#f59e0b",
   officer: "#00d4ff",
-  member: "#94a3b8",
+  member:  "#94a3b8",
   recruit: "#64748b",
+};
+
+const INPUT = {
+  background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e1e2e",
+  outline: "none", borderRadius: 6, padding: "8px 12px",
+  width: "100%", boxSizing: "border-box" as const, fontFamily: "monospace", fontSize: 13,
 };
 
 export function GuildsPage({ user, addToast }: Props) {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"mine" | "browse" | "create" | "turf">("mine");
-  const [createForm, setCreateForm] = useState({ name: "", tag: "", description: "" });
+  const [tab,          setTab]         = useState<"mine" | "browse" | "create" | "turf">("mine");
+  const [createForm,   setCreateForm]  = useState({ name: "", tag: "", description: "" });
   const [donateAmount, setDonateAmount] = useState("");
-  const [turfRacing, setTurfRacing] = useState<string | null>(null);
+  const [turfRacing,   setTurfRacing]  = useState<string | null>(null);
 
   const { data: myGuild, isLoading: myGuildLoading } = useQuery<MyGuild | null>({
     queryKey: ["guild-mine"],
-    queryFn: () => api.get("/guilds/mine"),
+    queryFn:  () => api.get("/guilds/mine"),
   });
 
   const { data: allGuilds = [], isLoading: guildsLoading } = useQuery<GuildSummary[]>({
     queryKey: ["guilds"],
-    queryFn: () => api.get("/guilds"),
-    enabled: tab === "browse",
+    queryFn:  () => api.get("/guilds"),
+    enabled:  tab === "browse",
   });
 
   const createGuild = useMutation({
@@ -102,8 +111,8 @@ export function GuildsPage({ user, addToast }: Props) {
     leaderboard: Array<{ name: string; tag: string; points: number; districts: string[] }>;
   }>({
     queryKey: ["guilds-turf"],
-    queryFn: () => api.get("/guilds/turf"),
-    enabled: tab === "turf",
+    queryFn:  () => api.get("/guilds/turf"),
+    enabled:  tab === "turf",
   });
 
   const turfRace = useMutation({
@@ -116,70 +125,64 @@ export function GuildsPage({ user, addToast }: Props) {
     onError: (e: Error) => { addToast(e.message, "error"); setTurfRacing(null); },
   });
 
-  const TABS = myGuild ? ["mine", "browse", "turf"] : ["mine", "browse", "create", "turf"];
+  const TABS = myGuild
+    ? (["mine", "browse", "turf"] as const)
+    : (["mine", "browse", "create", "turf"] as const);
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
-        <h2 className="font-mono font-bold text-lg" style={{ color: "#a855f7" }}>GUILDS</h2>
+      <AnimatedCard accent="#a855f7">
+        <CyberSectionHeader title="GUILDS" accent="#a855f7" cursor />
         <p className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>
           Form crews, build a treasury, and claim territory across New Vanta. Level 15 required to create.
         </p>
-      </div>
+      </AnimatedCard>
 
-      <div className="flex gap-2">
-        {TABS.map((t) => (
-          <button
+      {/* Tab bar */}
+      <div className="flex gap-2 flex-wrap">
+        {TABS.map(t => (
+          <CyberButton
             key={t}
-            onClick={() => setTab(t as typeof tab)}
-            className="font-mono text-xs px-3 py-1 rounded capitalize"
-            style={{
-              background: tab === t ? "#a855f722" : "#111118",
-              color: tab === t ? "#a855f7" : "#64748b",
-              border: `1px solid ${tab === t ? "#a855f7" : "#1e1e2e"}`,
-              cursor: "pointer",
-            }}
+            size="sm"
+            variant={tab === t ? "purple" : "ghost"}
+            glow={tab === t}
+            onClick={() => setTab(t)}
           >
-            {t === "mine" ? "My Guild" : t}
-          </button>
+            {t === "mine" ? "My Guild" : t.charAt(0).toUpperCase() + t.slice(1)}
+          </CyberButton>
         ))}
-        {!myGuild && (
-          <button
-            onClick={() => setTab("create")}
-            className="font-mono text-xs px-3 py-1 rounded"
-            style={{ background: "#111118", color: "#64748b", border: "1px solid #1e1e2e", cursor: "pointer" }}
-          >
-            + Create
-          </button>
-        )}
       </div>
 
+      {/* MY GUILD */}
       {tab === "mine" && (
         myGuildLoading ? (
           <div className="font-mono text-xs text-center py-10" style={{ color: "#334155" }}>Loading...</div>
         ) : myGuild ? (
           <div className="space-y-4">
-            <div className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #a855f740" }}>
+            <AnimatedCard accent="#a855f7">
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <div className="font-mono font-bold text-xl" style={{ color: "#a855f7" }}>
                     [{myGuild.tag}] {myGuild.name}
                   </div>
-                  <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>{myGuild.description || "No description."}</div>
-                  <div className="flex gap-4 mt-2">
+                  <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>
+                    {myGuild.description || "No description."}
+                  </div>
+                  <div className="flex gap-4 mt-2 flex-wrap">
                     <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>Level {myGuild.level}</span>
                     <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>{myGuild.members.length}/{myGuild.maxMembers} members</span>
                     <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>{myGuild.treasury.toLocaleString()} DC treasury</span>
                     <span className="font-mono text-xs" style={{ color: ROLE_COLORS[myGuild.myRole] }}>Role: {myGuild.myRole}</span>
                   </div>
                 </div>
-                <button
+                <CyberButton
+                  variant="danger"
+                  size="sm"
+                  loading={leaveGuild.isPending}
                   onClick={() => { if (confirm("Leave this guild?")) leaveGuild.mutate(); }}
-                  className="font-mono text-xs px-3 py-1 rounded"
-                  style={{ background: "#ff2d5522", color: "#ff2d55", border: "1px solid #ff2d5540", cursor: "pointer" }}
                 >
                   Leave
-                </button>
+                </CyberButton>
               </div>
 
               <div className="mt-4 pt-3" style={{ borderTop: "1px solid #1e1e2e" }}>
@@ -188,28 +191,29 @@ export function GuildsPage({ user, addToast }: Props) {
                   <input
                     type="number"
                     value={donateAmount}
-                    onChange={(e) => setDonateAmount(e.target.value)}
+                    onChange={e => setDonateAmount(e.target.value)}
                     placeholder="Amount DC"
-                    className="font-mono text-xs px-3 py-1 rounded flex-1"
-                    style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e1e2e", outline: "none" }}
+                    className="font-mono text-xs flex-1"
+                    style={INPUT}
                   />
-                  <button
+                  <CyberButton
+                    variant="purple"
+                    size="sm"
+                    loading={donate.isPending}
+                    disabled={!donateAmount}
                     onClick={() => donate.mutate(parseInt(donateAmount))}
-                    disabled={!donateAmount || donate.isPending}
-                    className="font-mono text-xs px-4 py-1 rounded"
-                    style={{ background: "#a855f722", color: "#a855f7", border: "1px solid #a855f740", cursor: "pointer" }}
                   >
                     Donate
-                  </button>
+                  </CyberButton>
                 </div>
               </div>
-            </div>
+            </AnimatedCard>
 
-            <div className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
-              <div className="font-mono text-xs font-bold mb-3" style={{ color: "#94a3b8" }}>MEMBERS</div>
+            <AnimatedCard>
+              <CyberSectionHeader title="MEMBERS" accent="#64748b" size="sm" />
               <div className="space-y-2">
-                {myGuild.members.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between">
+                {myGuild.members.map(m => (
+                  <div key={m.id} className="flex items-center justify-between py-1.5" style={{ borderTop: "1px solid #1e1e2e08" }}>
                     <span className="font-mono text-sm" style={{ color: "#e2e8f0" }}>{m.username}</span>
                     <div className="flex items-center gap-3">
                       <span className="font-mono text-xs" style={{ color: "#64748b" }}>Lv.{m.level}</span>
@@ -218,56 +222,60 @@ export function GuildsPage({ user, addToast }: Props) {
                   </div>
                 ))}
               </div>
-            </div>
+            </AnimatedCard>
           </div>
         ) : (
-          <div className="rounded-lg p-8 text-center" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
+          <AnimatedCard className="text-center py-8">
             <div className="font-mono text-sm mb-2" style={{ color: "#64748b" }}>You are not in a guild.</div>
-            <div className="font-mono text-xs" style={{ color: "#334155" }}>Browse existing guilds or create your own (Level 15 + 10,000 DC).</div>
-            <div className="flex justify-center gap-2 mt-4">
-              <button onClick={() => setTab("browse")} className="font-mono text-xs px-4 py-2 rounded" style={{ background: "#a855f722", color: "#a855f7", border: "1px solid #a855f740", cursor: "pointer" }}>Browse Guilds</button>
-              {user.level >= 15 && <button onClick={() => setTab("create")} className="font-mono text-xs px-4 py-2 rounded" style={{ background: "#00d4ff22", color: "#00d4ff", border: "1px solid #00d4ff40", cursor: "pointer" }}>Create Guild</button>}
+            <div className="font-mono text-xs mb-4" style={{ color: "#334155" }}>
+              Browse existing guilds or create your own (Level 15 + 10,000 DC).
             </div>
-          </div>
+            <div className="flex justify-center gap-2">
+              <CyberButton variant="purple" size="sm" onClick={() => setTab("browse")}>Browse Guilds</CyberButton>
+              {user.level >= 15 && (
+                <CyberButton variant="primary" size="sm" onClick={() => setTab("create")}>Create Guild</CyberButton>
+              )}
+            </div>
+          </AnimatedCard>
         )
       )}
 
+      {/* BROWSE */}
       {tab === "browse" && (
         <div className="space-y-2">
           {guildsLoading ? (
             <div className="font-mono text-xs text-center py-10" style={{ color: "#334155" }}>Loading guilds...</div>
           ) : allGuilds.length === 0 ? (
             <div className="font-mono text-xs text-center py-10" style={{ color: "#334155" }}>No guilds found. Be the first to create one.</div>
-          ) : allGuilds.map((g) => (
-            <div key={g.id} className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-mono font-bold" style={{ color: "#a855f7" }}>[{g.tag}] {g.name}</span>
-                  <span className="font-mono text-xs ml-2" style={{ color: "#64748b" }}>Lv.{g.level}</span>
-                  <p className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>{g.description || "No description."}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>{g.memberCount}/{g.maxMembers}</span>
-                  {!myGuild && (
-                    <button
-                      onClick={() => joinGuild.mutate(g.id)}
-                      disabled={joinGuild.isPending}
-                      className="font-mono text-xs px-3 py-0.5 rounded"
-                      style={{ background: "#a855f722", color: "#a855f7", border: "1px solid #a855f740", cursor: "pointer" }}
-                    >
-                      Join
-                    </button>
-                  )}
-                </div>
+          ) : allGuilds.map(g => (
+            <AnimatedCard key={g.id} accent="#a855f7" className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <span className="font-mono font-bold" style={{ color: "#a855f7" }}>[{g.tag}] {g.name}</span>
+                <span className="font-mono text-xs ml-2" style={{ color: "#64748b" }}>Lv.{g.level}</span>
+                <p className="font-mono text-xs mt-0.5" style={{ color: "#64748b" }}>{g.description || "No description."}</p>
               </div>
-            </div>
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>{g.memberCount}/{g.maxMembers}</span>
+                {!myGuild && (
+                  <CyberButton
+                    size="sm"
+                    variant="purple"
+                    loading={joinGuild.isPending}
+                    onClick={() => joinGuild.mutate(g.id)}
+                  >
+                    Join
+                  </CyberButton>
+                )}
+              </div>
+            </AnimatedCard>
           ))}
         </div>
       )}
 
+      {/* TURF */}
       {tab === "turf" && (
         <div className="space-y-4">
-          <div className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>DISTRICT CONTROL MAP</div>
+          <CyberSectionHeader title="DISTRICT CONTROL MAP" accent="#ff6b35" />
 
           {!turfData && (
             <div className="font-mono text-xs text-center py-8" style={{ color: "#334155" }}>Loading...</div>
@@ -275,47 +283,44 @@ export function GuildsPage({ user, addToast }: Props) {
 
           {turfData?.districts.map(d => {
             const tierColor = d.tier >= 4 ? "#ff2d55" : d.tier >= 3 ? "#f59e0b" : d.tier >= 2 ? "#ff6b35" : "#39d353";
-            const canRace = myGuild && (user.guildRole === "leader" || user.guildRole === "officer");
-            const isRacing = turfRacing === d.id;
+            const canRace   = myGuild && (user.guildRole === "leader" || user.guildRole === "officer");
+            const isRacing  = turfRacing === d.id;
             return (
-              <div key={d.id} className="rounded-lg p-4" style={{ background: "#111118", border: `1px solid ${tierColor}30` }}>
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{d.name}</span>
-                      <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ background: tierColor + "22", color: tierColor }}>
-                        T{d.tier}
-                      </span>
-                    </div>
-                    <div className="flex gap-3 mt-1 font-mono text-xs flex-wrap">
-                      <span style={{ color: "#f59e0b" }}>+{d.income.toLocaleString()} DC/week income</span>
-                      <span style={{ color: "#64748b" }}>Race cost: {d.raceCost.toLocaleString()} DC treasury</span>
-                    </div>
-                    {d.controlling ? (
-                      <div className="font-mono text-xs mt-1" style={{ color: "#a855f7" }}>
-                        Controlled by [{d.controlling.guildTag}] {d.controlling.guildName}
-                      </div>
-                    ) : (
-                      <div className="font-mono text-xs mt-1" style={{ color: "#334155" }}>Unclaimed</div>
-                    )}
-                  </div>
-                  {canRace && (
-                    <button
-                      onClick={() => { setTurfRacing(d.id); turfRace.mutate(d.id); }}
-                      disabled={turfRace.isPending || isRacing}
-                      className="font-mono text-xs px-3 py-1 rounded flex-shrink-0"
-                      style={{
-                        background: "#ff6b3518",
-                        color: "#ff6b35",
-                        border: "1px solid #ff6b3540",
-                        cursor: turfRace.isPending ? "not-allowed" : "pointer",
-                      }}
+              <AnimatedCard key={d.id} accent={tierColor} className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{d.name}</span>
+                    <span
+                      className="font-mono text-xs px-1.5 py-0.5 rounded"
+                      style={{ background: `${tierColor}22`, color: tierColor }}
                     >
-                      {isRacing ? "Racing..." : "🏁 Race for Turf"}
-                    </button>
+                      T{d.tier}
+                    </span>
+                  </div>
+                  <div className="flex gap-3 mt-1 font-mono text-xs flex-wrap">
+                    <span style={{ color: "#f59e0b" }}>+{d.income.toLocaleString()} DC/week</span>
+                    <span style={{ color: "#64748b" }}>Race cost: {d.raceCost.toLocaleString()} DC</span>
+                  </div>
+                  {d.controlling ? (
+                    <div className="font-mono text-xs mt-1" style={{ color: "#a855f7" }}>
+                      Controlled by [{d.controlling.guildTag}] {d.controlling.guildName}
+                    </div>
+                  ) : (
+                    <div className="font-mono text-xs mt-1" style={{ color: "#334155" }}>Unclaimed</div>
                   )}
                 </div>
-              </div>
+                {canRace && (
+                  <CyberButton
+                    variant="warning"
+                    size="sm"
+                    loading={turfRace.isPending && isRacing}
+                    disabled={turfRace.isPending}
+                    onClick={() => { setTurfRacing(d.id); turfRace.mutate(d.id); }}
+                  >
+                    Race for Turf
+                  </CyberButton>
+                )}
+              </AnimatedCard>
             );
           })}
 
@@ -325,17 +330,15 @@ export function GuildsPage({ user, addToast }: Props) {
             </div>
           )}
 
-          {myGuild && user.guildRole !== "leader" && user.guildRole !== "officer" && (
-            <div className="font-mono text-xs text-center py-2" style={{ color: "#64748b" }}>
-              Only officers and the guild leader can initiate turf races.
-            </div>
-          )}
-
           {(turfData?.leaderboard.length ?? 0) > 0 && (
-            <div className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
-              <div className="font-mono text-xs font-bold mb-3" style={{ color: "#94a3b8" }}>WEEKLY POINTS LEADERBOARD</div>
+            <AnimatedCard>
+              <CyberSectionHeader title="WEEKLY POINTS LEADERBOARD" accent="#f59e0b" size="sm" />
               {turfData!.leaderboard.map((g, i) => (
-                <div key={g.tag} className="flex items-center justify-between py-1.5" style={{ borderTop: i > 0 ? "1px solid #1e1e2e" : undefined }}>
+                <div
+                  key={g.tag}
+                  className="flex items-center justify-between py-1.5"
+                  style={{ borderTop: i > 0 ? "1px solid #1e1e2e" : undefined }}
+                >
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs" style={{ color: "#334155" }}>#{i + 1}</span>
                     <span className="font-mono text-sm" style={{ color: "#e2e8f0" }}>[{g.tag}] {g.name}</span>
@@ -346,41 +349,42 @@ export function GuildsPage({ user, addToast }: Props) {
                   </div>
                 </div>
               ))}
-            </div>
+            </AnimatedCard>
           )}
         </div>
       )}
 
+      {/* CREATE */}
       {tab === "create" && !myGuild && (
-        <div className="rounded-lg p-4 space-y-3" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
-          <div className="font-mono text-sm font-bold" style={{ color: "#a855f7" }}>Create a Guild</div>
+        <AnimatedCard accent="#a855f7" className="space-y-3">
+          <CyberSectionHeader title="CREATE A GUILD" accent="#a855f7" />
           <div className="font-mono text-xs" style={{ color: "#64748b" }}>Cost: 10,000 DC · Requires Level 15</div>
           {[
-            { key: "name", label: "Guild Name", placeholder: "Crimson Circuit, etc." },
-            { key: "tag", label: "Tag (2-5 chars)", placeholder: "CC" },
-            { key: "description", label: "Description", placeholder: "What your crew is about..." },
-          ].map(({ key, label, placeholder }) => (
+            { key: "name",        label: "Guild Name",       placeholder: "Crimson Circuit, etc.",    max: 30  },
+            { key: "tag",         label: "Tag (2-5 chars)",  placeholder: "CC",                       max: 5   },
+            { key: "description", label: "Description",      placeholder: "What your crew is about...", max: 300 },
+          ].map(({ key, label, placeholder, max }) => (
             <div key={key}>
-              <div className="font-mono text-xs mb-1" style={{ color: "#64748b" }}>{label}</div>
+              <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>{label}</label>
               <input
                 value={createForm[key as keyof typeof createForm]}
-                onChange={(e) => setCreateForm((f) => ({ ...f, [key]: e.target.value }))}
+                onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
                 placeholder={placeholder}
-                maxLength={key === "tag" ? 5 : key === "name" ? 30 : 300}
-                className="w-full font-mono text-xs px-3 py-2 rounded"
-                style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e1e2e", outline: "none" }}
+                maxLength={max}
+                style={INPUT}
               />
             </div>
           ))}
-          <button
+          <CyberButton
+            variant="purple"
+            loading={createGuild.isPending}
+            disabled={!createForm.name || !createForm.tag}
+            className="w-full"
             onClick={() => createGuild.mutate(createForm)}
-            disabled={createGuild.isPending || !createForm.name || !createForm.tag}
-            className="w-full font-mono text-sm py-2 rounded font-bold"
-            style={{ background: "#a855f722", color: "#a855f7", border: "1px solid #a855f740", cursor: "pointer" }}
           >
-            {createGuild.isPending ? "Creating..." : "Create Guild — 10,000 DC"}
-          </button>
-        </div>
+            Create Guild — 10,000 DC
+          </CyberButton>
+        </AnimatedCard>
       )}
     </div>
   );

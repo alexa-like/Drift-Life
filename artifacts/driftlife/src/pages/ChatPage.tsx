@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { User, ChatMessage, Conversation } from "../lib/types";
 import { api } from "../lib/api";
 import { useSocket } from "../context/SocketContext";
 import { FrameRectBubble } from "../components/FrameRectBubble";
+import { CyberButton } from "../components/CyberButton";
 
 interface Props {
   user: User;
@@ -11,7 +13,7 @@ interface Props {
 }
 
 function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void; placeholder?: string }) {
-  const [text, setText] = useState("");
+  const [text,     setText]     = useState("");
   const lastSent = useRef(0);
 
   function submit() {
@@ -25,37 +27,27 @@ function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void;
   }
 
   return (
-    <div style={{ display: "flex", gap: 8, padding: "10px 0 0" }}>
+    <div className="flex gap-2 pt-2.5">
       <input
         value={text}
         onChange={e => setText(e.target.value.slice(0, 256))}
         onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-        className="font-mono text-xs"
+        className="flex-1 font-mono text-xs px-3 py-2 rounded"
         placeholder={placeholder || "Message..."}
-        style={{
-          flex: 1, background: "#111118", border: "1px solid #1e1e2e", borderRadius: 6,
-          color: "#e2e8f0", padding: "8px 12px", outline: "none",
-        }}
+        style={{ background: "#111118", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
       />
-      <button
-        onClick={submit}
-        className="font-mono text-xs font-bold"
-        style={{
-          background: "#00d4ff20", border: "1px solid #00d4ff40", borderRadius: 6,
-          color: "#00d4ff", padding: "8px 14px", cursor: "pointer", flexShrink: 0,
-        }}
-      >
+      <CyberButton size="sm" variant="primary" onClick={submit}>
         Send
-      </button>
+      </CyberButton>
     </div>
   );
 }
 
 function GlobalTab({ user, onInspect }: { user: User; onInspect?: (id: string) => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading,  setLoading]  = useState(true);
   const { socket } = useSocket();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const bottomRef  = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.get<ChatMessage[]>("/chat/global")
@@ -67,31 +59,23 @@ function GlobalTab({ user, onInspect }: { user: User; onInspect?: (id: string) =
 
   useEffect(() => {
     if (!socket) return;
-    const handler = (msg: ChatMessage) => {
-      setMessages(prev => [...prev.slice(-49), msg]);
-    };
+    const handler = (msg: ChatMessage) => setMessages(prev => [...prev.slice(-49), msg]);
     socket.on("global_message", handler);
     return () => { socket.off("global_message", handler); };
   }, [socket]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   async function send(content: string) {
-    try {
-      await api.post<any>("/chat/global", { content });
-    } catch (err: any) {
-      console.warn("send global error", err);
-    }
+    try { await api.post<any>("/chat/global", { content }); } catch { /* ignore */ }
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
-        {loading && <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", padding: 20 }}>Loading...</div>}
+        {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
         {messages.map(m => (
-          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={(uid) => onInspect?.(uid)} />
+          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -102,10 +86,10 @@ function GlobalTab({ user, onInspect }: { user: User; onInspect?: (id: string) =
 
 function DistrictTab({ user, onInspect }: { user: User; onInspect?: (id: string) => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading,  setLoading]  = useState(true);
   const { socket } = useSocket();
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const district = user.district;
+  const bottomRef  = useRef<HTMLDivElement>(null);
+  const district   = user.district;
 
   useEffect(() => {
     api.get<ChatMessage[]>(`/chat/district/${district}`)
@@ -118,35 +102,27 @@ function DistrictTab({ user, onInspect }: { user: User; onInspect?: (id: string)
   useEffect(() => {
     if (!socket) return;
     const handler = (msg: ChatMessage) => {
-      if (msg.districtId === district) {
-        setMessages(prev => [...prev.slice(-49), msg]);
-      }
+      if (msg.districtId === district) setMessages(prev => [...prev.slice(-49), msg]);
     };
     socket.on("chat_message", handler);
     return () => { socket.off("chat_message", handler); };
   }, [socket, district]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   async function send(content: string) {
-    try {
-      await api.post<any>(`/chat/district/${district}`, { content });
-    } catch (err: any) {
-      console.warn("send district error", err);
-    }
+    try { await api.post<any>(`/chat/district/${district}`, { content }); } catch { /* ignore */ }
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div className="font-mono text-xs" style={{ color: "#475569", marginBottom: 8 }}>
+      <div className="font-mono text-xs mb-2" style={{ color: "#475569" }}>
         District: <span style={{ color: "#00d4ff" }}>{district}</span>
       </div>
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
-        {loading && <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", padding: 20 }}>Loading...</div>}
+        {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
         {messages.map(m => (
-          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={(uid) => onInspect?.(uid)} />
+          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -157,10 +133,10 @@ function DistrictTab({ user, onInspect }: { user: User; onInspect?: (id: string)
 
 function FactionTab({ user, onInspect }: { user: User; onInspect?: (id: string) => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState<string | null>(null);
   const { socket } = useSocket();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const bottomRef  = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.get<ChatMessage[]>("/chat/faction")
@@ -172,23 +148,15 @@ function FactionTab({ user, onInspect }: { user: User; onInspect?: (id: string) 
 
   useEffect(() => {
     if (!socket) return;
-    const handler = (msg: ChatMessage) => {
-      setMessages(prev => [...prev.slice(-49), msg]);
-    };
+    const handler = (msg: ChatMessage) => setMessages(prev => [...prev.slice(-49), msg]);
     socket.on("faction_message", handler);
     return () => { socket.off("faction_message", handler); };
   }, [socket]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   async function send(content: string) {
-    try {
-      await api.post<any>("/chat/faction", { content });
-    } catch (err: any) {
-      console.warn("send faction error", err);
-    }
+    try { await api.post<any>("/chat/faction", { content }); } catch { /* ignore */ }
   }
 
   const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
@@ -196,15 +164,15 @@ function FactionTab({ user, onInspect }: { user: User; onInspect?: (id: string) 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div className="font-mono text-xs" style={{ color: "#475569", marginBottom: 8 }}>
+      <div className="font-mono text-xs mb-2" style={{ color: "#475569" }}>
         Faction: <span style={{ color: fc }}>◈ {user.faction?.toUpperCase()}</span>
-        <span style={{ color: "#334155", marginLeft: 8 }}>— only your faction sees this</span>
+        <span style={{ color: "#334155", marginLeft: 8 }}>— faction-only</span>
       </div>
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
-        {loading && <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", padding: 20 }}>Loading...</div>}
-        {error && <div className="font-mono text-xs" style={{ color: "#ff2d55", textAlign: "center", padding: 20 }}>{error}</div>}
+        {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
+        {error   && <div className="font-mono text-xs text-center py-5" style={{ color: "#ff2d55" }}>{error}</div>}
         {messages.map(m => (
-          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={(uid) => onInspect?.(uid)} />
+          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -214,14 +182,14 @@ function FactionTab({ user, onInspect }: { user: User; onInspect?: (id: string) 
 }
 
 function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string) => void }) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConv, setActiveConv] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loadingConvs, setLoadingConvs] = useState(true);
-  const [loadingMsgs, setLoadingMsgs] = useState(false);
-  const [search, setSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [conversations,  setConversations]  = useState<Conversation[]>([]);
+  const [activeConv,     setActiveConv]     = useState<string | null>(null);
+  const [messages,       setMessages]       = useState<ChatMessage[]>([]);
+  const [loadingConvs,   setLoadingConvs]   = useState(true);
+  const [loadingMsgs,    setLoadingMsgs]    = useState(false);
+  const [search,         setSearch]         = useState("");
+  const [searchResults,  setSearchResults]  = useState<any[]>([]);
+  const [searching,      setSearching]      = useState(false);
   const { socket } = useSocket();
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -234,14 +202,12 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
   useEffect(() => {
     if (!socket) return;
     const handler = ({ partnerId, message }: { partnerId: string; message: ChatMessage }) => {
-      if (partnerId === activeConv) {
-        setMessages(prev => [...prev.slice(-49), message]);
-      }
+      if (partnerId === activeConv) setMessages(prev => [...prev.slice(-49), message]);
       setConversations(prev => {
-        const existing = prev.findIndex(c => c.userId === partnerId);
-        if (existing >= 0) {
+        const idx = prev.findIndex(c => c.userId === partnerId);
+        if (idx >= 0) {
           const updated = [...prev];
-          updated[existing] = { ...updated[existing], lastMessage: message.content, lastAt: message.at };
+          updated[idx] = { ...updated[idx], lastMessage: message.content, lastAt: message.at };
           return updated;
         }
         return prev;
@@ -251,21 +217,14 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
     return () => { socket.off("dm_message", handler); };
   }, [socket, activeConv]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   async function openConversation(userId: string) {
     setActiveConv(userId);
     setLoadingMsgs(true);
-    try {
-      const msgs = await api.get<ChatMessage[]>(`/chat/dm/${userId}`);
-      setMessages(msgs);
-    } catch {
-      setMessages([]);
-    } finally {
-      setLoadingMsgs(false);
-    }
+    try { setMessages(await api.get<ChatMessage[]>(`/chat/dm/${userId}`)); }
+    catch { setMessages([]); }
+    finally { setLoadingMsgs(false); }
   }
 
   async function send(content: string) {
@@ -273,20 +232,14 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
     try {
       await api.post<any>(`/chat/dm/${activeConv}`, { content });
       const optimistic: ChatMessage = {
-        id: Date.now().toString(),
-        userId: user.id,
-        username: user.username,
+        id: Date.now().toString(), userId: user.id, username: user.username,
         faction: user.faction,
         frame: (user.equippedFrames?.chat && user.equippedFrames.chat !== "ghostFrame") ? user.equippedFrames.chat : user.equippedFrame,
-        frameColor: user.equippedFrameColor,
-        title: user.equippedTitle,
-        content,
-        at: new Date().toISOString(),
+        frameColor: user.equippedFrameColor, title: user.equippedTitle,
+        content, at: new Date().toISOString(),
       };
       setMessages(prev => [...prev.slice(-49), optimistic]);
-    } catch (err: any) {
-      console.warn("dm send error", err);
-    }
+    } catch { /* ignore */ }
   }
 
   async function doSearch(q: string) {
@@ -295,11 +248,8 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
     try {
       const res = await api.get<any[]>(`/user/search?q=${encodeURIComponent(q)}`);
       setSearchResults(res.filter((r: any) => r.id !== user.id));
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setSearching(false);
-    }
+    } catch { setSearchResults([]); }
+    finally { setSearching(false); }
   }
 
   const activeConvData = conversations.find(c => c.userId === activeConv);
@@ -307,7 +257,7 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
   if (activeConv) {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <div className="flex items-center gap-3 mb-2">
           <button
             onClick={() => setActiveConv(null)}
             className="font-mono text-xs"
@@ -315,14 +265,14 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
           >
             &larr; Back
           </button>
-          <span className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 13 }}>
+          <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>
             {activeConvData?.username || "DM"}
           </span>
         </div>
         <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
-          {loadingMsgs && <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", padding: 20 }}>Loading...</div>}
+          {loadingMsgs && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
           {messages.map(m => (
-            <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={(uid) => onInspect?.(uid)} />
+            <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
           ))}
           <div ref={bottomRef} />
         </div>
@@ -333,29 +283,24 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
 
   return (
     <div style={{ height: "100%", overflowY: "auto" }}>
-      <div style={{ marginBottom: 12 }}>
+      {/* Search */}
+      <div className="mb-3">
         <input
           value={search}
           onChange={e => { setSearch(e.target.value); doSearch(e.target.value); }}
           placeholder="Search players to message..."
-          className="font-mono text-xs"
-          style={{
-            width: "100%", background: "#111118", border: "1px solid #1e1e2e", borderRadius: 6,
-            color: "#e2e8f0", padding: "8px 12px", outline: "none", boxSizing: "border-box",
-          }}
+          className="font-mono text-xs w-full px-3 py-2 rounded"
+          style={{ background: "#111118", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
         />
+        {searching && <div className="font-mono text-xs mt-1" style={{ color: "#475569" }}>Searching...</div>}
         {searchResults.length > 0 && (
-          <div style={{ marginTop: 4, border: "1px solid #1e1e2e", borderRadius: 6, background: "#111118" }}>
+          <div className="mt-1 rounded overflow-hidden" style={{ border: "1px solid #1e1e2e", background: "#111118" }}>
             {searchResults.map(r => (
               <button
                 key={r.id}
                 onClick={() => { setSearch(""); setSearchResults([]); openConversation(r.id); }}
-                className="font-mono text-xs"
-                style={{
-                  display: "block", width: "100%", textAlign: "left", padding: "8px 12px",
-                  background: "none", border: "none", color: "#e2e8f0", cursor: "pointer",
-                  borderBottom: "1px solid #1e1e2e",
-                }}
+                className="font-mono text-xs w-full text-left px-3 py-2"
+                style={{ display: "block", background: "none", border: "none", borderBottom: "1px solid #1e1e2e", color: "#e2e8f0", cursor: "pointer" }}
               >
                 {r.username}
                 <span style={{ color: "#475569", marginLeft: 8 }}>Lv.{r.level}</span>
@@ -365,45 +310,45 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
         )}
       </div>
 
+      {/* Conversation list */}
       {loadingConvs ? (
-        <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", padding: 20 }}>Loading...</div>
+        <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>
       ) : conversations.length === 0 ? (
-        <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", padding: 20 }}>
-          No conversations yet. Search for a player above to start messaging.
+        <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>
+          No conversations. Search for a player above to start messaging.
         </div>
-      ) : (
-        conversations.map(c => {
-          const statusColor = c.onlineStatus === "online" ? "#39d353" : c.onlineStatus === "away" ? "#f59e0b" : "#334155";
-          const statusLabel = c.onlineStatus === "online" ? "Online" : c.onlineStatus === "away" ? "Away" : "Offline";
-          return (
-          <button
+      ) : conversations.map(c => {
+        const statusColor = c.onlineStatus === "online" ? "#39d353" : c.onlineStatus === "away" ? "#f59e0b" : "#334155";
+        const statusLabel = c.onlineStatus === "online" ? "Online" : c.onlineStatus === "away" ? "Away" : "Offline";
+        return (
+          <motion.button
             key={c.userId}
             onClick={() => openConversation(c.userId)}
+            whileHover={{ x: 2, boxShadow: "0 0 0 1px #00d4ff20" }}
+            className="flex items-center gap-3 w-full text-left rounded mb-1"
             style={{
-              display: "flex", alignItems: "center", gap: 10, width: "100%",
-              padding: "10px 12px", marginBottom: 4,
-              background: "#111118", border: "1px solid #1e1e2e", borderRadius: 6,
-              cursor: "pointer", textAlign: "left",
+              padding: "10px 12px", background: "#111118",
+              border: "1px solid #1e1e2e", cursor: "pointer",
             }}
           >
-            {/* Online status dot */}
-            <div title={statusLabel} style={{
-              width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-              background: statusColor,
-              boxShadow: c.onlineStatus === "online" ? `0 0 6px ${statusColor}` : "none",
-            }} />
+            <div
+              title={statusLabel}
+              style={{
+                width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                background: statusColor,
+                boxShadow: c.onlineStatus === "online" ? `0 0 6px ${statusColor}` : "none",
+              }}
+            />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 12 }}>{c.username}</div>
-              <div className="font-mono text-xs" style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {c.lastMessage}
-              </div>
+              <div className="font-mono font-bold text-xs" style={{ color: "#e2e8f0" }}>{c.username}</div>
+              <div className="font-mono text-xs truncate" style={{ color: "#475569" }}>{c.lastMessage}</div>
             </div>
-            <div className="font-mono" style={{ color: "#334155", fontSize: 10, flexShrink: 0 }}>
+            <div className="font-mono flex-shrink-0" style={{ fontSize: 10, color: "#334155" }}>
               {new Date(c.lastAt).toLocaleDateString()}
             </div>
-          </button>
-        );})
-      )}
+          </motion.button>
+        );
+      })}
     </div>
   );
 }
@@ -412,37 +357,34 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
   const [tab, setTab] = useState<"global" | "district" | "faction" | "messages">("global");
 
   const tabs = [
-    { id: "global" as const, label: "Global" },
-    { id: "district" as const, label: "District" },
-    ...(user.faction ? [{ id: "faction" as const, label: "Faction" }] : []),
-    { id: "messages" as const, label: "DMs" },
+    { id: "global"   as const, label: "Global"   },
+    { id: "district" as const, label: user.district.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ") },
+    ...(user.faction ? [{ id: "faction"  as const, label: user.faction.charAt(0).toUpperCase() + user.faction.slice(1) }] : []),
+    { id: "messages" as const, label: "DMs"      },
   ];
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", height: "calc(100vh - 120px)", display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+      {/* Tab bar */}
+      <div className="flex gap-1.5 mb-3">
         {tabs.map(t => (
-          <button
+          <CyberButton
             key={t.id}
+            size="sm"
+            variant={tab === t.id ? "primary" : "ghost"}
+            glow={tab === t.id}
+            className="flex-1"
             onClick={() => setTab(t.id)}
-            className="font-mono text-xs font-bold"
-            style={{
-              flex: 1, padding: "8px 0", borderRadius: 6, cursor: "pointer",
-              background: tab === t.id ? "#00d4ff20" : "#111118",
-              border: `1px solid ${tab === t.id ? "#00d4ff" : "#1e1e2e"}`,
-              color: tab === t.id ? "#00d4ff" : "#475569",
-              textTransform: "uppercase", letterSpacing: "0.08em",
-            }}
           >
             {t.label}
-          </button>
+          </CyberButton>
         ))}
       </div>
 
       <div style={{ flex: 1, overflow: "hidden" }}>
-        {tab === "global" && <GlobalTab user={user} onInspect={onInspectPlayer} />}
+        {tab === "global"   && <GlobalTab   user={user} onInspect={onInspectPlayer} />}
         {tab === "district" && <DistrictTab user={user} onInspect={onInspectPlayer} />}
-        {tab === "faction" && <FactionTab user={user} onInspect={onInspectPlayer} />}
+        {tab === "faction"  && <FactionTab  user={user} onInspect={onInspectPlayer} />}
         {tab === "messages" && <MessagesTab user={user} onInspect={onInspectPlayer} />}
       </div>
     </div>

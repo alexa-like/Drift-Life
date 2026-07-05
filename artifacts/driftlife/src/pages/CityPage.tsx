@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { api } from "../lib/api";
 import type { User, Business, District } from "../lib/types";
+import { CyberButton } from "../components/CyberButton";
+import { CyberSectionHeader } from "../components/CyberSectionHeader";
+import { AnimatedCard } from "../components/AnimatedCard";
 
 interface Props {
   user: User;
@@ -257,37 +261,46 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="font-mono font-bold text-lg" style={{ color: "#e2e8f0" }}>NEW VANTA</h1>
-          <p className="font-mono text-xs" style={{ color: "#475569" }}>
-            {user.district.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())} — Runs · Districts · Careers · Court
-          </p>
-        </div>
-        <div className="font-mono text-right text-xs" style={{ color: "#64748b" }}>
-          <span style={{ color: "#f59e0b" }}>{user.dc.toLocaleString()}</span> DC &nbsp;|&nbsp;
-          <span style={{ color: "#f97316" }}>{(user.dirtyDc ?? 0).toLocaleString()}</span> dirty
-        </div>
-      </div>
+      <AnimatedCard accent="#ff6b35">
+        <CyberSectionHeader
+          title="NEW VANTA"
+          accent="#ff6b35"
+          cursor
+          right={
+            <div className="font-mono text-xs flex gap-3">
+              <span style={{ color: "#f59e0b" }}>{user.dc.toLocaleString()} DC</span>
+              <span style={{ color: "#f97316" }}>{(user.dirtyDc ?? 0).toLocaleString()} dirty</span>
+            </div>
+          }
+        />
+        <p className="font-mono text-xs mt-1" style={{ color: "#475569" }}>
+          {user.district.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())} — Runs · Districts · Careers · Court
+        </p>
+      </AnimatedCard>
 
       {/* Top-level tab bar */}
-      <div className="flex gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+      <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
         {TOP_TABS.map(t => (
-          <button
+          <motion.button
             key={t.id}
             onClick={() => setTopTab(t.id)}
-            className="px-3 py-1.5 rounded font-mono text-sm flex-shrink-0 transition-all"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            className="relative flex-shrink-0 px-3 py-1.5 rounded font-mono text-sm font-bold uppercase tracking-wide transition-colors"
             style={{
               background: topTab === t.id ? `${t.color}18` : "transparent",
-              color: topTab === t.id ? t.color : "#475569",
-              border: topTab === t.id ? `1px solid ${t.color}40` : "1px solid #1e1e2e",
+              color:      topTab === t.id ? t.color : "#475569",
+              border:     `1px solid ${topTab === t.id ? t.color + "50" : "#1e1e2e"}`,
             }}
           >
             {t.label}
             {t.id === "court" && isJailed && (
-              <span className="ml-1 px-1 rounded text-xs" style={{ background: "#f59e0b20", color: "#f59e0b" }}>!</span>
+              <span
+                className="absolute flex items-center justify-center font-bold"
+                style={{ top: -4, right: -4, width: 14, height: 14, borderRadius: "50%", background: "#f59e0b", color: "#000", fontSize: 8 }}
+              >!</span>
             )}
-          </button>
+          </motion.button>
         ))}
       </div>
 
@@ -319,26 +332,16 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
 
           {/* Pursuit overlay */}
           {pursuit && (
-            <div className="p-4 rounded-xl space-y-3" style={{ background: "#ff2d5510", border: "1px solid #ff2d5540" }}>
-              <p className="font-mono font-bold" style={{ color: "#ff2d55" }}>PURSUIT ACTIVE — Resolve before next run</p>
+            <AnimatedCard accent="#ff2d55">
+              <p className="font-mono font-bold mb-3" style={{ color: "#ff2d55" }}>PURSUIT ACTIVE — Resolve before next run</p>
               <div className="flex gap-2 flex-wrap">
-                <button onClick={() => resolvePursuit("bribe")}
-                  className="px-4 py-2 rounded font-mono text-sm font-bold"
-                  style={{ background: "#f59e0b20", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
+                <CyberButton variant="warning" size="sm" onClick={() => resolvePursuit("bribe")}>
                   Bribe ({Math.floor((user.heat ?? 0) * 500).toLocaleString()} DC)
-                </button>
-                <button onClick={() => resolvePursuit("outrun")}
-                  className="px-4 py-2 rounded font-mono text-sm font-bold"
-                  style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}>
-                  Outrun
-                </button>
-                <button onClick={() => resolvePursuit("busted")}
-                  className="px-4 py-2 rounded font-mono text-sm font-bold"
-                  style={{ background: "#1e1e2e", color: "#94a3b8", border: "1px solid #1e1e2e" }}>
-                  Surrender
-                </button>
+                </CyberButton>
+                <CyberButton variant="primary" size="sm" onClick={() => resolvePursuit("outrun")}>Outrun</CyberButton>
+                <CyberButton variant="ghost"   size="sm" onClick={() => resolvePursuit("busted")}>Surrender</CyberButton>
               </div>
-            </div>
+            </AnimatedCard>
           )}
 
           {/* Status banners */}
@@ -367,20 +370,12 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
                   </button>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={doEscape}
-                    className="font-mono text-xs px-3 py-1.5 rounded transition-all"
-                    style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}
-                  >
+                  <CyberButton variant="success" size="sm" onClick={doEscape}>
                     Escape ({escapeChancePct}% chance) · Risk +10 min
-                  </button>
-                  <button
-                    onClick={doBribe}
-                    className="font-mono text-xs px-3 py-1.5 rounded transition-all"
-                    style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}
-                  >
+                  </CyberButton>
+                  <CyberButton variant="warning" size="sm" onClick={doBribe}>
                     Bribe Guard ({bribeCost.toLocaleString()} DC)
-                  </button>
+                  </CyberButton>
                 </div>
               </div>
             );
@@ -406,38 +401,55 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
           )}
 
           {/* Street sub-tabs */}
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {(["runs", "jail", "launder"] as const).map(t => (
-              <button key={t} onClick={() => setStreetTab(t)}
-                className="px-3 py-1.5 rounded font-mono text-xs font-bold capitalize"
-                style={{
-                  background: streetTab === t ? "#ff6b3518" : "transparent",
-                  color: streetTab === t ? "#ff6b35" : "#475569",
-                  border: streetTab === t ? "1px solid #ff6b3540" : "1px solid #1e1e2e",
-                }}>
+              <CyberButton
+                key={t}
+                size="sm"
+                variant={streetTab === t ? "warning" : "ghost"}
+                glow={streetTab === t}
+                onClick={() => setStreetTab(t)}
+              >
                 {t === "runs" ? "Runs" : t === "jail" ? "Jail List" : "Launder"}
-              </button>
+              </CyberButton>
             ))}
           </div>
 
           {streetTab === "runs" && (
             <>
-              <div className="flex gap-2 flex-wrap">
-                <button onClick={() => setSelectedTier(null)}
-                  className="px-3 py-1 rounded font-mono text-xs font-bold"
-                  style={{ background: !selectedTier ? "#e2e8f0" : "#1e1e2e", color: !selectedTier ? "#0a0a0f" : "#64748b" }}>
-                  All
-                </button>
-                {[1, 2, 3, 4, 5].map(tier => (
-                  <button key={tier} onClick={() => setSelectedTier(tier === selectedTier ? null : tier)}
-                    className={`px-3 py-1 rounded font-mono text-xs font-bold border ${RUN_TIER_COLORS[tier]}`}
-                    style={{
-                      background: selectedTier === tier ? "#1e293b" : "#0a0a0f",
-                      color: selectedTier === tier ? "#e2e8f0" : "#94a3b8",
-                    }}>
-                    T{tier} {RUN_TIER_LABELS[tier]}
-                  </button>
-                ))}
+              <div className="flex gap-1.5 flex-wrap">
+                <motion.button
+                  onClick={() => setSelectedTier(null)}
+                  whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                  className="font-mono text-xs px-3 py-1 rounded font-bold"
+                  style={{
+                    background: !selectedTier ? "#e2e8f018" : "transparent",
+                    color: !selectedTier ? "#e2e8f0" : "#64748b",
+                    border: `1px solid ${!selectedTier ? "#e2e8f040" : "#1e1e2e"}`,
+                  }}
+                >
+                  All Tiers
+                </motion.button>
+                {[1, 2, 3, 4, 5].map(tier => {
+                  const TIER_HEX: Record<number, string> = { 1: "#64748b", 2: "#3b82f6", 3: "#eab308", 4: "#f97316", 5: "#ef4444" };
+                  const tc = TIER_HEX[tier] ?? "#64748b";
+                  const active = selectedTier === tier;
+                  return (
+                    <motion.button
+                      key={tier}
+                      onClick={() => setSelectedTier(active ? null : tier)}
+                      whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                      className="font-mono text-xs px-3 py-1 rounded font-bold"
+                      style={{
+                        background: active ? tc + "20" : "transparent",
+                        color: active ? tc : "#64748b",
+                        border: `1px solid ${active ? tc + "50" : "#1e1e2e"}`,
+                      }}
+                    >
+                      T{tier} {RUN_TIER_LABELS[tier]}
+                    </motion.button>
+                  );
+                })}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -477,15 +489,15 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
                         <p className="font-mono text-xs" style={{ color: "#ff2d55" }}>Requires level {run.minLevel}</p>
                       )}
 
-                      <button onClick={() => doRun(run)} disabled={!canRun || streetLoading}
-                        className="w-full py-2 rounded font-mono text-sm font-bold transition-all"
-                        style={{
-                          background: canRun && !streetLoading ? "#ff6b3518" : "#1e1e2e",
-                          color: canRun && !streetLoading ? "#ff6b35" : "#475569",
-                          border: canRun && !streetLoading ? "1px solid #ff6b3540" : "1px solid #1e1e2e",
-                        }}>
-                        {streetLoading ? "Running..." : "Execute Run"}
-                      </button>
+                      <CyberButton
+                        variant="warning"
+                        className="w-full"
+                        disabled={!canRun}
+                        loading={streetLoading}
+                        onClick={() => doRun(run)}
+                      >
+                        Execute Run
+                      </CyberButton>
                     </div>
                   );
                 })}
@@ -584,15 +596,16 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
                       </div>
                     </div>
                     {!isCurrent && (
-                      <button onClick={() => travel(d.id)} disabled={!canTravel || !!traveling}
-                        className="px-3 py-1.5 rounded font-mono text-xs font-bold flex-shrink-0"
-                        style={{
-                          background: canTravel ? d.color + "18" : "#1e1e2e",
-                          color: canTravel ? d.color : "#475569",
-                          border: `1px solid ${canTravel ? d.color + "40" : "#1e1e2e"}`,
-                        }}>
-                        {traveling === d.id ? "..." : canTravel ? "Travel" : `Lv.${d.minLevel}`}
-                      </button>
+                      <CyberButton
+                        size="sm"
+                        variant={canTravel ? "primary" : "ghost"}
+                        loading={traveling === d.id}
+                        disabled={!canTravel || (!!traveling && traveling !== d.id)}
+                        className="flex-shrink-0"
+                        onClick={() => travel(d.id)}
+                      >
+                        {canTravel ? "Travel" : `Lv.${d.minLevel}`}
+                      </CyberButton>
                     )}
                   </div>
                 </div>
@@ -605,17 +618,18 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
       {/* HUB TAB */}
       {topTab === "hub" && (
         <div className="space-y-4">
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {(["careers", "businesses"] as const).map(t => (
-              <button key={t} onClick={() => setHubTab(t)}
-                className="px-3 py-1.5 rounded font-mono text-xs font-bold capitalize"
-                style={{
-                  background: hubTab === t ? "#00d4ff18" : "transparent",
-                  color: hubTab === t ? "#00d4ff" : "#475569",
-                  border: hubTab === t ? "1px solid #00d4ff40" : "1px solid #1e1e2e",
-                }}>
+              <CyberButton
+                key={t}
+                size="sm"
+                variant={hubTab === t ? "primary" : "ghost"}
+                glow={hubTab === t}
+                className="capitalize"
+                onClick={() => setHubTab(t)}
+              >
                 {t}
-              </button>
+              </CyberButton>
             ))}
           </div>
 
@@ -649,15 +663,15 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
                     {Object.entries(c.statGain).map(([s, g]) => <span key={s}>+{g} {s}</span>)}
                     {!c.available && <span style={{ color: "#ff2d55" }}>Lv{c.tier * 5} req</span>}
                   </div>
-                  <button onClick={() => doWork(c.id)} disabled={!c.available || hubLoading || user.energy < c.energyCost}
-                    className="w-full py-2 rounded font-mono text-sm font-bold transition-all"
-                    style={{
-                      background: c.available && !hubLoading && user.energy >= c.energyCost ? "#00d4ff18" : "#1e1e2e",
-                      color: c.available && !hubLoading && user.energy >= c.energyCost ? "#00d4ff" : "#475569",
-                      border: c.available && !hubLoading && user.energy >= c.energyCost ? "1px solid #00d4ff40" : "1px solid #1e1e2e",
-                    }}>
+                  <CyberButton
+                    variant="primary"
+                    className="w-full"
+                    disabled={!c.available || user.energy < c.energyCost}
+                    loading={hubLoading}
+                    onClick={() => doWork(c.id)}
+                  >
                     Work Shift
-                  </button>
+                  </CyberButton>
                 </div>
               ))}
             </div>
@@ -678,25 +692,15 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
                     </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
-                    <button onClick={() => collectBiz(biz.id)}
-                      className="px-3 py-1.5 rounded font-mono text-xs font-bold"
-                      style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}>
+                    <CyberButton size="sm" variant="success" onClick={() => collectBiz(biz.id)}>
                       Collect {(biz.pendingCollection ?? 0).toLocaleString()} DC
-                    </button>
-                    <button onClick={() => upgradeBiz(biz.id)} disabled={biz.level >= biz.maxLevel}
-                      className="px-3 py-1.5 rounded font-mono text-xs font-bold"
-                      style={{
-                        background: biz.level < biz.maxLevel ? "#00d4ff18" : "#1e1e2e",
-                        color: biz.level < biz.maxLevel ? "#00d4ff" : "#475569",
-                        border: biz.level < biz.maxLevel ? "1px solid #00d4ff40" : "1px solid #1e1e2e",
-                      }}>
+                    </CyberButton>
+                    <CyberButton size="sm" variant="primary" disabled={biz.level >= biz.maxLevel} onClick={() => upgradeBiz(biz.id)}>
                       Upgrade ({biz.upgradeCost.toLocaleString()} DC)
-                    </button>
-                    <button onClick={() => setLaunderBizId(prev => prev === biz.id ? "" : biz.id)}
-                      className="px-3 py-1.5 rounded font-mono text-xs font-bold"
-                      style={{ background: "#1e1e2e", color: "#94a3b8", border: "1px solid #1e1e2e" }}>
+                    </CyberButton>
+                    <CyberButton size="sm" variant="ghost" onClick={() => setLaunderBizId(prev => prev === biz.id ? "" : biz.id)}>
                       Launder
-                    </button>
+                    </CyberButton>
                   </div>
                   {launderBizId === biz.id && (
                     <div className="flex gap-2">
@@ -704,11 +708,7 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
                         placeholder="Dirty DC amount"
                         className="flex-1 px-3 py-2 rounded font-mono text-sm focus:outline-none"
                         style={{ background: "#0a0a0f", border: "1px solid #2d2d3e", color: "#e2e8f0" }} />
-                      <button onClick={launderBiz}
-                        className="px-4 py-2 rounded font-mono text-sm font-bold"
-                        style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}>
-                        Go
-                      </button>
+                      <CyberButton size="sm" variant="success" onClick={launderBiz}>Go</CyberButton>
                     </div>
                   )}
                 </div>
@@ -735,15 +735,15 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
                           <p>Max holding: {c.maxHolding.toLocaleString()} DC</p>
                         </div>
                       ))}
-                      <button onClick={buyBusiness} disabled={hubLoading || user.dc < (catalog.find(c => c.type === buyBizType)?.purchaseCost ?? Infinity)}
-                        className="w-full py-2 rounded font-mono text-sm font-bold transition-all"
-                        style={{
-                          background: !hubLoading && user.dc >= (catalog.find(c => c.type === buyBizType)?.purchaseCost ?? Infinity) ? "#00d4ff18" : "#1e1e2e",
-                          color: !hubLoading && user.dc >= (catalog.find(c => c.type === buyBizType)?.purchaseCost ?? Infinity) ? "#00d4ff" : "#475569",
-                          border: "1px solid #1e1e2e",
-                        }}>
+                      <CyberButton
+                        variant="primary"
+                        className="w-full"
+                        loading={hubLoading}
+                        disabled={user.dc < (catalog.find(c => c.type === buyBizType)?.purchaseCost ?? Infinity)}
+                        onClick={buyBusiness}
+                      >
                         Open Business
-                      </button>
+                      </CyberButton>
                     </>
                   )}
                 </div>
@@ -776,21 +776,13 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
                   <h3 className="font-mono font-bold" style={{ color: "#39d353" }}>Plead Guilty</h3>
                   <p className="font-mono text-xs" style={{ color: "#64748b" }}>{COURT_TEXT.plead}</p>
                   <p className="font-mono text-xs" style={{ color: "#475569" }}>New sentence: {Math.ceil(courtInfo.options?.plead?.newDuration / 60000)} min</p>
-                  <button onClick={doPlead}
-                    className="w-full py-2 rounded font-mono text-sm font-bold"
-                    style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}>
-                    Plead Guilty
-                  </button>
+                  <CyberButton variant="success" className="w-full" onClick={doPlead}>Plead Guilty</CyberButton>
                 </div>
                 <div className="p-4 rounded-xl space-y-3" style={{ background: "#0a0a0f", border: "1px solid #ff2d5540" }}>
                   <h3 className="font-mono font-bold" style={{ color: "#ff2d55" }}>Fight Charges</h3>
                   <p className="font-mono text-xs" style={{ color: "#64748b" }}>{COURT_TEXT.fight}</p>
                   <p className="font-mono text-xs" style={{ color: "#475569" }}>Success: {Math.round((courtInfo.options?.fight?.chance ?? 0) * 100)}% (based on INT)</p>
-                  <button onClick={doFight}
-                    className="w-full py-2 rounded font-mono text-sm font-bold"
-                    style={{ background: "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5540" }}>
-                    Fight the Charges
-                  </button>
+                  <CyberButton variant="danger" className="w-full" onClick={doFight}>Fight the Charges</CyberButton>
                 </div>
               </div>
             </div>

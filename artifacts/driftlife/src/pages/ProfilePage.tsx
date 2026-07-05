@@ -8,6 +8,8 @@ import { AvatarWithFrame } from "../components/AvatarWithFrame";
 import { FrameCardWrapper } from "../components/FrameCardWrapper";
 import { FRAME_CATALOG as FRAMES, FrameDef, RARITY_COLORS as RARITY_COLOR, getFrame } from "../lib/frames";
 import { InventoryPage } from "./InventoryPage";
+import { CyberButton } from "../components/CyberButton";
+import { CyberSectionHeader } from "../components/CyberSectionHeader";
 
 const FACTION_LABEL: Record<string, string> = { suits: "The Suits", street: "The Street", grid: "The Grid" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
@@ -226,12 +228,8 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                   placeholder="Write your bio... (max 300 chars)"
                 />
                 <div className="flex gap-2 mt-2">
-                  <button onClick={saveBio} disabled={savingBio} className="font-mono text-xs px-3 py-1 rounded" style={{ background: "#39d35320", color: "#39d353", border: "1px solid #39d35340" }}>
-                    {savingBio ? "Saving..." : "Save"}
-                  </button>
-                  <button onClick={() => { setEditBio(false); setBio(user.bio || ""); }} className="font-mono text-xs px-3 py-1 rounded" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>
-                    Cancel
-                  </button>
+                  <CyberButton size="sm" variant="success" loading={savingBio} onClick={saveBio}>Save</CyberButton>
+                  <CyberButton size="sm" variant="ghost" onClick={() => { setEditBio(false); setBio(user.bio || ""); }}>Cancel</CyberButton>
                 </div>
               </div>
             ) : (
@@ -239,9 +237,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                 <p className="font-mono text-xs flex-1" style={{ color: user.bio ? "#94a3b8" : "#64748b", fontStyle: user.bio ? "normal" : "italic" }}>
                   {user.bio || "No bio set."}
                 </p>
-                <button onClick={() => setEditBio(true)} className="font-mono text-xs px-2 py-0.5 rounded flex-shrink-0" style={{ color: "#00d4ff", border: "1px solid #00d4ff30" }}>
-                  Edit
-                </button>
+                <CyberButton size="sm" variant="ghost" onClick={() => setEditBio(true)} className="flex-shrink-0">Edit</CyberButton>
               </div>
             )}
           </div>
@@ -251,24 +247,21 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
       {/* Tab switcher */}
       <div className="flex gap-2 flex-wrap">
         {[
-          { id: "overview"    as const, label: "Overview" },
-          { id: "inventory"   as const, label: "Inventory" },
-          { id: "achievements" as const, label: `Achievements` },
-          { id: "frames"      as const, label: `Frames (${ownedFrames.length})` },
-          { id: "combat-log"  as const, label: "Combat Log" },
+          { id: "overview"     as const, label: "Overview"                      },
+          { id: "inventory"    as const, label: "Inventory"                     },
+          { id: "achievements" as const, label: "Achievements"                  },
+          { id: "frames"       as const, label: `Frames (${ownedFrames.length})` },
+          { id: "combat-log"   as const, label: "Combat Log"                    },
         ].map(tab => (
-          <button
+          <CyberButton
             key={tab.id}
+            size="sm"
+            variant={activeTab === tab.id ? "primary" : "ghost"}
+            glow={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className="px-4 py-2 rounded font-mono text-xs transition-all"
-            style={{
-              background: activeTab === tab.id ? "#00d4ff18" : "#111118",
-              color: activeTab === tab.id ? "#00d4ff" : "#475569",
-              border: `1px solid ${activeTab === tab.id ? "#00d4ff40" : "#1e1e2e"}`,
-            }}
           >
             {tab.label}
-          </button>
+          </CyberButton>
         ))}
       </div>
 
@@ -276,7 +269,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
         <>
           {/* Stats */}
           <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
-            <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>STATS</div>
+            <CyberSectionHeader title="STATS" accent="#64748b" size="sm" className="mb-3" />
             <div className="grid grid-cols-2 gap-4">
               <StatBar label="HEALTH" value={user.health} max={user.maxHealth} color="#39d353" />
               <StatBar label="ENERGY" value={user.energy} max={user.maxEnergy} color="#00d4ff" />
@@ -299,7 +292,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
 
           {/* Finances */}
           <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
-            <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>FINANCES</div>
+            <CyberSectionHeader title="FINANCES" accent="#f59e0b" size="sm" className="mb-3" />
             <div className={`grid gap-4 ${isElevated ? "grid-cols-3" : "grid-cols-2"}`}>
               {[
                 { label: "WALLET", value: user.dc, color: "#f59e0b", show: true },
@@ -316,7 +309,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
 
           {/* Combat record */}
           <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
-            <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>COMBAT RECORD</div>
+            <CyberSectionHeader title="COMBAT RECORD" accent="#ff2d55" size="sm" className="mb-3" />
             <div className="grid grid-cols-4 gap-3 text-center">
               {[
                 { label: "Wins",     value: user.wins,              color: "#39d353" },
@@ -350,7 +343,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
             ];
             return (
               <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
-                <div className="font-mono text-xs font-bold mb-3" style={{ color: "#64748b", letterSpacing: "0.1em" }}>ACTIVITY SUMMARY</div>
+                <CyberSectionHeader title="ACTIVITY SUMMARY" accent="#64748b" size="sm" className="mb-3" />
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                   {stats.map(s => (
                     <div key={s.label} style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
@@ -376,7 +369,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
 
           {/* Avatar generator */}
           <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
-            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#64748b", letterSpacing: "0.1em" }}>AI AVATAR GENERATOR</div>
+            <CyberSectionHeader title="AI AVATAR GENERATOR" accent="#a855f7" size="sm" className="mb-3" />
             <div className="flex gap-2">
               <input
                 value={avatarPrompt}
@@ -385,14 +378,15 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                 className="flex-1 px-3 py-2 rounded font-mono text-xs"
                 style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
               />
-              <button
+              <CyberButton
+                size="sm"
+                variant="primary"
+                loading={generatingAvatar}
+                disabled={!avatarPrompt.trim()}
                 onClick={generateAvatar}
-                disabled={generatingAvatar || !avatarPrompt.trim()}
-                className="px-3 py-2 rounded font-mono text-xs"
-                style={{ background: "#00d4ff20", color: "#00d4ff", border: "1px solid #00d4ff40" }}
               >
-                {generatingAvatar ? "..." : "Generate"}
-              </button>
+                Generate
+              </CyberButton>
             </div>
             {user.avatarUrl && (
               <button onClick={clearCustomAvatar} className="mt-2 font-mono text-xs" style={{ color: "#64748b" }}>
@@ -404,16 +398,10 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
 
           {/* Referral */}
           <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
-            <div className="font-mono text-xs font-bold mb-2" style={{ color: "#64748b", letterSpacing: "0.1em" }}>REFERRAL CODE</div>
+            <CyberSectionHeader title="REFERRAL CODE" accent="#39d353" size="sm" className="mb-2" />
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm" style={{ color: "#00d4ff", letterSpacing: "0.15em" }}>{user.referralCode}</span>
-              <button
-                onClick={() => { navigator.clipboard?.writeText(user.referralCode); addToast("Copied!", "success"); }}
-                className="font-mono text-xs px-2 py-0.5 rounded"
-                style={{ color: "#64748b", border: "1px solid #1e1e2e" }}
-              >
-                Copy
-              </button>
+              <CyberButton size="sm" variant="ghost" onClick={() => { navigator.clipboard?.writeText(user.referralCode); addToast("Copied!", "success"); }}>Copy</CyberButton>
             </div>
             <p className="font-mono mt-1" style={{ fontSize: 10, color: "#64748b" }}>Earn 500 DC + 200 XP per successful referral</p>
           </div>

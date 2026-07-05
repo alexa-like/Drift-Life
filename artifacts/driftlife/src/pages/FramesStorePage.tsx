@@ -5,6 +5,10 @@ import { getFrame, RARITY_COLORS } from "../lib/frames";
 import { formatDC } from "../lib/format";
 import { PlayerFrame } from "../components/PlayerFrame";
 import { FrameRectBubble } from "../components/FrameRectBubble";
+import { motion } from "framer-motion";
+import { CyberButton } from "../components/CyberButton";
+import { CyberSectionHeader } from "../components/CyberSectionHeader";
+import { AnimatedCard } from "../components/AnimatedCard";
 
 interface Props {
   user: User;
@@ -139,85 +143,99 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
-      <div style={{ marginBottom: 16 }}>
-        <h1 className="font-mono font-bold" style={{ color: "#00d4ff", fontSize: 18, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-          Frame Store
-        </h1>
-        <div className="font-mono" style={{ color: "#475569", fontSize: 11, marginTop: 4 }}>
-          {owned}/{total} frames owned &nbsp;·&nbsp;
-          <span style={{ color: "#f59e0b" }}>{formatDC(user.dc)} DC</span> &nbsp;
-          <span style={{ color: "#39d353" }}>{(user.merit ?? 0).toLocaleString()} M</span> &nbsp;
-          <span style={{ color: "#a855f7" }}>{user.nc} NC</span>
-        </div>
-      </div>
+      <AnimatedCard accent="#00d4ff" className="mb-4">
+        <CyberSectionHeader
+          title="FRAME STORE"
+          accent="#00d4ff"
+          cursor
+          right={
+            <div className="flex gap-3 font-mono text-xs flex-wrap">
+              <span style={{ color: "#f59e0b" }}>{formatDC(user.dc)} DC</span>
+              <span style={{ color: "#39d353" }}>{(user.merit ?? 0).toLocaleString()} M</span>
+              <span style={{ color: "#a855f7" }}>{user.nc} NC</span>
+            </div>
+          }
+        />
+        <p className="font-mono text-xs mt-1" style={{ color: "#475569" }}>
+          {owned}/{total} frames owned — collect rare frames to show off your status in New Vanta.
+        </p>
+      </AnimatedCard>
 
       {weeklyFree && !weeklyFree.owned && (
-        <div style={{
-          background: "#39d35315", border: "1px solid #39d35360", borderRadius: 8,
-          padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between",
-        }}>
+        <AnimatedCard accent="#39d353" className="flex items-center justify-between gap-4 mb-4">
           <div>
-            <div className="font-mono font-bold" style={{ color: "#39d353", fontSize: 12, letterSpacing: "0.08em" }}>
+            <div className="font-mono font-bold text-sm" style={{ color: "#39d353" }}>
               FREE THIS WEEK: {weeklyFree.displayName}
             </div>
-            <div className="font-mono text-xs" style={{ color: "#39d353", opacity: 0.7 }}>Claim your free frame</div>
+            <div className="font-mono text-xs" style={{ color: "#39d35380" }}>Claim your free frame</div>
           </div>
-          <button
-            onClick={() => equip(weeklyFree.frameId)}
-            className="font-mono text-xs font-bold"
-            style={{
-              background: "#39d35320", border: "1px solid #39d353", borderRadius: 6,
-              color: "#39d353", padding: "6px 14px", cursor: "pointer",
-            }}
-          >
+          <CyberButton variant="success" size="sm" onClick={() => equip(weeklyFree.frameId)}>
             Equip Free
-          </button>
-        </div>
+          </CyberButton>
+        </AnimatedCard>
       )}
 
-      <div style={{ marginBottom: 12 }}>
+      <div className="mb-4 space-y-2">
         <input
           value={searchQ}
           onChange={e => setSearchQ(e.target.value)}
           placeholder="Search frames..."
-          className="font-mono text-xs"
+          className="font-mono text-xs w-full"
           style={{
-            width: "100%", background: "#111118", border: "1px solid #1e1e2e", borderRadius: 6,
-            color: "#e2e8f0", padding: "8px 12px", outline: "none", boxSizing: "border-box", marginBottom: 8,
+            background: "#111118", border: "1px solid #1e1e2e", borderRadius: 6,
+            color: "#e2e8f0", padding: "8px 12px", outline: "none", boxSizing: "border-box",
           }}
         />
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {["all", ...RARITY_ORDER].map(r => (
-            <button key={r} onClick={() => setFilterRarity(r)} className="font-mono" style={{
-              fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
-              background: filterRarity === r ? (RARITY_COLORS as any)[r] || "#00d4ff" : "#111118",
-              color: filterRarity === r ? "#0a0a0f" : "#64748b",
-              border: `1px solid ${filterRarity === r ? "transparent" : "#1e1e2e"}`,
-              fontWeight: filterRarity === r ? "bold" : "normal", textTransform: "capitalize",
-            }}>
-              {r === "all" ? "All Rarities" : r}
-            </button>
-          ))}
+        <div className="flex gap-1.5 flex-wrap">
+          {["all", ...RARITY_ORDER].map(r => {
+            const rc = (RARITY_COLORS as any)[r] || "#00d4ff";
+            const active = filterRarity === r;
+            return (
+              <motion.button
+                key={r}
+                onClick={() => setFilterRarity(r)}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                className="font-mono capitalize"
+                style={{
+                  fontSize: 10, padding: "3px 9px", borderRadius: 4, cursor: "pointer",
+                  background: active ? (r === "all" ? "#00d4ff18" : rc + "25") : "transparent",
+                  color:      active ? (r === "all" ? "#00d4ff"   : rc)        : "#64748b",
+                  border:     `1px solid ${active ? (r === "all" ? "#00d4ff40" : rc + "60") : "#1e1e2e"}`,
+                  fontWeight: active ? "bold" : "normal",
+                }}
+              >
+                {r === "all" ? "All" : r}
+              </motion.button>
+            );
+          })}
         </div>
-        <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-          {[["all", "All Currency"], ["dc", "DC"], ["merit", "Merit"], ["nc", "NC"]].map(([val, label]) => (
-            <button key={val} onClick={() => setFilterCurrency(val)} className="font-mono" style={{
-              fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
-              background: filterCurrency === val ? CURRENCY_COLORS[val] || "#00d4ff" : "#111118",
-              color: filterCurrency === val ? "#0a0a0f" : "#64748b",
-              border: `1px solid ${filterCurrency === val ? "transparent" : "#1e1e2e"}`,
-              fontWeight: filterCurrency === val ? "bold" : "normal",
-            }}>{label}</button>
-          ))}
-          {[["all", "All"], ["owned", "Owned"], ["not-owned", "Not Owned"]].map(([val, label]) => (
-            <button key={val} onClick={() => setFilterOwned(val as any)} className="font-mono" style={{
-              fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
-              background: filterOwned === val ? "#00d4ff" : "#111118",
-              color: filterOwned === val ? "#0a0a0f" : "#64748b",
-              border: `1px solid ${filterOwned === val ? "transparent" : "#1e1e2e"}`,
-              fontWeight: filterOwned === val ? "bold" : "normal",
-            }}>{label}</button>
-          ))}
+        <div className="flex gap-1.5 flex-wrap">
+          {[["all", "All Currency"], ["dc", "DC"], ["merit", "Merit"], ["nc", "NC"]].map(([val, label]) => {
+            const active = filterCurrency === val;
+            const cc = CURRENCY_COLORS[val] || "#00d4ff";
+            return (
+              <motion.button key={val} onClick={() => setFilterCurrency(val)} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                className="font-mono" style={{
+                  fontSize: 10, padding: "3px 9px", borderRadius: 4, cursor: "pointer",
+                  background: active ? cc + "20" : "transparent", color: active ? cc : "#64748b",
+                  border: `1px solid ${active ? cc + "50" : "#1e1e2e"}`, fontWeight: active ? "bold" : "normal",
+                }}
+              >{label}</motion.button>
+            );
+          })}
+          {[["all", "All"], ["owned", "Owned"], ["not-owned", "Unowned"]].map(([val, label]) => {
+            const active = filterOwned === val;
+            return (
+              <motion.button key={val} onClick={() => setFilterOwned(val as any)} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                className="font-mono" style={{
+                  fontSize: 10, padding: "3px 9px", borderRadius: 4, cursor: "pointer",
+                  background: active ? "#00d4ff18" : "transparent", color: active ? "#00d4ff" : "#64748b",
+                  border: `1px solid ${active ? "#00d4ff40" : "#1e1e2e"}`, fontWeight: active ? "bold" : "normal",
+                }}
+              >{label}</motion.button>
+            );
+          })}
         </div>
       </div>
 
@@ -380,37 +398,35 @@ export function FramesStorePage({ user, refreshUser, addToast }: Props) {
                                   color: "#e2e8f0", padding: "4px 8px", outline: "none",
                                 }}
                               />
-                              <button
+                              <CyberButton
+                                size="sm"
+                                variant="ghost"
+                                loading={savingColor}
                                 onClick={e => { e.stopPropagation(); if (/^#[0-9a-fA-F]{3,8}$/.test(customColor)) saveColor(customColor); }}
-                                disabled={savingColor}
-                                className="font-mono text-xs"
-                                style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 4, color: "#e2e8f0", padding: "4px 10px", cursor: "pointer" }}
                               >
-                                {savingColor ? "…" : "Set"}
-                              </button>
-                              <button
+                                Set
+                              </CyberButton>
+                              <CyberButton
+                                size="sm"
+                                variant="ghost"
                                 onClick={e => { e.stopPropagation(); saveColor(null); }}
-                                className="font-mono text-xs"
-                                style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 4, color: "#475569", padding: "4px 8px", cursor: "pointer" }}
                               >
                                 Reset
-                              </button>
+                              </CyberButton>
                             </div>
                           </div>
                         )}
                       </>
                     ) : (
-                      <button
+                      <CyberButton
+                        variant="primary"
+                        size="sm"
+                        className="w-full"
+                        loading={!!isActing}
                         onClick={e => { e.stopPropagation(); purchase(f); }}
-                        disabled={isActing}
-                        className="font-mono text-xs font-bold"
-                        style={{
-                          width: "100%", padding: "7px 0", borderRadius: 6, cursor: "pointer",
-                          background: currencyColor + "20", border: `1px solid ${currencyColor}50`, color: currencyColor,
-                        }}
                       >
-                        {isActing ? "..." : f.isFree ? "Equip Free" : `Buy — ${formatDC(f.price)} ${CURRENCY_LABELS[f.currency]}`}
-                      </button>
+                        {f.isFree ? "Equip Free" : `Buy — ${formatDC(f.price)} ${CURRENCY_LABELS[f.currency]}`}
+                      </CyberButton>
                     )}
                   </div>
                 )}
