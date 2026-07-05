@@ -34,6 +34,7 @@ import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
 import { NavBar } from "./components/NavBar";
+import { PageTransition } from "./components/PageTransition";
 import { ToastContainer } from "./components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
 import { PlayerInspectModal } from "./components/PlayerInspectModal";
@@ -224,7 +225,9 @@ function GameApp() {
         />
         {/* Account for taller nav (2 rows now) */}
         <main className="pt-[76px] pb-8 px-3 sm:px-4 max-w-5xl mx-auto w-full">
-          {renderPage()}
+          <PageTransition pageKey={page}>
+            {renderPage()}
+          </PageTransition>
         </main>
         <ToastContainer toasts={toasts} removeToast={removeToast} />
         {user!.devMode && (

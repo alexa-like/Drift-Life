@@ -4,6 +4,44 @@
   --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
 }
 
+/* ── DriftLife Design Tokens ── */
+:root {
+  /* Surfaces */
+  --dl-bg:          #0a0a0f;
+  --dl-surface:     #111118;
+  --dl-surface-2:   #16161f;
+  --dl-border:      #1e1e2e;
+  --dl-border-hi:   #2a2a3e;
+
+  /* Accents */
+  --dl-cyan:        #00d4ff;
+  --dl-cyan-dim:    #00d4ff30;
+  --dl-cyan-mid:    #00d4ff60;
+  --dl-orange:      #ff6b35;
+  --dl-orange-dim:  #ff6b3530;
+  --dl-red:         #ff2d55;
+  --dl-red-dim:     #ff2d5530;
+  --dl-green:       #39d353;
+  --dl-green-dim:   #39d35330;
+  --dl-purple:      #a855f7;
+  --dl-purple-dim:  #a855f730;
+  --dl-gold:        #f59e0b;
+  --dl-gold-dim:    #f59e0b30;
+
+  /* Text */
+  --dl-text:        #e2e8f0;
+  --dl-text-muted:  #94a3b8;
+  --dl-text-dim:    #475569;
+
+  /* Glows */
+  --dl-glow-cyan:   0 0 8px #00d4ff, 0 0 24px #00d4ff40;
+  --dl-glow-red:    0 0 8px #ff2d55, 0 0 24px #ff2d5540;
+  --dl-glow-green:  0 0 8px #39d353, 0 0 24px #39d35340;
+  --dl-glow-orange: 0 0 8px #ff6b35, 0 0 24px #ff6b3540;
+  --dl-glow-gold:   0 0 8px #f59e0b, 0 0 24px #f59e0b40;
+  --dl-glow-purple: 0 0 8px #a855f7, 0 0 24px #a855f740;
+}
+
 * {
   box-sizing: border-box;
 }
