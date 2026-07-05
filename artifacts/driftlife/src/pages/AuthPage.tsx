@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { api } from "../lib/api";
 import { User } from "../lib/types";
+import { CyberButton } from "../components/CyberButton";
 
 type Mode = "login" | "register" | "verify";
 
@@ -36,32 +38,19 @@ export function AuthPage({ onLogin }: Props) {
         onLogin(data.accessToken, data.refreshToken, data.user);
       } else if (mode === "register") {
         const data = await api.post<any>("/auth/register", { email, username, password });
-        if (data.autoVerified) {
-          onLogin(data.accessToken, data.refreshToken, data.user);
-          return;
-        }
-        if (data.needsVerification) {
-          setPendingEmail(data.email ?? email);
-          setMode("verify");
-          setError(data.message ?? "Check your email for a verification code.");
-          return;
-        }
+        if (data.autoVerified) { onLogin(data.accessToken, data.refreshToken, data.user); return; }
+        if (data.needsVerification) { setPendingEmail(data.email ?? email); setMode("verify"); setError(data.message ?? "Check your email for a verification code."); return; }
         setPendingEmail(email);
         setMode("verify");
       } else {
-        const data = await api.post<any>("/auth/verify-email", {
-          email: pendingEmail,
-          otp,
-        });
+        const data = await api.post<any>("/auth/verify-email", { email: pendingEmail, otp });
         onLogin(data.accessToken, data.refreshToken, data.user);
       }
     } catch (err: any) {
-      // Login returns 403 with needsVerification when email isn't verified yet
       if (err.data?.needsVerification) {
         const verifyEmail = err.data.email ?? email;
         setPendingEmail(verifyEmail);
         setMode("verify");
-        // Send a fresh code right away since the player is being redirected here unexpectedly
         try {
           await api.post("/auth/resend-otp", { email: verifyEmail });
           setError("Your account isn't verified yet. A new code has been sent to your email.");
@@ -80,109 +69,89 @@ export function AuthPage({ onLogin }: Props) {
     try {
       await api.post("/auth/resend-otp", { email: pendingEmail });
       setError("New code sent");
-    } catch (err: any) {
-      setError(err.message);
-    }
+    } catch (err: any) { setError(err.message); }
   }
 
   const isSuccess = error.includes("sent");
 
+  const inputStyle: React.CSSProperties = {
+    background: "#0a0a0f",
+    border: "1px solid #1e1e2e",
+    color: "#e2e8f0",
+    outline: "none",
+    transition: "border-color 0.2s, box-shadow 0.2s",
+  };
+
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
-      style={{ background: "#0a0a0f" }}
-    >
-      {/* Neon grid background */}
-      <div className="absolute inset-0 pointer-events-none" style={{ opacity: 0.08 }}>
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: "#0a0a0f" }}>
+      {/* Neon grid */}
+      <div className="absolute inset-0 pointer-events-none" style={{ opacity: 0.07 }}>
         {Array.from({ length: GRID_LINES }).map((_, i) => (
-          <div key={`h${i}`} style={{
-            position: "absolute",
-            left: 0, right: 0,
-            top: `${(i / GRID_LINES) * 100}%`,
-            height: 1,
-            background: "linear-gradient(90deg, transparent, #00d4ff, transparent)",
-          }} />
+          <div key={`h${i}`} style={{ position: "absolute", left: 0, right: 0, top: `${(i / GRID_LINES) * 100}%`, height: 1, background: "linear-gradient(90deg, transparent, #00d4ff, transparent)" }} />
         ))}
         {Array.from({ length: GRID_LINES }).map((_, i) => (
-          <div key={`v${i}`} style={{
-            position: "absolute",
-            top: 0, bottom: 0,
-            left: `${(i / GRID_LINES) * 100}%`,
-            width: 1,
-            background: "linear-gradient(180deg, transparent, #00d4ff, transparent)",
-          }} />
+          <div key={`v${i}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(i / GRID_LINES) * 100}%`, width: 1, background: "linear-gradient(180deg, transparent, #00d4ff, transparent)" }} />
         ))}
       </div>
 
-      {/* Scan line */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0, right: 0,
-          height: 2,
-          background: "linear-gradient(90deg, transparent, #00d4ff30, transparent)",
-          top: `${(tick * 1.5) % 100}%`,
-          pointerEvents: "none",
-          transition: "top 0.08s linear",
-        }}
-      />
+      {/* Moving scan line */}
+      <div style={{
+        position: "absolute", left: 0, right: 0, height: 2,
+        background: "linear-gradient(90deg, transparent, #00d4ff40, transparent)",
+        top: `${(tick * 1.5) % 100}%`,
+        pointerEvents: "none",
+        transition: "top 0.08s linear",
+      }} />
 
-      {/* Glowing orbs */}
-      <div style={{
-        position: "absolute", width: 400, height: 400, borderRadius: "50%",
-        background: "radial-gradient(circle, #00d4ff08 0%, transparent 70%)",
-        top: "-100px", left: "-100px", pointerEvents: "none",
-      }} />
-      <div style={{
-        position: "absolute", width: 350, height: 350, borderRadius: "50%",
-        background: "radial-gradient(circle, #a855f708 0%, transparent 70%)",
-        bottom: "-80px", right: "-80px", pointerEvents: "none",
-      }} />
+      {/* Glow orbs */}
+      <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, #00d4ff06 0%, transparent 70%)", top: -150, left: -150, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, #a855f706 0%, transparent 70%)", bottom: -100, right: -100, pointerEvents: "none" }} />
 
       <div className="w-full max-w-sm relative z-10">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <h1
-            className="text-5xl font-bold font-mono tracking-widest animate-fade-in-up"
-            style={{
-              color: "#00d4ff",
-              textShadow: "0 0 20px #00d4ff, 0 0 40px #00d4ff60, 0 0 80px #00d4ff20",
-              letterSpacing: "0.2em",
-            }}
-          >
+        <motion.div
+          className="text-center mb-8"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        >
+          <h1 className="text-5xl font-bold font-mono tracking-widest" style={{
+            color: "#00d4ff",
+            textShadow: "0 0 20px #00d4ff, 0 0 40px #00d4ff60, 0 0 80px #00d4ff20",
+            letterSpacing: "0.2em",
+          }}>
             DRIFTLIFE
           </h1>
-          <div className="font-mono mt-2 text-xs tracking-widest" style={{ color: "#475569" }}>
-            NEW VANTA / 2047
-          </div>
-          <div className="font-mono mt-1 text-xs" style={{ color: "#1e1e2e" }}>
-            ▓▓▓ ENCRYPTED UPLINK ▓▓▓
-          </div>
-        </div>
+          <div className="font-mono mt-2 text-xs tracking-widest" style={{ color: "#475569" }}>NEW VANTA / 2047</div>
+          <div className="font-mono mt-1 text-xs" style={{ color: "#1e1e2e" }}>▓▓▓ ENCRYPTED UPLINK ▓▓▓</div>
+        </motion.div>
 
         {/* Card */}
-        <div
-          className="rounded-lg p-6 animate-fade-in-up"
+        <motion.div
+          className="rounded-lg p-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
           style={{
             background: "#111118",
             border: "1px solid #1e1e2e",
-            boxShadow: "0 0 30px #00d4ff08, inset 0 1px 0 #ffffff08",
-            animationDelay: "0.1s",
+            boxShadow: "0 0 40px #00d4ff08, inset 0 1px 0 #ffffff06",
           }}
         >
-          {/* Tabs */}
+          {/* Mode tabs */}
           {mode !== "verify" && (
             <div className="flex gap-2 mb-6">
               {(["login", "register"] as Mode[]).map(m => (
                 <button
                   key={m}
                   onClick={() => { setMode(m); setError(""); }}
-                  className="flex-1 py-2 text-xs font-mono rounded uppercase transition-all"
+                  className="flex-1 py-2 text-xs font-mono rounded uppercase transition-all duration-200"
                   style={{
-                    background: mode === m ? "#00d4ff18" : "transparent",
+                    background: mode === m ? "#00d4ff14" : "transparent",
                     color: mode === m ? "#00d4ff" : "#475569",
                     border: mode === m ? "1px solid #00d4ff40" : "1px solid #1e1e2e",
-                    boxShadow: mode === m ? "0 0 12px #00d4ff15" : "none",
+                    boxShadow: mode === m ? "0 0 14px #00d4ff18" : "none",
+                    letterSpacing: "0.08em",
                   }}
                 >
                   {m === "login" ? "Sign In" : "Create Account"}
@@ -191,17 +160,23 @@ export function AuthPage({ onLogin }: Props) {
             </div>
           )}
 
+          {/* Verify mode header */}
           {mode === "verify" && (
-            <div className="mb-6">
-              <div className="text-center mb-2" style={{ fontSize: 28 }}>📨</div>
-              <p className="text-xs font-mono text-center" style={{ color: "#94a3b8" }}>
+            <motion.div
+              className="mb-6 text-center"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.25 }}
+            >
+              <div className="font-mono text-2xl mb-2" style={{ filter: "grayscale(0)" }}>📨</div>
+              <p className="text-xs font-mono" style={{ color: "#94a3b8" }}>
                 Verification code sent to{" "}
                 <span style={{ color: "#00d4ff" }}>{pendingEmail}</span>
               </p>
-            </div>
+            </motion.div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             {mode === "register" && (
               <input
                 type="text"
@@ -209,15 +184,12 @@ export function AuthPage({ onLogin }: Props) {
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 required
-                className="w-full px-3 py-2.5 rounded font-mono text-sm"
-                style={{
-                  background: "#0a0a0f",
-                  border: "1px solid #1e1e2e",
-                  color: "#e2e8f0",
-                }}
+                className="w-full px-3 py-2.5 rounded font-mono text-sm focus:border-cyan-400"
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = "#00d4ff50"; e.target.style.boxShadow = "0 0 10px #00d4ff15"; }}
+                onBlur={e => { e.target.style.borderColor = "#1e1e2e"; e.target.style.boxShadow = "none"; }}
               />
             )}
-
             {mode !== "verify" && (
               <input
                 type="email"
@@ -226,14 +198,11 @@ export function AuthPage({ onLogin }: Props) {
                 onChange={e => setEmail(e.target.value)}
                 required
                 className="w-full px-3 py-2.5 rounded font-mono text-sm"
-                style={{
-                  background: "#0a0a0f",
-                  border: "1px solid #1e1e2e",
-                  color: "#e2e8f0",
-                }}
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = "#00d4ff50"; e.target.style.boxShadow = "0 0 10px #00d4ff15"; }}
+                onBlur={e => { e.target.style.borderColor = "#1e1e2e"; e.target.style.boxShadow = "none"; }}
               />
             )}
-
             {mode !== "verify" && (
               <input
                 type="password"
@@ -242,14 +211,11 @@ export function AuthPage({ onLogin }: Props) {
                 onChange={e => setPassword(e.target.value)}
                 required
                 className="w-full px-3 py-2.5 rounded font-mono text-sm"
-                style={{
-                  background: "#0a0a0f",
-                  border: "1px solid #1e1e2e",
-                  color: "#e2e8f0",
-                }}
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = "#00d4ff50"; e.target.style.boxShadow = "0 0 10px #00d4ff15"; }}
+                onBlur={e => { e.target.style.borderColor = "#1e1e2e"; e.target.style.boxShadow = "none"; }}
               />
             )}
-
             {mode === "verify" && (
               <input
                 type="text"
@@ -258,19 +224,24 @@ export function AuthPage({ onLogin }: Props) {
                 onChange={e => setOtp(e.target.value.replace(/\D/g, ""))}
                 maxLength={6}
                 required
-                className="w-full px-3 py-3 rounded font-mono text-center text-2xl tracking-widest"
+                className="w-full px-3 py-4 rounded font-mono text-center text-3xl tracking-[0.4em]"
                 style={{
                   background: "#0a0a0f",
-                  border: "1px solid #00d4ff30",
+                  border: "1px solid #00d4ff40",
                   color: "#00d4ff",
-                  boxShadow: "0 0 10px #00d4ff10",
+                  outline: "none",
+                  boxShadow: "0 0 14px #00d4ff12",
                 }}
+                onFocus={e => { e.target.style.borderColor = "#00d4ff80"; e.target.style.boxShadow = "0 0 20px #00d4ff20"; }}
+                onBlur={e => { e.target.style.borderColor = "#00d4ff40"; e.target.style.boxShadow = "0 0 14px #00d4ff12"; }}
               />
             )}
 
             {error && (
-              <div
+              <motion.div
                 className="text-xs font-mono text-center px-3 py-2 rounded"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
                 style={{
                   color: isSuccess ? "#39d353" : "#ff2d55",
                   background: isSuccess ? "#39d35310" : "#ff2d5510",
@@ -278,23 +249,18 @@ export function AuthPage({ onLogin }: Props) {
                 }}
               >
                 {isSuccess ? "✓ " : "⚠ "}{error}
-              </div>
+              </motion.div>
             )}
 
-            <button
+            <CyberButton
               type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded font-mono text-sm font-bold uppercase transition-all"
-              style={{
-                background: loading ? "#1e1e2e" : "#00d4ff18",
-                color: loading ? "#475569" : "#00d4ff",
-                border: "1px solid #00d4ff40",
-                boxShadow: loading ? "none" : "0 0 16px #00d4ff20",
-                letterSpacing: "0.1em",
-              }}
+              variant="primary"
+              size="md"
+              loading={loading}
+              className="w-full mt-1 uppercase tracking-widest"
             >
               {loading ? "Connecting..." : mode === "login" ? "Access" : mode === "register" ? "Create" : "Verify"}
-            </button>
+            </CyberButton>
 
             {mode === "verify" && (
               <button
@@ -303,15 +269,22 @@ export function AuthPage({ onLogin }: Props) {
                 className="text-xs font-mono text-center"
                 style={{ color: "#475569" }}
               >
-                Didn't get a code? <span style={{ color: "#00d4ff80", textDecoration: "underline" }}>Resend</span>
+                Didn't get a code?{" "}
+                <span style={{ color: "#00d4ff70", textDecoration: "underline" }}>Resend</span>
               </button>
             )}
           </form>
-        </div>
+        </motion.div>
 
-        <p className="text-center text-xs font-mono mt-4" style={{ color: "#1e1e2e" }}>
+        <motion.p
+          className="text-center text-xs font-mono mt-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          style={{ color: "#1e1e2e" }}
+        >
           CORP-FREE ZONE · E2E ENCRYPTED · NEW VANTA 2047
-        </p>
+        </motion.p>
       </div>
     </div>
   );

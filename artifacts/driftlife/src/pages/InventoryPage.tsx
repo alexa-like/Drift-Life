@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { User, Item } from "../lib/types";
 import { api } from "../lib/api";
 import { ItemImage } from "../components/ItemImage";
+import { AnimatedCard } from "../components/AnimatedCard";
+import { CyberSectionHeader } from "../components/CyberSectionHeader";
+import { CyberButton } from "../components/CyberButton";
 
 interface Props {
   user: User;
@@ -10,15 +14,16 @@ interface Props {
 }
 
 const RARITY_COLORS: Record<string, string> = {
-  common: "#94a3b8",
-  uncommon: "#39d353",
-  rare: "#00d4ff",
-  epic: "#a855f7",
+  common:    "#94a3b8",
+  uncommon:  "#39d353",
+  rare:      "#00d4ff",
+  epic:      "#a855f7",
   legendary: "#f59e0b",
-  mythic: "#ff2d55",
+  mythic:    "#ff2d55",
 };
 
 type View = "inventory" | "trade" | "list" | "auction";
+const VIEW_LABELS: Record<View, string> = { inventory: "Inventory", trade: "Trade", list: "List", auction: "Auction" };
 
 export function InventoryPage({ user, refreshUser, addToast }: Props) {
   const [items, setItems] = useState<Item[]>([]);
@@ -31,155 +36,84 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
   const [listItemId, setListItemId] = useState<string>("");
   const [listPrice, setListPrice] = useState<string>("");
   const [listing, setListing] = useState(false);
-  // Auction state
   const [auctionItemId, setAuctionItemId] = useState<string>("");
   const [auctionStart, setAuctionStart] = useState<string>("");
   const [auctionHours, setAuctionHours] = useState<string>("24");
   const [auctionBuyout, setAuctionBuyout] = useState<string>("");
   const [auctioning, setAuctioning] = useState(false);
 
-  const loadInventory = () =>
-    api.get<Item[]>("/inventory").then(setItems).catch(() => {});
-
+  const loadInventory = () => api.get<Item[]>("/inventory").then(setItems).catch(() => {});
   useEffect(() => { loadInventory(); }, []);
 
   async function equip(itemId: string) {
     setActing(itemId);
-    try {
-      const data = await api.post<any>(`/inventory/${itemId}/equip`);
-      addToast(data.message, "success");
-      await loadInventory();
-      await refreshUser();
-    } catch (err: any) {
-      addToast(err.message, "error");
-    } finally {
-      setActing(null);
-    }
+    try { const data = await api.post<any>(`/inventory/${itemId}/equip`); addToast(data.message, "success"); await loadInventory(); await refreshUser(); }
+    catch (err: any) { addToast(err.message, "error"); } finally { setActing(null); }
   }
-
   async function unequip(itemId: string) {
     setActing(itemId);
-    try {
-      const data = await api.post<any>(`/inventory/${itemId}/unequip`);
-      addToast(data.message, "success");
-      await loadInventory();
-      await refreshUser();
-    } catch (err: any) {
-      addToast(err.message, "error");
-    } finally {
-      setActing(null);
-    }
+    try { const data = await api.post<any>(`/inventory/${itemId}/unequip`); addToast(data.message, "success"); await loadInventory(); await refreshUser(); }
+    catch (err: any) { addToast(err.message, "error"); } finally { setActing(null); }
   }
-
   async function useItem(itemId: string) {
     setActing(itemId);
-    try {
-      const data = await api.post<any>(`/inventory/${itemId}/use`);
-      addToast(data.message, "success");
-      await loadInventory();
-      await refreshUser();
-    } catch (err: any) {
-      addToast(err.message, "error");
-    } finally {
-      setActing(null);
-    }
+    try { const data = await api.post<any>(`/inventory/${itemId}/use`); addToast(data.message, "success"); await loadInventory(); await refreshUser(); }
+    catch (err: any) { addToast(err.message, "error"); } finally { setActing(null); }
   }
-
   async function salvage(itemId: string, name: string) {
     if (!confirm(`Salvage ${name}? This cannot be undone.`)) return;
     setActing(itemId);
-    try {
-      const data = await api.post<any>(`/inventory/${itemId}/salvage`, { confirm: true });
-      addToast(data.message, "success");
-      await loadInventory();
-    } catch (err: any) {
-      addToast(err.message, "error");
-    } finally {
-      setActing(null);
-    }
+    try { const data = await api.post<any>(`/inventory/${itemId}/salvage`, { confirm: true }); addToast(data.message, "success"); await loadInventory(); }
+    catch (err: any) { addToast(err.message, "error"); } finally { setActing(null); }
   }
-
   async function salvageAllCommons() {
     const commons = items.filter(i => i.rarity === "common" && !i.equipped && !i.marketListed);
     if (!commons.length) { addToast("No common items to salvage", "info"); return; }
     if (!confirm(`Salvage all ${commons.length} common items?`)) return;
     setSalvagingAll(true);
-    try {
-      const data = await api.post<any>("/inventory/salvage-all-commons");
-      addToast(data.message, "success");
-      await loadInventory();
-    } catch (err: any) {
-      addToast(err.message, "error");
-    } finally {
-      setSalvagingAll(false);
-    }
+    try { const data = await api.post<any>("/inventory/salvage-all-commons"); addToast(data.message, "success"); await loadInventory(); }
+    catch (err: any) { addToast(err.message, "error"); } finally { setSalvagingAll(false); }
   }
-
   async function tradeItem() {
     if (!tradeItemId || !tradeTag) { addToast("Select an item and enter recipient tag", "error"); return; }
     setTrading(true);
     try {
       const data = await api.post<any>("/inventory/trade", { itemId: tradeItemId, targetTag: tradeTag });
-      addToast(data.message, "success");
-      setTradeItemId("");
-      setTradeTag("");
-      await loadInventory();
-    } catch (err: any) {
-      addToast(err.message, "error");
-    } finally {
-      setTrading(false);
-    }
+      addToast(data.message, "success"); setTradeItemId(""); setTradeTag(""); await loadInventory();
+    } catch (err: any) { addToast(err.message, "error"); } finally { setTrading(false); }
   }
-
-  async function listOnAuction() {
-    const startPrice = Number(auctionStart);
-    const hours      = Number(auctionHours);
-    const buyout     = auctionBuyout ? Number(auctionBuyout) : undefined;
-    if (!auctionItemId || !startPrice || startPrice <= 0) { addToast("Select an item and enter a starting bid", "error"); return; }
-    if (hours < 1 || hours > 72) { addToast("Duration must be 1–72 hours", "error"); return; }
-    if (user.level < 25) { addToast("Auction House requires level 25", "error"); return; }
-    setAuctioning(true);
-    try {
-      const data = await api.post<any>("/auction/list", {
-        itemId: auctionItemId,
-        startingPrice: startPrice,
-        durationHours: hours,
-        ...(buyout ? { buyoutPrice: buyout } : {}),
-      });
-      addToast(data.message, "success");
-      setAuctionItemId(""); setAuctionStart(""); setAuctionHours("24"); setAuctionBuyout("");
-      await loadInventory();
-    } catch (err: any) {
-      addToast(err.message, "error");
-    } finally {
-      setAuctioning(false);
-    }
-  }
-
   async function listOnMarket() {
     const price = Number(listPrice);
     if (!listItemId || !price || price <= 0) { addToast("Select an item and enter a valid price", "error"); return; }
     setListing(true);
     try {
       const data = await api.post<any>(`/inventory/${listItemId}/list`, { price });
-      addToast(data.message, "success");
-      setListItemId("");
-      setListPrice("");
-      await loadInventory();
-    } catch (err: any) {
-      addToast(err.message, "error");
-    } finally {
-      setListing(false);
-    }
+      addToast(data.message, "success"); setListItemId(""); setListPrice(""); await loadInventory();
+    } catch (err: any) { addToast(err.message, "error"); } finally { setListing(false); }
+  }
+  async function listOnAuction() {
+    const startPrice = Number(auctionStart); const hours = Number(auctionHours); const buyout = auctionBuyout ? Number(auctionBuyout) : undefined;
+    if (!auctionItemId || !startPrice || startPrice <= 0) { addToast("Select an item and enter a starting bid", "error"); return; }
+    if (hours < 1 || hours > 72) { addToast("Duration must be 1–72 hours", "error"); return; }
+    if (user.level < 25) { addToast("Auction House requires level 25", "error"); return; }
+    setAuctioning(true);
+    try {
+      const data = await api.post<any>("/auction/list", { itemId: auctionItemId, startingPrice: startPrice, durationHours: hours, ...(buyout ? { buyoutPrice: buyout } : {}) });
+      addToast(data.message, "success"); setAuctionItemId(""); setAuctionStart(""); setAuctionHours("24"); setAuctionBuyout(""); await loadInventory();
+    } catch (err: any) { addToast(err.message, "error"); } finally { setAuctioning(false); }
   }
 
   const commonCount = items.filter(i => i.rarity === "common" && !i.equipped && !i.marketListed).length;
   const tradeable = items.filter(i => !i.equipped && !i.marketListed);
+  const inputCls = "w-full px-3 py-2 rounded font-mono text-xs focus:outline-none";
+  const inputStyle: React.CSSProperties = { background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" };
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
+
+      {/* Header */}
       <div className="flex justify-between items-center flex-wrap gap-2">
-        <h2 className="text-lg font-mono font-bold" style={{ color: "#94a3b8" }}>Inventory</h2>
+        <CyberSectionHeader title="Inventory" accent="#94a3b8" size="lg" className="mb-0" />
         <div className="flex gap-2 items-center flex-wrap">
           <div className="flex gap-3 text-xs font-mono mr-2">
             <span style={{ color: "#ff6b35" }}>STR: {user.strength}</span>
@@ -187,171 +121,94 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
             <span style={{ color: "#00d4ff" }}>INT: {user.intelligence}</span>
           </div>
           {commonCount > 0 && (
-            <button
-              onClick={salvageAllCommons}
-              disabled={salvagingAll}
-              className="px-2 py-1 rounded font-mono text-xs"
-              style={{ background: "#94a3b818", color: "#94a3b8", border: "1px solid #94a3b840" }}
-            >
-              {salvagingAll ? "..." : `Salvage Commons (${commonCount})`}
-            </button>
+            <CyberButton variant="ghost" size="sm" loading={salvagingAll} onClick={salvageAllCommons}>
+              Salvage Commons ({commonCount})
+            </CyberButton>
           )}
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {(["inventory", "trade", "list", "auction"] as View[]).map(v => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            className="px-3 py-1.5 rounded text-xs font-mono capitalize"
-            style={{
-              background: view === v ? "#111118" : "transparent",
-              color: view === v ? "#00d4ff" : "#475569",
-              border: `1px solid ${view === v ? "#00d4ff40" : "#1e1e2e"}`,
-            }}
-          >
-            {v}
-          </button>
+          <CyberButton key={v} variant={view === v ? "primary" : "ghost"} size="sm" onClick={() => setView(v)}>
+            {VIEW_LABELS[v]}
+          </CyberButton>
         ))}
       </div>
 
+      {/* Trade panel */}
       {view === "trade" && (
-        <div className="rounded-lg p-4 space-y-3" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
-          <div className="text-xs font-mono font-bold" style={{ color: "#00d4ff" }}>TRADE ITEM</div>
-          <select
-            value={tradeItemId}
-            onChange={e => setTradeItemId(e.target.value)}
-            className="w-full px-3 py-2 rounded font-mono text-xs"
-            style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-          >
-            <option value="">Select item...</option>
-            {tradeable.map(i => <option key={i.id} value={i.id}>{i.name} ({i.rarity})</option>)}
-          </select>
-          <input
-            value={tradeTag}
-            onChange={e => setTradeTag(e.target.value.replace(/^#/, ""))}
-            placeholder="Recipient tag (e.g. ABC1)"
-            className="w-full px-3 py-2 rounded font-mono text-xs"
-            style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-          />
-          <button
-            onClick={tradeItem}
-            disabled={trading || !tradeItemId || !tradeTag}
-            className="w-full py-2 rounded font-mono text-xs font-bold"
-            style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}
-          >
-            {trading ? "..." : "Send Item"}
-          </button>
-        </div>
+        <AnimatedCard accent="#00d4ff">
+          <CyberSectionHeader title="Trade Item" accent="#00d4ff" />
+          <div className="space-y-3">
+            <select value={tradeItemId} onChange={e => setTradeItemId(e.target.value)} className={inputCls} style={inputStyle}>
+              <option value="">Select item...</option>
+              {tradeable.map(i => <option key={i.id} value={i.id}>{i.name} ({i.rarity})</option>)}
+            </select>
+            <input value={tradeTag} onChange={e => setTradeTag(e.target.value.replace(/^#/, ""))} placeholder="Recipient tag (e.g. ABC1)" className={inputCls} style={inputStyle} />
+            <CyberButton variant="primary" size="md" className="w-full" loading={trading} disabled={trading || !tradeItemId || !tradeTag} onClick={tradeItem}>
+              Send Item
+            </CyberButton>
+          </div>
+        </AnimatedCard>
       )}
 
+      {/* List panel */}
       {view === "list" && (
-        <div className="rounded-lg p-4 space-y-3" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
-          <div className="text-xs font-mono font-bold" style={{ color: "#a855f7" }}>LIST ON MARKET</div>
-          <select
-            value={listItemId}
-            onChange={e => setListItemId(e.target.value)}
-            className="w-full px-3 py-2 rounded font-mono text-xs"
-            style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-          >
-            <option value="">Select item...</option>
-            {tradeable.filter(i => i.type !== "consumable").map(i => <option key={i.id} value={i.id}>{i.name} ({i.rarity})</option>)}
-          </select>
-          <input
-            value={listPrice}
-            onChange={e => setListPrice(e.target.value)}
-            placeholder="Listing price in DC"
-            type="number"
-            min="1"
-            className="w-full px-3 py-2 rounded font-mono text-xs"
-            style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-          />
-          <button
-            onClick={listOnMarket}
-            disabled={listing || !listItemId || !listPrice}
-            className="w-full py-2 rounded font-mono text-xs font-bold"
-            style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740" }}
-          >
-            {listing ? "..." : "List on Market"}
-          </button>
-        </div>
+        <AnimatedCard accent="#a855f7">
+          <CyberSectionHeader title="List on Market" accent="#a855f7" />
+          <div className="space-y-3">
+            <select value={listItemId} onChange={e => setListItemId(e.target.value)} className={inputCls} style={inputStyle}>
+              <option value="">Select item...</option>
+              {tradeable.filter(i => i.type !== "consumable").map(i => <option key={i.id} value={i.id}>{i.name} ({i.rarity})</option>)}
+            </select>
+            <input value={listPrice} onChange={e => setListPrice(e.target.value)} placeholder="Listing price in DC" type="number" min="1" className={inputCls} style={inputStyle} />
+            <CyberButton variant="purple" size="md" className="w-full" loading={listing} disabled={listing || !listItemId || !listPrice} onClick={listOnMarket}>
+              List on Market
+            </CyberButton>
+          </div>
+        </AnimatedCard>
       )}
 
+      {/* Auction panel */}
       {view === "auction" && (
-        <div className="rounded-lg p-4 space-y-3" style={{ background: "#111118", border: "1px solid #f59e0b30" }}>
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-mono font-bold" style={{ color: "#f59e0b" }}>⚡ AUCTION HOUSE</div>
-            {user.level < 25 && (
-              <span className="font-mono text-xs" style={{ color: "#475569" }}>Requires level 25</span>
-            )}
+        <AnimatedCard accent="#f59e0b">
+          <div className="flex items-center justify-between mb-3">
+            <CyberSectionHeader title="⚡ Auction House" accent="#f59e0b" className="mb-0" />
+            {user.level < 25 && <span className="font-mono text-xs" style={{ color: "#475569" }}>Requires level 25</span>}
           </div>
           {user.level < 25 ? (
-            <p className="font-mono text-xs" style={{ color: "#334155" }}>
-              Reach level 25 to access the Auction House and list items for competitive bidding.
-            </p>
+            <p className="font-mono text-xs" style={{ color: "#334155" }}>Reach level 25 to access the Auction House and list items for competitive bidding.</p>
           ) : (
-            <>
-              <select
-                value={auctionItemId}
-                onChange={e => setAuctionItemId(e.target.value)}
-                className="w-full px-3 py-2 rounded font-mono text-xs"
-                style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-              >
+            <div className="space-y-3">
+              <select value={auctionItemId} onChange={e => setAuctionItemId(e.target.value)} className={inputCls} style={inputStyle}>
                 <option value="">Select item to auction…</option>
-                {tradeable.filter(i => i.type !== "consumable").map(i => (
-                  <option key={i.id} value={i.id}>{i.name} ({i.rarity})</option>
-                ))}
+                {tradeable.filter(i => i.type !== "consumable").map(i => <option key={i.id} value={i.id}>{i.name} ({i.rarity})</option>)}
               </select>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Starting bid (DC)</label>
-                  <input
-                    value={auctionStart}
-                    onChange={e => setAuctionStart(e.target.value)}
-                    placeholder="Min. 1 DC"
-                    type="number" min="1"
-                    className="w-full px-3 py-2 rounded font-mono text-xs"
-                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-                  />
+                  <input value={auctionStart} onChange={e => setAuctionStart(e.target.value)} placeholder="Min. 1 DC" type="number" min="1" className={inputCls} style={inputStyle} />
                 </div>
                 <div>
                   <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Duration (1–72 hrs)</label>
-                  <input
-                    value={auctionHours}
-                    onChange={e => setAuctionHours(e.target.value)}
-                    placeholder="24"
-                    type="number" min="1" max="72"
-                    className="w-full px-3 py-2 rounded font-mono text-xs"
-                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-                  />
+                  <input value={auctionHours} onChange={e => setAuctionHours(e.target.value)} placeholder="24" type="number" min="1" max="72" className={inputCls} style={inputStyle} />
                 </div>
               </div>
               <div>
                 <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Buyout price (DC) — optional</label>
-                <input
-                  value={auctionBuyout}
-                  onChange={e => setAuctionBuyout(e.target.value)}
-                  placeholder="Leave blank for auction-only"
-                  type="number" min="1"
-                  className="w-full px-3 py-2 rounded font-mono text-xs"
-                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-                />
+                <input value={auctionBuyout} onChange={e => setAuctionBuyout(e.target.value)} placeholder="Leave blank for auction-only" type="number" min="1" className={inputCls} style={inputStyle} />
               </div>
-              <button
-                onClick={listOnAuction}
-                disabled={auctioning || !auctionItemId || !auctionStart}
-                className="w-full py-2 rounded font-mono text-xs font-bold"
-                style={{ background: "#f59e0b22", color: "#f59e0b", border: "1px solid #f59e0b40" }}
-              >
-                {auctioning ? "Listing…" : "Create Auction"}
-              </button>
-            </>
+              <CyberButton variant="warning" size="md" className="w-full" loading={auctioning} disabled={auctioning || !auctionItemId || !auctionStart} onClick={listOnAuction}>
+                Create Auction
+              </CyberButton>
+            </div>
           )}
-        </div>
+        </AnimatedCard>
       )}
 
+      {/* Inventory grid */}
       {view === "inventory" && (
         items.length === 0 ? (
           <div className="text-center py-12 text-xs font-mono" style={{ color: "#475569" }}>
@@ -359,112 +216,78 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
           </div>
         ) : (
           <div className="grid gap-3">
-            {items.map(item => {
-              const rarityColor = RARITY_COLORS[item.rarity] ?? "#94a3b8";
+            {items.map((item, idx) => {
+              const rc = RARITY_COLORS[item.rarity] ?? "#94a3b8";
               return (
-                <div
-                  key={item.id}
-                  className="rounded-lg p-3 flex flex-col gap-2"
-                  style={{
-                    background: "#111118",
-                    border: `1px solid ${item.equipped ? rarityColor + "60" : rarityColor + "20"}`,
-                  }}
-                >
-                  {/* Top row: image + info */}
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden relative"
-                      style={{
-                        width: 52, height: 52,
-                        background: `${rarityColor}08`,
-                        border: `1px solid ${item.equipped ? rarityColor + "60" : rarityColor + "25"}`,
-                      }}
-                    >
-                      <ItemImage itemId={item.name.toLowerCase().replace(/ /g, "-")} imageUrl={item.imageUrl} size={44} />
-                      {item.equipped && (
-                        <div
-                          className="absolute bottom-0 left-0 right-0 text-center font-mono"
-                          style={{ fontSize: 8, background: `${rarityColor}90`, color: "#fff", paddingBottom: 1 }}
-                        >
-                          EQ
-                        </div>
-                      )}
-                      {item.marketListed && (
-                        <div
-                          className="absolute top-0 left-0 right-0 text-center font-mono"
-                          style={{ fontSize: 7, background: "#a855f790", color: "#fff", paddingTop: 1 }}
-                        >
-                          LISTED
-                        </div>
-                      )}
-                    </div>
+                <motion.div key={item.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }}>
+                  <AnimatedCard accent={rc} noPad>
+                    {/* Rarity accent line */}
+                    <div style={{ height: 2, background: `linear-gradient(90deg, ${rc}, transparent)`, borderRadius: "8px 8px 0 0", boxShadow: `0 0 8px ${rc}60` }} />
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                        <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{item.name}</span>
-                        <span className="text-xs font-mono px-1 rounded" style={{ color: rarityColor, background: `${rarityColor}15` }}>
-                          {item.rarity}
-                        </span>
-                        {item.equipped && (
-                          <span className="text-xs px-1 rounded font-mono" style={{ background: "#39d35320", color: "#39d353" }}>eq</span>
+                    <div className="p-3 flex flex-col gap-3">
+                      {/* Item info row */}
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden relative"
+                          style={{ width: 56, height: 56, background: `${rc}08`, border: `1px solid ${item.equipped ? rc + "60" : rc + "20"}`, boxShadow: item.equipped ? `0 0 10px ${rc}30` : "none" }}
+                        >
+                          <ItemImage itemId={item.name.toLowerCase().replace(/ /g, "-")} imageUrl={item.imageUrl} size={44} />
+                          {item.equipped && (
+                            <div className="absolute bottom-0 left-0 right-0 text-center font-mono" style={{ fontSize: 7, background: `${rc}cc`, color: "#fff", paddingBottom: 2 }}>EQ</div>
+                          )}
+                          {item.marketListed && (
+                            <div className="absolute top-0 left-0 right-0 text-center font-mono" style={{ fontSize: 7, background: "#a855f7cc", color: "#fff", paddingTop: 2 }}>LISTED</div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{item.name}</span>
+                            <span className="text-xs font-mono px-1.5 rounded" style={{ color: rc, background: `${rc}14`, border: `1px solid ${rc}25` }}>{item.rarity}</span>
+                            {item.equipped && <span className="text-xs px-1 rounded font-mono" style={{ background: "#39d35318", color: "#39d353" }}>equipped</span>}
+                            {item.marketListed && <span className="text-xs px-1 rounded font-mono" style={{ background: "#a855f718", color: "#a855f7" }}>listed</span>}
+                          </div>
+                          <p className="text-xs font-mono" style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.description}</p>
+                          <div className="flex gap-2 text-xs font-mono flex-wrap mt-1">
+                            {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR+{item.strengthBonus}</span>}
+                            {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA+{item.charismaBonus}</span>}
+                            {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT+{item.intelligenceBonus}</span>}
+                            {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF+{item.defenseBonus}</span>}
+                            {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP+{item.streetCredBonus}</span>}
+                            {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
+                            {(item.type === "consumable" || item.type === "material") && item.quantity > 1 && <span style={{ color: "#64748b" }}>×{item.quantity}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 flex-wrap pt-2" style={{ borderTop: `1px solid ${rc}15` }}>
+                        {item.slot && !item.marketListed && (
+                          <CyberButton
+                            variant={item.equipped ? "danger" : "success"}
+                            size="sm"
+                            className="flex-1"
+                            loading={acting === item.id}
+                            disabled={acting === item.id}
+                            onClick={() => item.equipped ? unequip(item.id) : equip(item.id)}
+                          >
+                            {item.equipped ? "Unequip" : "Equip"}
+                          </CyberButton>
                         )}
-                        {item.marketListed && (
-                          <span className="text-xs px-1 rounded font-mono" style={{ background: "#a855f720", color: "#a855f7" }}>listed</span>
+                        {item.type === "consumable" && !item.equipped && !item.marketListed && (
+                          <CyberButton variant="primary" size="sm" className="flex-1" loading={acting === item.id} disabled={acting === item.id} onClick={() => useItem(item.id)}>
+                            Use
+                          </CyberButton>
+                        )}
+                        {!item.equipped && !item.marketListed && item.type !== "consumable" && (
+                          <CyberButton variant="ghost" size="sm" className="flex-1" loading={acting === item.id} disabled={acting === item.id} onClick={() => salvage(item.id, item.name)}>
+                            Salvage
+                          </CyberButton>
                         )}
                       </div>
-                      <p className="text-xs font-mono" style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.description}</p>
-                      <div className="flex gap-2 text-xs font-mono flex-wrap mt-0.5">
-                        {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR+{item.strengthBonus}</span>}
-                        {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA+{item.charismaBonus}</span>}
-                        {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT+{item.intelligenceBonus}</span>}
-                        {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF+{item.defenseBonus}</span>}
-                        {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP+{item.streetCredBonus}</span>}
-                        {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
-                        {(item.type === "consumable" || item.type === "material") && item.quantity > 1 && (
-                          <span style={{ color: "#64748b" }}>×{item.quantity}</span>
-                        )}
-                      </div>
                     </div>
-                  </div>
-
-                  {/* Bottom row: action buttons */}
-                  <div className="flex gap-2 flex-wrap">
-                    {item.slot && !item.marketListed && (
-                      <button
-                        onClick={() => item.equipped ? unequip(item.id) : equip(item.id)}
-                        disabled={acting === item.id}
-                        className="flex-1 py-1.5 rounded text-xs font-mono font-bold"
-                        style={{
-                          background: item.equipped ? "#ff2d5518" : "#39d35318",
-                          color: item.equipped ? "#ff2d55" : "#39d353",
-                          border: `1px solid ${item.equipped ? "#ff2d5540" : "#39d35340"}`,
-                        }}
-                      >
-                        {acting === item.id ? "..." : item.equipped ? "Unequip" : "Equip"}
-                      </button>
-                    )}
-                    {item.type === "consumable" && !item.equipped && !item.marketListed && (
-                      <button
-                        onClick={() => useItem(item.id)}
-                        disabled={acting === item.id}
-                        className="flex-1 py-1.5 rounded text-xs font-mono font-bold"
-                        style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}
-                      >
-                        {acting === item.id ? "..." : "Use"}
-                      </button>
-                    )}
-                    {!item.equipped && !item.marketListed && item.type !== "consumable" && (
-                      <button
-                        onClick={() => salvage(item.id, item.name)}
-                        disabled={acting === item.id}
-                        className="flex-1 py-1.5 rounded text-xs font-mono"
-                        style={{ background: "#1e1e2e", color: "#475569", border: "1px solid #1e1e2e" }}
-                      >
-                        {acting === item.id ? "..." : "Salvage"}
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  </AnimatedCard>
+                </motion.div>
               );
             })}
           </div>
