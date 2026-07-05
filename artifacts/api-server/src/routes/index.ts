@@ -36,6 +36,7 @@ import cityRouter from "./city";
 import netRouter from "./net";
 import worldRouter from "./world";
 import cyberRouter from "./cyber";
+import chatframesRouter from "./chatframes";
 
 const router: IRouter = Router();
 
@@ -74,6 +75,7 @@ router.use("/city", cityRouter);
 router.use("/net", netRouter);
 router.use("/world", worldRouter);
 router.use("/cyber", cyberRouter);
+router.use("/chatframes", chatframesRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

@@ -40,6 +40,8 @@ const FeedEventSchema = new Schema<IFeedEvent>(
       content: String,
       at: { type: Date, default: Date.now },
     }],
+    actorChatFrame: { type: String, default: null },
+    actorLevel: { type: Number, default: 1 },
   },
   { timestamps: true }
 );

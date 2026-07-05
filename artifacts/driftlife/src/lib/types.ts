@@ -89,6 +89,8 @@ export interface User {
   cars?: string[];
   activeCar?: string | null;
   businesses?: string[];
+  ownedChatFrames: string[];
+  equippedChatFrame: string | null;
 }
 
 export interface FeedEvent {
@@ -97,6 +99,8 @@ export interface FeedEvent {
   actor: string;
   actorId?: string;
   actorAvatarUrl?: string | null;
+  actorChatFrame?: string | null;
+  actorLevel?: number;
   target: string | null;
   message: string;
   dc: number;
@@ -214,6 +218,7 @@ export interface ChatMessage {
   at: string;
   channel?: string;
   districtId?: string;
+  chatFrame?: string | null;
 }
 
 export interface Conversation {

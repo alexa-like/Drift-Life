@@ -57,6 +57,8 @@ router.get("/", requireAuth, async (req, res) => {
         actor:          e.actor,
         actorId:        e.actorId,
         actorAvatarUrl: actorData?.avatarUrl ?? (e as any).actorAvatarUrl ?? null,
+        actorChatFrame: (e as any).actorChatFrame ?? null,
+        actorLevel:     (e as any).actorLevel ?? 1,
         target:         e.target,
         message:        e.message,
         dc:             e.dc,
@@ -88,6 +90,8 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       actor: user.username,
       actorId: user._id,
       message: trimmed,
+      actorChatFrame: (user as any).equippedChatFrame || null,
+      actorLevel: user.level || 1,
     });
 
     res.status(201).json({ id: event._id, message: trimmed, createdAt: event.createdAt });

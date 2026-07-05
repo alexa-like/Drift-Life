@@ -77,6 +77,8 @@ export function safeUser(user: InstanceType<typeof User>) {
     attacksToday: user.attacksToday,
     createdAt: user.createdAt,
     onboardingStage: user.onboardingStage ?? 0,
+    ownedChatFrames: (user as any).ownedChatFrames || [],
+    equippedChatFrame: (user as any).equippedChatFrame || null,
   };
 }
 

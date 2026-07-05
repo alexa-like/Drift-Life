@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { formatDC } from "../lib/format";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
+import { ChatFrameRenderer } from "../components/ChatFrameRenderer";
 
 const TYPE_COLORS: Record<string, string> = {
   post:   "#94a3b8",
@@ -185,7 +186,7 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
                 <div style={{ background: "#111118", borderRadius: 8, border: "1px solid #1e1e2e" }}>
                   {/* Main content */}
                   <div className="flex items-start gap-3 px-4 py-3">
-                    {ev.actor ? (
+                    {ev.actor && !ev.actorChatFrame ? (
                       <div style={{
                         width: 24, height: 24, borderRadius: "50%", background: "#1e1e2e",
                         display: "flex", alignItems: "center", justifyContent: "center",
@@ -195,28 +196,35 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
                           ? <img src={ev.actorAvatarUrl} alt={ev.actor} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
                           : ev.actor.charAt(0).toUpperCase()}
                       </div>
-                    ) : (
+                    ) : !ev.actor ? (
                       <div
                         className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
                         style={{ background: tc, boxShadow: `0 0 4px ${tc}` }}
                       />
-                    )}
+                    ) : null}
                     <div className="flex-1 min-w-0">
-                      {ev.actor && (
-                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <button
-                            className="font-mono text-xs font-bold hover:underline text-left"
-                            style={{
-                              color: "#94a3b8",
-                              background: "none", border: "none", padding: 0, cursor: "pointer",
-                            }}
-                            onClick={() => ev.actorId && onInspectPlayer?.(ev.actorId)}
-                          >
-                            {ev.actor}
-                          </button>
+                      {ev.actor && ev.actorChatFrame ? (
+                        <div className="mb-1 cursor-pointer" onClick={() => ev.actorId && onInspectPlayer?.(ev.actorId)}>
+                          <ChatFrameRenderer frameId={ev.actorChatFrame} username={ev.actor} level={ev.actorLevel} compact>
+                            {ev.message}
+                          </ChatFrameRenderer>
                         </div>
+                      ) : (
+                        <>
+                          {ev.actor && (
+                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                              <button
+                                className="font-mono text-xs font-bold hover:underline text-left"
+                                style={{ color: "#94a3b8", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                                onClick={() => ev.actorId && onInspectPlayer?.(ev.actorId)}
+                              >
+                                {ev.actor}
+                              </button>
+                            </div>
+                          )}
+                          <p className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{ev.message}</p>
+                        </>
                       )}
-                        <p className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{ev.message}</p>
                         <div className="flex gap-3 mt-0.5 flex-wrap">
                           {ev.dc > 0 && <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>+{formatDC(ev.dc)} DC</span>}
                           {ev.xp > 0 && <span className="font-mono text-xs" style={{ color: "#a855f7" }}>+{ev.xp} XP</span>}

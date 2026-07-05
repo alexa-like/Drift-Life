@@ -7,6 +7,8 @@ import { StatBar } from "../components/StatBar";
 import { InventoryPage } from "./InventoryPage";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
+import { ChatFrameRenderer } from "../components/ChatFrameRenderer";
+import { getFrame, FRAME_TIER_COLOR, FRAME_TIER_LABEL } from "../lib/chatFrames";
 
 const FACTION_LABEL: Record<string, string> = { suits: "The Suits", street: "The Street", grid: "The Grid" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
@@ -292,6 +294,52 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
               <p className="font-mono text-xs" style={{ color: "#94a3b8" }}>{FACTION_DESC[user.faction]}</p>
             </div>
           )}
+
+          {/* Chat Frame */}
+          {(() => {
+            const frame = getFrame(user.equippedChatFrame);
+            const tierColor = frame ? FRAME_TIER_COLOR[frame.tier] : "#475569";
+            return (
+              <div style={{ background: "#111118", border: `1px solid ${frame ? tierColor + "40" : "#1e1e2e"}`, borderRadius: 8, padding: 20 }}>
+                <div className="flex items-center justify-between mb-3">
+                  <CyberSectionHeader title="CHAT FRAME" accent={frame ? tierColor : "#475569"} size="sm" />
+                  <a
+                    href="#"
+                    onClick={e => { e.preventDefault(); (window as any).__setPage?.("chatframes"); }}
+                    className="font-mono text-xs"
+                    style={{ color: "#475569" }}
+                  >
+                    Browse Gallery
+                  </a>
+                </div>
+                {frame ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <span className="font-mono text-sm font-bold" style={{ color: "#e2e8f0" }}>
+                        {frame.badge && <span style={{ marginRight: 4 }}>{frame.badge}</span>}
+                        {frame.name}
+                      </span>
+                      <span className="font-mono px-1.5 py-0.5 rounded" style={{ fontSize: 9, background: tierColor + "20", color: tierColor, border: `1px solid ${tierColor}40` }}>
+                        {FRAME_TIER_LABEL[frame.tier]}
+                      </span>
+                    </div>
+                    <ChatFrameRenderer
+                      frameId={user.equippedChatFrame}
+                      username={user.username}
+                      level={user.level}
+                      timestamp={new Date().toISOString()}
+                    >
+                      This is how your messages appear to others in chat.
+                    </ChatFrameRenderer>
+                  </div>
+                ) : (
+                  <div className="font-mono text-xs" style={{ color: "#475569" }}>
+                    No frame equipped. Visit the Gallery to browse and purchase chat frames.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Avatar generator */}
           <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>

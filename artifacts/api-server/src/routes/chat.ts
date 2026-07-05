@@ -43,6 +43,8 @@ router.get("/global", requireAuth, async (req: AuthRequest, res) => {
       username: m.senderName,
       faction: m.senderFaction,
       title: m.senderTitle,
+      chatFrame: (m as any).senderChatFrame || null,
+      level: (m as any).senderLevel || 1,
       content: m.content,
       at: m.createdAt,
     })));
@@ -67,7 +69,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned");
+      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
@@ -82,6 +84,8 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
       senderName: user.username,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
+      senderChatFrame: (user as any).equippedChatFrame || null,
+      senderLevel: user.level,
       content,
     });
 
@@ -93,6 +97,8 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
         username: user.username,
         faction: user.faction,
         title: user.equippedTitle,
+        chatFrame: (user as any).equippedChatFrame || null,
+        level: user.level,
         content,
         at: message.createdAt,
       });
@@ -121,6 +127,8 @@ router.get("/district/:districtId", requireAuth, async (req: AuthRequest, res) =
       username: m.senderName,
       faction: m.senderFaction,
       title: m.senderTitle,
+      chatFrame: (m as any).senderChatFrame || null,
+      level: (m as any).senderLevel || 1,
       content: m.content,
       at: m.createdAt,
       districtId: m.districtId,
@@ -147,7 +155,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned district");
+      .select("username faction equippedTitle mutedUntil banned district equippedChatFrame level");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
@@ -163,6 +171,8 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
       senderName: user.username,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
+      senderChatFrame: (user as any).equippedChatFrame || null,
+      senderLevel: user.level,
       content,
     }) as any;
 
@@ -174,6 +184,8 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
         username: user.username,
         faction: user.faction,
         title: user.equippedTitle,
+        chatFrame: (user as any).equippedChatFrame || null,
+        level: user.level,
         content,
         at: message.createdAt,
         districtId: dId,
@@ -207,6 +219,8 @@ router.get("/faction", requireAuth, async (req: AuthRequest, res) => {
       username: m.senderName,
       faction: m.senderFaction,
       title: m.senderTitle,
+      chatFrame: (m as any).senderChatFrame || null,
+      level: (m as any).senderLevel || 1,
       content: m.content,
       at: m.createdAt,
     })));
@@ -231,7 +245,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(`faction:${String(req.userId)}`, now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned");
+      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (!user.faction) {
@@ -250,6 +264,8 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
       senderName: user.username,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
+      senderChatFrame: (user as any).equippedChatFrame || null,
+      senderLevel: user.level,
       content,
     });
 
@@ -261,6 +277,8 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
         username: user.username,
         faction: user.faction,
         title: user.equippedTitle,
+        chatFrame: (user as any).equippedChatFrame || null,
+        level: user.level,
         content,
         at: message.createdAt,
       });

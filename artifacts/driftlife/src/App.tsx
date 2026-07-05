@@ -32,6 +32,7 @@ import GaragePage from "./pages/GaragePage";
 import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
+import { ChatFrameGallery } from "./pages/ChatFrameGallery";
 import { NavBar } from "./components/NavBar";
 import { PageTransition } from "./components/PageTransition";
 import { ToastContainer } from "./components/ToastContainer";
@@ -100,6 +101,7 @@ function GameApp() {
   const { user, loading, login, logout, refreshUser } = useAuth();
   const { toasts, addToast, removeToast } = useToast();
   const [page, setPage] = useState("feed");
+  useEffect(() => { (window as any).__setPage = setPage; }, [setPage]);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [showFactionSelect, setShowFactionSelect] = useState(false);
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
@@ -202,6 +204,7 @@ function GameApp() {
       case "city":          return <CityPage user={user!} onUserUpdate={() => { refreshUser(); }} refreshUser={refreshUser} addToast={addToast} />;
       case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
+      case "chatframes":    return <ChatFrameGallery {...pageProps} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />

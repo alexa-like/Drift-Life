@@ -4,6 +4,7 @@ import { User, ChatMessage, Conversation } from "../lib/types";
 import { api } from "../lib/api";
 import { useSocket } from "../context/SocketContext";
 import { CyberButton } from "../components/CyberButton";
+import { ChatFrameRenderer } from "../components/ChatFrameRenderer";
 
 function MessageBubble({ message, isOwn, onUsernameClick }: {
   message: ChatMessage;
@@ -12,6 +13,30 @@ function MessageBubble({ message, isOwn, onUsernameClick }: {
 }) {
   const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
   const fc = message.faction ? FACTION_COLOR[message.faction] || "#94a3b8" : "#94a3b8";
+
+  if (message.chatFrame) {
+    return (
+      <div
+        className="flex flex-col mb-2"
+        style={{ alignItems: isOwn ? "flex-end" : "flex-start" }}
+        onClick={() => message.userId && onUsernameClick?.(message.userId)}
+      >
+        <ChatFrameRenderer
+          frameId={message.chatFrame}
+          username={message.username}
+          level={message.level}
+          timestamp={message.at}
+          isOwn={isOwn}
+        >
+          {message.title && (
+            <span className="font-mono mr-1" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
+          )}
+          {message.content}
+        </ChatFrameRenderer>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col mb-2" style={{ alignItems: isOwn ? "flex-end" : "flex-start" }}>
       <div className="flex items-center gap-1.5 mb-0.5">
