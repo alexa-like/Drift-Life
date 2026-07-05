@@ -4,6 +4,7 @@ import User from "../models/User";
 import ChatMessage, { dmKey } from "../models/ChatMessage";
 import { requireAuth, requireOwner, AuthRequest } from "../middlewares/auth";
 import mongoose from "mongoose";
+import { notifyMentions } from "../lib/mentions";
 
 const router = Router();
 
@@ -104,6 +105,8 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
       });
     }
 
+    notifyMentions({ text: content, senderId: user._id, senderName: user.username, sourceLabel: "Global Chat", sourcePage: "chat" });
+
     res.json({ message: "Sent", id: message._id });
   } catch (err: any) {
     req.log.error({ err }, "post global chat error");
@@ -191,6 +194,8 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
         districtId: dId,
       });
     }
+
+    notifyMentions({ text: content, senderId: user._id, senderName: user.username, sourceLabel: "District Chat", sourcePage: "chat" });
 
     res.json({ message: "Sent", id: message._id });
   } catch (err: any) {
@@ -283,6 +288,8 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
         at: message.createdAt,
       });
     }
+
+    notifyMentions({ text: content, senderId: user._id, senderName: user.username, sourceLabel: "Faction Chat", sourcePage: "chat" });
 
     res.json({ message: "Sent", id: message._id });
   } catch (err: any) {

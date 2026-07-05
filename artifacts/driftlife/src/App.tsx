@@ -188,7 +188,7 @@ function GameApp() {
       case "hospital":     return <HospitalPage {...pageProps} />;
       case "profile":      return <ProfilePage {...pageProps} />;
       case "settings":     return <SettingsPage {...pageProps} onLogout={handleLogout} />;
-      case "notifications":return <NotificationsPage onUnreadChange={setUnreadNotifs} />;
+      case "notifications":return <NotificationsPage onUnreadChange={setUnreadNotifs} onInspectPlayer={setInspectUserId} />;
       case "achievements":  return <AchievementsPage {...pageProps} />;
       case "chat":          return <ChatPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       case "skills":        return <SkillsPage user={user!} addToast={addToast} />;

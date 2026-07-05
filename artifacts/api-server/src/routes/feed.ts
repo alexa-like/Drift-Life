@@ -2,6 +2,7 @@ import { Router } from "express";
 import FeedEvent from "../models/FeedEvent";
 import User from "../models/User";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { notifyMentions } from "../lib/mentions";
 
 const router = Router();
 
@@ -94,6 +95,8 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       actorLevel: user.level || 1,
     });
 
+    notifyMentions({ text: trimmed, senderId: user._id, senderName: user.username, sourceLabel: "City Feed", sourcePage: "feed" });
+
     res.status(201).json({ id: event._id, message: trimmed, createdAt: event.createdAt });
   } catch (err: any) {
     req.log.error({ err }, "create post error");
@@ -158,6 +161,8 @@ router.post("/:id/comment", requireAuth, async (req: AuthRequest, res) => {
     if (!(event as any).comments) (event as any).comments = [];
     (event as any).comments.push(comment);
     await event.save();
+
+    notifyMentions({ text: String(content), senderId: user._id, senderName: user.username, sourceLabel: "Feed Comment", sourcePage: "feed" });
 
     res.status(201).json({ comment });
   } catch (err: any) {

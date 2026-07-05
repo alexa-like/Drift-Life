@@ -8,22 +8,24 @@ import { AnimatedCard } from "../components/AnimatedCard";
 
 interface Props {
   onUnreadChange: (count: number) => void;
+  onInspectPlayer?: (id: string) => void;
 }
 
 const TYPE_META: Record<string, { label: string; color: string; priority: "urgent" | "high" | "normal" | "info" }> = {
-  combat:   { label: "COMBAT",  color: "#ff6b35", priority: "urgent" },
-  system:   { label: "SYSTEM",  color: "#a855f7", priority: "high"   },
-  market:   { label: "MARKET",  color: "#00d4ff", priority: "normal" },
-  bank:     { label: "BANK",    color: "#f59e0b", priority: "normal" },
-  jail:     { label: "JAIL",    color: "#ff2d55", priority: "high"   },
-  hospital: { label: "HOSP",   color: "#39d353", priority: "normal" },
+  combat:   { label: "COMBAT",   color: "#ff6b35", priority: "urgent" },
+  mention:  { label: "MENTION",  color: "#00d4ff", priority: "high"   },
+  system:   { label: "SYSTEM",   color: "#a855f7", priority: "high"   },
+  market:   { label: "MARKET",   color: "#00d4ff", priority: "normal" },
+  bank:     { label: "BANK",     color: "#f59e0b", priority: "normal" },
+  jail:     { label: "JAIL",     color: "#ff2d55", priority: "high"   },
+  hospital: { label: "HOSP",     color: "#39d353", priority: "normal" },
 };
 
 const PRIORITY_ORDER = { urgent: 0, high: 1, normal: 2, info: 3 };
 
 function getPriority(type: string) { return TYPE_META[type]?.priority ?? "info"; }
 function getColor(type: string)    { return TYPE_META[type]?.color ?? "#64748b"; }
-function getLabel(type: string)    { return TYPE_META[type]?.label ?? type.toUpperCase().slice(0, 6); }
+function getLabel(type: string)    { return TYPE_META[type]?.label ?? type.toUpperCase().slice(0, 7); }
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -35,9 +37,31 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function NotificationsPage({ onUnreadChange }: Props) {
-  const [notifs, setNotifs]   = useState<Notification[]>([]);
-  const [filter, setFilter]   = useState<string>("all");
+/**
+ * Parse a notification `link` field and return a handler function.
+ * Formats:
+ *   "page:{pageName}"    → navigate to that page
+ *   "profile:{userId}"  → open player inspect modal
+ */
+function resolveLinkHandler(
+  link: string | null | undefined,
+  onInspectPlayer?: (id: string) => void
+): (() => void) | undefined {
+  if (!link) return undefined;
+  if (link.startsWith("page:")) {
+    const page = link.slice(5);
+    return () => (window as any).__setPage?.(page);
+  }
+  if (link.startsWith("profile:")) {
+    const userId = link.slice(8);
+    return onInspectPlayer ? () => onInspectPlayer(userId) : undefined;
+  }
+  return undefined;
+}
+
+export function NotificationsPage({ onUnreadChange, onInspectPlayer }: Props) {
+  const [notifs, setNotifs] = useState<Notification[]>([]);
+  const [filter, setFilter] = useState<string>("all");
 
   const load = async () => {
     const data = await api.get<Notification[]>("/notifications").catch(() => [] as Notification[]);
@@ -72,7 +96,6 @@ export function NotificationsPage({ onUnreadChange }: Props) {
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
-      {/* Header */}
       <CyberSectionHeader
         title={unreadCount > 0 ? `NOTIFICATIONS — ${unreadCount} UNREAD` : "NOTIFICATIONS"}
         accent="#a855f7"
@@ -118,9 +141,11 @@ export function NotificationsPage({ onUnreadChange }: Props) {
       ) : (
         <div className="flex flex-col gap-2">
           {filtered.map((n, i) => {
-            const color    = getColor(n.type);
-            const priority = getPriority(n.type);
-            const isUrgent = priority === "urgent" && !n.read;
+            const color      = getColor(n.type);
+            const priority   = getPriority(n.type);
+            const isUrgent   = priority === "urgent" && !n.read;
+            const linkAction = resolveLinkHandler((n as any).link, onInspectPlayer);
+            const isMention  = n.type === "mention";
 
             return (
               <AnimatedCard
@@ -128,7 +153,10 @@ export function NotificationsPage({ onUnreadChange }: Props) {
                 accent={n.read ? "#1e1e2e" : color}
                 shimmer={!n.read}
                 noPad
-                onClick={() => !n.read && markRead(n.id)}
+                onClick={() => {
+                  if (!n.read) markRead(n.id);
+                  linkAction?.();
+                }}
                 className="cursor-pointer"
                 style={{
                   opacity:   n.read ? 0.55 : 1,
@@ -147,7 +175,7 @@ export function NotificationsPage({ onUnreadChange }: Props) {
                       className="w-1.5 h-1.5 rounded-full"
                       style={{
                         background: n.read ? "#1e1e2e" : color,
-                        boxShadow:  isUrgent ? `0 0 6px ${color}` : "none",
+                        boxShadow:  (isUrgent || (isMention && !n.read)) ? `0 0 6px ${color}` : "none",
                       }}
                     />
                   </div>
@@ -171,13 +199,30 @@ export function NotificationsPage({ onUnreadChange }: Props) {
                           URGENT
                         </span>
                       )}
+                      {isMention && !n.read && (
+                        <span className="font-mono" style={{ fontSize: 9, color: "#00d4ff", letterSpacing: "0.05em" }}>
+                          @ you
+                        </span>
+                      )}
                     </div>
                     <p className="font-mono text-xs" style={{ color: n.read ? "#475569" : "#e2e8f0" }}>
                       {n.message}
                     </p>
-                    <span className="font-mono" style={{ fontSize: 10, color: "#334155" }}>
-                      {timeAgo(n.createdAt)}
-                    </span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="font-mono" style={{ fontSize: 10, color: "#334155" }}>
+                        {timeAgo(n.createdAt)}
+                      </span>
+                      {linkAction && !n.read && (
+                        <span className="font-mono" style={{ fontSize: 9, color: color, opacity: 0.7 }}>
+                          · tap to go →
+                        </span>
+                      )}
+                      {linkAction && n.read && (
+                        <span className="font-mono" style={{ fontSize: 9, color: "#334155" }}>
+                          · tap to go →
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {!n.read && (
