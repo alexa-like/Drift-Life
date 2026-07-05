@@ -57,7 +57,7 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
   const [dmPrivacy,     setDmPrivacy]     = useState<"anyone"|"nobody">(user.dmPrivacy ?? "anyone");
   const [liteMode,      setLiteMode]      = useState(user.liteModeEnabled ?? false);
   const [notifPrefs,    setNotifPrefs]    = useState(user.notificationPrefs ?? {
-    achievements: true, dms: true, frameGifts: true, xpBoost: true, weeklyFrame: true,
+    achievements: true, dms: true, xpBoost: true,
   });
 
   async function savePrivacy() {
@@ -213,9 +213,7 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
           {[
             { key: "achievements" as const, label: "Achievement unlocks",  desc: "Notify when you earn an achievement"         },
             { key: "dms"          as const, label: "Direct Messages",      desc: "Notify when you receive a DM"                },
-            { key: "frameGifts"   as const, label: "Frame Gifts",          desc: "Notify when a player gifts you a frame"      },
             { key: "xpBoost"      as const, label: "XP Boost Alerts",      desc: "Notify about active XP bonus events"         },
-            { key: "weeklyFrame"  as const, label: "Weekly Free Frame",    desc: "Remind you when the free frame rotates"      },
           ].map(({ key, label, desc }) => (
             <div key={key} className="flex items-center justify-between gap-3">
               <div>

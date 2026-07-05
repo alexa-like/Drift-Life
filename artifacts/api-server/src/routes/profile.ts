@@ -85,22 +85,6 @@ router.patch("/title", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// PATCH /api/profile/frame
-router.patch("/frame", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { frameId } = req.body;
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (frameId && !user.ownedFrames.includes(frameId)) return res.status(400).json({ message: "You don't own this frame" });
-    user.equippedFrame = frameId || null;
-    await user.save();
-    res.json({ equippedFrame: user.equippedFrame });
-  } catch (err: any) {
-    req.log.error({ err }, "profile frame error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
 // POST /api/profile/follow/:userId
 router.post("/follow/:userId", requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -150,8 +134,6 @@ router.get("/:tag", requireAuth, async (req: AuthRequest, res) => {
       level: user.level,
       prestige: user.prestige,
       rank: user.rank,
-      equippedFrame: user.equippedFrame,
-      equippedFrameRarity: user.equippedFrameRarity,
       equippedTitle: user.equippedTitle,
       titles: user.titles,
       strength: user.strength,

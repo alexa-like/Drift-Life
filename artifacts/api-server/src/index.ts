@@ -47,20 +47,18 @@ io.on("connection", (socket) => {
   let authedUserId: string | null = null;
   let authedUsername: string | null = null;
   let authedFaction: string | null = null;
-  let authedFrame: string | null = null;
   let authedTitle: string | null = null;
 
   // Authenticate socket, join private room
   socket.on("auth", async (userId: string) => {
     try {
       const user = await User.findById(userId)
-        .select("username faction equippedFrame equippedTitle role banned")
+        .select("username faction equippedTitle role banned")
         .lean();
       if (!user || user.banned) return;
       authedUserId = userId;
       authedUsername = user.username;
       authedFaction = user.faction || "neutral";
-      authedFrame = user.equippedFrame || "ghostFrame";
       authedTitle = user.equippedTitle || null;
       socket.join(`user:${userId}`);
       socket.emit("auth_ok", { userId });
@@ -112,7 +110,7 @@ io.on("connection", (socket) => {
     }
     try {
       const user = await User.findById(authedUserId)
-        .select("mutedUntil faction equippedFrame equippedFrameColor equippedTitle")
+        .select("mutedUntil faction equippedTitle")
         .lean();
       if (user?.mutedUntil && new Date(user.mutedUntil) > new Date()) {
         socket.emit("chat_error", "You are muted.");
@@ -124,8 +122,6 @@ io.on("connection", (socket) => {
         userId: authedUserId,
         username: authedUsername,
         faction: user?.faction || authedFaction,
-        frame: user?.equippedFrame || authedFrame || "ghostFrame",
-        frameColor: (user as any)?.equippedFrameColor || null,
         title: user?.equippedTitle || authedTitle || null,
         content: trimmed,
         at: new Date().toISOString(),
@@ -136,9 +132,7 @@ io.on("connection", (socket) => {
   });
 
   // Global chat
-  socket.on("global_message", async ({ content, equippedFrame, equippedFrameRarity }: {
-    content: string; equippedFrame?: string; equippedFrameRarity?: string;
-  }) => {
+  socket.on("global_message", async ({ content }: { content: string }) => {
     if (!authedUserId || !content) return;
     const trimmed = String(content).trim().slice(0, 280);
     if (!trimmed) return;
@@ -148,7 +142,7 @@ io.on("connection", (socket) => {
     }
     try {
       const user = await User.findById(authedUserId)
-        .select("mutedUntil faction equippedFrame equippedFrameColor equippedTitle")
+        .select("mutedUntil faction equippedTitle")
         .lean();
       if (user?.mutedUntil && new Date(user.mutedUntil) > new Date()) {
         socket.emit("chat_error", "You are muted.");
@@ -159,9 +153,6 @@ io.on("connection", (socket) => {
         userId: authedUserId,
         username: authedUsername,
         faction: user?.faction || authedFaction,
-        frame: equippedFrame || user?.equippedFrame || authedFrame || "ghostFrame",
-        frameColor: (user as any)?.equippedFrameColor || null,
-        frameRarity: equippedFrameRarity || "common",
         title: user?.equippedTitle || authedTitle || null,
         content: trimmed,
         at: new Date().toISOString(),

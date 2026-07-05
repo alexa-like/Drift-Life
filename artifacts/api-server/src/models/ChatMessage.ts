@@ -7,8 +7,6 @@ export interface IChatMessage extends Document {
   dmKey: string | null;
   senderId: mongoose.Types.ObjectId;
   senderName: string;
-  senderFrame: string | null;
-  senderFrameColor: string | null;
   senderFaction: string | null;
   senderTitle: string | null;
   content: string;
@@ -23,8 +21,6 @@ const ChatMessageSchema = new Schema<IChatMessage>(
     dmKey:           { type: String, default: null },
     senderId:        { type: Schema.Types.ObjectId, ref: "User", required: true },
     senderName:      { type: String, required: true },
-    senderFrame:     { type: String, default: null },
-    senderFrameColor:{ type: String, default: null },
     senderFaction:   { type: String, default: null },
     senderTitle:     { type: String, default: null },
     content:         { type: String, required: true, maxlength: 256 },

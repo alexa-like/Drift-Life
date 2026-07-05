@@ -29,7 +29,7 @@ const RANK_COLORS: Record<string, string> = {
 const FEED_COLORS: Record<string, string> = {
   crime: "#ff2d55", fight: "#ff6b35", job: "#39d353",
   market: "#00d4ff", bank: "#f59e0b", system: "#a855f7",
-  level_up: "#f59e0b", hospital: "#ff2d55", frame_gift: "#a855f7",
+  level_up: "#f59e0b", hospital: "#ff2d55",
 };
 
 export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
@@ -363,7 +363,6 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
             )}
             {feed.map((ev, idx) => {
               const typeColor = FEED_COLORS[ev.type] ?? "#94a3b8";
-              const borderColor = ev.actorFrameColor || typeColor;
               return (
                 <motion.div
                   key={ev.id}
@@ -372,8 +371,7 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
                   transition={{ delay: idx * 0.04, duration: 0.2 }}
                   className="flex items-start gap-2 py-2 px-4"
                   style={{
-                    borderLeft: `3px solid ${borderColor}60`,
-                    background: ev.actorFrameColor ? `${borderColor}06` : "transparent",
+                    borderLeft: `3px solid ${typeColor}60`,
                     borderBottom: "1px solid #1e1e2e",
                   }}
                 >

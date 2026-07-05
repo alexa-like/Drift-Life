@@ -90,9 +90,9 @@ router.post("/:id/travel", requireAuth, async (req: AuthRequest, res) => {
 router.get("/:id/players", requireAuth, async (req, res) => {
   try {
     const players = await User.find({ district: req.params.id, banned: false, isEmailVerified: true })
-      .select("username avatar faction level equippedFrame")
+      .select("username avatar faction level")
       .limit(50).lean();
-    res.json(players.map(p => ({ id: p._id, username: p.username, avatar: p.avatar, faction: (p as any).faction, level: p.level, equippedFrame: (p as any).equippedFrame })));
+    res.json(players.map(p => ({ id: p._id, username: p.username, avatar: p.avatar, faction: (p as any).faction, level: p.level })));
   } catch (err: any) {
     req.log.error({ err }, "district players error");
     res.status(500).json({ message: "Internal server error" });

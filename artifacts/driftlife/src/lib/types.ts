@@ -59,13 +59,8 @@ export interface User {
   guildId?: string | null;
   guildRole?: "leader" | "officer" | "member" | "recruit" | null;
   isEmailVerified: boolean;
-  equippedFrame: string | null;
-  equippedFrameRarity: string | null;
-  equippedFrameColor: string | null;
-  equippedFrames: { avatar: string; chat: string; feed: string };
   equippedTitle: string | null;
   titles: string[];
-  ownedFrames: string[];
   merit: number;
   appearOffline: boolean;
   dmPrivacy: "anyone" | "nobody";
@@ -73,9 +68,7 @@ export interface User {
   notificationPrefs: {
     achievements: boolean;
     dms: boolean;
-    frameGifts: boolean;
     xpBoost: boolean;
-    weeklyFrame: boolean;
   };
   devMode: boolean;
   battlePassPremium: boolean;
@@ -103,8 +96,6 @@ export interface FeedEvent {
   type: string;
   actor: string;
   actorId?: string;
-  actorFrame?: string | null;
-  actorFrameColor?: string | null;
   actorAvatarUrl?: string | null;
   target: string | null;
   message: string;
@@ -199,33 +190,6 @@ export interface Notification {
   createdAt: string;
 }
 
-export interface Frame {
-  frameId: string;
-  displayName: string;
-  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythic";
-  glowColor: string;
-  animationType: "static" | "shimmer" | "pulse" | "epic-particles" | "legendary-electric" | "mythic-cascade";
-  variantIndex: number;
-  price: number;
-  originalPrice?: number;
-  isOnSale?: boolean;
-  currency: "dc" | "merit" | "nc";
-  isFree: boolean;
-  description: string;
-  earnedBy?: string;
-  isWeeklyFree?: boolean;
-  isFeatured?: boolean;
-  isLimited?: boolean;
-  availableUntil?: string;
-  mythicAliasOf?: string;
-  createdAt?: string;
-  isCustom?: boolean;
-  isVisible?: boolean;
-  owned: boolean;
-  equipped: boolean;
-  equippedOn?: ("avatar" | "chat" | "feed")[];
-}
-
 export interface Achievement {
   id: string;
   name: string;
@@ -243,9 +207,6 @@ export interface ChatMessage {
   userId: string;
   username: string;
   faction: string | null;
-  frame: string | null;
-  frameColor: string | null;
-  frameRarity?: string | null;
   title: string | null;
   level?: number;
   tag?: string | null;
@@ -261,8 +222,6 @@ export interface Conversation {
   avatar: string;
   avatarUrl?: string | null;
   faction: string | null;
-  equippedFrame?: string | null;
-  equippedFrameColor?: string | null;
   lastMessage: string;
   lastAt: string;
   unread: number;
@@ -279,8 +238,6 @@ export interface LeaderboardEntry {
   faction: string | null;
   level: number;
   rankTitle: string;
-  equippedFrame?: string | null;
-  equippedFrameRarity?: string | null;
   equippedTitle?: string | null;
   dc: number;
   bankBalance: number;

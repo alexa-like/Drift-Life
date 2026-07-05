@@ -114,25 +114,6 @@ router.post("/give-nc", async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/dev/give-frame
-router.post("/give-frame", async (req: AuthRequest, res) => {
-  try {
-    const { frameId } = req.body;
-    if (!frameId) return res.status(400).json({ message: "frameId required" });
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "Not found" });
-    if (!user.ownedFrames.includes(frameId)) {
-      user.ownedFrames.push(frameId);
-      user.markModified("ownedFrames");
-    }
-    await user.save();
-    res.json({ message: `Frame ${frameId} added`, ownedFrames: user.ownedFrames });
-  } catch (err: any) {
-    req.log.error({ err }, "dev give-frame error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
 // POST /api/dev/add-merit
 router.post("/add-merit", async (req: AuthRequest, res) => {
   try {

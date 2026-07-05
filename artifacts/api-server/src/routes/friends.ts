@@ -10,7 +10,7 @@ const router = Router();
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId)
-      .populate("friends", "username tag avatar avatarUrl level faction equippedFrame district")
+      .populate("friends", "username tag avatar avatarUrl level faction district")
       .lean();
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json((user as any).friends || []);

@@ -46,13 +46,11 @@ router.patch("/", requireAuth, async (req: AuthRequest, res) => {
     if (telegramNotifications !== undefined) user.telegramNotifications = Boolean(telegramNotifications);
     if (notificationPrefs && typeof notificationPrefs === "object") {
       const prefs = user.notificationPrefs || {
-        achievements: true, dms: true, frameGifts: true, xpBoost: true, weeklyFrame: true,
+        achievements: true, dms: true, xpBoost: true,
       };
       if (notificationPrefs.achievements !== undefined) prefs.achievements = Boolean(notificationPrefs.achievements);
       if (notificationPrefs.dms !== undefined) prefs.dms = Boolean(notificationPrefs.dms);
-      if (notificationPrefs.frameGifts !== undefined) prefs.frameGifts = Boolean(notificationPrefs.frameGifts);
       if (notificationPrefs.xpBoost !== undefined) prefs.xpBoost = Boolean(notificationPrefs.xpBoost);
-      if (notificationPrefs.weeklyFrame !== undefined) prefs.weeklyFrame = Boolean(notificationPrefs.weeklyFrame);
       user.notificationPrefs = prefs;
     }
 

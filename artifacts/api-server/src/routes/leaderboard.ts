@@ -15,8 +15,6 @@ function formatPlayer(p: any, i: number, metric: string) {
     faction: p.faction,
     level: p.level,
     rankTitle: p.rank,
-    equippedFrame: p.equippedFrame,
-    equippedFrameRarity: p.equippedFrameRarity,
     equippedTitle: p.equippedTitle,
     dc: p.dc,
     bankBalance: p.bankBalance,
@@ -44,7 +42,7 @@ router.get("/", requireAuth, async (req, res) => {
     const players = await User.find({ banned: false })
       .sort(sort as any)
       .limit(limit)
-      .select("username tag avatar avatarUrl faction level rank dc bankBalance wins losses totalFights successfulCrimes reputation district equippedFrame equippedFrameRarity equippedTitle")
+      .select("username tag avatar avatarUrl faction level rank dc bankBalance wins losses totalFights successfulCrimes reputation district equippedTitle")
       .lean();
 
     res.json(players.map((p, i) => formatPlayer(p, i, type)));
@@ -60,7 +58,7 @@ router.get("/level", requireAuth, async (req, res) => {
     const players = await User.find({ banned: false })
       .sort({ level: -1, xp: -1 })
       .limit(100)
-      .select("username tag avatar avatarUrl faction level rank dc bankBalance wins losses totalFights successfulCrimes reputation district equippedFrame equippedFrameRarity equippedTitle")
+      .select("username tag avatar avatarUrl faction level rank dc bankBalance wins losses totalFights successfulCrimes reputation district equippedTitle")
       .lean();
     res.json(players.map((p, i) => formatPlayer(p, i, "level")));
   } catch (err: any) {
@@ -77,7 +75,7 @@ router.get("/wealth", requireAuth, async (req, res) => {
       { $addFields: { totalWealth: { $add: ["$dc", "$bankBalance"] } } },
       { $sort: { totalWealth: -1 } },
       { $limit: 100 },
-      { $project: { username: 1, tag: 1, avatar: 1, avatarUrl: 1, faction: 1, level: 1, rank: 1, dc: 1, bankBalance: 1, totalWealth: 1, wins: 1, losses: 1, totalFights: 1, successfulCrimes: 1, reputation: 1, district: 1, equippedFrame: 1, equippedFrameRarity: 1, equippedTitle: 1 } },
+      { $project: { username: 1, tag: 1, avatar: 1, avatarUrl: 1, faction: 1, level: 1, rank: 1, dc: 1, bankBalance: 1, totalWealth: 1, wins: 1, losses: 1, totalFights: 1, successfulCrimes: 1, reputation: 1, district: 1, equippedTitle: 1 } },
     ]);
     res.json(players.map((p, i) => formatPlayer(p, i, "wealth")));
   } catch (err: any) {
@@ -92,7 +90,7 @@ router.get("/pvp", requireAuth, async (req, res) => {
     const players = await User.find({ banned: false })
       .sort({ wins: -1 })
       .limit(100)
-      .select("username tag avatar avatarUrl faction level rank dc bankBalance wins losses totalFights successfulCrimes reputation district equippedFrame equippedFrameRarity equippedTitle")
+      .select("username tag avatar avatarUrl faction level rank dc bankBalance wins losses totalFights successfulCrimes reputation district equippedTitle")
       .lean();
     res.json(players.map((p, i) => formatPlayer(p, i, "pvp")));
   } catch (err: any) {
@@ -107,7 +105,7 @@ router.get("/crime", requireAuth, async (req, res) => {
     const players = await User.find({ banned: false })
       .sort({ successfulCrimes: -1 })
       .limit(100)
-      .select("username tag avatar avatarUrl faction level rank dc bankBalance wins losses totalFights successfulCrimes reputation district equippedFrame equippedFrameRarity equippedTitle")
+      .select("username tag avatar avatarUrl faction level rank dc bankBalance wins losses totalFights successfulCrimes reputation district equippedTitle")
       .lean();
     res.json(players.map((p, i) => formatPlayer(p, i, "crime")));
   } catch (err: any) {

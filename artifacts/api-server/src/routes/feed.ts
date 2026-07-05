@@ -37,49 +37,33 @@ router.get("/", requireAuth, async (req, res) => {
     scored.sort((a, b) => b.score - a.score);
     const events = scored.slice(0, limit).map(s => s.p);
 
-    // Batch-fetch actor cosmetics
+    // Batch-fetch actor avatars
     const actorIds = [...new Set(events.map(e => e.actorId).filter(Boolean))];
-    const actorMap: Record<string, {
-      equippedFrame?: string | null;
-      equippedFrames?: { feed?: string } | null;
-      equippedFrameColor?: string | null;
-      avatarUrl?: string | null;
-    }> = {};
+    const actorMap: Record<string, { avatarUrl?: string | null }> = {};
     if (actorIds.length > 0) {
       const actors = await User.find({ _id: { $in: actorIds } })
-        .select("_id equippedFrame equippedFrames equippedFrameColor avatarUrl")
+        .select("_id avatarUrl")
         .lean();
       for (const a of actors) {
-        actorMap[String(a._id)] = {
-          equippedFrame:      (a as any).equippedFrame      ?? null,
-          equippedFrames:     (a as any).equippedFrames     ?? null,
-          equippedFrameColor: (a as any).equippedFrameColor ?? null,
-          avatarUrl:          (a as any).avatarUrl          ?? null,
-        };
+        actorMap[String(a._id)] = { avatarUrl: (a as any).avatarUrl ?? null };
       }
     }
 
     res.json(events.map(e => {
-      const actorData    = e.actorId ? actorMap[String(e.actorId)] : undefined;
-      const feedSlot     = actorData?.equippedFrames?.feed;
-      const resolvedFrame = (feedSlot && feedSlot !== "ghostFrame")
-        ? feedSlot
-        : (actorData?.equippedFrame ?? null);
+      const actorData = e.actorId ? actorMap[String(e.actorId)] : undefined;
       return {
-        id:              e._id,
-        type:            e.type,
-        actor:           e.actor,
-        actorId:         e.actorId,
-        actorFrame:      resolvedFrame ?? (e as any).actorFrame ?? null,
-        actorFrameColor: actorData?.equippedFrameColor ?? (e as any).actorFrameColor ?? null,
-        actorAvatarUrl:  actorData?.avatarUrl          ?? (e as any).actorAvatarUrl  ?? null,
-        target:          e.target,
-        message:         e.message,
-        dc:              e.dc,
-        xp:              e.xp,
-        reactions:       (e as any).reactions ?? { like: 0, laugh: 0, shock: 0, respect: 0 },
-        comments:        (e as any).comments  ?? [],
-        createdAt:       e.createdAt,
+        id:             e._id,
+        type:           e.type,
+        actor:          e.actor,
+        actorId:        e.actorId,
+        actorAvatarUrl: actorData?.avatarUrl ?? (e as any).actorAvatarUrl ?? null,
+        target:         e.target,
+        message:        e.message,
+        dc:             e.dc,
+        xp:             e.xp,
+        reactions:      (e as any).reactions ?? { like: 0, laugh: 0, shock: 0, respect: 0 },
+        comments:       (e as any).comments  ?? [],
+        createdAt:      e.createdAt,
       };
     }));
   } catch (err: any) {

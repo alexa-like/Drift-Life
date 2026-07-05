@@ -51,7 +51,7 @@ router.get("/mine", requireAuth, async (req: AuthRequest, res) => {
     if (!guild) return res.json(null);
 
     const allMemberIds = [guild.leaderId, ...guild.officers, ...guild.members, ...guild.recruits];
-    const memberDocs = await User.find({ _id: { $in: allMemberIds } }).select("username level faction avatar equippedFrames");
+    const memberDocs = await User.find({ _id: { $in: allMemberIds } }).select("username level faction avatar");
 
     const memberMap = Object.fromEntries(memberDocs.map((m) => [m._id.toString(), m]));
 

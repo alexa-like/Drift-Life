@@ -20,7 +20,6 @@ interface Friend {
   avatarUrl?: string | null;
   level: number;
   faction: string | null;
-  equippedFrame?: string | null;
   district?: string;
 }
 

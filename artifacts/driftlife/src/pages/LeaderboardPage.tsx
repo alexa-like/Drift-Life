@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { LeaderboardEntry } from "../lib/types";
 import { api } from "../lib/api";
-import { AvatarWithFrame } from "../components/AvatarWithFrame";
 import { formatDC } from "../lib/format";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { CyberButton } from "../components/CyberButton";
@@ -196,7 +195,17 @@ export function LeaderboardPage() {
                         style={{ width: 36, fontSize: rankSize, color: medalColor, textShadow: `0 0 12px ${medalColor}80`, lineHeight: 1 }}>
                         {i + 1}
                       </div>
-                      <AvatarWithFrame username={entry.username} avatarUrl={(entry as any).avatarUrl} frameId={(entry as any).equippedFrame || null} frameColor={(entry as any).equippedFrameColor || null} size={i === 0 ? "lg" : "md"} />
+                      <div style={{
+                        width: i === 0 ? 48 : 36, height: i === 0 ? 48 : 36,
+                        borderRadius: "50%", background: "#1e1e2e", flexShrink: 0,
+                        border: `2px solid ${medalColor}40`, overflow: "hidden",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: i === 0 ? 18 : 14, color: medalColor,
+                      }}>
+                        {(entry as any).avatarUrl
+                          ? <img src={(entry as any).avatarUrl} alt={entry.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          : entry.username.charAt(0).toUpperCase()}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono font-bold" style={{ fontSize: i === 0 ? 16 : 14, color: medalColor, textShadow: `0 0 8px ${medalColor}60` }}>
@@ -224,8 +233,6 @@ export function LeaderboardPage() {
                 const i = idx + 3;
                 const fc = entry.faction ? FACTION_COLOR[entry.faction] : "#64748b";
                 const metric = getMetricDisplay(entry);
-                const frameColor = (entry as any).equippedFrameColor || null;
-                const borderColor = frameColor || fc;
                 return (
                   <motion.div
                     key={entry.id}
@@ -236,7 +243,7 @@ export function LeaderboardPage() {
                     style={{
                       background: idx % 2 === 0 ? "#111118" : "#0d0d15",
                       borderBottom: "1px solid #1e1e2e",
-                      borderLeft: `3px solid ${borderColor}30`,
+                      borderLeft: `3px solid ${fc}30`,
                       transition: "background 0.15s",
                     }}
                     whileHover={{ backgroundColor: "#16161f" } as any}
@@ -245,7 +252,16 @@ export function LeaderboardPage() {
                     <div className="font-mono font-bold flex-shrink-0 text-center" style={{ width: 28, fontSize: 11, color: "#334155" }}>
                       {i + 1}
                     </div>
-                    <AvatarWithFrame username={entry.username} avatarUrl={(entry as any).avatarUrl} frameId={(entry as any).equippedFrame || null} frameColor={frameColor} size="sm" />
+                    <div style={{
+                      width: 28, height: 28, borderRadius: "50%", background: "#1e1e2e", flexShrink: 0,
+                      border: `1px solid ${fc}30`, overflow: "hidden",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, color: fc,
+                    }}>
+                      {(entry as any).avatarUrl
+                        ? <img src={(entry as any).avatarUrl} alt={entry.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : entry.username.charAt(0).toUpperCase()}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{entry.username}</span>

@@ -93,18 +93,8 @@ export interface IUser extends Document {
   equippedArmor: mongoose.Types.ObjectId | null;
   equippedClothing: mongoose.Types.ObjectId | null;
   equippedVehicle: mongoose.Types.ObjectId | null;
-  equippedFrame: string | null;
-  equippedFrameRarity: string | null;
-  equippedFrameColor: string | null;
-  equippedFrames: {
-    avatar: string;
-    chat: string;
-    feed: string;
-  };
   equippedTitle: string | null;
   titles: string[];
-  ownedFrames: string[];
-  receivedAsGift: string[];
   appearOffline: boolean;
   lastActiveAt: Date;
   lastCrimeDate: Date | null;
@@ -113,9 +103,7 @@ export interface IUser extends Document {
   notificationPrefs: {
     achievements: boolean;
     dms: boolean;
-    frameGifts: boolean;
     xpBoost: boolean;
-    weeklyFrame: boolean;
   };
   gang: string | null;
   guildId: mongoose.Types.ObjectId | null;
@@ -231,18 +219,8 @@ const UserSchema = new Schema<IUser>(
     equippedArmor: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedClothing: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedVehicle: { type: Schema.Types.ObjectId, ref: "Item", default: null },
-    equippedFrame: { type: String, default: "ghostFrame" },
-    equippedFrameRarity: { type: String, default: "common" },
-    equippedFrameColor: { type: String, default: null },
-    equippedFrames: {
-      avatar: { type: String, default: "ghostFrame" },
-      chat:   { type: String, default: "ghostFrame" },
-      feed:   { type: String, default: "ghostFrame" },
-    },
     equippedTitle: { type: String, default: "New in Town" },
     titles: [{ type: String }],
-    ownedFrames: [{ type: String }],
-    receivedAsGift: [{ type: String }],
     appearOffline: { type: Boolean, default: false },
     lastActiveAt: { type: Date, default: Date.now },
     lastCrimeDate: { type: Date, default: null },
@@ -252,11 +230,9 @@ const UserSchema = new Schema<IUser>(
       type: {
         achievements: { type: Boolean, default: true },
         dms: { type: Boolean, default: true },
-        frameGifts: { type: Boolean, default: true },
         xpBoost: { type: Boolean, default: true },
-        weeklyFrame: { type: Boolean, default: true },
       },
-      default: () => ({ achievements: true, dms: true, frameGifts: true, xpBoost: true, weeklyFrame: true }),
+      default: () => ({ achievements: true, dms: true, xpBoost: true }),
     },
     gang: { type: String, default: null },
     guildId: { type: Schema.Types.ObjectId, ref: "Guild", default: null },

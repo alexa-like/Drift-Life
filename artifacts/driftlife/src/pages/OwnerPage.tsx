@@ -70,7 +70,7 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "frames" | "grants" | "vanta";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -104,30 +104,6 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [itemPriceEdit, setItemPriceEdit] = useState<string | null>(null);
   const [itemPriceVal, setItemPriceVal] = useState("");
   const [itemPriceFilter, setItemPriceFilter] = useState<string>("all");
-  // Frames tab
-  const [framesList, setFramesList] = useState<{
-    frameId: string; displayName: string; rarity: string; currency: string;
-    price: number; salePrice: number | null; saleExpiry: string | null;
-    isFree: boolean; isWeeklyFree: boolean; isFeatured: boolean; isVisible: boolean;
-    isCustom: boolean; glowColor: string; description: string; ownedByCount: number;
-  }[]>([]);
-  const [framesLoading, setFramesLoading] = useState(false);
-  const [framePriceEdit, setFramePriceEdit] = useState<string | null>(null);
-  const [framePriceVal, setFramePriceVal] = useState("");
-  const [framesRarityFilter, setFramesRarityFilter] = useState<string>("all");
-  const [savingFrame, setSavingFrame] = useState<string | null>(null);
-  const [frameSaleEdit, setFrameSaleEdit] = useState<string | null>(null);
-  const [frameSaleVal, setFrameSaleVal] = useState("");
-  const [frameSaleExpiry, setFrameSaleExpiry] = useState("");
-  const [createFrameOpen, setCreateFrameOpen] = useState(false);
-  const [newFrame, setNewFrame] = useState({ frameId: "", displayName: "", rarity: "common", glowColor: "#00d4ff", animationType: "static", price: 0, currency: "dc", description: "" });
-  const [creatingFrame, setCreatingFrame] = useState(false);
-  const [revokeFrameId, setRevokeFrameId] = useState("");
-  const [revokeSearch, setRevokeSearch] = useState("");
-  const [revokeUsers, setRevokeUsers] = useState<{_id: string; username: string; level: number}[]>([]);
-  const [revokeTargetId, setRevokeTargetId] = useState<string | null>(null);
-  const [revokeTargetName, setRevokeTargetName] = useState("");
-  const [revokingFrame, setRevokingFrame] = useState(false);
   // Grants tab
   const [grantSearch, setGrantSearch] = useState("");
   const [grantUsers, setGrantUsers] = useState<{ _id: string; username: string; level: number }[]>([]);
@@ -142,8 +118,6 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [boostMultiplier, setBoostMultiplier] = useState("2");
   const [boostHours, setBoostHours] = useState("4");
   const [settingBoost, setSettingBoost] = useState(false);
-  const [grantFrameId, setGrantFrameId] = useState("");
-  const [grantingFrame, setGrantingFrame] = useState(false);
   // Vanta tab
   const [vantaLogs, setVantaLogs] = useState<{
     id: string; player: { id: string; name: string }; trigger: string;
@@ -208,15 +182,6 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     finally { setItemsLoading(false); }
   }, []);
 
-  const loadFrames = useCallback(async () => {
-    setFramesLoading(true);
-    try {
-      const frames = await api.get<any[]>("/owner/frames");
-      setFramesList(frames);
-    } catch { /* silent */ }
-    finally { setFramesLoading(false); }
-  }, []);
-
   const loadVanta = useCallback(async (dismissed = false) => {
     setVantaLoading(true);
     try {
@@ -235,7 +200,6 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   useEffect(() => { if (tab === "activity") { loadRecentFeed(); loadAuditLog(); } }, [tab, loadRecentFeed, loadAuditLog]);
   useEffect(() => { if (tab === "patch-notes") loadPatchNotes(); }, [tab, loadPatchNotes]);
   useEffect(() => { if (tab === "items") loadShopItems(); }, [tab, loadShopItems]);
-  useEffect(() => { if (tab === "frames") loadFrames(); }, [tab, loadFrames]);
   useEffect(() => {
     if (tab === "grants") {
       api.get<{ active: boolean; multiplier: number; expiresAt?: string }>("/owner/xp-boost")
@@ -374,111 +338,11 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     finally { setSettingBoost(false); }
   }
 
-  async function grantFrame() {
-    if (!grantTargetId || !grantFrameId) { addToast("Select player and frame", "error"); return; }
-    setGrantingFrame(true);
-    try {
-      const r = await api.post<{ message: string }>("/frames/owner/grant", { userId: grantTargetId, frameId: grantFrameId });
-      addToast(r.message, "success");
-      setGrantFrameId("");
-    } catch (e: any) { addToast(e.message, "error"); }
-    finally { setGrantingFrame(false); }
-  }
-
   async function deleteNote(id: string) {
     try {
       await api.delete(`/owner/patch-notes/${id}`);
       addToast("Deleted", "success");
       loadPatchNotes();
-    } catch (e: any) { addToast(e.message, "error"); }
-  }
-
-  async function setFramePrice(frameId: string) {
-    const price = Number(framePriceVal);
-    if (isNaN(price) || price < 0) { addToast("Enter a valid price", "error"); return; }
-    setSavingFrame(frameId);
-    try {
-      await api.patch<{ message: string }>(`/frames/owner/${frameId}`, { price });
-      addToast("Frame price updated", "success");
-      setFramePriceEdit(null); setFramePriceVal("");
-      loadFrames();
-    } catch (e: any) { addToast(e.message, "error"); }
-    finally { setSavingFrame(null); }
-  }
-
-  async function patchFrame(frameId: string, data: Record<string, unknown>) {
-    setSavingFrame(frameId);
-    try {
-      await api.patch<{ message: string }>(`/frames/owner/${frameId}`, data);
-      addToast("Frame updated", "success");
-      loadFrames();
-    } catch (e: any) { addToast(e.message, "error"); }
-    finally { setSavingFrame(null); }
-  }
-
-  async function setSalePrice(frameId: string) {
-    if (!frameSaleVal) { addToast("Enter a sale price", "error"); return; }
-    setSavingFrame(frameId);
-    try {
-      await api.patch<{ message: string }>(`/frames/owner/${frameId}`, {
-        salePrice: Number(frameSaleVal),
-        saleExpiry: frameSaleExpiry || null,
-      });
-      addToast("Sale price set", "success");
-      setFrameSaleEdit(null); setFrameSaleVal(""); setFrameSaleExpiry("");
-      loadFrames();
-    } catch (e: any) { addToast(e.message, "error"); }
-    finally { setSavingFrame(null); }
-  }
-
-  async function clearSalePrice(frameId: string) {
-    setSavingFrame(frameId);
-    try {
-      await api.patch<{ message: string }>(`/frames/owner/${frameId}`, { salePrice: null, saleExpiry: null });
-      addToast("Sale cleared", "success");
-      loadFrames();
-    } catch (e: any) { addToast(e.message, "error"); }
-    finally { setSavingFrame(null); }
-  }
-
-  async function createNewFrame() {
-    if (!newFrame.frameId || !newFrame.displayName) { addToast("Frame ID and name required", "error"); return; }
-    setCreatingFrame(true);
-    try {
-      await api.post<{ message: string }>("/frames/owner/create", newFrame);
-      addToast("Frame created", "success");
-      setCreateFrameOpen(false);
-      setNewFrame({ frameId: "", displayName: "", rarity: "common", glowColor: "#00d4ff", animationType: "static", price: 0, currency: "dc", description: "" });
-      loadFrames();
-    } catch (e: any) { addToast(e.message, "error"); }
-    finally { setCreatingFrame(false); }
-  }
-
-  async function searchRevokeUsers() {
-    if (!revokeSearch.trim()) return;
-    try {
-      const res = await api.get<{ users: {_id: string; username: string; level: number}[] }>(`/owner/users?page=1&limit=10&q=${encodeURIComponent(revokeSearch.trim())}`);
-      setRevokeUsers(res.users);
-    } catch { setRevokeUsers([]); }
-  }
-
-  async function doRevokeFrame() {
-    if (!revokeFrameId || !revokeTargetId) { addToast("Select frame ID and player", "error"); return; }
-    setRevokingFrame(true);
-    try {
-      const r = await api.post<{ message: string }>("/frames/owner/revoke", { frameId: revokeFrameId, userId: revokeTargetId });
-      addToast(r.message, "success");
-      setRevokeTargetId(null); setRevokeTargetName(""); setRevokeFrameId(""); setRevokeSearch(""); setRevokeUsers([]);
-    } catch (e: any) { addToast(e.message, "error"); }
-    finally { setRevokingFrame(false); }
-  }
-
-  async function deleteCustomFrame(frameId: string) {
-    if (!confirm(`Delete custom frame "${frameId}"? This cannot be undone.`)) return;
-    try {
-      await api.delete<{ message: string }>(`/frames/owner/${frameId}`);
-      addToast("Frame deleted", "success");
-      loadFrames();
     } catch (e: any) { addToast(e.message, "error"); }
   }
 
@@ -510,7 +374,6 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     { id: "activity",   label: "Activity" },
     { id: "patch-notes", label: "Patch Notes" },
     { id: "items",       label: "Items" },
-    { id: "frames",      label: "Frames" },
     { id: "grants",      label: "Grants" },
   ];
 
@@ -880,252 +743,6 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         </div>
       )}
 
-      {/* FRAMES TAB */}
-      {tab === "frames" && (
-        <div className="space-y-4">
-
-          {/* Toolbar */}
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              {(["all", "common", "uncommon", "rare", "epic", "legendary", "mythic"] as string[]).map(r => (
-                <button key={r} onClick={() => setFramesRarityFilter(r)}
-                  className="px-2.5 py-1 rounded font-mono capitalize"
-                  style={{ fontSize: 11, background: framesRarityFilter === r ? "#a855f718" : "transparent", color: framesRarityFilter === r ? "#a855f7" : "#475569", border: `1px solid ${framesRarityFilter === r ? "#a855f740" : "#1e1e2e"}` }}>
-                  {r}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setCreateFrameOpen(o => !o)} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}>
-                {createFrameOpen ? "Cancel" : "+ New Frame"}
-              </button>
-              <button onClick={loadFrames} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}>Refresh</button>
-            </div>
-          </div>
-
-          {/* Create new frame form */}
-          {createFrameOpen && (
-            <div style={{ ...s, borderColor: "#39d35330" }}>
-              <div className="font-mono text-xs font-bold mb-3" style={{ color: "#39d353", letterSpacing: "0.1em" }}>CREATE CUSTOM FRAME</div>
-              <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                <div>
-                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Frame ID (snake_case)</label>
-                  <input value={newFrame.frameId} onChange={e => setNewFrame(p => ({ ...p, frameId: e.target.value }))}
-                    placeholder="e.g. vanta_gold" className="w-full font-mono text-xs px-2 py-1.5 rounded"
-                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
-                </div>
-                <div>
-                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Display Name</label>
-                  <input value={newFrame.displayName} onChange={e => setNewFrame(p => ({ ...p, displayName: e.target.value }))}
-                    placeholder="e.g. Vanta Gold" className="w-full font-mono text-xs px-2 py-1.5 rounded"
-                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
-                </div>
-                <div>
-                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Rarity</label>
-                  <select value={newFrame.rarity} onChange={e => setNewFrame(p => ({ ...p, rarity: e.target.value }))}
-                    className="w-full font-mono text-xs px-2 py-1.5 rounded"
-                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }}>
-                    {["common","uncommon","rare","epic","legendary","mythic"].map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Currency</label>
-                  <select value={newFrame.currency} onChange={e => setNewFrame(p => ({ ...p, currency: e.target.value }))}
-                    className="w-full font-mono text-xs px-2 py-1.5 rounded"
-                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }}>
-                    <option value="dc">DC (DarkCoin)</option>
-                    <option value="nc">NC (NanoCred)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Price</label>
-                  <input type="number" value={newFrame.price} onChange={e => setNewFrame(p => ({ ...p, price: Number(e.target.value) }))}
-                    className="w-full font-mono text-xs px-2 py-1.5 rounded"
-                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
-                </div>
-                <div>
-                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Glow Color</label>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={newFrame.glowColor} onChange={e => setNewFrame(p => ({ ...p, glowColor: e.target.value }))}
-                      style={{ width: 36, height: 28, border: "1px solid #1e1e2e", background: "transparent", cursor: "pointer", borderRadius: 4 }} />
-                    <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>{newFrame.glowColor}</span>
-                  </div>
-                </div>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Description</label>
-                  <input value={newFrame.description} onChange={e => setNewFrame(p => ({ ...p, description: e.target.value }))}
-                    placeholder="Short description shown in store" className="w-full font-mono text-xs px-2 py-1.5 rounded"
-                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
-                </div>
-              </div>
-              <button onClick={createNewFrame} disabled={creatingFrame} className="mt-3 font-mono text-xs px-4 py-2 rounded font-bold"
-                style={{ background: "#39d35330", color: "#39d353", border: "1px solid #39d35350" }}>
-                {creatingFrame ? "Creating..." : "Create Frame"}
-              </button>
-            </div>
-          )}
-
-          {/* Revoke frame section */}
-          <div style={{ ...s, borderColor: "#ff2d5520" }}>
-            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#ff2d55", letterSpacing: "0.1em" }}>REVOKE FRAME FROM PLAYER</div>
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              <input value={revokeFrameId} onChange={e => setRevokeFrameId(e.target.value)}
-                placeholder="Frame ID (e.g. ghost_wire)" className="font-mono text-xs px-2 py-1.5 rounded flex-1"
-                style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", minWidth: 150 }} />
-              <input value={revokeSearch} onChange={e => setRevokeSearch(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && searchRevokeUsers()}
-                placeholder="Search player..." className="font-mono text-xs px-2 py-1.5 rounded flex-1"
-                style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", minWidth: 140 }} />
-              <button onClick={searchRevokeUsers} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5530" }}>Search</button>
-            </div>
-            {revokeUsers.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-2">
-                {revokeUsers.map(u => (
-                  <button key={u._id} onClick={() => { setRevokeTargetId(u._id); setRevokeTargetName(u.username); setRevokeUsers([]); }}
-                    className="font-mono text-xs px-2 py-1 rounded"
-                    style={{ background: revokeTargetId === u._id ? "#ff2d5520" : "#0a0a0f", border: `1px solid ${revokeTargetId === u._id ? "#ff2d5540" : "#1e1e2e"}`, color: "#e2e8f0" }}>
-                    {u.username} — Lv.{u.level}
-                  </button>
-                ))}
-              </div>
-            )}
-            {revokeTargetId && (
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#ff2d5510", border: "1px solid #ff2d5530", color: "#ff2d55" }}>
-                  Target: <span className="font-bold">{revokeTargetName}</span>
-                  <button onClick={() => { setRevokeTargetId(null); setRevokeTargetName(""); }} className="ml-2" style={{ color: "#475569" }}>× clear</button>
-                </div>
-                <button onClick={doRevokeFrame} disabled={revokingFrame || !revokeFrameId} className="font-mono text-xs px-4 py-1.5 rounded font-bold"
-                  style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}>
-                  {revokingFrame ? "Revoking..." : "Revoke Frame"}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Frame list */}
-          {framesLoading ? (
-            <div className="text-center py-8 font-mono text-xs" style={{ color: "#475569" }}>Loading...</div>
-          ) : (
-            <div className="space-y-2">
-              {framesList
-                .filter(f => framesRarityFilter === "all" || f.rarity === framesRarityFilter)
-                .map(frame => {
-                  const RARITY_CLR: Record<string, string> = { common: "#9ca3af", uncommon: "#4ade80", rare: "#60a5fa", epic: "#c084fc", legendary: "#fbbf24", mythic: "#00ff41" };
-                  const rc = RARITY_CLR[frame.rarity] ?? "#9ca3af";
-                  const saving = savingFrame === frame.frameId;
-                  return (
-                    <div key={frame.frameId} style={{ background: "#111118", border: `1px solid ${frame.isCustom ? "#a855f730" : "#1e1e2e"}`, borderRadius: 8, padding: "10px 14px" }}>
-                      {/* Row 1: identity + badges + owner count */}
-                      <div className="flex items-start justify-between gap-3 flex-wrap">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{frame.displayName}</span>
-                            <span className="font-mono text-xs px-1.5 py-0.5 rounded capitalize" style={{ color: rc, background: rc + "15", border: `1px solid ${rc}30` }}>{frame.rarity}</span>
-                            <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>{(frame.currency || "dc").toUpperCase()}</span>
-                            {frame.isFree && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#39d353", background: "#39d35315", border: "1px solid #39d35330" }}>FREE</span>}
-                            {frame.isCustom && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#a855f7", background: "#a855f715", border: "1px solid #a855f730" }}>CUSTOM</span>}
-                            {!frame.isVisible && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#ff2d55", background: "#ff2d5515", border: "1px solid #ff2d5530" }}>HIDDEN</span>}
-                            {frame.isFeatured && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#f59e0b", background: "#f59e0b15", border: "1px solid #f59e0b30" }}>FEATURED</span>}
-                            {frame.isWeeklyFree && <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ color: "#00d4ff", background: "#00d4ff15", border: "1px solid #00d4ff30" }}>WEEKLY FREE</span>}
-                          </div>
-                          <div className="font-mono mt-0.5" style={{ fontSize: 10, color: "#475569" }}>
-                            ID: {frame.frameId} · {frame.ownedByCount} player{frame.ownedByCount !== 1 ? "s" : ""} own this
-                            {frame.glowColor && <span style={{ color: frame.glowColor }}> · ●</span>}
-                          </div>
-                        </div>
-
-                        {/* Toggle buttons */}
-                        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-                          <button onClick={() => patchFrame(frame.frameId, { isVisible: !frame.isVisible })}
-                            disabled={saving}
-                            className="font-mono text-xs px-2 py-1 rounded"
-                            style={{ background: frame.isVisible ? "#39d35318" : "#ff2d5518", color: frame.isVisible ? "#39d353" : "#ff2d55", border: `1px solid ${frame.isVisible ? "#39d35340" : "#ff2d5540"}` }}>
-                            {frame.isVisible ? "Visible" : "Hidden"}
-                          </button>
-                          <button onClick={() => patchFrame(frame.frameId, { isFeatured: !frame.isFeatured })}
-                            disabled={saving}
-                            className="font-mono text-xs px-2 py-1 rounded"
-                            style={{ background: frame.isFeatured ? "#f59e0b18" : "transparent", color: frame.isFeatured ? "#f59e0b" : "#475569", border: `1px solid ${frame.isFeatured ? "#f59e0b40" : "#1e1e2e"}` }}>
-                            {frame.isFeatured ? "★ Featured" : "☆ Feature"}
-                          </button>
-                          <button onClick={() => patchFrame(frame.frameId, { isWeeklyFree: !frame.isWeeklyFree })}
-                            disabled={saving}
-                            className="font-mono text-xs px-2 py-1 rounded"
-                            style={{ background: frame.isWeeklyFree ? "#00d4ff18" : "transparent", color: frame.isWeeklyFree ? "#00d4ff" : "#475569", border: `1px solid ${frame.isWeeklyFree ? "#00d4ff40" : "#1e1e2e"}` }}>
-                            {frame.isWeeklyFree ? "Free/wk ON" : "Free/wk"}
-                          </button>
-                          {frame.isCustom && (
-                            <button onClick={() => deleteCustomFrame(frame.frameId)}
-                              className="font-mono text-xs px-2 py-1 rounded"
-                              style={{ color: "#ff2d55", border: "1px solid #ff2d5530" }}>
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Row 2: price editing + sale */}
-                      {!frame.isFree && (
-                        <div className="flex items-center gap-3 flex-wrap mt-2 pt-2" style={{ borderTop: "1px solid #1e1e2e" }}>
-                          {/* Base price */}
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs" style={{ color: "#64748b" }}>Price:</span>
-                            {framePriceEdit === frame.frameId ? (
-                              <>
-                                <input value={framePriceVal} onChange={e => setFramePriceVal(e.target.value)}
-                                  type="number" min={0} autoFocus
-                                  className="font-mono text-xs px-2 py-1 rounded"
-                                  style={{ background: "#0a0a0f", border: "1px solid #f59e0b40", color: "#e2e8f0", width: 80 }}
-                                  onKeyDown={e => { if (e.key === "Enter") setFramePrice(frame.frameId); if (e.key === "Escape") { setFramePriceEdit(null); setFramePriceVal(""); } }} />
-                                <button onClick={() => setFramePrice(frame.frameId)} disabled={saving} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}>Save</button>
-                                <button onClick={() => { setFramePriceEdit(null); setFramePriceVal(""); }} className="font-mono text-xs px-1.5 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>✕</button>
-                              </>
-                            ) : (
-                              <>
-                                <span className="font-mono text-xs font-bold" style={{ color: "#f59e0b" }}>{frame.price}</span>
-                                <button onClick={() => { setFramePriceEdit(frame.frameId); setFramePriceVal(String(frame.price)); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#f59e0b", border: "1px solid #f59e0b30" }}>Edit</button>
-                              </>
-                            )}
-                          </div>
-
-                          {/* Sale price */}
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs" style={{ color: "#64748b" }}>Sale:</span>
-                            {frameSaleEdit === frame.frameId ? (
-                              <>
-                                <input value={frameSaleVal} onChange={e => setFrameSaleVal(e.target.value)}
-                                  type="number" min={0} placeholder="sale price" autoFocus
-                                  className="font-mono text-xs px-2 py-1 rounded"
-                                  style={{ background: "#0a0a0f", border: "1px solid #ff2d5540", color: "#e2e8f0", width: 80 }} />
-                                <input value={frameSaleExpiry} onChange={e => setFrameSaleExpiry(e.target.value)}
-                                  type="datetime-local"
-                                  className="font-mono text-xs px-2 py-1 rounded"
-                                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#64748b" }} />
-                                <button onClick={() => setSalePrice(frame.frameId)} disabled={saving} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5540" }}>Set</button>
-                                <button onClick={() => { setFrameSaleEdit(null); setFrameSaleVal(""); setFrameSaleExpiry(""); }} className="font-mono text-xs px-1.5 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>✕</button>
-                              </>
-                            ) : frame.salePrice != null ? (
-                              <>
-                                <span className="font-mono text-xs font-bold" style={{ color: "#ff2d55" }}>{frame.salePrice}</span>
-                                {frame.saleExpiry && <span className="font-mono text-xs" style={{ color: "#475569" }}>until {new Date(frame.saleExpiry).toLocaleDateString()}</span>}
-                                <button onClick={() => { setFrameSaleEdit(frame.frameId); setFrameSaleVal(String(frame.salePrice)); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#ff2d55", border: "1px solid #ff2d5530" }}>Edit</button>
-                                <button onClick={() => clearSalePrice(frame.frameId)} disabled={saving} className="font-mono text-xs px-1.5 py-1 rounded" style={{ color: "#475569", border: "1px solid #1e1e2e" }}>Clear</button>
-                              </>
-                            ) : (
-                              <button onClick={() => { setFrameSaleEdit(frame.frameId); setFrameSaleVal(""); setFrameSaleExpiry(""); }} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#ff2d55", border: "1px solid #ff2d5530" }}>Set Sale</button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* GRANTS TAB */}
       {tab === "grants" && (
         <div className="space-y-4">
@@ -1216,14 +833,6 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
               </button>
             </div>
 
-            {/* Frame grant */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <label className="font-mono text-xs" style={{ color: "#64748b", width: 60 }}>Frame</label>
-              <input value={grantFrameId} onChange={e => setGrantFrameId(e.target.value)} placeholder="frameId (e.g. ghost_wire)" className="font-mono text-xs px-2 py-1.5 rounded flex-1" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" }} />
-              <button onClick={grantFrame} disabled={grantingFrame || !grantTargetId || !grantFrameId} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
-                {grantingFrame ? "..." : "Grant Frame"}
-              </button>
-            </div>
           </div>
         </div>
       )}

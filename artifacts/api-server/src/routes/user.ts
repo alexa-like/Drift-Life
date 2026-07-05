@@ -32,10 +32,9 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-    const { avatar, avatarUrl, bio, equippedFrame, equippedTitle, equippedFrameColor, equippedFrames } = req.body;
+    const { avatar, avatarUrl, bio, equippedTitle } = req.body;
     if (avatar !== undefined) user.avatar = String(avatar);
     if (avatarUrl !== undefined) {
-      // Only allow Pollinations AI URLs or null
       if (avatarUrl === null || avatarUrl === "") {
         user.avatarUrl = null;
       } else if (typeof avatarUrl === "string" && avatarUrl.startsWith("https://image.pollinations.ai/")) {
@@ -45,41 +44,7 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
       }
     }
     if (bio !== undefined) user.bio = stripHtml(bio).slice(0, 300);
-    if (equippedFrame !== undefined) {
-      // Ownership check: ghostFrame is always allowed; any other frame must be owned
-      if (equippedFrame !== null && equippedFrame !== "ghostFrame" && !(user.ownedFrames || []).includes(equippedFrame)) {
-        return res.status(403).json({ message: "You do not own this frame" });
-      }
-      user.equippedFrame = equippedFrame;
-    }
     if (equippedTitle !== undefined && user.titles.includes(equippedTitle)) user.equippedTitle = equippedTitle;
-    if (equippedFrameColor !== undefined) {
-      if (equippedFrameColor === null) {
-        (user as any).equippedFrameColor = null;
-      } else if (typeof equippedFrameColor === "string" && /^#[0-9a-fA-F]{3,8}$/.test(equippedFrameColor)) {
-        (user as any).equippedFrameColor = equippedFrameColor;
-      } else {
-        return res.status(400).json({ message: "Invalid color format. Use hex (#RRGGBB)" });
-      }
-    }
-    // Per-surface frame slots: accept partial { avatar?, chat?, feed? }
-    if (equippedFrames && typeof equippedFrames === "object") {
-      const slots = ["avatar", "chat", "feed"] as const;
-      const current = (user as any).equippedFrames ?? { avatar: "ghostFrame", chat: "ghostFrame", feed: "ghostFrame" };
-      const allOwned: string[] = user.ownedFrames || [];
-      for (const slot of slots) {
-        const val = equippedFrames[slot];
-        if (val === undefined) continue;
-        if (typeof val !== "string") continue;
-        // Must own the frame (or it's ghostFrame)
-        if (val !== "ghostFrame" && !allOwned.includes(val)) {
-          return res.status(403).json({ message: `You do not own frame: ${val}` });
-        }
-        current[slot] = val;
-      }
-      (user as any).equippedFrames = current;
-      user.markModified("equippedFrames");
-    }
     await user.save();
     res.json(safeUser(user));
   } catch (err: any) {
@@ -117,10 +82,10 @@ router.get("/search", requireAuth, async (req: AuthRequest, res) => {
       banned: false,
       isEmailVerified: true,
     })
-      .select("username avatar faction level rank district equippedFrame tag")
+      .select("username avatar faction level rank district tag")
       .limit(10)
       .lean();
-    res.json(users.map(u => ({ id: u._id, username: u.username, avatar: u.avatar, faction: (u as any).faction, level: u.level, rank: u.rank, district: u.district, equippedFrame: (u as any).equippedFrame, tag: (u as any).tag })));
+    res.json(users.map(u => ({ id: u._id, username: u.username, avatar: u.avatar, faction: (u as any).faction, level: u.level, rank: u.rank, district: u.district, tag: (u as any).tag })));
   } catch (err: any) {
     req.log.error({ err }, "search error");
     res.status(500).json({ message: "Internal server error" });
@@ -155,8 +120,6 @@ router.get("/profile/:id", requireAuth, async (req: AuthRequest, res) => {
       losses: user.losses,
       totalCrimes: user.totalCrimes,
       successfulCrimes: user.successfulCrimes,
-      equippedFrame: user.equippedFrame,
-      equippedFrameColor: (user as any).equippedFrameColor ?? null,
       equippedTitle: user.equippedTitle,
       titles: user.titles,
       equippedItems,
@@ -197,8 +160,6 @@ router.get("/profile", requireAuth, async (req: AuthRequest, res) => {
       prestige: user.prestige,
       rank: user.rank,
       district: user.district,
-      equippedFrame: user.equippedFrame,
-      equippedFrameColor: (user as any).equippedFrameColor ?? null,
       equippedTitle: user.equippedTitle,
       titles: user.titles,
       equippedItems,
@@ -335,7 +296,6 @@ router.get("/:username", requireAuth, async (req: AuthRequest, res) => {
       successfulCrimes: user.successfulCrimes,
       wantedLevel: user.wantedLevel,
       gang: user.gang,
-      equippedFrame: user.equippedFrame,
       equippedTitle: user.equippedTitle,
       titles: user.titles,
       equippedItems,

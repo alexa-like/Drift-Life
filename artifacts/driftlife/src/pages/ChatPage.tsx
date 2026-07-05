@@ -3,8 +3,47 @@ import { motion } from "framer-motion";
 import { User, ChatMessage, Conversation } from "../lib/types";
 import { api } from "../lib/api";
 import { useSocket } from "../context/SocketContext";
-import { FrameRectBubble } from "../components/FrameRectBubble";
 import { CyberButton } from "../components/CyberButton";
+
+function MessageBubble({ message, isOwn, onUsernameClick }: {
+  message: ChatMessage;
+  isOwn: boolean;
+  onUsernameClick?: (id: string) => void;
+}) {
+  const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
+  const fc = message.faction ? FACTION_COLOR[message.faction] || "#94a3b8" : "#94a3b8";
+  return (
+    <div className="flex flex-col mb-2" style={{ alignItems: isOwn ? "flex-end" : "flex-start" }}>
+      <div className="flex items-center gap-1.5 mb-0.5">
+        {message.title && (
+          <span className="font-mono" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
+        )}
+        <button
+          onClick={() => message.userId && onUsernameClick?.(message.userId)}
+          className="font-mono text-xs font-bold"
+          style={{ color: fc, background: "none", border: "none", padding: 0, cursor: message.userId ? "pointer" : "default" }}
+        >
+          {message.username}
+        </button>
+        <span className="font-mono" style={{ fontSize: 9, color: "#334155" }}>
+          {new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </span>
+      </div>
+      <div
+        className="font-mono text-xs px-3 py-1.5 rounded"
+        style={{
+          background: isOwn ? "#00d4ff12" : "#111118",
+          border: `1px solid ${isOwn ? "#00d4ff30" : "#1e1e2e"}`,
+          color: "#e2e8f0",
+          maxWidth: "85%",
+          wordBreak: "break-word",
+        }}
+      >
+        {message.content}
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   user: User;
@@ -75,7 +114,7 @@ function GlobalTab({ user, onInspect }: { user: User; onInspect?: (id: string) =
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
         {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
         {messages.map(m => (
-          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
+          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -122,7 +161,7 @@ function DistrictTab({ user, onInspect }: { user: User; onInspect?: (id: string)
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
         {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
         {messages.map(m => (
-          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
+          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -172,7 +211,7 @@ function FactionTab({ user, onInspect }: { user: User; onInspect?: (id: string) 
         {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
         {error   && <div className="font-mono text-xs text-center py-5" style={{ color: "#ff2d55" }}>{error}</div>}
         {messages.map(m => (
-          <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
+          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -234,8 +273,7 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
       const optimistic: ChatMessage = {
         id: Date.now().toString(), userId: user.id, username: user.username,
         faction: user.faction,
-        frame: (user.equippedFrames?.chat && user.equippedFrames.chat !== "ghostFrame") ? user.equippedFrames.chat : user.equippedFrame,
-        frameColor: user.equippedFrameColor, title: user.equippedTitle,
+        title: user.equippedTitle,
         content, at: new Date().toISOString(),
       };
       setMessages(prev => [...prev.slice(-49), optimistic]);
@@ -272,7 +310,7 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
         <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
           {loadingMsgs && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
           {messages.map(m => (
-            <FrameRectBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
+            <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
           ))}
           <div ref={bottomRef} />
         </div>

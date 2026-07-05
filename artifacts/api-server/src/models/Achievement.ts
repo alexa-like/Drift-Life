@@ -42,15 +42,12 @@ export const ACHIEVEMENT_CATALOG: IAchievementDef[] = [
   { id: "banked_1m",       name: "Banker",             description: "Have 1,000,000 DC in the bank at once.", category: "wealth",      meritReward: 150,   target: 1000000,   stat: "bankBalance" },
   { id: "first_nc",        name: "Nova Coin",          description: "Earn your first 10 NC.",                 category: "wealth",      meritReward: 50,    target: 10,        stat: "nc" },
   { id: "first_purchase",  name: "Window Shopper",     description: "Purchase your first item from the shop.",category: "wealth",      meritReward: 10,    target: 1,         stat: "totalPurchases" },
-  { id: "first_frame_buy", name: "Identity Crisis",    description: "Purchase your first frame.",             category: "wealth",      meritReward: 50,    target: 1,         stat: "ownedFramesCount" },
   { id: "first_merit",     name: "Merit Badge",        description: "Earn your first 100 M.",                 category: "wealth",      meritReward: 0,     target: 100,       stat: "merit" },
 
   // SOCIAL
   { id: "chat_100",        name: "Chatterbox",         description: "Send 100 messages.",                     category: "social",      meritReward: 50,    target: 100,  stat: "totalMessages" },
   { id: "chat_1000",       name: "Radio Host",         description: "Send 1,000 messages.",                   category: "social",      meritReward: 200,   target: 1000, stat: "totalMessages" },
   { id: "first_dm",        name: "First Contact",      description: "Send your first DM.",                    category: "social",      meritReward: 10,    target: 1,    stat: "totalDMs" },
-  { id: "gift_frame",      name: "Generous",           description: "Gift a frame to another player.",        category: "social",      meritReward: 100,   target: 1,    stat: "framesGifted" },
-  { id: "gift_5_frames",   name: "Big Spender",        description: "Gift 5 frames to other players.",       category: "social",      meritReward: 500,   target: 5,    stat: "framesGifted" },
   { id: "daily_7",         name: "Consistent",         description: "Claim your daily reward 7 days in a row.",category:"social",      meritReward: 50,    target: 7,    stat: "dailyStreak" },
   { id: "daily_30",        name: "Dedicated",          description: "Claim your daily reward 30 days in a row.",category:"social",     meritReward: 500,   target: 30,   stat: "dailyStreak" },
 
@@ -66,15 +63,6 @@ export const ACHIEVEMENT_CATALOG: IAchievementDef[] = [
   { id: "all_jobs",        name: "Jack of All Trades", description: "Complete every job type at least once.", category: "exploration", meritReward: 200,   target: 5,    stat: "uniqueJobsCompleted" },
 
   // COLLECTION
-  { id: "frames_5",        name: "Frame Collector",    description: "Own 5 frames.",                          category: "collection",  meritReward: 100,   target: 5,    stat: "ownedFramesCount" },
-  { id: "frames_10",       name: "Style Icon",         description: "Own 10 frames.",                         category: "collection",  meritReward: 300,   target: 10,   stat: "ownedFramesCount" },
-  { id: "frames_25",       name: "Closet Full",        description: "Own 25 frames.",                         category: "collection",  meritReward: 1000,  target: 25,   stat: "ownedFramesCount" },
-  { id: "frames_all_55",   name: "The Completionist",  description: "Own all 55 frames.",                     category: "collection",  meritReward: 10000, target: 55,   stat: "ownedFramesCount" },
-  { id: "own_epic",        name: "Going Epic",         description: "Own at least one epic frame.",           category: "collection",  meritReward: 200,   target: 1,    stat: "ownedEpicCount" },
-  { id: "own_legendary",   name: "Legendary Status",   description: "Own at least one legendary frame.",      category: "collection",  meritReward: 500,   target: 1,    stat: "ownedLegendaryCount" },
-  { id: "own_mythic",      name: "One of a Kind",      description: "Own at least one mythic frame.",         category: "collection",  meritReward: 2000,  target: 1,    stat: "ownedMythicCount" },
-  { id: "equip_mythic",    name: "Fully Realized",     description: "Equip a mythic frame.",                  category: "collection",  meritReward: 500,   target: 1,    stat: "mythicEquipped" },
-  { id: "all_rarity",      name: "Full Spectrum",      description: "Own at least one frame of every rarity.",category: "collection",  meritReward: 1000,  target: 6,    stat: "raritiesOwned" },
 ];
 
 export interface IUserAchievement extends Document {

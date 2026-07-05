@@ -4,7 +4,6 @@ import FeedEvent from "../models/FeedEvent";
 import { requireStaff, requireOwner, AuthRequest } from "../middlewares/auth";
 import { levelUp, xpForLevel } from "../models/User";
 import { SHOP_ITEMS, PRICE_OVERRIDES } from "./market";
-import Frame from "../models/Frame";
 import ServerConfig from "../models/ServerConfig";
 import AdminAuditLog, { logAdminAction } from "../models/AdminAuditLog";
 
@@ -409,65 +408,5 @@ router.post("/grant/xp", requireOwner as any, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/owner/frames — list ALL frames (admin view)
-router.get("/frames", requireOwner as any, async (req: AuthRequest, res) => {
-  try {
-    const frames = await Frame.find({}).sort({ rarity: 1, price: 1 }).lean();
-    const allUsers = await User.find({}).select("ownedFrames").lean();
-    const ownedCounts: Record<string, number> = {};
-    for (const u of allUsers) {
-      for (const fid of (u.ownedFrames || [])) {
-        ownedCounts[fid] = (ownedCounts[fid] || 0) + 1;
-      }
-    }
-    res.json(frames.map((f: any) => ({
-      frameId: f.frameId,
-      displayName: f.displayName,
-      rarity: f.rarity,
-      currency: f.currency,
-      price: f.price,
-      salePrice: f.salePrice,
-      saleExpiry: f.saleExpiry,
-      isFree: f.isFree,
-      isWeeklyFree: f.isWeeklyFree,
-      isFeatured: f.isFeatured,
-      isVisible: f.isVisible,
-      isCustom: f.isCustom,
-      glowColor: f.glowColor,
-      description: f.description,
-      ownedByCount: ownedCounts[f.frameId] || 0,
-    })));
-  } catch (err: any) {
-    req.log.error({ err }, "owner get frames error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// PATCH /api/owner/frames/:frameId — update a frame's price, sale, or visibility
-router.patch("/frames/:frameId", requireOwner as any, async (req: AuthRequest, res) => {
-  try {
-    const frame = await Frame.findOne({ frameId: req.params.frameId });
-    if (!frame) return res.status(404).json({ message: "Frame not found" });
-
-    const { price, salePrice, isFeatured, isWeeklyFree, isVisible } = req.body;
-    if (price !== undefined) frame.price = Math.max(0, Math.floor(Number(price)));
-    if (salePrice !== undefined) frame.salePrice = salePrice === null ? null : Math.max(0, Math.floor(Number(salePrice)));
-    if (isFeatured !== undefined) frame.isFeatured = Boolean(isFeatured);
-    if (isWeeklyFree !== undefined) {
-      if (isWeeklyFree) {
-        await Frame.updateMany({ isWeeklyFree: true }, { isWeeklyFree: false });
-      }
-      frame.isWeeklyFree = Boolean(isWeeklyFree);
-    }
-    if (isVisible !== undefined) frame.isVisible = Boolean(isVisible);
-
-    await frame.save();
-    req.log.info({ frameId: frame.frameId }, "owner updated frame");
-    res.json({ message: `${frame.displayName} updated`, frame });
-  } catch (err: any) {
-    req.log.error({ err }, "owner patch frame error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
 
 export default router;

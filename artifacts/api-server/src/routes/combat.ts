@@ -242,7 +242,7 @@ router.get("/targets", requireAuth, async (req: AuthRequest, res) => {
       level: { $gte: minLevel, $lte: maxLevel },
       isEmailVerified: true,
     })
-      .select("username avatar faction level rank district wins losses health maxHealth wantedLevel equippedFrame")
+      .select("username avatar faction level rank district wins losses health maxHealth wantedLevel")
       .limit(20)
       .lean();
 
@@ -261,7 +261,6 @@ router.get("/targets", requireAuth, async (req: AuthRequest, res) => {
         wins: t.wins,
         losses: t.losses,
         wantedLevel: (t as any).wantedLevel,
-        equippedFrame: (t as any).equippedFrame,
         isHospitalized: !!hosp,
         attackCooldown: onCooldown ? cooldown.until : null,
       };

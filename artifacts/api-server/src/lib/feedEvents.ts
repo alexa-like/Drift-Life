@@ -4,8 +4,6 @@ interface FeedEventInput {
   type: string;
   actor: string;
   actorId?: string;
-  actorFrame?: string | null;
-  actorFrameColor?: string | null;
   actorAvatarUrl?: string | null;
   target?: string | null;
   targetId?: string | null;

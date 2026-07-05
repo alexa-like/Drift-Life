@@ -1,7 +1,6 @@
 import { Router } from "express";
 import User from "../models/User";
 import UserAchievement, { ACHIEVEMENT_CATALOG } from "../models/Achievement";
-import Frame from "../models/Frame";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
@@ -23,13 +22,6 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       };
     }
 
-    const ownedFrames: string[] = user.ownedFrames || [];
-    const ownedFrameDefs = await Frame.find({ frameId: { $in: ownedFrames } }).lean();
-    const epicCount = ownedFrameDefs.filter(f => f.rarity === "epic").length;
-    const legendaryCount = ownedFrameDefs.filter(f => f.rarity === "legendary").length;
-    const mythicCount = ownedFrameDefs.filter(f => f.rarity === "mythic").length;
-    const raritiesOwned = new Set(ownedFrameDefs.map(f => f.rarity)).size;
-
     function getCurrentProgress(stat: string): number {
       switch (stat) {
         case "wins": return user!.wins;
@@ -44,23 +36,14 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         case "bankBalance": return user!.bankBalance;
         case "nc": return user!.nc;
         case "totalPurchases": return progressMap["first_purchase"]?.progress || 0;
-        case "ownedFramesCount": return ownedFrames.length;
         case "merit": return user!.merit ?? 0;
         case "totalMessages": return progressMap["chat_100"]?.progress || 0;
         case "totalDMs": return progressMap["first_dm"]?.progress || 0;
-        case "framesGifted": return progressMap["gift_frame"]?.progress || 0;
         case "dailyStreak": return user!.dailyStreak;
         case "districtsVisited": return progressMap["first_travel"]?.progress || 0;
         case "level": return user!.level;
         case "prestige": return user!.prestige;
         case "uniqueJobsCompleted": return progressMap["all_jobs"]?.progress || 0;
-        case "ownedEpicCount": return epicCount;
-        case "ownedLegendaryCount": return legendaryCount;
-        case "ownedMythicCount": return mythicCount;
-        case "mythicEquipped": return mythicCount > 0 && user!.equippedFrame
-          ? ownedFrameDefs.filter(f => f.rarity === "mythic" && f.frameId === user!.equippedFrame).length
-          : 0;
-        case "raritiesOwned": return raritiesOwned;
         default: return 0;
       }
     }
@@ -95,13 +78,6 @@ export async function checkAchievements(userId: string): Promise<void> {
     const user = await User.findById(userId);
     if (!user) return;
 
-    const ownedFrames = user.ownedFrames || [];
-    const ownedFrameDefs = await Frame.find({ frameId: { $in: ownedFrames } }).lean();
-    const epicCount = ownedFrameDefs.filter(f => f.rarity === "epic").length;
-    const legendaryCount = ownedFrameDefs.filter(f => f.rarity === "legendary").length;
-    const mythicCount = ownedFrameDefs.filter(f => f.rarity === "mythic").length;
-    const raritiesOwned = new Set(ownedFrameDefs.map(f => f.rarity)).size;
-
     const existing = await UserAchievement.find({ userId }).lean();
     const progressMap: Record<string, typeof existing[0]> = {};
     for (const ua of existing) progressMap[ua.achievementId] = ua;
@@ -116,15 +92,10 @@ export async function checkAchievements(userId: string): Promise<void> {
         case "lifetimeDC": return progressMap["first_million"]?.progress ?? user!.dc;
         case "bankBalance": return user!.bankBalance;
         case "nc": return user!.nc;
-        case "ownedFramesCount": return ownedFrames.length;
         case "merit": return user!.merit ?? 0;
         case "dailyStreak": return user!.dailyStreak;
         case "level": return user!.level;
         case "prestige": return user!.prestige;
-        case "ownedEpicCount": return epicCount;
-        case "ownedLegendaryCount": return legendaryCount;
-        case "ownedMythicCount": return mythicCount;
-        case "raritiesOwned": return raritiesOwned;
         default: return progressMap[`_${stat}`]?.progress ?? 0;
       }
     }

@@ -1,12 +1,9 @@
 import { useState, useEffect } from "react";
-import { User, Frame } from "../lib/types";
+import { User } from "../lib/types";
 import { api } from "../lib/api";
 import { formatDC } from "../lib/format";
 import { WantedStars } from "../components/WantedStars";
 import { StatBar } from "../components/StatBar";
-import { AvatarWithFrame } from "../components/AvatarWithFrame";
-import { FrameCardWrapper } from "../components/FrameCardWrapper";
-import { FRAME_CATALOG as FRAMES, FrameDef, RARITY_COLORS as RARITY_COLOR, getFrame } from "../lib/frames";
 import { InventoryPage } from "./InventoryPage";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
@@ -19,13 +16,6 @@ const FACTION_DESC: Record<string, string> = {
   grid: "-10% Energy cost on all jobs, +5% Data Breach/Scam success, Grid market access",
 };
 
-// Preset palette colors players can pick from
-const COLOR_PRESETS = [
-  "#00d4ff", "#a855f7", "#f59e0b", "#39d353", "#ff2d55",
-  "#ff6b35", "#e879f9", "#00FF41", "#06B6D4", "#FBBF24",
-  "#DC2626", "#4ADE80", "#818CF8", "#F472B6", "#ffffff",
-];
-
 interface Props { user: User; refreshUser: () => void; addToast: (msg: string, t?: string) => void; }
 
 export function ProfilePage({ user, refreshUser, addToast }: Props) {
@@ -34,15 +24,8 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const [savingBio, setSavingBio] = useState(false);
   const [avatarPrompt, setAvatarPrompt] = useState("");
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
-  const [equippingFrame, setEquippingFrame] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "inventory" | "achievements" | "frames" | "combat-log">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "inventory" | "achievements" | "combat-log">("overview");
   const [achievements, setAchievements] = useState<any[]>([]);
-  const [savingColor, setSavingColor] = useState(false);
-  const [apiFrames, setApiFrames] = useState<Frame[]>([]);
-
-  useEffect(() => {
-    api.get<Frame[]>("/frames").then(setApiFrames).catch(() => {});
-  }, [user.ownedFrames]);
 
   useEffect(() => {
     if (activeTab === "achievements") {
@@ -51,10 +34,6 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   }, [activeTab]);
 
   const xpPct = Math.min(100, Math.round((user.xp / user.xpToNext) * 100));
-  // Avatar surface uses its own slot; fall back to legacy equippedFrame
-  const equippedFrameId = (user.equippedFrames?.avatar && user.equippedFrames.avatar !== "ghostFrame") ? user.equippedFrames.avatar : (user.equippedFrame || null);
-  const equippedColor = user.equippedFrameColor || null;
-  const equippedFrameDef = equippedFrameId ? getFrame(equippedFrameId) : null;
   const isElevated = user.role === "owner" || user.role === "admin";
 
   async function saveBio() {
@@ -98,91 +77,40 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
     }
   }
 
-  async function equipFrame(frameId: string | null) {
-    const key = frameId ?? "none";
-    setEquippingFrame(key);
-    try {
-      if (frameId) {
-        await api.post(`/frames/equip/${frameId}`, {});
-        addToast("Frame equipped!", "success");
-      } else {
-        await api.patch("/user/me", { equippedFrame: null });
-        addToast("Frame removed", "success");
-      }
-      refreshUser();
-    } catch (e: any) {
-      addToast(e.message, "error");
-    } finally {
-      setEquippingFrame(null);
-    }
-  }
-
-  async function saveFrameColor(color: string | null) {
-    setSavingColor(true);
-    try {
-      await api.patch("/user/me", { equippedFrameColor: color });
-      addToast(color ? "Frame color updated!" : "Frame color reset", "success");
-      refreshUser();
-    } catch (e: any) {
-      addToast(e.message || "Failed to save color", "error");
-    } finally {
-      setSavingColor(false);
-    }
-  }
-
   const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
-  const ownedFrames: FrameDef[] = FRAMES.filter(f =>
-    apiFrames.length > 0
-      ? apiFrames.find(af => af.frameId === f.id)?.owned
-      : (user.ownedFrames || []).includes(f.id)
-  );
   const fc = user.faction ? FACTION_COLOR[user.faction] : "#94a3b8";
 
   return (
     <div className="space-y-5 max-w-2xl mx-auto">
-      {/* Profile header — wrapped in equipped frame */}
-      <FrameCardWrapper
-        frameId={equippedFrameId}
-        colorOverride={equippedColor}
-        borderRadius={8}
-      >
-        <div style={{ background: "#111118", borderRadius: 8, padding: 24 }}>
-          <div className="flex items-start gap-5">
-            {/* Avatar with frame */}
-            <div className="flex-shrink-0">
-              <AvatarWithFrame
-                username={user.username}
-                avatarUrl={user.avatarUrl}
-                frameId={equippedFrameId}
-                size="xl"
-              />
+      {/* Profile header */}
+      <div style={{ background: "#111118", borderRadius: 8, padding: 24 }}>
+        <div className="flex items-start gap-5">
+          {/* Avatar */}
+          <div className="flex-shrink-0">
+            <div style={{
+              width: 72, height: 72, borderRadius: "50%",
+              background: "#1e1e2e", display: "flex", alignItems: "center",
+              justifyContent: "center", fontSize: 28, border: "2px solid #334155",
+            }}>
+              {user.avatarUrl
+                ? <img src={user.avatarUrl} alt={user.username} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
+                : user.username.charAt(0).toUpperCase()}
             </div>
+          </div>
 
-            {/* Identity */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="font-mono font-bold text-xl" style={{ color: "#e2e8f0" }}>{user.username}</span>
-                {user.tag && <span className="font-mono text-xs" style={{ color: "#64748b" }}>{user.tag}</span>}
-                {user.faction && (
-                  <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: fc + "20", color: fc, border: `1px solid ${fc}40` }}>
-                    {FACTION_LABEL[user.faction]}
-                  </span>
-                )}
-                {equippedFrameDef && (
-                  <span
-                    className="font-mono text-xs px-2 py-0.5 rounded"
-                    style={{
-                      background: (equippedColor || equippedFrameDef.glowColor) + "20",
-                      color: equippedColor || equippedFrameDef.glowColor,
-                      border: `1px solid ${(equippedColor || equippedFrameDef.glowColor)}40`,
-                    }}
-                  >
-                    {equippedFrameDef.name}
-                  </span>
-                )}
-                {isHosp && (
-                  <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}>HOSPITALIZED</span>
-                )}
+          {/* Identity */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="font-mono font-bold text-xl" style={{ color: "#e2e8f0" }}>{user.username}</span>
+              {user.tag && <span className="font-mono text-xs" style={{ color: "#64748b" }}>{user.tag}</span>}
+              {user.faction && (
+                <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: fc + "20", color: fc, border: `1px solid ${fc}40` }}>
+                  {FACTION_LABEL[user.faction]}
+                </span>
+              )}
+              {isHosp && (
+                <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}>HOSPITALIZED</span>
+              )}
               </div>
               <div className="font-mono text-xs mt-1" style={{ color: "#f59e0b" }}>
                 {user.rank} · Level {user.level} · {user.equippedTitle || "New in Town"}
@@ -242,16 +170,14 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
             )}
           </div>
         </div>
-      </FrameCardWrapper>
 
       {/* Tab switcher */}
       <div className="flex gap-2 flex-wrap">
         {[
-          { id: "overview"     as const, label: "Overview"                      },
-          { id: "inventory"    as const, label: "Inventory"                     },
-          { id: "achievements" as const, label: "Achievements"                  },
-          { id: "frames"       as const, label: `Frames (${ownedFrames.length})` },
-          { id: "combat-log"   as const, label: "Combat Log"                    },
+          { id: "overview"     as const, label: "Overview"     },
+          { id: "inventory"    as const, label: "Inventory"    },
+          { id: "achievements" as const, label: "Achievements" },
+          { id: "combat-log"   as const, label: "Combat Log"   },
         ].map(tab => (
           <CyberButton
             key={tab.id}
@@ -486,177 +412,6 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
         </div>
       )}
 
-      {activeTab === "frames" && (
-        <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
-          <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>YOUR FRAMES</div>
-
-          {/* Collection stats */}
-          {(() => {
-            const RARITY_ORDER = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
-            const RARITY_COLORS_MAP: Record<string, string> = { common: "#94a3b8", uncommon: "#39d353", rare: "#00d4ff", epic: "#a855f7", legendary: "#f59e0b", mythic: "#00ff41" };
-            const totalFrames = apiFrames.filter(f => !f.mythicAliasOf).length;
-            const ownedCount = ownedFrames.length;
-            const pct = totalFrames > 0 ? Math.round((ownedCount / totalFrames) * 100) : 0;
-            const rarestOwned = RARITY_ORDER.slice().reverse().find(r => ownedFrames.some(f => f.rarity === r));
-            return (
-              <div style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 6, padding: "12px 14px", marginBottom: 16 }}>
-                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>COLLECTED</div>
-                      <div className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 14 }}>{ownedCount}<span style={{ color: "#475569", fontSize: 11 }}>/{totalFrames}</span></div>
-                    </div>
-                    <div>
-                      <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>COMPLETION</div>
-                      <div className="font-mono font-bold" style={{ color: "#a855f7", fontSize: 14 }}>{pct}%</div>
-                    </div>
-                    {rarestOwned && (
-                      <div>
-                        <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>RAREST OWNED</div>
-                        <div className="font-mono font-bold capitalize" style={{ color: RARITY_COLORS_MAP[rarestOwned], fontSize: 12 }}>{rarestOwned}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div style={{ background: "#1e1e2e", borderRadius: 4, height: 5, overflow: "hidden" }}>
-                  <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg, #a855f7, #00d4ff)", transition: "width 0.5s" }} />
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Color customizer — shown when a frame is equipped */}
-          {equippedFrameDef && (
-            <div style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 6, padding: 14, marginBottom: 16 }}>
-              <div className="font-mono text-xs font-bold mb-2" style={{ color: "#94a3b8" }}>
-                FRAME COLOR — <span style={{ color: equippedColor || equippedFrameDef.glowColor }}>{equippedFrameDef.name}</span>
-              </div>
-              <p className="font-mono mb-3" style={{ fontSize: 10, color: "#475569" }}>
-                Pick a custom glow color. Animation and design stay the same — only the color changes.
-              </p>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {COLOR_PRESETS.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => saveFrameColor(c)}
-                    disabled={savingColor}
-                    title={c}
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: "50%",
-                      background: c,
-                      border: (equippedColor === c) ? "2px solid #fff" : "2px solid transparent",
-                      boxShadow: `0 0 6px ${c}80`,
-                      cursor: "pointer",
-                      flexShrink: 0,
-                    }}
-                  />
-                ))}
-                {/* Custom hex input */}
-                <input
-                  type="color"
-                  defaultValue={equippedColor || equippedFrameDef.glowColor}
-                  onChange={e => saveFrameColor(e.target.value)}
-                  title="Custom color"
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: "50%",
-                    border: "2px solid #334155",
-                    padding: 0,
-                    cursor: "pointer",
-                    background: "transparent",
-                  }}
-                />
-              </div>
-              {equippedColor && (
-                <button
-                  onClick={() => saveFrameColor(null)}
-                  disabled={savingColor}
-                  className="font-mono text-xs"
-                  style={{ color: "#475569" }}
-                >
-                  Reset to default color
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Remove frame option */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <button
-              onClick={() => equipFrame(null)}
-              disabled={equippingFrame !== null}
-              className="p-3 rounded font-mono text-xs transition-all"
-              style={{
-                background: !equippedFrameId ? "#39d35318" : "#0a0a0f",
-                border: `1px solid ${!equippedFrameId ? "#39d35340" : "#1e1e2e"}`,
-                color: !equippedFrameId ? "#39d353" : "#475569",
-              }}
-            >
-              {equippingFrame === "none" ? "Removing..." : "No Frame"}
-            </button>
-          </div>
-
-          {ownedFrames.length === 0 ? (
-            <div className="text-center py-8 font-mono text-xs" style={{ color: "#475569" }}>
-              <div style={{ fontSize: 24, marginBottom: 8 }}>🖼️</div>
-              <p>No frames yet. Earn them through crimes, achievements, and events.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {ownedFrames.map(frame => {
-                const isEquipped = equippedFrameId === frame.id;
-                const rc = RARITY_COLOR[frame.rarity] || "#94a3b8";
-                const displayColor = isEquipped ? (equippedColor || rc) : rc;
-                return (
-                  <FrameCardWrapper
-                    key={frame.id}
-                    frameId={frame.id}
-                    colorOverride={isEquipped ? equippedColor : null}
-                    borderRadius={6}
-                  >
-                    <button
-                      onClick={() => equipFrame(frame.id)}
-                      disabled={equippingFrame !== null}
-                      className="p-3 rounded text-left transition-all w-full"
-                      style={{
-                        background: isEquipped ? displayColor + "15" : "#0a0a0f",
-                        borderRadius: 6,
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <AvatarWithFrame
-                          username={user.username}
-                          avatarUrl={user.avatarUrl}
-                          frameId={frame.id}
-                          size="sm"
-                        />
-                        <div>
-                          <div className="font-mono font-bold" style={{ fontSize: 11, color: displayColor }}>
-                            {frame.name}
-                            {isEquipped && <span style={{ color: "#39d353", marginLeft: 4 }}>✓</span>}
-                          </div>
-                          <div className="font-mono" style={{ fontSize: 10, color: "#64748b", textTransform: "capitalize" }}>
-                            {frame.rarity}
-                          </div>
-                        </div>
-                      </div>
-                      {frame.earnedBy && (
-                        <p className="font-mono mt-1" style={{ fontSize: 10, color: "#475569" }}>🏆 {frame.earnedBy}</p>
-                      )}
-                      {equippingFrame === frame.id && (
-                        <span className="font-mono text-xs" style={{ color: rc }}>Equipping...</span>
-                      )}
-                    </button>
-                  </FrameCardWrapper>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

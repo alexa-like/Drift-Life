@@ -60,7 +60,7 @@ router.get("/season/leaderboard", requireAuth, async (_req, res) => {
     const top = await User.find({ seasonPoints: { $gt: 0 } })
       .sort({ seasonPoints: -1 })
       .limit(50)
-      .select("username level faction seasonPoints equippedFrame tag")
+      .select("username level faction seasonPoints tag")
       .lean();
 
     const tiers = [

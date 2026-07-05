@@ -18,7 +18,6 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { FactionSelectPage } from "./pages/FactionSelectPage";
 import { OwnerPage } from "./pages/OwnerPage";
-import { FramesStorePage } from "./pages/FramesStorePage";
 import { AchievementsPage } from "./pages/AchievementsPage";
 import { ChatPage } from "./pages/ChatPage";
 import { SkillsPage } from "./pages/SkillsPage";
@@ -188,7 +187,6 @@ function GameApp() {
       case "profile":      return <ProfilePage {...pageProps} />;
       case "settings":     return <SettingsPage {...pageProps} onLogout={handleLogout} />;
       case "notifications":return <NotificationsPage onUnreadChange={setUnreadNotifs} />;
-      case "frames":        return <FramesStorePage {...pageProps} />;
       case "achievements":  return <AchievementsPage {...pageProps} />;
       case "chat":          return <ChatPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       case "skills":        return <SkillsPage user={user!} addToast={addToast} />;

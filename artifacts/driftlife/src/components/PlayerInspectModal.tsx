@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { AvatarWithFrame } from "./AvatarWithFrame";
-import { FrameCardWrapper } from "./FrameCardWrapper";
-import { getFrame, RARITY_COLORS as RARITY_COLOR } from "../lib/frames";
 import { User } from "../lib/types";
 
 interface PublicProfile {
@@ -21,8 +18,6 @@ interface PublicProfile {
   charisma: number;
   intelligence: number;
   streetCred: number;
-  equippedFrame: string | null;
-  equippedFrameColor: string | null;
   equippedTitle: string | null;
   titles: string[];
   wins: number;
@@ -32,8 +27,6 @@ interface PublicProfile {
   rank: string;
   onlineStatus?: "online" | "away" | "offline";
 }
-
-interface OwnedFrame { id: string; name: string; rarity: string; }
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
@@ -50,40 +43,19 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [attacking, setAttacking] = useState(false);
-  const [showGift, setShowGift] = useState(false);
-  const [myFrames, setMyFrames] = useState<OwnedFrame[]>([]);
-  const [selectedGiftFrame, setSelectedGiftFrame] = useState("");
-  const [gifting, setGifting] = useState(false);
 
   useEffect(() => {
     if (!targetId) return;
     setLoading(true);
     setProfile(null);
-    setShowGift(false);
-    setSelectedGiftFrame("");
     api.get<PublicProfile>(`/user/profile/${targetId}`)
       .then(setProfile)
       .catch(() => setProfile(null))
       .finally(() => setLoading(false));
   }, [targetId]);
 
-  useEffect(() => {
-    if (showGift && myFrames.length === 0) {
-      api.get<{ ownedFrames: string[] }>("/user/me").then(me => {
-        const owned: OwnedFrame[] = (me.ownedFrames || []).map((fid: string) => {
-          const def = getFrame(fid);
-          return def ? { id: fid, name: def.name, rarity: def.rarity } : { id: fid, name: fid, rarity: "common" };
-        });
-        setMyFrames(owned);
-      }).catch(() => {});
-    }
-  }, [showGift, myFrames.length]);
-
   if (!targetId) return null;
 
-  const frameId = profile?.equippedFrame || null;
-  const frameDef = frameId ? getFrame(frameId) : null;
-  const frameColor = profile?.equippedFrameColor || frameDef?.glowColor || null;
   const fc = profile?.faction ? FACTION_COLOR[profile.faction] || "#64748b" : "#64748b";
   const xpPct = profile ? Math.min(100, Math.round((profile.xp / profile.xpToNext) * 100)) : 0;
   const isOwn = profile?.id === currentUser.id;
@@ -102,26 +74,6 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
     }
   }
 
-  async function giftFrame() {
-    if (!profile || !selectedGiftFrame) return;
-    setGifting(true);
-    try {
-      const r = await api.post<{ message: string }>("/frames/gift", { frameId: selectedGiftFrame, recipientId: profile.id });
-      addToast(r.message, "success");
-      setShowGift(false);
-      setSelectedGiftFrame("");
-    } catch (e: any) {
-      addToast(e.message, "error");
-    } finally {
-      setGifting(false);
-    }
-  }
-
-  const RARITY_CLR: Record<string, string> = {
-    common: "#9ca3af", uncommon: "#4ade80", rare: "#60a5fa",
-    epic: "#c084fc", legendary: "#fbbf24", mythic: "#00ff41",
-  };
-
   return (
     <div
       style={{
@@ -138,12 +90,7 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
       onClick={onClose}
     >
       <div onClick={e => e.stopPropagation()} style={{ maxWidth: 380, width: "100%" }}>
-        <FrameCardWrapper
-          frameId={frameId}
-          colorOverride={frameColor}
-          borderRadius={12}
-          style={{ background: "#111118" }}
-        >
+        <div style={{ background: "#111118", borderRadius: 12 }}>
           <div style={{ borderRadius: 12, padding: 20 }}>
             {loading ? (
               <div className="font-mono text-xs text-center py-8" style={{ color: "#64748b" }}>
@@ -168,16 +115,18 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
 
                 {/* Header */}
                 <div className="flex items-start gap-4 mb-4">
-                  <AvatarWithFrame
-                    username={profile.username}
-                    avatarUrl={profile.avatarUrl}
-                    frameId={frameId}
-                    frameColor={profile.equippedFrameColor}
-                    size="xl"
-                  />
+                  <div style={{
+                    width: 56, height: 56, borderRadius: "50%", background: "#1e1e2e",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 22, border: "2px solid #334155", flexShrink: 0,
+                  }}>
+                    {profile.avatarUrl
+                      ? <img src={profile.avatarUrl} alt={profile.username} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
+                      : profile.username.charAt(0).toUpperCase()}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <div className="font-mono font-bold text-base" style={{ color: frameColor || "#e2e8f0" }}>
+                      <div className="font-mono font-bold text-base" style={{ color: "#e2e8f0" }}>
                         {profile.username}
                       </div>
                       {/* Online status dot */}
@@ -202,20 +151,6 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                         [{profile.equippedTitle}]
                       </div>
                     )}
-                    {frameDef && (
-                      <div
-                        className="font-mono text-xs mt-0.5 px-1.5 py-0.5 rounded inline-block"
-                        style={{
-                          background: (frameColor || frameDef.glowColor) + "20",
-                          color: frameColor || frameDef.glowColor,
-                          border: `1px solid ${(frameColor || frameDef.glowColor)}40`,
-                          textTransform: "capitalize",
-                          fontSize: 10,
-                        }}
-                      >
-                        {frameDef.name} · {frameDef.rarity}
-                      </div>
-                    )}
                     {profile.faction && (
                       <div className="font-mono text-xs mt-1" style={{ color: fc }}>
                         {FACTION_EMOJI[profile.faction]} {profile.faction.toUpperCase()}
@@ -232,7 +167,7 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
 
                 {/* XP bar */}
                 <div style={{ background: "#1e1e2e", borderRadius: 4, height: 4, marginBottom: 12, overflow: "hidden" }}>
-                  <div style={{ width: `${xpPct}%`, height: "100%", background: frameColor || fc, transition: "width 0.5s" }} />
+                  <div style={{ width: `${xpPct}%`, height: "100%", background: fc, transition: "width 0.5s" }} />
                 </div>
 
                 {/* Bio */}
@@ -242,7 +177,7 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                     style={{
                       color: "#94a3b8",
                       background: "#0d0d15",
-                      border: `1px solid ${frameColor || "#1e1e2e"}30`,
+                      border: "1px solid #1e1e2e30",
                     }}
                   >
                     "{profile.bio}"
@@ -266,59 +201,6 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                   ))}
                 </div>
 
-                {/* Gift Frame panel */}
-                {!isOwn && showGift && (
-                  <div style={{ background: "#0d0d15", border: "1px solid #a855f730", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-                    <div className="font-mono text-xs font-bold mb-2" style={{ color: "#a855f7" }}>GIFT A FRAME</div>
-                    {myFrames.length === 0 ? (
-                      <div className="font-mono text-xs" style={{ color: "#475569" }}>You have no frames to gift.</div>
-                    ) : (
-                      <>
-                        <select
-                          value={selectedGiftFrame}
-                          onChange={e => setSelectedGiftFrame(e.target.value)}
-                          className="w-full font-mono text-xs px-2 py-1.5 rounded mb-2"
-                          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-                        >
-                          <option value="">-- Select a frame --</option>
-                          {myFrames.map(f => (
-                            <option key={f.id} value={f.id}>
-                              {f.name} ({f.rarity})
-                            </option>
-                          ))}
-                        </select>
-                        {selectedGiftFrame && (() => {
-                          const def = getFrame(selectedGiftFrame);
-                          const rc = def ? RARITY_CLR[def.rarity] || "#9ca3af" : "#9ca3af";
-                          void RARITY_COLOR;
-                          return (
-                            <div className="font-mono mb-2" style={{ fontSize: 10, color: rc }}>
-                              {def?.name} · {def?.rarity} · Permanently transferred. This cannot be undone.
-                            </div>
-                          );
-                        })()}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={giftFrame}
-                            disabled={gifting || !selectedGiftFrame}
-                            className="flex-1 px-3 py-1.5 rounded font-mono text-xs font-bold"
-                            style={{ background: "#a855f720", color: "#a855f7", border: "1px solid #a855f740" }}
-                          >
-                            {gifting ? "Sending..." : "Confirm Gift"}
-                          </button>
-                          <button
-                            onClick={() => { setShowGift(false); setSelectedGiftFrame(""); }}
-                            className="px-3 py-1.5 rounded font-mono text-xs"
-                            style={{ color: "#475569", border: "1px solid #1e1e2e" }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-
                 {/* Actions */}
                 {!isOwn && (
                   <div className="flex gap-2 flex-wrap">
@@ -332,15 +214,6 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                         {attacking ? "Attacking..." : "Attack"}
                       </button>
                     )}
-                    {(currentUser.ownedFrames || []).length > 0 && !showGift && (
-                      <button
-                        onClick={() => setShowGift(true)}
-                        className="px-3 py-1.5 font-mono text-xs rounded transition-all"
-                        style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f730" }}
-                      >
-                        Gift Frame
-                      </button>
-                    )}
                   </div>
                 )}
                 {isOwn && (
@@ -351,7 +224,7 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
               </>
             )}
           </div>
-        </FrameCardWrapper>
+        </div>
       </div>
     </div>
   );

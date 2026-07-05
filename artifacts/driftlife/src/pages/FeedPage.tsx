@@ -2,10 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { FeedEvent, User } from "../lib/types";
 import { api } from "../lib/api";
-import { FrameCardWrapper } from "../components/FrameCardWrapper";
-import { AvatarWithFrame } from "../components/AvatarWithFrame";
 import { formatDC } from "../lib/format";
-import { getFrame } from "../lib/frames";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 
@@ -99,9 +96,6 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
     } catch { /* ignore */ }
   }
 
-  const myFrame      = (user?.equippedFrames?.feed && user.equippedFrames.feed !== "ghostFrame") ? user.equippedFrames.feed : (user?.equippedFrame || null);
-  const myFrameColor = user?.equippedFrameColor || null;
-
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       {/* Header */}
@@ -143,8 +137,7 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
       </div>
 
       {/* Post composer */}
-      <FrameCardWrapper frameId={myFrame} colorOverride={myFrameColor}>
-        <div style={{ background: "#111118", borderRadius: 8, padding: 16 }}>
+      <div style={{ background: "#111118", borderRadius: 8, padding: 16, border: "1px solid #1e1e2e" }}>
           <textarea
             value={postContent}
             onChange={e => setPostContent(e.target.value)}
@@ -166,8 +159,7 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
               Post
             </CyberButton>
           </div>
-        </div>
-      </FrameCardWrapper>
+      </div>
 
       {/* Feed events */}
       {loading && events.length === 0 ? (
@@ -183,10 +175,6 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
             const isCommentOpen = commentOpen === ev.id;
             const reactions   = ev.reactions || { like: 0, laugh: 0, shock: 0, respect: 0 };
             const comments    = ev.comments || [];
-            const evFrame     = ev.actorFrame || null;
-            const evFrameColor = ev.actorFrameColor || null;
-            const evFrameDef  = evFrame ? getFrame(evFrame) : null;
-
             return (
               <motion.div
                 key={ev.id}
@@ -194,53 +182,40 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(i * 0.02, 0.3), duration: 0.2 }}
               >
-                <FrameCardWrapper frameId={evFrame} colorOverride={evFrameColor} borderRadius={8}>
-                  <div style={{ background: "#111118", borderRadius: 8 }}>
-                    {/* Main content */}
-                    <div className="flex items-start gap-3 px-4 py-3">
-                      {ev.actor ? (
-                        <AvatarWithFrame
-                          username={ev.actor}
-                          avatarUrl={ev.actorAvatarUrl}
-                          frameId={evFrame}
-                          frameColor={evFrameColor}
-                          size="xs"
-                        />
-                      ) : (
-                        <div
-                          className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
-                          style={{ background: tc, boxShadow: `0 0 4px ${tc}` }}
-                        />
+                <div style={{ background: "#111118", borderRadius: 8, border: "1px solid #1e1e2e" }}>
+                  {/* Main content */}
+                  <div className="flex items-start gap-3 px-4 py-3">
+                    {ev.actor ? (
+                      <div style={{
+                        width: 24, height: 24, borderRadius: "50%", background: "#1e1e2e",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 11, flexShrink: 0, border: "1px solid #334155",
+                      }}>
+                        {ev.actorAvatarUrl
+                          ? <img src={ev.actorAvatarUrl} alt={ev.actor} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
+                          : ev.actor.charAt(0).toUpperCase()}
+                      </div>
+                    ) : (
+                      <div
+                        className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
+                        style={{ background: tc, boxShadow: `0 0 4px ${tc}` }}
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      {ev.actor && (
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <button
+                            className="font-mono text-xs font-bold hover:underline text-left"
+                            style={{
+                              color: "#94a3b8",
+                              background: "none", border: "none", padding: 0, cursor: "pointer",
+                            }}
+                            onClick={() => ev.actorId && onInspectPlayer?.(ev.actorId)}
+                          >
+                            {ev.actor}
+                          </button>
+                        </div>
                       )}
-                      <div className="flex-1 min-w-0">
-                        {ev.actor && (
-                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                            <button
-                              className="font-mono text-xs font-bold hover:underline text-left"
-                              style={{
-                                color: evFrameDef ? (evFrameColor || evFrameDef.glowColor) : "#94a3b8",
-                                background: "none", border: "none", padding: 0, cursor: "pointer",
-                              }}
-                              onClick={() => ev.actorId && onInspectPlayer?.(ev.actorId)}
-                            >
-                              {ev.actor}
-                            </button>
-                            {evFrameDef && (
-                              <span
-                                className="font-mono px-1 rounded"
-                                style={{
-                                  fontSize: 9,
-                                  background: `${evFrameColor || evFrameDef.glowColor}20`,
-                                  color:      evFrameColor || evFrameDef.glowColor,
-                                  border:     `1px solid ${(evFrameColor || evFrameDef.glowColor)}40`,
-                                  textTransform: "capitalize",
-                                }}
-                              >
-                                {evFrameDef.name}
-                              </span>
-                            )}
-                          </div>
-                        )}
                         <p className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{ev.message}</p>
                         <div className="flex gap-3 mt-0.5 flex-wrap">
                           {ev.dc > 0 && <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>+{formatDC(ev.dc)} DC</span>}
@@ -332,7 +307,6 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
                       </div>
                     )}
                   </div>
-                </FrameCardWrapper>
               </motion.div>
             );
           })}
