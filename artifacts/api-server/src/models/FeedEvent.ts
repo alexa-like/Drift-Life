@@ -12,6 +12,8 @@ export interface IFeedEvent extends Document {
   xp: number;
   reactions: { like: number; laugh: number; shock: number; respect: number };
   comments: Array<{ username: string; content: string; at: Date }>;
+  actorChatFrame: string | null;
+  actorLevel: number;
   createdAt: Date;
 }
 

@@ -7,3 +7,4 @@
 - [DriftLife Security Fixes](driftlife-security-fixes.md) — audit fixes applied: helmet+rate-limit, sanitize-html in chat, NoSQL guards in auth, atomic locks in jobs/crimes/combat, NPC drop upsert, friends system, faction chat
 - [DriftLife Wire Cartel Completion](driftlife-wc-completion.md) — all 6 gaps filled: cyber implants, turf war, racing minigames, gym mastery rewards, pursuit modal, outrun car bonus; races.ts bonus clamped server-side [0,1]; turf treasury atomic via findOneAndUpdate $gte guard
 - [DriftLife Atomic Update Patterns](driftlife-atomic-patterns.md) — combat uses $inc for concurrent-safe writes; attacksToday uses $set (not $inc) to handle daily reset correctly; PRICE_OVERRIDES is a lazy-loaded in-memory cache backed by PriceOverride model
+- [DriftLife Frame System (current)](driftlife-frames.md) — full rebuild: 12 frames (8 elite/4 legendary), ChatFrame component, BodyArtLayer, GlitchLogo, FrameStore, FrameLocker tab on profile, banner zone
