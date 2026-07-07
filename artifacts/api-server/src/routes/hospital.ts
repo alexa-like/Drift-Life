@@ -13,7 +13,16 @@ router.get("/status", requireAuth, async (req: AuthRequest, res) => {
     const user = await User.findById(req.userId).lean();
     if (!user) return res.status(404).json({ message: "Not found" });
     const hosp = user.hospitalizedUntil && user.hospitalizedUntil > new Date();
-    const timeRemaining = hosp ? Math.ceil((user.hospitalizedUntil!.getTime() - Date.now()) / 1000) : 0;
+
+    // Subscriber hospital speed reduction
+    const { getActiveTier } = await import("../lib/subscription");
+    const subTier = getActiveTier(user as any);
+    const speedReduction = subTier?.hospitalSpeedPct ?? 0;
+
+    const rawTimeRemaining = hosp ? Math.ceil((user.hospitalizedUntil!.getTime() - Date.now()) / 1000) : 0;
+    const timeRemaining = speedReduction > 0
+      ? Math.ceil(rawTimeRemaining * (1 - speedReduction / 100))
+      : rawTimeRemaining;
     const minsRemaining = Math.ceil(timeRemaining / 60);
 
     // Triage tier determines cost per minute and label

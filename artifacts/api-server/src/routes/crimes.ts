@@ -5,6 +5,7 @@
  */
 import { Router } from "express";
 import User from "../models/User";
+import { getActiveTier } from "../lib/subscription";
 // In-memory hourly run counter
 const _runCounters = new Map<string, { count: number; resetAt: number }>();
 function _getCrimeRuns(userId: string): number {
@@ -199,7 +200,7 @@ router.get("/jail-list", requireAuth, async (_req, res) => {
 
 // ── POST /api/crimes/:runId/commit ─────────────────────────────────────────
 router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
-  const RUNS_PER_HOUR_CAP = 30; // anti-abuse rate limit
+  const BASE_RUNS_PER_HOUR_CAP = 30; // anti-abuse rate limit
   try {
     const run = findRun(String(req.params.runId));
     if (!run) return res.status(404).json({ message: "Run not found" });
@@ -213,6 +214,10 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     if (isJailed(user)) return res.status(400).json({ message: "You are in jail" });
     if (user.level < run.minLevel) return res.status(400).json({ message: `Requires level ${run.minLevel}` });
     if (user.energy < run.energyCost) return res.status(400).json({ message: `Not enough energy (need ${run.energyCost})` });
+
+    // Subscriber extra crime slots raise the hourly cap
+    const subTier = getActiveTier(user as any);
+    const RUNS_PER_HOUR_CAP = BASE_RUNS_PER_HOUR_CAP + (subTier?.extraCrimeSlots ?? 0);
 
     // Anti-abuse: rate-limit runs per hour via in-memory counter
     if (_getCrimeRuns(String(req.userId)) >= RUNS_PER_HOUR_CAP) {
@@ -280,8 +285,9 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     let jailDuration = 0;
 
     if (success) {
+      const crimeRewardMult = subTier?.crimeRewardMult ?? 1;
       dcGained = Math.round(
-        (run.dcMin + Math.random() * (run.dcMax - run.dcMin)) * worldMods.payoutMult
+        (run.dcMin + Math.random() * (run.dcMax - run.dcMin)) * worldMods.payoutMult * crimeRewardMult
       );
       const isFirstToday = !gated.lastCrimeDate || gated.lastCrimeDate.toDateString() !== new Date().toDateString();
       xpGained = run.xp * (isFirstToday ? 2 : 1);

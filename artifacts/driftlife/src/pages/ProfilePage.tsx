@@ -13,6 +13,7 @@ import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { ChatFrame } from "../components/ChatFrame";
 import { getFrame, FRAMES, RARITY_COLOR, RARITY_LABEL, enrichFrames } from "../lib/chatFrames";
+import { SubscriberNameBadge, type SubscriberTier } from "../components/SubscriberNameBadge";
 import { BodyArtLayer } from "../components/frame-art";
 
 // Inject header CSS for banner zone (APEX shimmer + Sovereign weave)
@@ -198,15 +199,26 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
           {/* Identity */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono font-bold text-lg" style={{ color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
-                {user.username}
-              </span>
+              <SubscriberNameBadge
+                username={user.username}
+                tier={(user as any).subscriptionTier as SubscriberTier}
+                fontSize="1.125rem"
+                className="text-white"
+              />
               {frame && (
                 <span className="font-mono px-2 py-0.5 rounded" style={{
                   fontSize: 10, background: `${RARITY_COLOR[frame.rarity]}25`,
                   color: RARITY_COLOR[frame.rarity], border: `1px solid ${RARITY_COLOR[frame.rarity]}50`,
                 }}>
                   {RARITY_LABEL[frame.rarity]}
+                </span>
+              )}
+              {(user as any).subscriptionTier === "apex_sovereign" && (
+                <span className="font-mono px-2 py-0.5 rounded" style={{
+                  fontSize: 10, background: "#FFD70025",
+                  color: "#FFD700", border: "1px solid #FFD70050",
+                }}>
+                  ♛ APEX
                 </span>
               )}
             </div>

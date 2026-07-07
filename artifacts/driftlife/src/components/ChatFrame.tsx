@@ -9,6 +9,7 @@
 import type { CSSProperties } from 'react'
 import type { Frame } from '../lib/chatFrames'
 import { BodyArtLayer } from './frame-art'
+import { SubscriberNameBadge, type SubscriberTier } from './SubscriberNameBadge'
 
 // ── CSS injected once for APEX shimmer + Sovereign weave ──────────────────────
 
@@ -64,7 +65,7 @@ const CHEVRON_CLIP = 'polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18
 
 // ── Header rendering ──────────────────────────────────────────────────────────
 
-function FrameHeader({ frame, username, level }: { frame: Frame; username: string; level?: number }) {
+function FrameHeader({ frame, username, level, subscriptionTier }: { frame: Frame; username: string; level?: number; subscriptionTier?: SubscriberTier }) {
   ensureCss()
   const textColor = frame.textOnHeader === 'dark' ? '#111111' : '#FFFFFF'
 
@@ -107,7 +108,7 @@ function FrameHeader({ frame, username, level }: { frame: Frame; username: strin
         }} />
       )}
       <span style={{ fontWeight: 'bold', position: 'relative' }}>
-        {username}
+        <SubscriberNameBadge username={username} tier={subscriptionTier} fontSize={12} />
         {hasBlinkCursor && (
           <span style={{ animation: 'blackoutBlink 0.8s step-start infinite', marginLeft: 2 }}>█</span>
         )}
@@ -121,8 +122,8 @@ function FrameHeader({ frame, username, level }: { frame: Frame; username: strin
 
 // ── Null frame (no frame equipped) ────────────────────────────────────────────
 
-function NullFrame({ username, level, timestamp, children, size }: {
-  username: string; level?: number; timestamp?: string; children: React.ReactNode; size: 'full' | 'preview'
+function NullFrame({ username, level, timestamp, children, size, subscriptionTier }: {
+  username: string; level?: number; timestamp?: string; children: React.ReactNode; size: 'full' | 'preview'; subscriptionTier?: SubscriberTier
 }) {
   return (
     <div style={{ maxWidth: size === 'full' ? '85%' : '100%' }}>
@@ -134,7 +135,7 @@ function NullFrame({ username, level, timestamp, children, size }: {
         fontSize: 12,
         color: '#e2e8f0',
       }}>
-        <span style={{ fontWeight: 'bold' }}>{username}</span>
+        <SubscriberNameBadge username={username} tier={subscriptionTier} fontSize={12} />
         {level !== undefined && <span style={{ opacity: 0.6, fontSize: 10 }}>Lv.{level}</span>}
       </div>
       <div style={{
@@ -164,12 +165,13 @@ export interface ChatFrameProps {
   level?: number
   timestamp?: string
   size?: 'full' | 'preview'
+  subscriptionTier?: SubscriberTier
   children: React.ReactNode
 }
 
-export function ChatFrame({ frame, username, level, timestamp, size = 'full', children }: ChatFrameProps) {
+export function ChatFrame({ frame, username, level, timestamp, size = 'full', subscriptionTier, children }: ChatFrameProps) {
   if (!frame) {
-    return <NullFrame username={username} level={level} timestamp={timestamp} size={size}>{children}</NullFrame>
+    return <NullFrame username={username} level={level} timestamp={timestamp} size={size} subscriptionTier={subscriptionTier}>{children}</NullFrame>
   }
 
   const accentGlow = frame.rarity === 'legendary'
@@ -189,7 +191,7 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', ch
     <div style={{ maxWidth: size === 'full' ? '85%' : '100%', wordBreak: 'break-word' }}>
       {/* Header */}
       <div style={headerWrapper}>
-        <FrameHeader frame={frame} username={username} level={level} />
+        <FrameHeader frame={frame} username={username} level={level} subscriptionTier={subscriptionTier} />
       </div>
 
       {/* Body */}
@@ -240,11 +242,12 @@ export interface ChatFrameRendererProps {
   isOwn?: boolean
   timestamp?: string
   compact?: boolean
+  subscriptionTier?: SubscriberTier
 }
 
 /** @deprecated Use ChatFrame with frame={getFrame(frameId)} directly */
 export function ChatFrameRenderer({
-  frameId, username, level, children, timestamp, compact = false,
+  frameId, username, level, children, timestamp, compact = false, subscriptionTier,
 }: ChatFrameRendererProps) {
   const frame = getFrame(frameId)
   return (
@@ -254,6 +257,7 @@ export function ChatFrameRenderer({
       level={level}
       timestamp={timestamp}
       size={compact ? 'preview' : 'full'}
+      subscriptionTier={subscriptionTier}
     >
       {children}
     </ChatFrame>

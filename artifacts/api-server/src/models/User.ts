@@ -124,6 +124,17 @@ export interface IUser extends Document {
   friends: mongoose.Types.ObjectId[];
   pinkSlipWins: number;
   implants: Array<{ id: string; name: string; slot: string; installedAt: Date }>;
+  // ── Monetization ─────────────────────────────────────────────────────────
+  uc: number;                          // UltraCredits (premium currency)
+  subscriptionTier: 'street_runner' | 'neon_syndicate' | 'apex_sovereign' | null;
+  subscriptionExpiresAt: Date | null;
+  ucDailyClaimedAt: Date | null;       // last time daily UC was claimed
+  ucClaimStreak: number;               // consecutive days claimed
+  ucRolloverDays: number;              // unclaimed days rolled over (max 3)
+  telegramUsername: string | null;     // @handle from Telegram
+  telegramLinkCode: string | null;     // one-time 6-char link code
+  telegramLinkCodeExpiry: Date | null;
+  gameTheme: string;                   // active UI theme id
   createdAt: Date;
   updatedAt: Date;
 }
@@ -259,6 +270,21 @@ const UserSchema = new Schema<IUser>(
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     ownedChatFrames: { type: [String], default: [] },
     equippedChatFrame: { type: String, default: null },
+    // ── Monetization ─────────────────────────────────────────────────────────
+    uc: { type: Number, default: 0 },
+    subscriptionTier: {
+      type: String,
+      enum: ["street_runner", "neon_syndicate", "apex_sovereign", null],
+      default: null,
+    },
+    subscriptionExpiresAt: { type: Date, default: null },
+    ucDailyClaimedAt: { type: Date, default: null },
+    ucClaimStreak: { type: Number, default: 0 },
+    ucRolloverDays: { type: Number, default: 0 },
+    telegramUsername: { type: String, default: null },
+    telegramLinkCode: { type: String, default: null },
+    telegramLinkCodeExpiry: { type: Date, default: null },
+    gameTheme: { type: String, default: "default" },
     implants: {
       type: [{
         id: { type: String, required: true },

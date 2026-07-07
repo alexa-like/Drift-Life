@@ -7,6 +7,7 @@ import { CyberButton } from "../components/CyberButton";
 import { ChatFrameRenderer } from "../components/ChatFrameRenderer";
 import { MentionInput } from "../components/MentionInput";
 import { MentionText } from "../components/MentionText";
+import { SubscriberNameBadge } from "../components/SubscriberNameBadge";
 
 function handleLocNav(loc: string) {
   (window as any).__setPage?.(loc);
@@ -42,6 +43,7 @@ function MessageBubble({ message, isOwn, onUsernameClick }: {
           level={message.level}
           timestamp={message.at}
           isOwn={isOwn}
+          subscriptionTier={message.subscriptionTier}
         >
           {message.title && (
             <span className="font-mono mr-1" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
@@ -62,13 +64,12 @@ function MessageBubble({ message, isOwn, onUsernameClick }: {
         {message.title && (
           <span className="font-mono" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
         )}
-        <button
+        <SubscriberNameBadge
+          username={message.username}
+          tier={message.subscriptionTier}
+          fontSize={12}
           onClick={() => message.userId && onUsernameClick?.(message.userId)}
-          className="font-mono text-xs font-bold"
-          style={{ color: fc, background: "none", border: "none", padding: 0, cursor: message.userId ? "pointer" : "default" }}
-        >
-          {message.username}
-        </button>
+        />
         <span className="font-mono" style={{ fontSize: 9, color: "#334155" }}>
           {new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </span>

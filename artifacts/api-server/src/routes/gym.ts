@@ -117,11 +117,14 @@ router.post("/:gymId/train", requireAuth, async (req: AuthRequest, res) => {
     if (user.dc < gym.costPerUse) return res.status(400).json({ message: `Gym fee is ${gym.costPerUse} DC` });
 
     // Anti-abuse: rate-limit trains per hour (independent of energy)
+    // Subscribers get extra gym sessions
+    const subTier = (await import("../lib/subscription")).getActiveTier(user as any);
+    const effectiveTrainCap = TRAINS_PER_HOUR_CAP + (subTier?.extraGymSessions ?? 0);
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentTrains = await ActionMastery.countDocuments({
       userId: req.userId, actionType: "gym", lastAttemptAt: { $gt: oneHourAgo },
     });
-    if (recentTrains >= TRAINS_PER_HOUR_CAP) {
+    if (recentTrains >= effectiveTrainCap) {
       return res.status(429).json({ message: "Training rate limit reached. Rest and come back." });
     }
 

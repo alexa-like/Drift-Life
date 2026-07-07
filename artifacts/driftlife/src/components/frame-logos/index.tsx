@@ -189,6 +189,80 @@ export function SovereignLogo({ color }: { color: string }) {
   )
 }
 
+// ─── Subscriber-exclusive Logos ───────────────────────────────────────────────
+
+export function StreetRunnerLogo({ color }: { color: string }) {
+  return (
+    <svg width="40" height="40" viewBox="0 0 40 40">
+      {/* Speedometer arc */}
+      <path d="M6 28 A16 16 0 0 1 34 28" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round"/>
+      {/* Needle */}
+      <line x1="20" y1="28" x2="30" y2="14" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="20" cy="28" r="2.5" fill={color}/>
+      {/* Speed tick marks */}
+      {[0, 30, 60, 90, 120, 150, 180].map((deg, i) => {
+        const rad = (deg - 180) * Math.PI / 180
+        const r1 = 14, r2 = i % 3 === 0 ? 11 : 12.5
+        const x1 = 20 + r1 * Math.cos(rad), y1 = 28 + r1 * Math.sin(rad)
+        const x2 = 20 + r2 * Math.cos(rad), y2 = 28 + r2 * Math.sin(rad)
+        return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={i % 3 === 0 ? 1.5 : 1} opacity="0.7"/>
+      })}
+      {/* Motion lines */}
+      <line x1="2" y1="32" x2="8" y2="32" stroke={color} strokeWidth="1.5" opacity="0.5"/>
+      <line x1="2" y1="28" x2="6" y2="28" stroke={color} strokeWidth="1" opacity="0.4"/>
+    </svg>
+  )
+}
+
+export function NeonSyndicateLogo({ color }: { color: string }) {
+  // Hexagonal syndicate ring with inner network
+  const hex = (cx: number, cy: number, r: number, from: number, to: number) => {
+    const pts = []
+    for (let i = from; i <= to; i++) {
+      const a = (i * 60 - 90) * Math.PI / 180
+      pts.push(`${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`)
+    }
+    return pts.join(' ')
+  }
+  return (
+    <svg width="40" height="40" viewBox="0 0 40 40">
+      {/* Outer hex ring */}
+      <polygon points={hex(20, 20, 17, 0, 5) + ' ' + hex(20, 20, 17, 0, 0)} fill="none" stroke={color} strokeWidth="2" opacity="0.9"/>
+      {/* Inner hex */}
+      <polygon points={hex(20, 20, 9, 0, 5) + ' ' + hex(20, 20, 9, 0, 0)} fill="none" stroke={color} strokeWidth="1.5" opacity="0.6"/>
+      {/* Spokes */}
+      {[0,1,2,3,4,5].map(i => {
+        const a = (i * 60 - 90) * Math.PI / 180
+        return <line key={i}
+          x1={20 + 9 * Math.cos(a)} y1={20 + 9 * Math.sin(a)}
+          x2={20 + 17 * Math.cos(a)} y2={20 + 17 * Math.sin(a)}
+          stroke={color} strokeWidth="1" opacity="0.5"/>
+      })}
+      <circle cx="20" cy="20" r="3" fill={color}/>
+    </svg>
+  )
+}
+
+export function ApexSovereignLogo({ color }: { color: string }) {
+  return (
+    <svg width="40" height="40" viewBox="0 0 40 40">
+      {/* Crown */}
+      <path d="M6 30 L6 24 L12 14 L20 20 L28 14 L34 24 L34 30 Z"
+        fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round"/>
+      {/* Crown peaks */}
+      <circle cx="12" cy="14" r="2" fill={color}/>
+      <circle cx="20" cy="9" r="2.5" fill={color}/>
+      <circle cx="28" cy="14" r="2" fill={color}/>
+      {/* Base gems */}
+      <rect x="10" y="27" width="4" height="4" rx="1" fill={color} opacity="0.8"/>
+      <rect x="18" y="27" width="4" height="4" rx="1" fill={color} opacity="0.9"/>
+      <rect x="26" y="27" width="4" height="4" rx="1" fill={color} opacity="0.8"/>
+      {/* Center diamond */}
+      <path d="M20 17 L22.5 20 L20 23 L17.5 20 Z" fill={color} opacity="0.9"/>
+    </svg>
+  )
+}
+
 // ─── Logo Map ─────────────────────────────────────────────────────────────────
 
 const LOGOS: Record<string, React.FC<{ color: string }>> = {
@@ -204,6 +278,10 @@ const LOGOS: Record<string, React.FC<{ color: string }>> = {
   BlackoutProtocolLogo: BlackoutProtocolLogo,
   NovaCircuitLogo:      NovaCircuitLogo,
   SovereignLogo:        SovereignLogo,
+  // Subscriber-exclusive
+  StreetRunnerLogo:     StreetRunnerLogo,
+  NeonSyndicateLogo:    NeonSyndicateLogo,
+  ApexSovereignLogo:    ApexSovereignLogo,
 }
 
 // ─── Glitch Animation ─────────────────────────────────────────────────────────

@@ -91,6 +91,15 @@ export interface User {
   businesses?: string[];
   ownedChatFrames: string[];
   equippedChatFrame: string | null;
+  // ── Monetization ──────────────────────────────────────────────────────────
+  uc: number;
+  subscriptionTier: "street_runner" | "neon_syndicate" | "apex_sovereign" | null;
+  subscriptionExpiresAt: string | null;
+  ucDailyClaimedAt: string | null;
+  ucClaimStreak: number;
+  telegramLinked: boolean;
+  telegramUsername: string | null;
+  gameTheme: string;
 }
 
 export interface FeedEvent {
@@ -219,6 +228,7 @@ export interface ChatMessage {
   channel?: string;
   districtId?: string;
   chatFrame?: string | null;
+  subscriptionTier?: "street_runner" | "neon_syndicate" | "apex_sovereign" | null;
 }
 
 export interface Conversation {

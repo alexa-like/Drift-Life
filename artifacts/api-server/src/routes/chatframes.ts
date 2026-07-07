@@ -19,6 +19,10 @@ const FRAME_CATALOG = [
   { id: "blackout_protocol",   rarity: "legendary", priceNC: 2000 },
   { id: "nova_circuit",        rarity: "legendary", priceNC: 2000 },
   { id: "sovereign",           rarity: "legendary", priceNC: 2000 },
+  // ── Subscriber-exclusive (subscription only, priceNC: 0) ────────────────
+  { id: "sub_street_runner",   rarity: "elite",     priceNC: 0 },
+  { id: "sub_neon_syndicate",  rarity: "elite",     priceNC: 0 },
+  { id: "sub_apex_sovereign",  rarity: "legendary", priceNC: 0 },
 ] as const;
 
 type FrameId = typeof FRAME_CATALOG[number]["id"];

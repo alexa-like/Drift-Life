@@ -73,11 +73,12 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: `This job is only available in ${job.district.replace(/-/g, " ")}` });
     }
 
-    // Faction bonuses
+    // Faction bonuses + subscription bonuses
     const energyBonus = user.faction === "grid" ? Math.floor(job.energyCost * 0.10) : 0;
     let dcMultiplier  = user.faction === "suits" ? 1.10 : 1;
+    const subTier = (await import("../lib/subscription")).getActiveTier(user as any);
     const dcGained      = Math.floor((job.dcMin + Math.random() * (job.dcMax - job.dcMin)) * dcMultiplier);
-    const xpGained      = job.xpPerJob;
+    const xpGained      = Math.floor(job.xpPerJob * (subTier?.jobXpMult ?? 1));
     const cooldownUntil = new Date(Date.now() + job.cooldownMin * 60 * 1000);
 
     // FULLY ATOMIC: regen computed server-side via pipeline; $expr condition

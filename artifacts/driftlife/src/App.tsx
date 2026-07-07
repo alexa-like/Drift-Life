@@ -33,6 +33,7 @@ import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
 import { FrameStore } from "./pages/FrameStore";
+import { StorePage } from "./pages/StorePage";
 import { NavBar } from "./components/NavBar";
 import { PageTransition } from "./components/PageTransition";
 import { ToastContainer } from "./components/ToastContainer";
@@ -205,6 +206,7 @@ function GameApp() {
       case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
       case "chatframes":    return <FrameStore {...pageProps} />;
+      case "store":         return <StorePage user={user!} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />

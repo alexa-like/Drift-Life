@@ -409,4 +409,84 @@ router.post("/grant/xp", requireOwner as any, async (req: AuthRequest, res) => {
 });
 
 
+// ── Subscription management ────────────────────────────────────────────────────
+
+// GET /api/owner/payment-logs — paginated list of all Telegram payments
+router.get("/payment-logs", requireStaff, async (req: AuthRequest, res) => {
+  try {
+    const TelegramPayment = (await import("../models/TelegramPayment")).default;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Number(req.query.limit) || 50);
+    const total = await TelegramPayment.countDocuments();
+    const logs = await TelegramPayment.find()
+      .sort({ grantedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+    res.json({ logs, total, page, pages: Math.ceil(total / limit) });
+  } catch (err: any) {
+    req.log.error({ err }, "payment-logs error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/grant-subscription — manually grant a subscription tier
+router.post("/grant-subscription", requireStaff, async (req: AuthRequest, res) => {
+  try {
+    const { userId, tier, days } = req.body as { userId?: string; tier?: string; days?: number };
+    const validTiers = ["street_runner", "neon_syndicate", "apex_sovereign"];
+    if (!userId || !tier || !validTiers.includes(tier)) {
+      return res.status(400).json({ message: "userId, and valid tier required" });
+    }
+    const durationDays = Math.min(365, Math.max(1, Number(days) || 30));
+    const { TIER_CONFIG } = await import("../lib/subscription");
+    const tierCfg = TIER_CONFIG[tier as keyof typeof TIER_CONFIG];
+
+    const expiresAt = new Date(Date.now() + durationDays * 86_400_000);
+    await User.updateOne(
+      { _id: userId },
+      {
+        $set: { subscriptionTier: tier, subscriptionExpiresAt: expiresAt },
+        $addToSet: { ownedChatFrames: tierCfg.frameId },
+      }
+    );
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "grant-subscription", targetId: userId, targetUsername: "?", details: { tier, durationDays } });
+    res.json({ message: `${tierCfg.name} granted for ${durationDays} days`, expiresAt });
+  } catch (err: any) {
+    req.log.error({ err }, "grant-subscription error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/revoke-subscription — remove an active subscription
+router.post("/revoke-subscription", requireStaff, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.body as { userId?: string };
+    if (!userId) return res.status(400).json({ message: "userId required" });
+    await User.updateOne({ _id: userId }, { $set: { subscriptionTier: null, subscriptionExpiresAt: null } });
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "revoke-subscription", targetId: userId, targetUsername: "?", details: {} });
+    res.json({ message: "Subscription revoked" });
+  } catch (err: any) {
+    req.log.error({ err }, "revoke-subscription error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/adjust-uc — add or subtract UC from any player
+router.post("/adjust-uc", requireStaff, async (req: AuthRequest, res) => {
+  try {
+    const { userId, amount } = req.body;
+    const delta = Math.floor(Number(amount));
+    if (!userId || isNaN(delta)) return res.status(400).json({ message: "userId and amount required" });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    await User.updateOne({ _id: userId }, { $inc: { uc: delta } });
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "adjust-uc", targetId: user.id, targetUsername: user.username, details: { delta } });
+    res.json({ message: `${delta >= 0 ? "+" : ""}${delta} UC applied to ${user.username}` });
+  } catch (err: any) {
+    req.log.error({ err }, "adjust-uc error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

@@ -79,6 +79,15 @@ export function safeUser(user: InstanceType<typeof User>) {
     onboardingStage: user.onboardingStage ?? 0,
     ownedChatFrames: (user as any).ownedChatFrames || [],
     equippedChatFrame: (user as any).equippedChatFrame || null,
+    // ── Monetization ───────────────────────────────────────────────────────
+    uc: (user as any).uc ?? 0,
+    subscriptionTier: (user as any).subscriptionTier ?? null,
+    subscriptionExpiresAt: (user as any).subscriptionExpiresAt ?? null,
+    ucDailyClaimedAt: (user as any).ucDailyClaimedAt ?? null,
+    ucClaimStreak: (user as any).ucClaimStreak ?? 0,
+    telegramLinked: !!(user as any).telegramId,
+    telegramUsername: (user as any).telegramUsername ?? null,
+    gameTheme: (user as any).gameTheme ?? "default",
   };
 }
 
@@ -140,6 +149,7 @@ router.post("/register", async (req, res) => {
       faction: faction && ["suits", "street", "grid"].includes(faction) ? faction : null,
       referralCode: refCode,
       referredBy: referralCode || null,
+      uc: 25, // welcome bonus for new players
     });
 
     // Referral bonus

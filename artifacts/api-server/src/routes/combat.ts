@@ -13,6 +13,16 @@ import { generateNpcDialogue } from "../lib/groq";
 
 const router = Router();
 
+/** Apply the subscriber hospital-speed-reduction perk at the moment of hospitalization. */
+async function effectiveHospMins(player: any, baseMins: number): Promise<number> {
+  try {
+    const { getActiveTier } = await import("../lib/subscription");
+    const tier = getActiveTier(player);
+    if (!tier || !tier.hospitalSpeedPct) return baseMins;
+    return Math.max(1, Math.round(baseMins * (1 - tier.hospitalSpeedPct / 100)));
+  } catch { return baseMins; }
+}
+
 // NPC roster per spec
 const NPCS = [
   { id: "street_punk", name: "Street Punk", district: "residential-north", level: 5, hp: 30, strength: 8, dcMin: 500, dcMax: 1000, xp: 50, dropRarity: "common", description: "A desperate kid looking for an easy score." },
@@ -116,7 +126,8 @@ router.post("/npc/:npcId", requireAuth, async (req: AuthRequest, res) => {
       narrative = `${npc.name} had better instincts. You took ${hpLoss} HP damage and retreated.`;
 
       if (user.health <= 0) {
-        const hospDuration = 20 + Math.floor(Math.random() * 10);
+        const hospBase = 20 + Math.floor(Math.random() * 10);
+        const hospDuration = await effectiveHospMins(user, hospBase);
         user.hospitalizedUntil = new Date(Date.now() + hospDuration * 60 * 1000);
         user.health = 0;
         hospitalized = true;
@@ -366,7 +377,8 @@ router.post("/attack", requireAuth, validateBody(combatAttackSchema), async (req
       defHpLoss = Math.floor(20 + Math.random() * 30);
       defender.health = Math.max(0, defender.health - defHpLoss);
       if (defender.health <= 0) {
-        const hospDur = 20 + Math.floor(Math.random() * 10);
+        const hospBase = 20 + Math.floor(Math.random() * 10);
+        const hospDur = await effectiveHospMins(defender, hospBase);
         defender.hospitalizedUntil = new Date(now.getTime() + hospDur * 60 * 1000);
         defender.health = 0;
         defenderHospitalized = true;
@@ -397,7 +409,8 @@ router.post("/attack", requireAuth, validateBody(combatAttackSchema), async (req
       atkHpLoss = Math.floor(15 + Math.random() * 20);
       attacker.health = Math.max(0, attacker.health - atkHpLoss);
       if (attacker.health <= 0) {
-        const hospDur = 20 + Math.floor(Math.random() * 10);
+        const hospBase = 20 + Math.floor(Math.random() * 10);
+        const hospDur = await effectiveHospMins(attacker, hospBase);
         attacker.hospitalizedUntil = new Date(now.getTime() + hospDur * 60 * 1000);
         attacker.health = 0;
         attackerHospitalized = true;

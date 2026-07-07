@@ -5,6 +5,7 @@ import ChatMessage, { dmKey } from "../models/ChatMessage";
 import { requireAuth, requireOwner, AuthRequest } from "../middlewares/auth";
 import mongoose from "mongoose";
 import { notifyMentions } from "../lib/mentions";
+import { getActiveTier } from "../lib/subscription";
 
 const router = Router();
 
@@ -70,12 +71,14 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level");
+      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level subscriptionTier subscriptionExpiresAt");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
       return res.status(403).json({ message: "You are muted" });
     }
+
+    const activeTierGlobal = getActiveTier(user as any);
 
     const message = await ChatMessage.create({
       channel: "global",
@@ -100,6 +103,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
         title: user.equippedTitle,
         chatFrame: (user as any).equippedChatFrame || null,
         level: user.level,
+        subscriptionTier: activeTierGlobal ? (user as any).subscriptionTier : null,
         content,
         at: message.createdAt,
       });
@@ -158,13 +162,14 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned district equippedChatFrame level");
+      .select("username faction equippedTitle mutedUntil banned district equippedChatFrame level subscriptionTier subscriptionExpiresAt");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
       return res.status(403).json({ message: "You are muted" });
     }
 
+    const activeTierDistrict = getActiveTier(user as any);
     const dId = String(districtId);
     const message = await ChatMessage.create({
       channel: "district",
@@ -189,6 +194,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
         title: user.equippedTitle,
         chatFrame: (user as any).equippedChatFrame || null,
         level: user.level,
+        subscriptionTier: activeTierDistrict ? (user as any).subscriptionTier : null,
         content,
         at: message.createdAt,
         districtId: dId,
@@ -250,7 +256,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(`faction:${String(req.userId)}`, now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level");
+      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level subscriptionTier subscriptionExpiresAt");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (!user.faction) {
@@ -260,6 +266,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
       return res.status(403).json({ message: "You are muted" });
     }
 
+    const activeTierFaction = getActiveTier(user as any);
     const channel = `faction:${user.faction}` as `faction:${string}`;
     const message = await ChatMessage.create({
       channel,
@@ -284,6 +291,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
         title: user.equippedTitle,
         chatFrame: (user as any).equippedChatFrame || null,
         level: user.level,
+        subscriptionTier: activeTierFaction ? (user as any).subscriptionTier : null,
         content,
         at: message.createdAt,
       });
