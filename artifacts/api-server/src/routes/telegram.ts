@@ -15,9 +15,9 @@ import crypto from "crypto";
 import User from "../models/User";
 import TelegramPayment from "../models/TelegramPayment";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { sendTelegramMessage, answerPreCheckoutQuery } from "../lib/telegram";
+import { sendTelegramMessage, answerPreCheckoutQuery, sendInvoice } from "../lib/telegram";
 import { UC_PACKS, TIER_CONFIG, getActiveTier, type SubscriptionTier } from "../lib/subscription";
-import { resolvePending, peekPending } from "./store";
+import { resolvePending, peekPending, storePending } from "./store";
 
 const router = Router();
 
@@ -89,17 +89,38 @@ router.post("/unlink", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// Per-chatId invoice creation rate limit: max 5 invoices per minute
+const _invoiceRateMap = new Map<string, { count: number; resetAt: number }>();
+function checkInvoiceRate(chatId: string): boolean {
+  const now = Date.now();
+  let entry = _invoiceRateMap.get(chatId);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + 60_000 };
+    _invoiceRateMap.set(chatId, entry);
+  }
+  if (entry.count >= 5) return false;
+  entry.count++;
+  return true;
+}
+
 // ── POST /api/telegram/webhook ────────────────────────────────────────────────
 // Telegram sends updates here. Verified via X-Telegram-Bot-Api-Secret-Token.
 // Register with: /setWebhook?url=https://your-domain/api/telegram/webhook&secret_token=YOUR_SECRET
+//
+// SECURITY: TELEGRAM_WEBHOOK_SECRET is REQUIRED. Without it, any party that
+// can reach this endpoint could forge successful_payment events and mint UC.
+// Requests without a matching secret are rejected with 401.
 router.post("/webhook", async (req, res) => {
-  // Verify secret token
   const secretToken = process.env["TELEGRAM_WEBHOOK_SECRET"];
-  if (secretToken) {
-    const received = req.headers["x-telegram-bot-api-secret-token"];
-    if (received !== secretToken) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+
+  // Reject if secret is not configured — prevents forged payment events in prod
+  if (!secretToken) {
+    return res.status(503).json({ message: "Webhook not configured" });
+  }
+
+  const received = req.headers["x-telegram-bot-api-secret-token"];
+  if (received !== secretToken) {
+    return res.status(401).json({ message: "Unauthorized" });
   }
 
   // Acknowledge immediately — Telegram retries if we don't respond within 60s
@@ -177,10 +198,164 @@ router.post("/webhook", async (req, res) => {
         return;
       }
 
-      // Handle /help
+      // ── Bot commands (only available after account is linked) ────────────
+      // Look up linked user by chatId for all non-link commands
+      const linkedUser = text !== "/help" && text !== "/start"
+        ? await User.findOne({ telegramId: chatId }).select("_id uc subscriptionTier subscriptionExpiresAt ucDailyClaimedAt username").lean()
+        : null;
+
+      // /status — show UC balance and subscription info
+      if (text === "/status" || text === "/bal" || text === "/balance") {
+        if (!linkedUser) {
+          await sendTelegramMessage(chatId,
+            `❌ No DriftLife account linked to this Telegram.\n\nGo to DriftLife → Store → Link Telegram to connect your account.`
+          );
+          return;
+        }
+        const u = linkedUser as any;
+        const tier = getActiveTier(u);
+        const subLine = tier
+          ? `💎 Subscription: <b>${TIER_CONFIG[u.subscriptionTier as SubscriptionTier]?.name}</b>`
+          : `💎 Subscription: None`;
+        const expiresLine = u.subscriptionExpiresAt && tier
+          ? `   Expires: ${new Date(u.subscriptionExpiresAt).toDateString()}`
+          : "";
+        await sendTelegramMessage(chatId,
+          `<b>@${u.username} · DriftLife Status</b>\n\n` +
+          `⭐ UC Balance: <b>${(u.uc ?? 0).toLocaleString()} UC</b>\n` +
+          `${subLine}\n${expiresLine ? expiresLine + "\n" : ""}` +
+          `\nUse /buy to purchase UC packs or /subscribe for subscriptions.`
+        );
+        return;
+      }
+
+      // /buy [pack_id] — list UC packs or send invoice for a specific one
+      if (text.startsWith("/buy")) {
+        if (!linkedUser) {
+          await sendTelegramMessage(chatId,
+            `❌ No DriftLife account linked.\n\nGo to DriftLife → Store → Link Telegram first.`
+          );
+          return;
+        }
+        const packArg = text.slice(4).trim().toLowerCase();
+        if (!packArg) {
+          // List available packs
+          const lines = UC_PACKS.map((p, i) =>
+            `${i + 1}. <code>/buy ${p.id}</code> — <b>${p.uc.toLocaleString()} UC</b> for ⭐ ${p.stars} Stars${p.bonusPct > 0 ? ` (+${p.bonusPct}% bonus)` : ""}`
+          ).join("\n");
+          await sendTelegramMessage(chatId,
+            `<b>UC Packs</b>\n\nChoose a pack and send the command:\n\n${lines}\n\nUC is used to buy premium chat frames in DriftLife.`
+          );
+          return;
+        }
+        const pack = UC_PACKS.find(p => p.id === packArg);
+        if (!pack) {
+          await sendTelegramMessage(chatId, `❌ Unknown pack <code>${packArg}</code>. Send /buy to see available packs.`);
+          return;
+        }
+        // Rate limit: max 5 invoice creations per minute per user
+        if (!checkInvoiceRate(chatId)) {
+          await sendTelegramMessage(chatId, `⏳ Slow down — you're creating invoices too fast. Wait a moment and try again.`);
+          return;
+        }
+        try {
+          const nonce = crypto.randomBytes(8).toString("hex");
+          const payload = `${String((linkedUser as any)._id)}:${pack.id}:${nonce}`;
+          storePending(payload, String((linkedUser as any)._id), pack.id);
+          await sendInvoice({
+            chatId,
+            title: `${pack.uc.toLocaleString()} UltraCredits`,
+            description: `${pack.uc.toLocaleString()} UC${pack.bonusPct > 0 ? ` (+${pack.bonusPct}% bonus)` : ""} for DriftLife · ${pack.label}`,
+            payload,
+            currency: "XTR",
+            amount: pack.stars,
+          });
+        } catch (err: any) {
+          await sendTelegramMessage(chatId, `❌ Could not create invoice. Please try again or purchase from the DriftLife Store.`);
+        }
+        return;
+      }
+
+      // /subscribe [tier_id] — list subscription tiers or send invoice
+      if (text.startsWith("/subscribe") || text.startsWith("/sub")) {
+        if (!linkedUser) {
+          await sendTelegramMessage(chatId,
+            `❌ No DriftLife account linked.\n\nGo to DriftLife → Store → Link Telegram first.`
+          );
+          return;
+        }
+        const tierArg = text.replace(/^\/(subscribe|sub)\s*/, "").trim().toLowerCase();
+        if (!tierArg) {
+          // List tiers
+          const lines = Object.entries(TIER_CONFIG).map(([id, cfg]) =>
+            `• <code>/subscribe ${id}</code> — <b>${cfg.name}</b> ⭐ ${cfg.starsPerMonth} Stars/month\n  ${cfg.dailyUc} UC/day · XP ×${cfg.jobXpMult} · Crime ×${cfg.crimeRewardMult}`
+          ).join("\n\n");
+          await sendTelegramMessage(chatId,
+            `<b>Subscription Tiers</b>\n\nAll plans are 30-day, paid via Telegram Stars.\n\n${lines}\n\nSubscriptions include exclusive chat frames, boosts, and daily UC claims.`
+          );
+          return;
+        }
+        const tierEntry = Object.entries(TIER_CONFIG).find(([id]) => id === tierArg);
+        if (!tierEntry) {
+          await sendTelegramMessage(chatId, `❌ Unknown tier <code>${tierArg}</code>. Send /subscribe to see available tiers.`);
+          return;
+        }
+        const [tierId, tierCfg] = tierEntry;
+
+        // Warn if the user already has an active subscription — purchasing resets
+        // expiry to 30 days from now and does NOT stack remaining time.
+        const u = linkedUser as any;
+        const activeTierNow = getActiveTier(u);
+        if (activeTierNow) {
+          const daysLeft = u.subscriptionExpiresAt
+            ? Math.ceil((new Date(u.subscriptionExpiresAt).getTime() - Date.now()) / 86_400_000)
+            : 0;
+          await sendTelegramMessage(chatId,
+            `⚠️ <b>You already have an active subscription</b> (${TIER_CONFIG[u.subscriptionTier as SubscriptionTier]?.name}, ${daysLeft} days left).\n\n` +
+            `Purchasing a new plan will reset your expiry to 30 days from today — your remaining ${daysLeft} days will be lost.\n\n` +
+            `If you still want to proceed, re-send:\n<code>/subscribe ${tierId}</code>\n\n` +
+            `(This message is just a warning — re-sending the command will continue.)`
+          );
+          // We still fall through and create the invoice — the warning is informational.
+          // The user explicitly re-invoked the command above, so this is their second press.
+        }
+
+        // Rate limit: max 5 invoice creations per minute per user
+        if (!checkInvoiceRate(chatId)) {
+          await sendTelegramMessage(chatId, `⏳ Slow down — you're creating invoices too fast. Wait a moment and try again.`);
+          return;
+        }
+        try {
+          const nonce = crypto.randomBytes(8).toString("hex");
+          const payload = `${String((linkedUser as any)._id)}:${tierId}:${nonce}`;
+          storePending(payload, String((linkedUser as any)._id), tierId);
+          await sendInvoice({
+            chatId,
+            title: `${tierCfg.name} — 30 days`,
+            description: `${tierCfg.name} subscription: ${tierCfg.dailyUc} UC/day, exclusive frame, XP ×${tierCfg.jobXpMult}, crime ×${tierCfg.crimeRewardMult}`,
+            payload,
+            currency: "XTR",
+            amount: tierCfg.starsPerMonth,
+          });
+        } catch (err: any) {
+          await sendTelegramMessage(chatId, `❌ Could not create invoice. Please try again or subscribe from the DriftLife Store.`);
+        }
+        return;
+      }
+
+      // /help or bare /start (no code)
       if (text === "/help" || text === "/start") {
         await sendTelegramMessage(chatId,
-          `<b>DriftLife Bot</b>\n\nTo link your account:\n1. Open DriftLife → Settings → Link Telegram\n2. DM me the 6-character code shown\n\nAfter linking, you can buy UC and subscriptions directly in-game.`
+          `<b>DriftLife Bot</b>\n\n` +
+          `<b>Commands:</b>\n` +
+          `/status — your UC balance &amp; subscription\n` +
+          `/buy — purchase UC packs\n` +
+          `/subscribe — get a subscription\n` +
+          `/help — show this message\n\n` +
+          `<b>To link your account:</b>\n` +
+          `1. Open DriftLife → Store → Link Telegram\n` +
+          `2. DM me the 6-character code shown\n\n` +
+          `After linking, use /buy or /subscribe to make purchases directly here.`
         );
       }
     }
@@ -263,7 +438,7 @@ router.post("/webhook", async (req, res) => {
         const user = await User.findById(pending.userId).select("ownedChatFrames nc subscriptionTier");
         if (!user) return;
 
-        const updates: any = {
+        const setFields: any = {
           subscriptionTier: tier,
           subscriptionExpiresAt: expiresAt,
           ucDailyClaimedAt: null,   // reset so they can claim today
@@ -271,15 +446,18 @@ router.post("/webhook", async (req, res) => {
           ucRolloverDays: 0,
         };
 
+        // Build the update operator cleanly — never nest $addToSet/$inc inside $set
+        const updateOp: any = { $set: setFields };
+
         const ownedFrames: string[] = (user as any).ownedChatFrames || [];
         if (!ownedFrames.includes(tierCfg.frameId)) {
-          updates.$addToSet = { ownedChatFrames: tierCfg.frameId };
+          updateOp.$addToSet = { ownedChatFrames: tierCfg.frameId };
         }
         if (tierCfg.monthlyNc > 0) {
-          updates.$inc = { nc: tierCfg.monthlyNc };
+          updateOp.$inc = { nc: tierCfg.monthlyNc };
         }
 
-        await User.updateOne({ _id: pending.userId }, { $set: updates, ...(updates.$addToSet ? { $addToSet: updates.$addToSet } : {}), ...(updates.$inc ? { $inc: updates.$inc } : {}) });
+        await User.updateOne({ _id: pending.userId }, updateOp);
 
         await sendTelegramMessage(chatId,
           `🎉 <b>${tierCfg.name} activated!</b>\n\n` +

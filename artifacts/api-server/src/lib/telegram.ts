@@ -93,8 +93,45 @@ export async function answerPreCheckoutQuery(queryId: string, ok: boolean, error
 }
 
 /**
+ * Send a Telegram Stars invoice directly to a chat (for bot-initiated purchases).
+ * Use this when the bot itself wants to trigger payment — e.g. from a /buy command.
+ */
+export async function sendInvoice(opts: {
+  chatId: string;
+  title: string;
+  description: string;
+  payload: string;
+  currency: "XTR";
+  amount: number;
+}): Promise<void> {
+  const token = getToken();
+  if (!token) throw new Error("TELEGRAM_BOT_TOKEN not configured");
+
+  const body = {
+    chat_id: opts.chatId,
+    title: opts.title,
+    description: opts.description,
+    payload: opts.payload,
+    currency: opts.currency,
+    prices: [{ label: opts.title, amount: opts.amount }],
+  };
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendInvoice`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json() as { ok: boolean; description?: string };
+  if (!data.ok) throw new Error(`Telegram sendInvoice failed: ${data.description}`);
+}
+
+/**
  * Register the webhook URL with Telegram.
  * Call once on server startup when TELEGRAM_WEBHOOK_URL is set.
+ *
+ * NOTE: "successful_payment" is NOT a valid allowed_updates type — it is a
+ * sub-field delivered inside a regular "message" update. Including it causes
+ * Telegram to reject or ignore the registration silently.
  */
 export async function registerWebhook(webhookUrl: string, secretToken: string): Promise<void> {
   const token = getToken();
@@ -106,7 +143,9 @@ export async function registerWebhook(webhookUrl: string, secretToken: string): 
       body: JSON.stringify({
         url: webhookUrl,
         secret_token: secretToken,
-        allowed_updates: ["message", "pre_checkout_query", "successful_payment"],
+        // "successful_payment" is NOT a valid top-level update type — it
+        // arrives as part of a "message" update. Only list real update types.
+        allowed_updates: ["message", "pre_checkout_query"],
       }),
     });
     const data = await res.json() as { ok: boolean; description?: string };

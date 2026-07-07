@@ -5,6 +5,7 @@ import { logger } from "./lib/logger";
 import { connectDB } from "./lib/db";
 import { startKeepAlive, stopKeepAlive } from "./lib/keepAlive";
 import { seed } from "./lib/seed";
+import { registerWebhook } from "./lib/telegram";
 import User from "./models/User";
 import { allowedOrigins } from "./lib/cors";
 
@@ -233,6 +234,27 @@ async function start() {
   httpServer.listen(port, () => {
     logger.info({ port }, "Server listening");
     startKeepAlive();
+
+    // Register Telegram webhook once the server is live and accepting traffic.
+    //
+    // Required env vars (set in Render dashboard):
+    //   TELEGRAM_WEBHOOK_URL    — full public URL of this server, e.g.
+    //                             https://driftlife.onrender.com/api/telegram/webhook
+    //   TELEGRAM_WEBHOOK_SECRET — an arbitrary secret shared between Render and
+    //                             Telegram; used to validate every incoming webhook
+    //                             request. MUST be set — without it the webhook
+    //                             endpoint rejects all requests.
+    const webhookUrl = process.env["TELEGRAM_WEBHOOK_URL"];
+    const webhookSecret = process.env["TELEGRAM_WEBHOOK_SECRET"];
+    if (webhookUrl && webhookSecret) {
+      registerWebhook(webhookUrl, webhookSecret).catch((err) => {
+        logger.warn({ err }, "Telegram webhook registration failed at startup");
+      });
+    } else if (webhookUrl && !webhookSecret) {
+      logger.warn("TELEGRAM_WEBHOOK_URL is set but TELEGRAM_WEBHOOK_SECRET is missing — webhook NOT registered (required for security)");
+    } else {
+      logger.info("TELEGRAM_WEBHOOK_URL not set — skipping Telegram webhook registration");
+    }
   });
 }
 
