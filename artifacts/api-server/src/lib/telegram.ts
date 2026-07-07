@@ -6,20 +6,30 @@ function getToken(): string | undefined {
   return process.env["TELEGRAM_BOT_TOKEN"];
 }
 
+// ── Low-level types ───────────────────────────────────────────────────────────
+
+type InlineKeyboard = Array<Array<{ text: string; callback_data: string }>>;
+
+// ── Basic messaging ───────────────────────────────────────────────────────────
+
 /**
  * Sends a Telegram DM to a user via the bot API. No-ops gracefully when
  * TELEGRAM_BOT_TOKEN is not configured. Never throws.
+ * Returns the sent message_id (for later editing) or null on failure.
  */
-export async function sendTelegramMessage(chatId: string | null | undefined, text: string): Promise<void> {
+export async function sendTelegramMessage(
+  chatId: string | null | undefined,
+  text: string,
+): Promise<number | null> {
   const token = getToken();
   if (!token) {
     if (!warnedMissingToken) {
       logger.info("TELEGRAM_BOT_TOKEN not set — Telegram disabled");
       warnedMissingToken = true;
     }
-    return;
+    return null;
   }
-  if (!chatId) return;
+  if (!chatId) return null;
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
@@ -29,10 +39,97 @@ export async function sendTelegramMessage(chatId: string | null | undefined, tex
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       logger.warn({ status: res.status, body }, "Telegram sendMessage failed");
+      return null;
     }
+    const data = await res.json() as { ok: boolean; result?: { message_id: number } };
+    return data.result?.message_id ?? null;
   } catch (err) {
     logger.warn({ err }, "Telegram sendMessage error");
+    return null;
   }
+}
+
+/**
+ * Send a message with an inline keyboard (button menu).
+ * Returns the sent message_id or null on failure.
+ */
+export async function sendMessageWithKeyboard(opts: {
+  chatId: string;
+  text: string;
+  inlineKeyboard: InlineKeyboard;
+}): Promise<number | null> {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: opts.chatId,
+        text: opts.text,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: opts.inlineKeyboard },
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      logger.warn({ status: res.status, body }, "Telegram sendMessageWithKeyboard failed");
+      return null;
+    }
+    const data = await res.json() as { ok: boolean; result?: { message_id: number } };
+    return data.result?.message_id ?? null;
+  } catch (err) {
+    logger.warn({ err }, "Telegram sendMessageWithKeyboard error");
+    return null;
+  }
+}
+
+/**
+ * Edit an existing message's text and keyboard in-place.
+ * Used to update the "screen" when a user taps an inline button.
+ */
+export async function editMessageText(opts: {
+  chatId: string;
+  messageId: number;
+  text: string;
+  inlineKeyboard?: InlineKeyboard;
+}): Promise<void> {
+  const token = getToken();
+  if (!token) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: opts.chatId,
+        message_id: opts.messageId,
+        text: opts.text,
+        parse_mode: "HTML",
+        reply_markup: opts.inlineKeyboard
+          ? { inline_keyboard: opts.inlineKeyboard }
+          : undefined,
+      }),
+    });
+  } catch (err) {
+    logger.warn({ err }, "Telegram editMessageText error");
+  }
+}
+
+/**
+ * Acknowledge a callback_query — must be called within 60s.
+ * Optionally show a brief toast notification to the user.
+ */
+export async function answerCallbackQuery(queryId: string, text?: string): Promise<void> {
+  const token = getToken();
+  if (!token) return;
+  await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      callback_query_id: queryId,
+      ...(text ? { text, show_alert: false } : {}),
+    }),
+  }).catch(() => {});
 }
 
 /**
@@ -45,6 +142,8 @@ export async function notifyTelegram(
   if (!user || !user.telegramNotifications || !user.telegramId) return;
   await sendTelegramMessage(user.telegramId, text);
 }
+
+// ── Payments ──────────────────────────────────────────────────────────────────
 
 /**
  * Create a Telegram Stars invoice link via the Bot API.
@@ -66,7 +165,6 @@ export async function createInvoiceLink(opts: {
     payload: opts.payload,
     currency: opts.currency,
     prices: [{ label: opts.title, amount: opts.amount }],
-    // No provider_token for Stars (digital goods, Stars only)
   };
 
   const res = await fetch(`https://api.telegram.org/bot${token}/createInvoiceLink`, {
@@ -77,19 +175,6 @@ export async function createInvoiceLink(opts: {
   const data = await res.json() as { ok: boolean; result?: string; description?: string };
   if (!data.ok) throw new Error(`Telegram createInvoiceLink failed: ${data.description}`);
   return data.result!;
-}
-
-/**
- * Answer a pre_checkout_query — must be called within 10 seconds.
- */
-export async function answerPreCheckoutQuery(queryId: string, ok: boolean, errorMessage?: string): Promise<void> {
-  const token = getToken();
-  if (!token) return;
-  await fetch(`https://api.telegram.org/bot${token}/answerPreCheckoutQuery`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pre_checkout_query_id: queryId, ok, error_message: errorMessage }),
-  }).catch(() => {});
 }
 
 /**
@@ -126,6 +211,46 @@ export async function sendInvoice(opts: {
 }
 
 /**
+ * Answer a pre_checkout_query — must be called within 10 seconds.
+ */
+export async function answerPreCheckoutQuery(queryId: string, ok: boolean, errorMessage?: string): Promise<void> {
+  const token = getToken();
+  if (!token) return;
+  await fetch(`https://api.telegram.org/bot${token}/answerPreCheckoutQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pre_checkout_query_id: queryId, ok, error_message: errorMessage }),
+  }).catch(() => {});
+}
+
+// ── Bot configuration ─────────────────────────────────────────────────────────
+
+/**
+ * Register the bot's command list shown in the Telegram command picker (/ menu).
+ */
+export async function setMyCommands(
+  commands: Array<{ command: string; description: string }>,
+): Promise<void> {
+  const token = getToken();
+  if (!token) return;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commands }),
+    });
+    const data = await res.json() as { ok: boolean; description?: string };
+    if (data.ok) {
+      logger.info("Telegram bot commands registered");
+    } else {
+      logger.warn({ data }, "Telegram setMyCommands failed");
+    }
+  } catch (err) {
+    logger.warn({ err }, "Telegram setMyCommands error");
+  }
+}
+
+/**
  * Register the webhook URL with Telegram.
  * Call once on server startup when TELEGRAM_WEBHOOK_URL is set.
  *
@@ -145,7 +270,7 @@ export async function registerWebhook(webhookUrl: string, secretToken: string): 
         secret_token: secretToken,
         // "successful_payment" is NOT a valid top-level update type — it
         // arrives as part of a "message" update. Only list real update types.
-        allowed_updates: ["message", "pre_checkout_query"],
+        allowed_updates: ["message", "pre_checkout_query", "callback_query"],
       }),
     });
     const data = await res.json() as { ok: boolean; description?: string };

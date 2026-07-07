@@ -7,6 +7,10 @@ export type SubscriptionTier = 'street_runner' | 'neon_syndicate' | 'apex_sovere
 export interface TierConfig {
   name: string;
   starsPerMonth: number;
+  /** UC cost when purchasing subscription directly in-game (not via Telegram Stars).
+   *  Priced at 6 UC per Star — mildly favourable vs the starter pack rate (5 UC/Star)
+   *  but not so cheap it trivialises Stars purchases. */
+  ucPrice: number;
   dailyUc: number;              // UC granted per daily claim
   jobXpMult: number;            // applied to xpGained in jobs
   crimeRewardMult: number;      // applied to dcGained in crimes
@@ -25,6 +29,7 @@ export const TIER_CONFIG: Record<SubscriptionTier, TierConfig> = {
   street_runner: {
     name: 'Street Runner',
     starsPerMonth: 250,
+    ucPrice: 1500,   // 250 Stars × 6 UC/Star
     dailyUc: 60,
     jobXpMult: 1.15,
     crimeRewardMult: 1.10,
@@ -41,6 +46,7 @@ export const TIER_CONFIG: Record<SubscriptionTier, TierConfig> = {
   neon_syndicate: {
     name: 'Neon Syndicate',
     starsPerMonth: 500,
+    ucPrice: 3000,   // 500 Stars × 6 UC/Star
     dailyUc: 130,
     jobXpMult: 1.25,
     crimeRewardMult: 1.25,
@@ -57,6 +63,7 @@ export const TIER_CONFIG: Record<SubscriptionTier, TierConfig> = {
   apex_sovereign: {
     name: 'Apex Sovereign',
     starsPerMonth: 1000,
+    ucPrice: 6000,   // 1000 Stars × 6 UC/Star
     dailyUc: 275,
     jobXpMult: 1.50,
     crimeRewardMult: 1.50,

@@ -37,6 +37,7 @@ interface TierInfo {
   id: string;
   name: string;
   starsPerMonth: number;
+  ucPrice: number;
   dailyUc: number;
   jobXpMult: number;
   crimeRewardMult: number;
@@ -95,6 +96,12 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
   // Telegram link modal state
   const [linkData, setLinkData] = useState<LinkInitResponse | null>(null);
   const [linkPollActive, setLinkPollActive] = useState(false);
+
+  // UC subscription payment state
+  // ucConfirm = tierId that is pending confirmation, ucBuying = tierId currently processing
+  const [ucConfirm, setUcConfirm] = useState<string | null>(null);
+  const [ucBuying, setUcBuying] = useState<string | null>(null);
+  const [ucBuyResult, setUcBuyResult] = useState<{ tierId: string; msg: string; ok: boolean } | null>(null);
 
   // Gift UC modal
   const [giftModal, setGiftModal] = useState(false);
@@ -165,6 +172,22 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
       }
     } finally {
       setBuying(null);
+    }
+  }
+
+  async function handleBuyWithUC(tierId: string) {
+    setUcBuying(tierId);
+    setUcBuyResult(null);
+    try {
+      const r = await api.post<{ message: string }>("/store/buy-subscription-uc", { tierId });
+      setUcBuyResult({ tierId, msg: r.message, ok: true });
+      onUserUpdate?.();
+      await loadStatus();
+    } catch (e: any) {
+      setUcBuyResult({ tierId, msg: e.message || "Purchase failed", ok: false });
+    } finally {
+      setUcBuying(null);
+      setUcConfirm(null);
     }
   }
 
@@ -487,9 +510,22 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
       {/* ── Subscriptions tab ───────────────────────────────────────────────── */}
       {!loading && tab === "subs" && status && (
         <div className="space-y-3">
-          <div className="font-mono text-xs" style={{ color: "#475569" }}>
-            All subscriptions are 30-day plans, paid via Telegram Stars ⭐.
-            Daily UC value exceeds the subscription cost every month.
+          {/* Payment method legend */}
+          <div style={{ background: "#0a0a14", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 14px" }}>
+            <div className="font-mono text-xs font-bold mb-1" style={{ color: "#a0a0c0" }}>
+              Two ways to subscribe — same perks, your choice:
+            </div>
+            <div className="flex gap-4">
+              <div className="font-mono text-xs" style={{ color: "#475569" }}>
+                <span style={{ color: "#0088cc" }}>⭐ Telegram Stars</span> — pay via Telegram (real money)
+              </div>
+              <div className="font-mono text-xs" style={{ color: "#475569" }}>
+                <span style={{ color: "#FFD700" }}>💰 UC</span> — spend in-game UltraCredits
+              </div>
+            </div>
+            <div className="font-mono text-xs mt-1" style={{ color: "#334155" }}>
+              You have <span style={{ color: "#FFD700", fontWeight: 700 }}>{uc.toLocaleString()} UC</span> available.
+            </div>
           </div>
 
           {TIER_ORDER.map(tierId => {
@@ -498,6 +534,10 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
             const isActive = activeTier === tierId;
             const color = TIER_COLOR[tierId];
             const badge = TIER_BADGE[tierId];
+            const canAffordUc = uc >= tier.ucPrice;
+            const isUcConfirming = ucConfirm === tierId;
+            const isUcBuying = ucBuying === tierId;
+            const ucResult = ucBuyResult?.tierId === tierId ? ucBuyResult : null;
 
             return (
               <div
@@ -508,16 +548,16 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                   borderRadius: 12, padding: 16,
                 }}
               >
+                {/* Header */}
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <div className="font-mono text-base font-black" style={{ color }}>
                       {badge} {tier.name}
                     </div>
                     <div className="font-mono text-xs" style={{ color: "#475569" }}>
-                      {tier.starsPerMonth} Stars/month ·{" "}
-                      <span style={{ color: "#22c55e" }}>
-                        {tier.dailyUc * 30} UC/month value
-                      </span>
+                      ⭐ {tier.starsPerMonth} Stars <span style={{ color: "#334155" }}>or</span>{" "}
+                      💰 {tier.ucPrice.toLocaleString()} UC /month ·{" "}
+                      <span style={{ color: "#22c55e" }}>{tier.dailyUc * 30} UC/month value</span>
                     </div>
                   </div>
                   {isActive && (
@@ -537,10 +577,10 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                     ...(tier.hospitalSpeedPct > 0 ? [{ label: `Hospital -${tier.hospitalSpeedPct}%`, icon: "🏥" }] : []),
                     ...(tier.extraGymSessions > 0 ? [{ label: `+${tier.extraGymSessions} gym/hr`, icon: "💪" }] : []),
                     ...(tier.bankInterestBonus > 0 ? [{ label: `Bank +${tier.bankInterestBonus}% interest`, icon: "🏦" }] : []),
-                    ...(tier.monthlyNc > 0 ? [{ label: `${tier.monthlyNc} NC/month bonus`, icon: "💎" }] : []),
+                    ...(tier.monthlyNc > 0 ? [{ label: `${tier.monthlyNc} NC bonus`, icon: "💎" }] : []),
                     { label: "Exclusive chat frame", icon: "🖼" },
                     { label: `${tier.themes.length} theme${tier.themes.length > 1 ? "s" : ""} unlocked`, icon: "🎨" },
-                    { label: "Subscriber name badge", icon: "✨" },
+                    { label: "Subscriber badge", icon: "✨" },
                   ].map((f, i) => (
                     <div key={i} className="flex items-center gap-1">
                       <span style={{ fontSize: 10 }}>{f.icon}</span>
@@ -551,31 +591,100 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
 
                 {/* Value callout */}
                 <div className="font-mono text-xs mb-3 p-2 rounded" style={{ background: "#00000040", color: "#22c55e" }}>
-                  💡 Monthly UC value ({tier.dailyUc * 30} UC) exceeds subscription cost
-                  — you get more than you pay for, every month.
+                  💡 Daily UC value ({tier.dailyUc * 30} UC/month) exceeds the subscription cost — you get more than you pay for.
                 </div>
 
-                <button
-                  onClick={() => handleBuy(tierId)}
-                  disabled={isActive || buying === tierId}
-                  className="w-full font-mono text-sm font-bold py-2 rounded transition-opacity"
-                  style={{
-                    background: isActive ? "#1e1e2e" : color,
-                    color: isActive ? "#475569" : "#000",
-                    cursor: isActive ? "default" : "pointer",
-                    opacity: buying === tierId ? 0.6 : 1,
-                  }}
-                >
-                  {buying === tierId ? "Opening Telegram…" :
-                   isActive ? `✓ Subscribed (${status.subDaysLeft}d left)` :
-                   `⭐ Subscribe — ${tier.starsPerMonth} Stars/month`}
-                </button>
+                {/* UC buy result banner */}
+                {ucResult && (
+                  <div
+                    className="font-mono text-xs mb-2 p-2 rounded"
+                    style={{ background: ucResult.ok ? "#00E0FF15" : "#FF4FA315", color: ucResult.ok ? "#00E0FF" : "#FF4FA3", border: `1px solid ${ucResult.ok ? "#00E0FF30" : "#FF4FA330"}` }}
+                  >
+                    {ucResult.msg}
+                  </div>
+                )}
+
+                {isActive ? (
+                  <div
+                    className="w-full font-mono text-sm font-bold py-2 rounded text-center"
+                    style={{ background: "#1e1e2e", color: "#475569" }}
+                  >
+                    ✓ Subscribed ({status.subDaysLeft}d left)
+                  </div>
+                ) : (
+                  <>
+                    {/* Telegram Stars button */}
+                    <button
+                      onClick={() => handleBuy(tierId)}
+                      disabled={!!buying}
+                      className="w-full font-mono text-sm font-bold py-2 rounded transition-opacity mb-2"
+                      style={{
+                        background: color,
+                        color: "#000",
+                        opacity: buying === tierId ? 0.6 : 1,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {buying === tierId ? "Opening Telegram…" : `⭐ ${tier.starsPerMonth} Stars via Telegram`}
+                    </button>
+
+                    {/* UC payment — confirm → buy flow */}
+                    {isUcConfirming ? (
+                      <div
+                        className="p-3 rounded"
+                        style={{ background: "#FFD70015", border: "1px solid #FFD70040" }}
+                      >
+                        <div className="font-mono text-xs mb-2" style={{ color: "#FFD700" }}>
+                          Spend <b>{tier.ucPrice.toLocaleString()} UC</b> on {tier.name}?
+                          <br />
+                          <span style={{ color: "#475569" }}>Your balance: {uc.toLocaleString()} UC → {(uc - tier.ucPrice).toLocaleString()} UC after</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleBuyWithUC(tierId)}
+                            disabled={isUcBuying}
+                            className="flex-1 font-mono text-xs font-bold py-2 rounded"
+                            style={{ background: "#FFD700", color: "#000", opacity: isUcBuying ? 0.6 : 1 }}
+                          >
+                            {isUcBuying ? "Processing…" : "✓ Confirm"}
+                          </button>
+                          <button
+                            onClick={() => setUcConfirm(null)}
+                            disabled={isUcBuying}
+                            className="font-mono text-xs px-4 py-2 rounded"
+                            style={{ background: "#1e1e2e", color: "#475569", border: "1px solid #2a2a3e" }}
+                          >
+                            ✕ Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => canAffordUc ? setUcConfirm(tierId) : undefined}
+                        disabled={!canAffordUc || !!ucBuying}
+                        className="w-full font-mono text-sm font-bold py-2 rounded transition-opacity"
+                        style={{
+                          background: canAffordUc ? "#FFD70020" : "#1e1e2e",
+                          color: canAffordUc ? "#FFD700" : "#334155",
+                          border: `1px solid ${canAffordUc ? "#FFD70040" : "#1e1e2e"}`,
+                          cursor: canAffordUc ? "pointer" : "default",
+                        }}
+                        title={canAffordUc ? undefined : `Need ${tier.ucPrice.toLocaleString()} UC — you have ${uc.toLocaleString()}`}
+                      >
+                        {canAffordUc
+                          ? `💰 ${tier.ucPrice.toLocaleString()} UC (in-game)`
+                          : `💰 ${tier.ucPrice.toLocaleString()} UC needed (have ${uc.toLocaleString()})`}
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             );
           })}
 
           <div className="font-mono text-xs text-center" style={{ color: "#334155" }}>
-            Payments processed by Telegram · No refunds for Stars (per Telegram policy) · Subscriptions do not auto-renew
+            ⭐ Stars payments processed by Telegram — no refunds per Telegram policy<br />
+            💰 UC purchases are instant and final · Subscriptions do not auto-renew
           </div>
         </div>
       )}

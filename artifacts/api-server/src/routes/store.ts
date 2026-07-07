@@ -1,13 +1,16 @@
 /**
- * Store routes — UC packs + subscription tiers via Telegram Stars.
- * POST /api/store/create-invoice  — returns a Telegram Stars invoice link
- * POST /api/store/claim-daily-uc  — claim daily UC (streak + rollover)
- * GET  /api/store/status          — returns uc, sub tier, days left, claim status
+ * Store routes — UC packs + subscription tiers via Telegram Stars or in-game UC.
+ * GET  /api/store/status               — uc, sub tier, days left, claim status
+ * POST /api/store/create-invoice       — Telegram Stars invoice link
+ * POST /api/store/buy-subscription-uc  — buy subscription with in-game UC
+ * POST /api/store/claim-daily-uc       — claim daily UC (streak + rollover)
+ * POST /api/store/gift-uc              — P2P UC transfer (10% fee)
  */
 import { Router } from "express";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import User from "../models/User";
-import TelegramPayment from "../models/TelegramPayment";
+import UcPurchaseLog from "../models/UcPurchaseLog";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { createInvoiceLink } from "../lib/telegram";
 import { UC_PACKS, TIER_CONFIG, getActiveTier, type SubscriptionTier } from "../lib/subscription";
@@ -230,6 +233,99 @@ router.post("/claim-daily-uc", requireAuth, async (req: AuthRequest, res) => {
   } catch (err: any) {
     req.log.error({ err }, "claim-daily-uc error");
     res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/store/buy-subscription-uc ──────────────────────────────────────
+// Purchase a 30-day subscription by spending in-game UC instead of Telegram Stars.
+// Pricing: ucPrice on TIER_CONFIG (6 UC per Star — slight reward for active players).
+//
+// Uses a Mongoose session transaction so UC deduction, subscription grant, and
+// audit log all commit atomically — a failure at any step rolls everything back
+// and the user never loses UC without receiving the subscription.
+router.post("/buy-subscription-uc", requireAuth, async (req: AuthRequest, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const { tierId } = req.body as { tierId?: string };
+    if (!tierId || typeof tierId !== "string") {
+      return res.status(400).json({ message: "tierId required" });
+    }
+
+    const tierEntry = Object.entries(TIER_CONFIG).find(([id]) => id === tierId);
+    if (!tierEntry) {
+      return res.status(404).json({ message: "Subscription tier not found" });
+    }
+    const [, tierCfg] = tierEntry;
+    const ucCost = tierCfg.ucPrice;
+    const expiresAt = new Date(Date.now() + 30 * 86_400_000);
+    const tier = tierId as SubscriptionTier;
+
+    // Transactional error signal
+    class InsufficientUcError extends Error { constructor() { super("NOT_ENOUGH_UC"); } }
+
+    let frameIsNew = false;
+
+    await session.withTransaction(async () => {
+      // Step 1 — atomic UC deduction (fails if balance < cost)
+      const pre = await User.findOneAndUpdate(
+        { _id: req.userId, uc: { $gte: ucCost } },
+        { $inc: { uc: -ucCost } },
+        { new: false, session },
+      );
+      if (!pre) throw new InsufficientUcError();
+
+      // Step 2 — grant subscription
+      const ownedFrames: string[] = (pre as any).ownedChatFrames ?? [];
+      frameIsNew = !ownedFrames.includes(tierCfg.frameId);
+
+      const setFields: any = {
+        subscriptionTier: tier,
+        subscriptionExpiresAt: expiresAt,
+        ucDailyClaimedAt: null,
+        ucClaimStreak: 0,
+        ucRolloverDays: 0,
+      };
+      const updateOp: any = { $set: setFields };
+      if (frameIsNew)           updateOp.$addToSet = { ownedChatFrames: tierCfg.frameId };
+      if (tierCfg.monthlyNc > 0) updateOp.$inc      = { nc: tierCfg.monthlyNc };
+
+      await User.updateOne({ _id: req.userId }, updateOp, { session });
+
+      // Step 3 — audit log (array form required when passing session to create())
+      await UcPurchaseLog.create(
+        [{
+          userId:       req.userId,
+          tierId,
+          tierName:     tierCfg.name,
+          ucSpent:      ucCost,
+          frameGranted: frameIsNew ? tierCfg.frameId : null,
+          ncGranted:    tierCfg.monthlyNc,
+        }],
+        { session },
+      );
+    });
+
+    res.json({
+      subscriptionTier: tier,
+      subscriptionExpiresAt: expiresAt,
+      ucSpent: ucCost,
+      frameUnlocked: frameIsNew,
+      ncGranted: tierCfg.monthlyNc,
+      message: `🎉 ${tierCfg.name} activated for 30 days!`,
+    });
+  } catch (err: any) {
+    if (err?.message === "NOT_ENOUGH_UC") {
+      const tierEntry = Object.entries(TIER_CONFIG).find(([id]) => id === req.body?.tierId);
+      const tierCfg = tierEntry?.[1];
+      return res.status(400).json({
+        message: `Not enough UC. You need ${(tierCfg?.ucPrice ?? 0).toLocaleString()} UC for ${tierCfg?.name ?? "this tier"}.`,
+        notEnoughUc: true,
+      });
+    }
+    req.log.error({ err }, "buy-subscription-uc error");
+    res.status(500).json({ message: "Internal server error" });
+  } finally {
+    session.endSession();
   }
 });
 

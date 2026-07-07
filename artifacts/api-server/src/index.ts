@@ -5,7 +5,7 @@ import { logger } from "./lib/logger";
 import { connectDB } from "./lib/db";
 import { startKeepAlive, stopKeepAlive } from "./lib/keepAlive";
 import { seed } from "./lib/seed";
-import { registerWebhook } from "./lib/telegram";
+import { registerWebhook, setMyCommands } from "./lib/telegram";
 import User from "./models/User";
 import { allowedOrigins } from "./lib/cors";
 
@@ -250,6 +250,14 @@ async function start() {
       registerWebhook(webhookUrl, webhookSecret).catch((err) => {
         logger.warn({ err }, "Telegram webhook registration failed at startup");
       });
+      // Register bot command menu shown in the Telegram "/" picker
+      setMyCommands([
+        { command: "start",     description: "Open the DriftLife menu" },
+        { command: "status",    description: "View your UC balance & subscription" },
+        { command: "buy",       description: "Browse & buy UC packs" },
+        { command: "subscribe", description: "View & purchase subscription tiers" },
+        { command: "help",      description: "Show all commands" },
+      ]).catch((err) => logger.warn({ err }, "Telegram setMyCommands failed"));
     } else if (webhookUrl && !webhookSecret) {
       logger.warn("TELEGRAM_WEBHOOK_URL is set but TELEGRAM_WEBHOOK_SECRET is missing — webhook NOT registered (required for security)");
     } else {

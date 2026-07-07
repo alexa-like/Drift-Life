@@ -28,6 +28,23 @@ Webhook endpoint was optional on secret — anyone could POST forged
 `successful_payment` events. Now returns 503 if secret not configured,
 and startup skips registration if secret is missing (with a warning).
 
+## Inline keyboard menus (current state)
+All bot commands now serve inline keyboard menus. Helpers:
+`showMainMenu`, `showStatus`, `showPacksList`, `showTiersList`, `sendPackInvoice`, `sendTierInvoice`.
+Callback data format: `menu`, `status`, `packs`, `tiers`, `buy:<packId>`, `sub:<tierId>`.
+`callback_query` is in `allowed_updates`. `answerCallbackQuery` called immediately on every button tap.
+
+## UC subscription purchase (in-game)
+`POST /api/store/buy-subscription-uc { tierId }` — buys a 30-day subscription with UC.
+Pricing: 6 UC/Star (1500/3000/6000 for street_runner/neon_syndicate/apex_sovereign).
+Uses Mongoose session+transaction so UC deduction, grant, and UcPurchaseLog all commit atomically.
+`UcPurchaseLog` model in `models/UcPurchaseLog.ts` for audit trail.
+
+## StorePage dual payment
+Each subscription tier card shows two buttons:
+- `⭐ X Stars via Telegram` — existing Stars flow (opens invoice link)
+- `💰 X,XXX UC (in-game)` — confirm→API call flow; disabled/greyed if insufficient UC
+
 ## New bot commands
 `/status`, `/buy [pack_id]`, `/subscribe [tier_id]` — look up user by `telegramId`,
 then call `sendInvoice()` (new helper, direct bot→chat invoice) rather than
