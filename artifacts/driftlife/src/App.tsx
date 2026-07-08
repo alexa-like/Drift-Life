@@ -6,7 +6,7 @@ import { AuthPage } from "./pages/AuthPage";
 import { Dashboard } from "./pages/Dashboard";
 import { CrimesPage } from "./pages/CrimesPage";
 import { JobsPage } from "./pages/JobsPage";
-import { CombatPage } from "./pages/CombatPage";
+
 import { BankPage } from "./pages/BankPage";
 import { MarketPage } from "./pages/MarketPage";
 import { InventoryPage } from "./pages/InventoryPage";
@@ -189,7 +189,7 @@ function GameApp() {
       case "feed":         return <FeedPage user={user!} onInspectPlayer={setInspectUserId} />;
       case "crimes":       return <CrimesPage {...pageProps} />;
       case "jobs":         return <JobsPage {...pageProps} />;
-      case "combat":       return <CombatPage {...pageProps} />;
+
       case "bank":         return <BankPage {...pageProps} />;
       case "market":       return <MarketPage {...pageProps} />;
       case "inventory":    return <InventoryPage {...pageProps} />;

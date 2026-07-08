@@ -5,7 +5,7 @@ import userRouter from "./user";
 import profileRouter from "./profile";
 import crimesRouter from "./crimes";
 import jobsRouter from "./jobs";
-import combatRouter from "./combat";
+
 import bankRouter from "./bank";
 import hospitalRouter from "./hospital";
 import dailyRouter from "./daily";
@@ -68,7 +68,7 @@ router.use("/user", userRouter);
 router.use("/profile", profileRouter);
 router.use("/crimes", crimesRouter);
 router.use("/jobs", jobsRouter);
-router.use("/combat", combatRouter);
+
 router.use("/bank", bankRouter);
 router.use("/hospital", hospitalRouter);
 router.use("/daily", dailyRouter);

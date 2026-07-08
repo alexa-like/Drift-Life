@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export type AchievementCategory = "combat" | "crime" | "wealth" | "social" | "exploration" | "collection" | "racing";
+export type AchievementCategory = "arena" | "crime" | "wealth" | "social" | "exploration" | "collection" | "racing";
 
 export interface IAchievementDef {
   id: string;
@@ -14,15 +14,15 @@ export interface IAchievementDef {
 }
 
 export const ACHIEVEMENT_CATALOG: IAchievementDef[] = [
-  // COMBAT (NPC fights + mini-game combined via totalFights/wins)
-  { id: "first_blood",      name: "First Blood",        description: "Win your first fight.",                   category: "combat",      dcReward: 100,   keyReward: 1, target: 1,    stat: "wins" },
-  { id: "fighter_10",       name: "Brawler",             description: "Win 10 fights.",                          category: "combat",      dcReward: 500,   keyReward: 3, target: 10,   stat: "wins" },
-  { id: "fighter_50",       name: "Street Soldier",      description: "Win 50 fights.",                          category: "combat",      dcReward: 1500,  keyReward: 5, target: 50,   stat: "wins" },
-  { id: "fighter_100",      name: "Enforcer",            description: "Win 100 fights.",                         category: "combat",      dcReward: 5000,   target: 100,  stat: "wins" },
-  { id: "fighter_500",      name: "Ghost Hunter",        description: "Win 500 fights.",                         category: "combat",      dcReward: 20000,  target: 500,  stat: "wins" },
-  { id: "fighter_1000",     name: "War Machine",         description: "Win 1,000 fights.",                       category: "combat",      dcReward: 100000, target: 1000, stat: "wins" },
-  { id: "total_fights_50",  name: "In The Ring",         description: "Fight 50 times total.",                   category: "combat",      dcReward: 500,    target: 50,   stat: "totalFights" },
-  { id: "total_fights_500", name: "Veteran",             description: "Fight 500 times total.",                  category: "combat",      dcReward: 5000,   target: 500,  stat: "totalFights" },
+  // ARENA (PvP combat system)
+  { id: "first_blood",       name: "First Blood",        description: "Win your first Arena fight.",              category: "arena",  dcReward: 100,   keyReward: 1, target: 1,    stat: "arenaWins" },
+  { id: "arena_wins_10",     name: "Brawler",             description: "Win 10 Arena fights.",                    category: "arena",  dcReward: 500,   keyReward: 3, target: 10,   stat: "arenaWins" },
+  { id: "arena_wins_50",     name: "Street Soldier",      description: "Win 50 Arena fights.",                    category: "arena",  dcReward: 1500,  keyReward: 5, target: 50,   stat: "arenaWins" },
+  { id: "arena_wins_100",    name: "Enforcer",            description: "Win 100 Arena fights.",                   category: "arena",  dcReward: 5000,               target: 100,  stat: "arenaWins" },
+  { id: "arena_wins_500",    name: "Ghost Hunter",        description: "Win 500 Arena fights.",                   category: "arena",  dcReward: 20000,              target: 500,  stat: "arenaWins" },
+  { id: "arena_wins_1000",   name: "War Machine",         description: "Win 1,000 Arena fights.",                 category: "arena",  dcReward: 100000,             target: 1000, stat: "arenaWins" },
+  { id: "arena_fights_50",   name: "In The Ring",         description: "Enter the Arena 50 times.",               category: "arena",  dcReward: 500,                target: 50,   stat: "arenaFights" },
+  { id: "arena_fights_500",  name: "Veteran",             description: "Enter the Arena 500 times.",              category: "arena",  dcReward: 5000,               target: 500,  stat: "arenaFights" },
 
   // CRIME
   { id: "first_crime",      name: "Petty Theft",         description: "Commit your first crime.",                category: "crime",       dcReward: 100,    target: 1,    stat: "totalCrimes" },
@@ -71,9 +71,9 @@ export const ACHIEVEMENT_CATALOG: IAchievementDef[] = [
   { id: "race_plays_10",    name: "On The Grid",         description: "Complete 10 races.",                      category: "racing",      dcReward: 300,   target: 10,  stat: "totalRaces" },
   { id: "race_plays_50",    name: "Track Regular",       description: "Complete 50 races.",                      category: "racing",      dcReward: 1500,  target: 50,  stat: "totalRaces" },
 
-  // COMBAT STREAKS (progress = max streak ever achieved)
-  { id: "combat_streak_5",  name: "Hot Streak",          description: "Reach a 5 combat win streak.",            category: "combat",      dcReward: 500,   keyReward: 2, target: 5,   stat: "combatWinStreak" },
-  { id: "combat_streak_10", name: "Unstoppable",         description: "Reach a 10 combat win streak.",           category: "combat",      dcReward: 2000,  keyReward: 5, target: 10,  stat: "combatWinStreak" },
+  // ARENA STREAKS (progress = max Arena win streak ever achieved)
+  { id: "arena_streak_5",   name: "Hot Streak",          description: "Reach a 5 Arena win streak.",             category: "arena",  dcReward: 500,   keyReward: 2, target: 5,   stat: "combatWinStreak" },
+  { id: "arena_streak_10",  name: "Unstoppable",         description: "Reach a 10 Arena win streak.",            category: "arena",  dcReward: 2000,  keyReward: 5, target: 10,  stat: "combatWinStreak" },
 ];
 
 export interface IUserAchievement extends Document {
