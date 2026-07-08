@@ -52,6 +52,9 @@ import raceRouter from "./race";
 import missionsRouter from "./missions";
 import miniLeaderboardRouter from "./mini-leaderboard";
 
+// ── Training Center (Tier 7) ───────────────────────────────────────────────────
+import trainingRouter from "./training";
+
 const router: IRouter = Router();
 
 router.use(healthRouter);
@@ -103,6 +106,9 @@ router.use("/race", raceRouter);
 // ── Missions & Leaderboards (Tier 6) ──────────────────────────────────────────
 router.use("/missions", missionsRouter);
 router.use("/mini-leaderboard", miniLeaderboardRouter);
+
+// ── Training Center (Tier 7) ───────────────────────────────────────────────────
+router.use("/training", trainingRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

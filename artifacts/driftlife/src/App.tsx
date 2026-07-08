@@ -27,7 +27,7 @@ import { PropertiesPage } from "./pages/PropertiesPage";
 import { CraftingPage } from "./pages/CraftingPage";
 import { TradePage } from "./pages/TradePage";
 import { FriendsPage } from "./pages/FriendsPage";
-import GymPage from "./pages/GymPage";
+import TrainingCenterPage from "./pages/TrainingCenterPage";
 import RoyalePage from "./pages/RoyalePage";
 import GaragePage from "./pages/GaragePage";
 import ArenaHubPage from "./pages/ArenaHubPage";
@@ -207,7 +207,8 @@ function GameApp() {
       case "trade":         return <TradePage user={user!} addToast={addToast} />;
       case "friends":       return <FriendsPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       // Wire Cartel pages
-      case "gym":           return <GymPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
+      case "training":
+      case "gym":           return <TrainingCenterPage user={user!} refreshUser={refreshUser} addToast={addToast} />;
       case "garage":        return <GaragePage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "city":          return <CityPage user={user!} onUserUpdate={() => { refreshUser(); }} refreshUser={refreshUser} addToast={addToast} />;
       case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;

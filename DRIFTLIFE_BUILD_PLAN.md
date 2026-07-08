@@ -539,14 +539,14 @@ Examples:
 > Goal: Replace old stat gym with a mini-game skill training system.
 
 ### 7A — Training Center
-- [ ] Rename Gym → Training Center
-- [ ] Remove old stat training (strength, charisma, intelligence, etc.)
-- [ ] Add new training types:
-  - Combat Drills: costs energy, gives small permanent accuracy bonus
-  - Racing Practice: costs energy, gives better gear-shift timing window
-  - Endurance Training: costs energy, gives small energy regen speed boost
-- [ ] Daily training limit (prevent grinding to max instantly)
-- [ ] Training Center page in frontend with new UI
+- [x] Rename Gym → Training Center (NavBar label+id, App.tsx routing, GymPage replaced)
+- [x] Remove old stat training (strength, charisma, intelligence, etc.) — TrainingCenterPage.tsx replaces GymPage.tsx
+- [x] Add new training types:
+  - [x] Combat Drills: costs energy, gives small permanent accuracy bonus → applied in arena resolveLoadoutStats
+  - [x] Racing Practice: costs energy, gives better gear-shift timing window → raceGearBonus widens green zone in race.ts
+  - [x] Endurance Training: costs energy, gives small energy regen speed boost → energyRegenBonus reduces REGEN_INTERVAL_MS in energy.ts
+- [x] Daily training limit — 5/5/3 sessions per type per day; resets at midnight UTC
+- [x] Training Center page in frontend with new UI (TrainingCenterPage.tsx)
 
 ---
 

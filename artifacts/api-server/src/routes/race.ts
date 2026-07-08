@@ -430,7 +430,11 @@ router.post("/match/:matchId/shift", requireAuth, async (req: AuthRequest, res) 
     const elapsed     = (now - raceStart) % (sweepDur * 2);
     const raw         = elapsed / sweepDur;          // 0→2 bounce
     const pos         = raw > 1 ? 2 - raw : raw;     // 0→1→0
-    const hit         = pos >= 0.35 && pos <= 0.65;  // green zone determined server-side
+    // raceGearBonus widens the green zone (base half-window 0.15, max adds 0.125 each side)
+    const userSnap    = await User.findById(req.userId).select("raceGearBonus").lean();
+    const gearBonus   = (userSnap as any)?.raceGearBonus ?? 0;
+    const halfWindow  = 0.15 + gearBonus * 0.5;
+    const hit         = pos >= (0.5 - halfWindow) && pos <= (0.5 + halfWindow);
 
     // Progress increment: good shift = 8–12%, missed shift = 3–6%
     const carSnap = player.carSnapshot;

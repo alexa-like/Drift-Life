@@ -75,11 +75,11 @@ function tierToNumber(tier: string): number {
 }
 
 // ── Resolve loadout stats ─────────────────────────────────────────────────────
-async function resolveLoadoutStats(userId: string, level: number): Promise<LoadoutSnapshot> {
+async function resolveLoadoutStats(userId: string, level: number, accuracyBonus = 0): Promise<LoadoutSnapshot> {
   const loadout = await PlayerLoadout.findOne({ userId }).lean();
   if (!loadout) {
     return { weapon: null, armor: null, consumable1: null, consumable2: null, ammoType: null,
-      hp: 100, damage: 15, defense: 0, accuracy: 85,
+      hp: 100, damage: 15, defense: 0, accuracy: Math.min(99, 85 + Math.round(accuracyBonus * 100)),
       weaponEffect: null, weaponEffectChance: 0, armorEffect: null, armorEffectChance: 0,
       ammoArmorPierce: 0, ammoEffect: null, ammoEffectChance: 0 };
   }
@@ -97,7 +97,7 @@ async function resolveLoadoutStats(userId: string, level: number): Promise<Loado
   const damageMax= weapon?.stats.damageMax ?? 20;
   const damage   = Math.floor((damageMin + damageMax) / 2) * (ammo?.stats.damageMultiplier ?? 1);
   const defense  = armor?.stats.defense ?? 0;
-  const accuracy = weapon?.stats.accuracy ?? 85;
+  const accuracy = Math.min(99, (weapon?.stats.accuracy ?? 85) + Math.round(accuracyBonus * 100));
 
   // Resolve element effects from weapon, armor, and ammo definitions
   const weaponEffect      = (weapon as any)?.stats?.specialEffect ?? null;
@@ -161,7 +161,7 @@ async function generateAILoadout(playerLevel: number): Promise<LoadoutSnapshot> 
 // ── POST /api/arena/queue/join ────────────────────────────────────────────────
 router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await User.findById(req.userId).select("username level wins totalFights energy maxEnergy combatWinStreak");
+    const user = await User.findById(req.userId).select("username level wins totalFights energy maxEnergy combatWinStreak combatAccuracyBonus");
     if (!user) { res.status(404).json({ message: "User not found" }); return; }
 
     if (combatQueue.has(req.userId!)) {
@@ -184,7 +184,7 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
     user.energy -= ENERGY_COST;
     await user.save();
 
-    const loadout = await resolveLoadoutStats(req.userId!, user.level);
+    const loadout = await resolveLoadoutStats(req.userId!, user.level, (user as any).combatAccuracyBonus ?? 0);
     const score = skillScore(user.level, user.wins, user.totalFights, tierToNumber(loadout.weapon ? "common" : "common"));
 
     const entry: QueueEntry = {

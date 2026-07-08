@@ -39,7 +39,7 @@ const NAV: { id: string; label: string; minStage?: number; group?: string }[] = 
   { id: "leaderboard",  label: "Board" },
   // Wire Cartel — core loop (onboarding gated)
   { id: "city",         label: "City",     group: "wc" },         // stage 0 — hub for street/district/careers
-  { id: "gym",          label: "Gym",      group: "wc" },
+  { id: "training",     label: "Training",  group: "wc" },
   { id: "jobs",         label: "Jobs",     group: "wc" },
   { id: "garage",       label: "Garage",   group: "wc", minStage: 1 },
   { id: "net",          label: "Net",      group: "wc", minStage: 3 },

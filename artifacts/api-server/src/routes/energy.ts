@@ -14,14 +14,15 @@ const router = Router();
 router.get("/status", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId).select(
-      "energy maxEnergy energyRegenAt"
+      "energy maxEnergy energyRegenAt energyRegenBonus"
     );
     if (!user) return res.status(404).json({ message: "User not found" });
 
     applyRegen(user);
     await user.save();
 
-    const REGEN_INTERVAL_MS = 3 * 60 * 1000; // 1 energy per 3 minutes
+    // energyRegenBonus (0–0.15) speeds up regen: at +15% bonus, interval = 3min / 1.15 ≈ 156s
+    const REGEN_INTERVAL_MS = Math.round(3 * 60 * 1000 / (1 + ((user as any).energyRegenBonus ?? 0)));
     const now = Date.now();
     const msSinceLastRegen = now - user.energyRegenAt.getTime();
     const msToNextRegen = user.energy >= user.maxEnergy
@@ -63,10 +64,10 @@ export async function deductEnergy(
   amount: number,
 ): Promise<{ success: boolean; energy: number; maxEnergy: number }> {
   // Fetch snapshot to compute regen — we need energyRegenAt and maxEnergy
-  const snapshot = await User.findById(userId).select("energy maxEnergy energyRegenAt").lean();
+  const snapshot = await User.findById(userId).select("energy maxEnergy energyRegenAt energyRegenBonus").lean();
   if (!snapshot) return { success: false, energy: 0, maxEnergy: 0 };
 
-  const REGEN_INTERVAL_MS = 3 * 60 * 1000;
+  const REGEN_INTERVAL_MS = Math.round(3 * 60 * 1000 / (1 + ((snapshot as any).energyRegenBonus ?? 0)));
   const now = Date.now();
   const elapsed = now - new Date(snapshot.energyRegenAt).getTime();
   const regenTicks = Math.floor(elapsed / REGEN_INTERVAL_MS);
