@@ -42,6 +42,8 @@ import telegramRouter from "./telegram";
 // ── Mini-game foundation ─────────────────────────────────────────────────────
 import energyRouter from "./energy";
 import migrationAdminRouter from "./migration-admin";
+// ── Royale (Tier 2) ───────────────────────────────────────────────────────────
+import royaleRouter from "./royale";
 
 const router: IRouter = Router();
 
@@ -85,6 +87,8 @@ router.use("/store", storeRouter);
 router.use("/telegram", telegramRouter);
 // ── Mini-game foundation ─────────────────────────────────────────────────────
 router.use("/energy", energyRouter);
+// ── Royale (Tier 2) ───────────────────────────────────────────────────────────
+router.use("/royale", royaleRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

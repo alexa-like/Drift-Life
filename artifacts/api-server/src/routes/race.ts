@@ -1,0 +1,450 @@
+/**
+ * Race — Tier 5 mini-game racing queue + parallel solo race engine.
+ * POST /api/race/queue/join   { mode: "2player"|"4player" }
+ * POST /api/race/queue/leave
+ * GET  /api/race/queue/status
+ * GET  /api/race/match/:matchId
+ * POST /api/race/match/:matchId/shift   { hit: boolean }
+ * POST /api/race/match/:matchId/nitro
+ */
+import { Router } from "express";
+import { randomUUID } from "crypto";
+import User from "../models/User";
+import RaceMatch from "../models/RaceMatch";
+import PlayerGarage from "../models/PlayerGarage";
+import MiniGameLeaderboard from "../models/MiniGameLeaderboard";
+import Notification from "../models/Notification";
+import { requireAuth, AuthRequest } from "../middlewares/auth";
+
+const router = Router();
+
+// ── AI names ──────────────────────────────────────────────────────────────────
+const AI_NAMES = [
+  "DriftQueen","TurboNova","CyberSlick","NeonStreak","VoltRacer","PixelBurn","GridRunner","NightShift",
+  "TarmacGhost","FuelCell","SpinCycle","TorqueKing","RampageX","GasThief","IronAxle","VelocityZ",
+  "AsphaltAce","RoadDevil","Blacktop","BurnoutBob","ClutchKing","DragKween","EngineEater","FlashLap",
+  "GearGrinder","HotTarmac","InjectaX","JunctionJ","KnockoutK","LapLord",
+];
+
+// ── Energy costs ──────────────────────────────────────────────────────────────
+const ENERGY_COST: Record<string, number> = { "2player": 15, "4player": 25 };
+
+// ── In-memory queues ──────────────────────────────────────────────────────────
+interface RaceQueueEntry {
+  userId:    string;
+  username:  string;
+  level:     number;
+  joinedAt:  Date;
+  carSnap:   CarSnap;
+  mode:      "2player" | "4player";
+}
+
+interface CarSnap {
+  carId:    string;
+  topSpeed: number;
+  accel:    number;
+  handling: number;
+  nitro:    number;
+}
+
+const queue2p = new Map<string, RaceQueueEntry>();
+const queue4p = new Map<string, RaceQueueEntry>();
+
+// ── Default car snapshot ──────────────────────────────────────────────────────
+const DEFAULT_CAR: CarSnap = { carId: "rustbucket_common", topSpeed: 40, accel: 30, handling: 30, nitro: 20 };
+
+// Racing stats lookup (mirrors plan reference table)
+const CAR_STATS: Record<string, CarSnap> = {
+  rustbucket_common:       { carId: "rustbucket_common",       topSpeed: 40,  accel: 30,  handling: 30,  nitro: 20 },
+  scooter_common:          { carId: "scooter_common",          topSpeed: 35,  accel: 45,  handling: 50,  nitro: 15 },
+  city_bike_common:        { carId: "city_bike_common",        topSpeed: 38,  accel: 42,  handling: 48,  nitro: 18 },
+  hatchback_uncommon:      { carId: "hatchback_uncommon",      topSpeed: 55,  accel: 45,  handling: 55,  nitro: 30 },
+  muscle_car_uncommon:     { carId: "muscle_car_uncommon",     topSpeed: 65,  accel: 60,  handling: 40,  nitro: 40 },
+  sport_bike_uncommon:     { carId: "sport_bike_uncommon",     topSpeed: 60,  accel: 55,  handling: 50,  nitro: 35 },
+  sports_car_rare:         { carId: "sports_car_rare",         topSpeed: 75,  accel: 70,  handling: 65,  nitro: 50 },
+  drift_coupe_rare:        { carId: "drift_coupe_rare",        topSpeed: 70,  accel: 65,  handling: 80,  nitro: 55 },
+  racing_motorcycle_rare:  { carId: "racing_motorcycle_rare",  topSpeed: 72,  accel: 68,  handling: 72,  nitro: 52 },
+  supercar_epic:           { carId: "supercar_epic",           topSpeed: 88,  accel: 82,  handling: 75,  nitro: 65 },
+  hyperbike_epic:          { carId: "hyperbike_epic",          topSpeed: 92,  accel: 88,  handling: 70,  nitro: 60 },
+  cyberjet_legendary:      { carId: "cyberjet_legendary",      topSpeed: 100, accel: 95,  handling: 90,  nitro: 85 },
+  neon_beast_legendary:    { carId: "neon_beast_legendary",    topSpeed: 98,  accel: 92,  handling: 95,  nitro: 80 },
+  hovercar_legendary:      { carId: "hovercar_legendary",      topSpeed: 95,  accel: 90,  handling: 100, nitro: 90 },
+};
+
+async function getPlayerCarSnap(userId: string): Promise<CarSnap> {
+  const garage = await PlayerGarage.findOne({ userId }).lean();
+  if (!garage || !garage.activeCar) return DEFAULT_CAR;
+  return CAR_STATS[garage.activeCar] ?? DEFAULT_CAR;
+}
+
+// ── POST /api/race/queue/join ─────────────────────────────────────────────────
+router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { mode = "2player" } = req.body as { mode?: "2player" | "4player" };
+    if (!["2player","4player"].includes(mode)) {
+      res.status(400).json({ message: "Invalid mode" }); return;
+    }
+
+    const user = await User.findById(req.userId).select("username level energy maxEnergy");
+    if (!user) { res.status(404).json({ message: "User not found" }); return; }
+
+    const cost = ENERGY_COST[mode];
+    if (user.energy < cost) {
+      res.status(400).json({ message: `Not enough energy — need ${cost}` }); return;
+    }
+
+    // Check already queued
+    const q = mode === "2player" ? queue2p : queue4p;
+    if (q.has(req.userId!)) {
+      res.status(400).json({ message: "Already in queue" }); return;
+    }
+
+    // Deduct energy
+    user.energy -= cost;
+    await user.save();
+
+    const carSnap = await getPlayerCarSnap(req.userId!);
+    const entry: RaceQueueEntry = {
+      userId: req.userId!,
+      username: user.username,
+      level: user.level,
+      joinedAt: new Date(),
+      carSnap,
+      mode,
+    };
+    q.set(req.userId!, entry);
+
+    // Try to fill match immediately
+    const matchId = await tryFillRace(mode);
+    if (matchId) {
+      res.json({ matchId, status: "matched" });
+    } else {
+      res.json({ status: "queued", queueSize: q.size, needed: mode === "2player" ? 2 : 4 });
+    }
+  } catch (err) {
+    req.log.error({ err }, "race queue join error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/race/queue/leave ────────────────────────────────────────────────
+router.post("/queue/leave", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const inQ = queue2p.has(req.userId!) || queue4p.has(req.userId!);
+    if (!inQ) { res.status(400).json({ message: "Not in queue" }); return; }
+    const mode = queue2p.has(req.userId!) ? "2player" : "4player";
+    (mode === "2player" ? queue2p : queue4p).delete(req.userId!);
+    await User.updateOne({ _id: req.userId }, { $inc: { energy: ENERGY_COST[mode] } });
+    res.json({ message: "Left queue — energy refunded" });
+  } catch (err) {
+    req.log.error({ err }, "race queue leave error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── GET /api/race/queue/status ────────────────────────────────────────────────
+router.get("/queue/status", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const in2p = queue2p.has(req.userId!);
+    const in4p = queue4p.has(req.userId!);
+    const activeMatch = await RaceMatch.findOne({
+      "players.userId": req.userId,
+      status: { $in: ["waiting","active"] },
+    }).select("matchId status mode");
+    res.json({
+      inQueue: in2p || in4p,
+      mode: in2p ? "2player" : in4p ? "4player" : null,
+      queueSize: in2p ? queue2p.size : in4p ? queue4p.size : 0,
+      activeMatch: activeMatch ? { matchId: activeMatch.matchId, status: activeMatch.status, mode: activeMatch.mode } : null,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── AI finish time generator ──────────────────────────────────────────────────
+function generateAIFinishTime(carSnap: CarSnap, variance = 0.1): number {
+  // Base: 30 seconds for a perfect car (100 stats), scaled down
+  const perfFactor = (carSnap.topSpeed + carSnap.accel + carSnap.handling) / 300;
+  const base = 50_000 - perfFactor * 25_000; // 25s–50s range
+  const v = (Math.random() * 2 - 1) * variance * base;
+  return Math.max(15_000, Math.round(base + v));
+}
+
+function generateAICarSnap(playerLevel: number): CarSnap {
+  const tierCars = playerLevel >= 30 ? ["cyberjet_legendary","neon_beast_legendary","hovercar_legendary"] :
+    playerLevel >= 20 ? ["supercar_epic","hyperbike_epic"] :
+    playerLevel >= 10 ? ["sports_car_rare","drift_coupe_rare"] :
+    playerLevel >= 5  ? ["hatchback_uncommon","muscle_car_uncommon"] :
+    ["rustbucket_common","scooter_common"];
+  const carId = tierCars[Math.floor(Math.random() * tierCars.length)];
+  return CAR_STATS[carId] ?? DEFAULT_CAR;
+}
+
+async function tryFillRace(mode: "2player" | "4player"): Promise<string | null> {
+  const needed = mode === "2player" ? 2 : 4;
+  const q = mode === "2player" ? queue2p : queue4p;
+  if (q.size < needed) return null;
+
+  // Take the first `needed` entries
+  const entries = [...q.values()].slice(0, needed);
+  for (const e of entries) q.delete(e.userId);
+
+  const players = entries.map(e => ({
+    userId:      e.userId,
+    isAI:        false,
+    aiName:      null,
+    placement:   null,
+    finishTime:  null,
+    distancePct: 0,
+    nitroUsed:   0,
+    crashCount:  0,
+    carSnapshot: e.carSnap,
+  }));
+
+  const match = await RaceMatch.create({
+    matchId:   randomUUID(),
+    mode,
+    players,
+    status:    "active",
+    trackSeed: Math.floor(Math.random() * 1_000_000),
+    energyCost: ENERGY_COST[mode],
+    startedAt:  new Date(),
+    queueExpiry: new Date(Date.now() + 60_000),
+    rewardsGranted: false,
+  });
+
+  return match.matchId;
+}
+
+// ── Queue worker ──────────────────────────────────────────────────────────────
+setInterval(async () => {
+  const now = Date.now();
+  for (const [userId, entry] of [...queue2p.entries(), ...queue4p.entries()]) {
+    const age = now - entry.joinedAt.getTime();
+    if (age < 30_000) continue;
+
+    // Fill with AI
+    const q = entry.mode === "2player" ? queue2p : queue4p;
+    q.delete(userId);
+
+    const needed = entry.mode === "2player" ? 2 : 4;
+    const realPlayers = [entry];
+    const user = await User.findById(userId).select("level").lean();
+    const level = user?.level ?? 1;
+
+    const aiPlayers = Array.from({ length: needed - 1 }, () => ({
+      userId:      null,
+      isAI:        true,
+      aiName:      AI_NAMES[Math.floor(Math.random() * AI_NAMES.length)],
+      placement:   null as number | null,
+      finishTime:  generateAIFinishTime(generateAICarSnap(level)),
+      distancePct: 0,
+      nitroUsed:   0,
+      crashCount:  0,
+      carSnapshot: generateAICarSnap(level),
+    }));
+
+    await RaceMatch.create({
+      matchId:    randomUUID(),
+      mode:       entry.mode,
+      players:    [
+        { userId: entry.userId, isAI: false, aiName: null, placement: null,
+          finishTime: null, distancePct: 0, nitroUsed: 0, crashCount: 0,
+          carSnapshot: entry.carSnap },
+        ...aiPlayers,
+      ],
+      status:     "active",
+      trackSeed:  Math.floor(Math.random() * 1_000_000),
+      energyCost: ENERGY_COST[entry.mode],
+      startedAt:  new Date(),
+      queueExpiry: new Date(Date.now() + 60_000),
+      rewardsGranted: false,
+    }).catch(() => {});
+  }
+}, 5_000);
+
+// ── GET /api/race/match/:matchId ──────────────────────────────────────────────
+router.get("/match/:matchId", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const match = await RaceMatch.findOne({ matchId: req.params["matchId"] }).lean();
+    if (!match) { res.status(404).json({ message: "Match not found" }); return; }
+    const isPlayer = match.players.some(p => p.userId?.toString() === req.userId);
+    if (!isPlayer) { res.status(403).json({ message: "Not your match" }); return; }
+    res.json({ match });
+  } catch (err) {
+    req.log.error({ err }, "race match get error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/race/match/:matchId/shift ───────────────────────────────────────
+router.post("/match/:matchId/shift", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { hit = false } = req.body as { hit?: boolean };
+    const match = await RaceMatch.findOne({ matchId: req.params["matchId"] });
+    if (!match || match.status !== "active") {
+      res.status(400).json({ message: "Match not active" }); return;
+    }
+
+    const playerIdx = match.players.findIndex(p => p.userId?.toString() === req.userId);
+    if (playerIdx === -1) { res.status(403).json({ message: "Not your match" }); return; }
+
+    const player = match.players[playerIdx];
+    if (player.finishTime !== null) {
+      res.status(400).json({ message: "You already finished" }); return;
+    }
+
+    // Progress increment: good shift = 8–12%, missed shift = 3–6%
+    const carSnap = player.carSnapshot;
+    const speedFactor = (carSnap.topSpeed + carSnap.accel) / 200;
+    const baseGain = hit ? (0.08 + Math.random() * 0.04) : (0.03 + Math.random() * 0.03);
+    const progress = baseGain * (0.8 + speedFactor * 0.4);
+
+    player.distancePct = Math.min(100, player.distancePct + progress * 100);
+
+    if (player.distancePct >= 100) {
+      const finishTime = Date.now() - (match.startedAt?.getTime() ?? Date.now());
+      player.finishTime = finishTime;
+      player.distancePct = 100;
+    }
+
+    // Check if all real players finished
+    await checkRaceCompletion(match);
+    await match.save();
+    res.json({ match });
+  } catch (err) {
+    req.log.error({ err }, "race shift error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/race/match/:matchId/nitro ───────────────────────────────────────
+router.post("/match/:matchId/nitro", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const match = await RaceMatch.findOne({ matchId: req.params["matchId"] });
+    if (!match || match.status !== "active") {
+      res.status(400).json({ message: "Match not active" }); return;
+    }
+    const playerIdx = match.players.findIndex(p => p.userId?.toString() === req.userId);
+    if (playerIdx === -1) { res.status(403).json({ message: "Not your match" }); return; }
+
+    const player = match.players[playerIdx];
+    if (player.nitroUsed >= 3) {
+      res.status(400).json({ message: "No nitro left" }); return;
+    }
+
+    const nitroBoost = 0.12 + (player.carSnapshot.nitro / 100) * 0.08; // 12–20% boost
+    player.distancePct = Math.min(100, player.distancePct + nitroBoost * 100);
+    player.nitroUsed += 1;
+
+    if (player.distancePct >= 100) {
+      player.finishTime = Date.now() - (match.startedAt?.getTime() ?? Date.now());
+      player.distancePct = 100;
+    }
+
+    await checkRaceCompletion(match);
+    await match.save();
+    res.json({ match });
+  } catch (err) {
+    req.log.error({ err }, "race nitro error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+async function checkRaceCompletion(match: any) {
+  if (match.status === "complete") return;
+
+  // Assign placements to AI based on pre-generated finish times (relative to start)
+  const now = Date.now();
+  const elapsed = match.startedAt ? now - match.startedAt.getTime() : 0;
+  for (const p of match.players) {
+    if (p.isAI && p.finishTime !== null && elapsed >= p.finishTime) {
+      p.distancePct = 100;
+    }
+  }
+
+  const allFinished = match.players.every((p: any) => p.distancePct >= 100 || p.finishTime !== null);
+  if (!allFinished) return;
+
+  // Sort by finish time (nulls last)
+  const sorted = [...match.players].sort((a: any, b: any) => {
+    if (a.finishTime === null && b.finishTime === null) return 0;
+    if (a.finishTime === null) return 1;
+    if (b.finishTime === null) return -1;
+    return a.finishTime - b.finishTime;
+  });
+
+  sorted.forEach((p: any, i: number) => { p.placement = i + 1; });
+  match.status    = "complete";
+  match.finishedAt = new Date();
+
+  // Grant rewards
+  if (!match.rewardsGranted) {
+    await grantRaceRewards(match);
+    match.rewardsGranted = true;
+  }
+}
+
+async function grantRaceRewards(match: any) {
+  const REWARDS: Record<number, { dc: number; xp: number; keyShards: number }> = {
+    1: { dc: 300, xp: 300, keyShards: 1 },
+    2: { dc: 150, xp: 180, keyShards: 0 },
+    3: { dc:  80, xp: 100, keyShards: 0 },
+    4: { dc:  40, xp:  60, keyShards: 0 },
+  };
+
+  for (const p of match.players) {
+    if (p.isAI || !p.userId) continue;
+    const placement = p.placement ?? 4;
+    const reward = REWARDS[placement] ?? REWARDS[4];
+
+    const u = await User.findById(p.userId);
+    if (!u) continue;
+    u.dc         += reward.dc;
+    u.xp         += reward.xp;
+    u.keyShards  += reward.keyShards;
+    u.totalRaces += 1;
+    if (placement === 1) u.raceWins += 1;
+    await u.save();
+
+    const weekStart = getWeekStart();
+    if (placement === 1) {
+      await MiniGameLeaderboard.findOneAndUpdate(
+        { leaderboardType: "race_wins", userId: p.userId, weekStart },
+        { $inc: { score: 1 }, $set: { username: u.username, avatar: u.avatar } },
+        { upsert: true },
+      );
+    }
+    if (p.finishTime !== null) {
+      const lbType = match.mode === "2player" ? "race_fastest_2p" : "race_fastest_4p";
+      const existing = await MiniGameLeaderboard.findOne({ leaderboardType: lbType, userId: p.userId, weekStart });
+      if (!existing || p.finishTime < existing.score) {
+        await MiniGameLeaderboard.findOneAndUpdate(
+          { leaderboardType: lbType, userId: p.userId, weekStart },
+          { $set: { score: p.finishTime, username: u.username, avatar: u.avatar } },
+          { upsert: true },
+        );
+      }
+    }
+
+    await Notification.create({
+      userId: p.userId,
+      type: "system",
+      message: `Race ${placement === 1 ? "Victory! 🏆" : `Finished #${placement}`} — +${reward.dc} DC, +${reward.xp} XP${reward.keyShards ? ", +1 Key Shard" : ""}`,
+      read: false,
+      createdAt: new Date(),
+    });
+  }
+}
+
+function getWeekStart(): Date {
+  const d = new Date();
+  const day = d.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+export default router;

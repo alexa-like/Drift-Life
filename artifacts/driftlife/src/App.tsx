@@ -28,6 +28,7 @@ import { CraftingPage } from "./pages/CraftingPage";
 import { TradePage } from "./pages/TradePage";
 import { FriendsPage } from "./pages/FriendsPage";
 import GymPage from "./pages/GymPage";
+import RoyalePage from "./pages/RoyalePage";
 import GaragePage from "./pages/GaragePage";
 import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
@@ -207,6 +208,7 @@ function GameApp() {
       case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
       case "chatframes":    return <FrameStore {...pageProps} />;
       case "store":         return <StorePage user={user!} onUserUpdate={refreshUser} onNavigate={setPage} />;
+      case "royale":        return <RoyalePage user={user!} addToast={addToast} onUserUpdate={refreshUser} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />

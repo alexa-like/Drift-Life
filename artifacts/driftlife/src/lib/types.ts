@@ -99,6 +99,9 @@ export interface User {
   telegramLinked: boolean;
   telegramUsername: string | null;
   gameTheme: string;
+  // ── Mini-game currencies (Tier 2+) ─────────────────────────────────────────
+  keys: number;
+  keyShards: number;
 }
 
 export interface FeedEvent {

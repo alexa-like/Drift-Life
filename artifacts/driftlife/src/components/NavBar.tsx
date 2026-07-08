@@ -54,6 +54,8 @@ const NAV: { id: string; label: string; minStage?: number; group?: string }[] = 
   { id: "crafting",     label: "Craft" },
   { id: "skills",       label: "Skills" },
   { id: "achievements", label: "Achiev" },
+  // ── Mini-game hub (Tier 2+) ──────────────────────────────────────────────
+  { id: "royale",       label: "Royale" },
 ];
 
 function RollingNumber({ value, color }: { value: number; color: string }) {

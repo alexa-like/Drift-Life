@@ -1,0 +1,219 @@
+/**
+ * Mini-Game Garage — manage owned race cars, tuning, sell, scrap.
+ * GET  /api/minigame-garage/         — get garage + catalog lookup
+ * POST /api/minigame-garage/select   — set active car
+ * POST /api/minigame-garage/tune     — equip parts / customization
+ * POST /api/minigame-garage/sell     — sell car for DC
+ * POST /api/minigame-garage/scrap    — scrap car for parts
+ */
+import { Router } from "express";
+import mongoose from "mongoose";
+import User from "../models/User";
+import PlayerGarage from "../models/PlayerGarage";
+import { requireAuth, AuthRequest } from "../middlewares/auth";
+
+const router = Router();
+
+// Sell values by tier
+const SELL_VALUE: Record<string, number> = {
+  common:    500,
+  uncommon:  1_500,
+  rare:      5_000,
+  epic:      15_000,
+  legendary: 50_000,
+};
+
+// Car tier lookup — must match seeded RaceCar carId slugs
+const CAR_TIERS: Record<string, string> = {
+  rustbucket_common:  "common",
+  scooter_common:     "common",
+  city_bike_common:   "common",
+  hatchback_uncommon: "uncommon",
+  muscle_car_uncommon:"uncommon",
+  sport_bike_uncommon:"uncommon",
+  sports_car_rare:    "rare",
+  drift_coupe_rare:   "rare",
+  racing_motorcycle_rare: "rare",
+  supercar_epic:      "epic",
+  hyperbike_epic:     "epic",
+  cyberjet_legendary: "legendary",
+  neon_beast_legendary:"legendary",
+  hovercar_legendary: "legendary",
+};
+
+// ── GET /api/minigame-garage/ ─────────────────────────────────────────────────
+router.get("/", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    let garage = await PlayerGarage.findOne({ userId: req.userId }).lean();
+    if (!garage) {
+      garage = { userId: new mongoose.Types.ObjectId(req.userId), cars: [], parts: [], activeCar: null } as any;
+    }
+    res.json({ garage });
+  } catch (err) {
+    req.log.error({ err }, "minigame-garage get error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/minigame-garage/select ─────────────────────────────────────────
+router.post("/select", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { carId } = req.body as { carId: string };
+    const garage = await PlayerGarage.findOne({ userId: req.userId });
+    if (!garage) {
+      res.status(404).json({ message: "Garage not found" });
+      return;
+    }
+    const owned = garage.cars.find(c => c.carId === carId);
+    if (!owned) {
+      res.status(400).json({ message: "You don't own this car" });
+      return;
+    }
+    garage.activeCar = carId;
+    await garage.save();
+    res.json({ message: "Active car updated", activeCar: carId });
+  } catch (err) {
+    req.log.error({ err }, "minigame-garage select error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/minigame-garage/tune ───────────────────────────────────────────
+router.post("/tune", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const {
+      carId,
+      equippedParts,
+      customization,
+    } = req.body as {
+      carId: string;
+      equippedParts?: { engine?: string | null; tires?: string | null; nitro?: string | null; bodyKit?: string | null; spoiler?: string | null };
+      customization?: { paint?: string; underglow?: string; decals?: string; rims?: string };
+    };
+
+    const garage = await PlayerGarage.findOne({ userId: req.userId });
+    if (!garage) {
+      res.status(404).json({ message: "Garage not found" });
+      return;
+    }
+    const car = garage.cars.find(c => c.carId === carId);
+    if (!car) {
+      res.status(400).json({ message: "You don't own this car" });
+      return;
+    }
+
+    // Validate equipped parts exist in garage.parts inventory
+    if (equippedParts) {
+      const slots = Object.values(equippedParts).filter(Boolean) as string[];
+      for (const partId of slots) {
+        const owned = garage.parts.find(p => p.partId === partId && p.quantity > 0);
+        if (!owned) {
+          res.status(400).json({ message: `You don't own part: ${partId}` });
+          return;
+        }
+      }
+      if (equippedParts.engine  !== undefined) car.equippedParts.engine  = equippedParts.engine  ?? null;
+      if (equippedParts.tires   !== undefined) car.equippedParts.tires   = equippedParts.tires   ?? null;
+      if (equippedParts.nitro   !== undefined) car.equippedParts.nitro   = equippedParts.nitro   ?? null;
+      if (equippedParts.bodyKit !== undefined) car.equippedParts.bodyKit = equippedParts.bodyKit ?? null;
+      if (equippedParts.spoiler !== undefined) car.equippedParts.spoiler = equippedParts.spoiler ?? null;
+    }
+
+    if (customization) {
+      if (customization.paint)     car.customization.paint     = customization.paint;
+      if (customization.underglow) car.customization.underglow = customization.underglow;
+      if (customization.decals)    car.customization.decals    = customization.decals;
+      if (customization.rims)      car.customization.rims      = customization.rims;
+    }
+
+    await garage.save();
+    res.json({ message: "Car tuned", car });
+  } catch (err) {
+    req.log.error({ err }, "minigame-garage tune error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/minigame-garage/sell ───────────────────────────────────────────
+router.post("/sell", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { carId } = req.body as { carId: string };
+    const garage = await PlayerGarage.findOne({ userId: req.userId });
+    if (!garage) {
+      res.status(404).json({ message: "Garage not found" });
+      return;
+    }
+    const idx = garage.cars.findIndex(c => c.carId === carId);
+    if (idx === -1) {
+      res.status(400).json({ message: "You don't own this car" });
+      return;
+    }
+
+    const tier = CAR_TIERS[carId] ?? "common";
+    const dcValue = SELL_VALUE[tier] ?? 500;
+
+    garage.cars.splice(idx, 1);
+    if (garage.activeCar === carId) {
+      garage.activeCar = garage.cars[0]?.carId ?? null;
+    }
+    await garage.save();
+    await User.updateOne({ _id: req.userId }, { $inc: { dc: dcValue } });
+
+    res.json({ message: `Sold for ${dcValue.toLocaleString()} DC`, dcGained: dcValue });
+  } catch (err) {
+    req.log.error({ err }, "minigame-garage sell error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/minigame-garage/scrap ──────────────────────────────────────────
+router.post("/scrap", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { carId } = req.body as { carId: string };
+    const garage = await PlayerGarage.findOne({ userId: req.userId });
+    if (!garage) {
+      res.status(404).json({ message: "Garage not found" });
+      return;
+    }
+    const idx = garage.cars.findIndex(c => c.carId === carId);
+    if (idx === -1) {
+      res.status(400).json({ message: "You don't own this car" });
+      return;
+    }
+
+    const tier = CAR_TIERS[carId] ?? "common";
+
+    // Scrap parts by tier
+    const SCRAP_PARTS: Record<string, Array<{ partId: string; qty: number }>> = {
+      common:    [{ partId: "standard_engine_common",  qty: 1 }],
+      uncommon:  [{ partId: "v6_engine_uncommon",      qty: 1 }, { partId: "racing_tires_uncommon", qty: 1 }],
+      rare:      [{ partId: "v8_engine_rare",          qty: 1 }, { partId: "slick_tires_rare",      qty: 1 }, { partId: "nitro_tank_rare", qty: 1 }],
+      epic:      [{ partId: "electric_engine_epic",    qty: 1 }, { partId: "performance_tires_epic", qty: 1 }, { partId: "double_nitro_epic", qty: 1 }, { partId: "carbon_spoiler_epic", qty: 1 }],
+      legendary: [{ partId: "fusion_engine_legendary", qty: 2 }, { partId: "holographic_tires_legendary", qty: 1 }, { partId: "infinite_nitro_legendary", qty: 1 }, { partId: "ai_copilot_legendary", qty: 1 }],
+    };
+
+    const parts = SCRAP_PARTS[tier] ?? SCRAP_PARTS.common;
+
+    for (const { partId, qty } of parts) {
+      const existing = garage.parts.find(p => p.partId === partId);
+      if (existing) {
+        existing.quantity += qty;
+      } else {
+        garage.parts.push({ partId, quantity: qty });
+      }
+    }
+
+    garage.cars.splice(idx, 1);
+    if (garage.activeCar === carId) {
+      garage.activeCar = garage.cars[0]?.carId ?? null;
+    }
+    await garage.save();
+
+    res.json({ message: "Car scrapped", partsGained: parts });
+  } catch (err) {
+    req.log.error({ err }, "minigame-garage scrap error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+export default router;
