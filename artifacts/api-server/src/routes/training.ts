@@ -159,6 +159,7 @@ router.post("/train", requireAuth, async (req: AuthRequest, res) => {
     // Update daily counters
     sessionsToday[trainingType] = todayCount + 1;
     (user as any)[DAILY_KEY] = sessionsToday;
+    user.markModified(DAILY_KEY);
 
     await user.save();
 

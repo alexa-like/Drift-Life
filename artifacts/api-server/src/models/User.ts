@@ -134,6 +134,12 @@ export interface IUser extends Document {
   totalRoyaleSpins:     number;  // lifetime royale spins (for achievements)
   dailyMissionProgress: Record<string, { progress: number; completed: boolean; claimedAt: Date | null }>;
   dailyMissionDate:     string | null;  // YYYY-MM-DD key of current mission day
+  // ── Training Center (Tier 7) ──────────────────────────────────────────────
+  combatAccuracyBonus:    number;   // 0–0.25; +% hit chance in combat
+  raceGearBonus:          number;   // 0–0.25; widens green shift zone in races
+  energyRegenBonus:       number;   // 0–0.15; multiplier to speed up energy regen
+  trainingSessionsToday:  Record<string, number>;  // { combat_drills: n, racing_practice: n, endurance_training: n }
+  trainingResetAt:        Date | null;  // next midnight UTC reset
   // ── Monetization ─────────────────────────────────────────────────────────
   // nc (Nova Credits) is the premium currency — earned via Telegram Stars or subscriptions.
   subscriptionTier: 'street_runner' | 'neon_syndicate' | 'apex_sovereign' | null;
@@ -301,6 +307,11 @@ const UserSchema = new Schema<IUser>(
     totalRoyaleSpins:     { type: Number, default: 0 },
     dailyMissionProgress: { type: Schema.Types.Mixed, default: {} },
     dailyMissionDate:     { type: String, default: null },
+    combatAccuracyBonus:   { type: Number, default: 0 },
+    raceGearBonus:         { type: Number, default: 0 },
+    energyRegenBonus:      { type: Number, default: 0 },
+    trainingSessionsToday: { type: Schema.Types.Mixed, default: {} },
+    trainingResetAt:       { type: Date, default: null },
     gameTheme: { type: String, default: "default" },
     implants: {
       type: [{
