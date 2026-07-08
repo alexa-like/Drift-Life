@@ -39,6 +39,9 @@ import cyberRouter from "./cyber";
 import chatframesRouter from "./chatframes";
 import storeRouter from "./store";
 import telegramRouter from "./telegram";
+// ── Mini-game foundation ─────────────────────────────────────────────────────
+import energyRouter from "./energy";
+import migrationAdminRouter from "./migration-admin";
 
 const router: IRouter = Router();
 
@@ -80,8 +83,11 @@ router.use("/cyber", cyberRouter);
 router.use("/chatframes", chatframesRouter);
 router.use("/store", storeRouter);
 router.use("/telegram", telegramRouter);
+// ── Mini-game foundation ─────────────────────────────────────────────────────
+router.use("/energy", energyRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);
+router.use("/admin/migration", migrationAdminRouter);
 
 export default router;

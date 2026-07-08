@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
 import { logger } from "./logger";
+import { seedMiniGameItems } from "../seeds/miniGameItems";
+import { seedRaceCars } from "../seeds/raceCars";
+import { seedRoyaleItems } from "../seeds/royaleItems";
 
 let isConnected = false;
 
@@ -32,6 +35,11 @@ export async function connectDB() {
 
   // Run one-time XSS cleanup on startup
   void purgeXssMessages();
+
+  // Seed mini-game catalogs (no-ops if already seeded; errors are logged, not thrown)
+  seedMiniGameItems().catch(err => logger.warn({ err }, "seed: miniGameItems failed"));
+  seedRaceCars().catch(err => logger.warn({ err }, "seed: raceCars failed"));
+  seedRoyaleItems().catch(err => logger.warn({ err }, "seed: royaleItems failed"));
 
   mongoose.connection.on("error", (err) => {
     logger.error({ err }, "MongoDB error");

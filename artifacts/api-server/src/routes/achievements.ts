@@ -36,7 +36,6 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         case "bankBalance": return user!.bankBalance;
         case "nc": return user!.nc;
         case "totalPurchases": return progressMap["first_purchase"]?.progress || 0;
-        case "merit": return user!.merit ?? 0;
         case "totalMessages": return progressMap["chat_100"]?.progress || 0;
         case "totalDMs": return progressMap["first_dm"]?.progress || 0;
         case "dailyStreak": return user!.dailyStreak;
@@ -57,7 +56,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
           name: a.name,
           description: a.description,
           category: a.category,
-          meritReward: a.meritReward,
+          dcReward: a.dcReward,
           progress,
           target: a.target,
           completed: saved?.completed ?? false,
@@ -92,7 +91,6 @@ export async function checkAchievements(userId: string): Promise<void> {
         case "lifetimeDC": return progressMap["first_million"]?.progress ?? user!.dc;
         case "bankBalance": return user!.bankBalance;
         case "nc": return user!.nc;
-        case "merit": return user!.merit ?? 0;
         case "dailyStreak": return user!.dailyStreak;
         case "level": return user!.level;
         case "prestige": return user!.prestige;
@@ -114,7 +112,7 @@ export async function checkAchievements(userId: string): Promise<void> {
           progress: currentProgress,
           completed,
           completedAt: completed ? new Date() : null,
-          meritGranted: false,
+          rewardGranted: false,
         });
       } else {
         await UserAchievement.updateOne(
@@ -123,9 +121,12 @@ export async function checkAchievements(userId: string): Promise<void> {
         );
       }
 
-      if (completed && !saved?.meritGranted && a.meritReward > 0) {
-        user.merit = (user.merit || 0) + a.meritReward;
-        await UserAchievement.updateOne({ userId, achievementId: a.id }, { meritGranted: true });
+      // Grant DC reward on completion (was merit — now DC)
+      if (completed && !saved?.rewardGranted && a.dcReward > 0) {
+        await Promise.all([
+          User.findByIdAndUpdate(userId, { $inc: { dc: a.dcReward } }),
+          UserAchievement.updateOne({ userId, achievementId: a.id }, { rewardGranted: true }),
+        ]);
       }
     }
 

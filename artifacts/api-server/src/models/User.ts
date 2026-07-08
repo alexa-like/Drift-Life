@@ -124,6 +124,13 @@ export interface IUser extends Document {
   friends: mongoose.Types.ObjectId[];
   pinkSlipWins: number;
   implants: Array<{ id: string; name: string; slot: string; installedAt: Date }>;
+  // ── Mini-game currencies ──────────────────────────────────────────────────
+  keys: number;               // hard currency: 1 key = 1 royale spin (guaranteed Rare+)
+  keyShards: number;          // 10 shards = 1 key; softer grind path
+  // ── Mini-game stats ───────────────────────────────────────────────────────
+  combatWinStreak:      number;  // consecutive combat wins; resets on loss
+  miniGameMatchesToday: number;  // matches played today (for daily reward cap)
+  miniGameResetAt:      Date;    // next daily cap reset (midnight UTC)
   // ── Monetization ─────────────────────────────────────────────────────────
   uc: number;                          // UltraCredits (premium currency)
   subscriptionTier: 'street_runner' | 'neon_syndicate' | 'apex_sovereign' | null;
@@ -168,8 +175,8 @@ const UserSchema = new Schema<IUser>(
     merit: { type: Number, default: 0 },
     health: { type: Number, default: 100 },
     maxHealth: { type: Number, default: 100 },
-    energy: { type: Number, default: 100 },
-    maxEnergy: { type: Number, default: 100 },
+    energy: { type: Number, default: 200 },
+    maxEnergy: { type: Number, default: 200 },
     nerve: { type: Number, default: 50 },
     maxNerve: { type: Number, default: 50 },
     heat: { type: Number, default: 0, min: 0, max: 100 },
@@ -284,6 +291,11 @@ const UserSchema = new Schema<IUser>(
     telegramUsername: { type: String, default: null },
     telegramLinkCode: { type: String, default: null },
     telegramLinkCodeExpiry: { type: Date, default: null },
+    keys:               { type: Number, default: 0 },
+    keyShards:          { type: Number, default: 0 },
+    combatWinStreak:      { type: Number, default: 0 },
+    miniGameMatchesToday: { type: Number, default: 0 },
+    miniGameResetAt:      { type: Date, default: () => new Date(new Date().setUTCHours(24, 0, 0, 0)) },
     gameTheme: { type: String, default: "default" },
     implants: {
       type: [{
@@ -305,17 +317,17 @@ export function xpForLevel(level: number): number {
   return Math.round(30000 + (level - 61) * (70000 / 39));
 }
 
-/** Derived max energy: 100 + (level * 2), capped at 300 */
+/** Derived max energy: base 200, capped at 300. Does not shrink below 200. */
 export function derivedMaxEnergy(level: number): number {
-  return Math.min(300, 100 + level * 2);
+  return Math.min(300, Math.max(200, 100 + level * 2));
 }
 
 export function applyRegen(user: IUser): void {
   const now = Date.now();
 
-  // Energy: +1 per 10 min (Section 1)
+  // Energy: +1 per 3 min (mini-game energy system)
   const energyMinutes = (now - user.energyRegenAt.getTime()) / 60000;
-  const energyGain = Math.floor(energyMinutes / 10);
+  const energyGain = Math.floor(energyMinutes / 3);
   if (energyGain > 0 && user.energy < user.maxEnergy) {
     user.energy = Math.min(user.maxEnergy, user.energy + energyGain);
     user.energyRegenAt = new Date(now);

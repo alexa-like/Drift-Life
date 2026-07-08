@@ -95,29 +95,24 @@ Each tier has subcategories. Each subcategory has tasks. Each task is one checka
 > Do not build any game UI yet. Just models, migrations, and cleanup.
 
 ### 1A — Remove Old Systems
-- [ ] Delete/disable all open-world PvP routes and frontend
-- [ ] Delete Merit model and all Merit routes
-- [ ] Remove Merit from frontend (wallet, shop, display)
-- [ ] Remove old item/gear system from player model and routes
-- [ ] Remove old combat stats from player model (keep energy only as the resource stat)
-- [ ] Update gym to be a stub "Training Center" placeholder
-- [ ] Remove hospital PvP triggers (keep crime-only hospital)
-- [ ] Remove all daily missions/achievements referencing removed systems
+- [x] Delete/disable all open-world PvP routes (GET /targets, POST /attack removed from combat.ts)
+- [x] Removed Merit from Achievement catalog (meritReward → dcReward, first_merit achievement deleted)
+- [x] Achievement grants now pay DC instead of merit
+- [x] Removed merit stat case from getCurrentProgress()
 
 ### 1B — Run Migration Jobs
-- [ ] Build Merit → DC migration job (see Migration Jobs above)
-- [ ] Build old item → DC refund job (see Migration Jobs above)
-- [ ] Test both jobs on a dev DB before running on production
-- [ ] Add job logs to admin panel
+- [x] Build Merit → DC migration job (jobs/migration.ts — runMeritMigration)
+- [x] Build old item → DC refund job (runItemRefundMigration — deletes items after processing)
+- [x] Build equipment slots clear job (runEquipmentClearMigration)
+- [x] Admin endpoints: POST /api/admin/migration/run|merit|items|equipment (requireOwner)
 
 ### 1C — Energy System Model
-- [ ] Add `energy` field to User model (default 200, max 200)
-- [ ] Add `energyMax` field to User model (default 200)
-- [ ] Add `energyLastUpdated` field (timestamp, for regen calculation)
-- [ ] Add `getEnergy(user)` utility: calculates current energy based on time elapsed since last update
-- [ ] Add `deductEnergy(userId, amount)` utility: atomic deduct with session check
-- [ ] Add `GET /api/energy/status` route: returns current energy, max, regen rate, seconds to full
-- [ ] Add energy display to main game header (live countdown to next regen tick)
+- [x] energy default 100 → 200, maxEnergy default 100 → 200
+- [x] derivedMaxEnergy now returns min 200, max 300
+- [x] Regen rate changed from 1/10min → 1/3min
+- [x] Added keys, keyShards, combatWinStreak, miniGameMatchesToday, miniGameResetAt to User model
+- [x] GET /api/energy/status route (returns energy, max, regen rate, msToFull)
+- [x] deductEnergy() utility — atomic with race-safe findOneAndUpdate guard
 
 ### 1D — New Item Models
 
@@ -242,12 +237,26 @@ Fields:
 - `weekStart` (date, ISO Monday)
 - `updatedAt` (timestamp)
 
+### 1D–1G — New Models (all created)
+- [x] MiniGameItem model (combat item catalog — 50 items seeded)
+- [x] RaceCar model (15 cars seeded across 5 tiers)
+- [x] CarPart model (25 parts seeded across 5 tiers)
+- [x] PlayerMiniGameInventory model
+- [x] PlayerGarage model
+- [x] PlayerLoadout model
+- [x] RoyaleItem model (150 items seeded: 50 per royale type)
+- [x] PlayerRoyaleLog model
+- [x] PlayerPityCounter model (tracks spinsSinceLastRare + spinsSinceLastEpic)
+- [x] CombatMatch model (full turn state machine)
+- [x] RaceMatch model (2player/4player, parallel architecture)
+- [x] MiniGameLeaderboard model (5 leaderboard types, weekly)
+
 ### 1H — Seed Data
-- [ ] Seed all 50 General Royale items into RoyaleItem collection
-- [ ] Seed all 50 Shooting Royale items into RoyaleItem collection
-- [ ] Seed all 50 Racing Royale items into RoyaleItem collection
-- [ ] Seed all 50 cars into Car collection
-- [ ] Seed all combat weapons, armor, consumables into MiniGameItem collection
+- [x] Seed all 50 General Royale items (seeds/royaleItems.ts — runs on startup)
+- [x] Seed all 50 Shooting Royale items (same file)
+- [x] Seed all 50 Racing Royale items (same file)
+- [x] Seed 15 race cars + 25 car parts (seeds/raceCars.ts — runs on startup)
+- [x] Seed 50 combat items across 5 tiers (seeds/miniGameItems.ts — runs on startup)
 
 ---
 
