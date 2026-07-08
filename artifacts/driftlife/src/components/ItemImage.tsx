@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 
 interface Props {
   itemId: string;
@@ -355,10 +355,44 @@ function FallbackIcon({ type = "misc", size }: FallbackProps) {
 }
 
 export function ItemImage({ itemId, imageUrl, size = 48, className }: Props) {
-  const renderer = ITEM_SVGS[itemId];
+  const [pngFailed, setPngFailed] = useState(false);
+  const [urlFailed, setUrlFailed] = useState(false);
 
-  // If we have a Pollinations URL and no built-in SVG, show the AI image
-  if (!renderer && imageUrl) {
+  // 1st choice: local PNG matched by itemId
+  // Covers slugs ("pistol", "combat-knife") AND seeded itemIds ("pistol_common", "knife_common")
+  if (!pngFailed) {
+    return (
+      <div
+        className={className}
+        style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+      >
+        <img
+          src={`/assets/items/${itemId}.png`}
+          alt={itemId}
+          width={size}
+          height={size}
+          style={{ objectFit: "contain", display: "block", borderRadius: 4 }}
+          onError={() => setPngFailed(true)}
+        />
+      </div>
+    );
+  }
+
+  // 2nd choice: hand-crafted animated SVG (for items that still use them)
+  const renderer = ITEM_SVGS[itemId];
+  if (renderer) {
+    return (
+      <div
+        className={className}
+        style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+      >
+        {renderer(size)}
+      </div>
+    );
+  }
+
+  // 3rd choice: external imageUrl (e.g. legacy Pollinations or custom upload)
+  if (imageUrl && !urlFailed) {
     return (
       <div
         className={className}
@@ -370,25 +404,14 @@ export function ItemImage({ itemId, imageUrl, size = 48, className }: Props) {
           width={size}
           height={size}
           style={{ width: size, height: size, objectFit: "cover", display: "block" }}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          onError={() => setUrlFailed(true)}
         />
       </div>
     );
   }
 
-  if (!renderer) return <FallbackIcon size={size} type={itemId.includes("weapon") ? "weapon" : "misc"} />;
-  return (
-    <div
-      className={className}
-      style={{
-        width: size, height: size,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0,
-      }}
-    >
-      {renderer(size)}
-    </div>
-  );
+  // 4th choice: generic type-based icon
+  return <FallbackIcon size={size} type={getItemType(itemId)} />;
 }
 
 export function getItemType(itemId: string): string {

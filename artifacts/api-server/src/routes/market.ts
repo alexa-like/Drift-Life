@@ -20,16 +20,9 @@ async function ensureOverridesLoaded(): Promise<void> {
   _overridesLoaded = true;
 }
 
-function strHash(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return (h % 89999) + 10000;
-}
-
-function img(prompt: string): string {
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(
-    `cyberpunk New Vanta 2047 ${prompt}, neon glow dark background game item icon digital art`
-  )}?width=256&height=256&nologo=true&seed=${strHash(prompt)}&model=turbo`;
+// All shop items use local cyberpunk PNG assets served from /assets/items/
+function img(id: string): string {
+  return `/assets/items/${id}.png`;
 }
 
 export const SHOP_ITEMS: Array<{
@@ -112,6 +105,12 @@ export const SHOP_ITEMS: Array<{
   { id: "rare-metal",    name: "Rare Metal",    type: "material", rarity: "rare",      slot: null, strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0, streetCredBonus: 0, defenseBonus: 0, travelEnergyReduction: 0, basePrice: 2_000,  description: "Exotic alloy for high-end crafting.",           imageUrl: img("rare metal ingot exotic alloy blue glow ingot") },
   { id: "nano-materials",name: "Nano Materials",type: "material", rarity: "epic",      slot: null, strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0, streetCredBonus: 0, defenseBonus: 0, travelEnergyReduction: 0, basePrice: 25_000, description: "Self-assembling nano-particles.",               imageUrl: img("nano materials purple particles self-assembling glow swarm") },
 ];
+
+// Ensure every shop item's imageUrl points to its local PNG asset (keyed by item id).
+// This runs once at module load, overriding any placeholder values set above.
+for (const item of SHOP_ITEMS) {
+  item.imageUrl = `/assets/items/${item.id}.png`;
+}
 
 // GET /api/market/shop
 router.get("/shop", requireAuth, async (_req, res) => {

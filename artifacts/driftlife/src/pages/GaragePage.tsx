@@ -3,6 +3,24 @@ import { api } from "../lib/api";
 import { User, PlayerGarage, OwnedCar, OwnedCarPartStack, CarPartDef, CarStats, CarPartType } from "../lib/types";
 import { CardArt } from "../components/CardArt";
 
+/** Shows the car's PNG asset; falls back to the programmatic CardArt if the file doesn't load. */
+function CarImage({ carId, tier, size }: { carId: string; tier: string; size: number }) {
+  const [failed, setFailed] = useState(false);
+  if (!failed) {
+    return (
+      <img
+        src={`/assets/cars/${carId}.png`}
+        alt={carId}
+        width={size}
+        height={size}
+        style={{ objectFit: "contain", display: "block" }}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return <CardArt itemType="car" tier={tier} size={size} />;
+}
+
 interface Props {
   user: User;
   onUserUpdate: (u: User) => void;
@@ -253,8 +271,8 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
                     }}
                   >
                     {/* Car art */}
-                    <div style={{ background: `${color}08`, display: "flex", justifyContent: "center", borderBottom: `1px solid ${color}20` }}>
-                      <CardArt itemType="car" tier={def?.tier ?? "common"} size={100} />
+                    <div style={{ background: `${color}08`, display: "flex", justifyContent: "center", alignItems: "center", borderBottom: `1px solid ${color}20`, height: 100 }}>
+                      <CarImage carId={car.carId} tier={def?.tier ?? "common"} size={100} />
                     </div>
                     <div style={{ padding: "8px 12px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

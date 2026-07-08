@@ -3,6 +3,24 @@ import { api } from "../lib/api";
 import { User } from "../lib/types";
 import { CardArt, inferItemType } from "../components/CardArt";
 
+/** Shows a combat item's PNG asset; falls back to CardArt if the file doesn't load. */
+function ItemPng({ itemId, itemType, tier, size }: { itemId: string; itemType: string; tier: string; size: number }) {
+  const [failed, setFailed] = useState(false);
+  if (!failed) {
+    return (
+      <img
+        src={`/assets/items/${itemId}.png`}
+        alt={itemId}
+        width={size}
+        height={size}
+        style={{ objectFit: "contain", display: "block" }}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return <CardArt itemType={itemType} tier={tier} size={size} />;
+}
+
 interface Props {
   user: User;
   addToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
@@ -80,7 +98,7 @@ function FullItemCard({
           position: "relative",
         }}
       >
-        <CardArt itemType={itemType} tier={def.tier} size={88} />
+        <ItemPng itemId={def.itemId} itemType={itemType} tier={def.tier} size={88} />
         {selected && (
           <div style={{
             position: "absolute", top: 6, right: 6,
@@ -308,7 +326,7 @@ export default function ArenaHubPage({ user, addToast, onNavigate }: Props) {
                   {equipped && def ? (
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <CardArt itemType={inferItemType(def.itemId, def.category)} tier={def.tier} size={32} />
+                        <ItemPng itemId={def.itemId} itemType={inferItemType(def.itemId, def.category)} tier={def.tier} size={32} />
                         <div>
                           <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: "bold", color }}>{def.name}</span>
                           <span style={{ fontFamily: "monospace", fontSize: 10, color: "#64748b", marginLeft: 8 }}>{statSummary(def.stats)}</span>
