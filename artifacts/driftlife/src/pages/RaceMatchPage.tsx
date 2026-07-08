@@ -70,6 +70,9 @@ function renderFrame(
   match: RaceMatch | null,
   userId: string,
   nitroActive: boolean,
+  animTime: number,    // accumulated ms — drives wheel spin + body bob
+  speed: number,       // 0–1 for speed gauge needle
+  crashAlpha: number,  // 0–1 red flash on crash
 ) {
   ctx.clearRect(0, 0, W, H);
   const horizonY = H * 0.38;
@@ -218,8 +221,61 @@ function renderFrame(
     ctx.fill();
   }
 
-  // Player car (bottom-center)
-  drawCar(ctx, vpX, H - 24, 44, 24, "#00d4ff", true);
+  // Player car (bottom-center) — body bobbing based on animTime
+  const bobY = Math.sin(animTime * 0.006) * 2;
+  drawCar(ctx, vpX, H - 24 + bobY, 44, 24, "#00d4ff", true, animTime);
+
+  // ── Crash flash overlay ────────────────────────────────────────────────────
+  if (crashAlpha > 0) {
+    ctx.fillStyle = `rgba(239,68,68,${Math.min(0.45, crashAlpha * 0.45)})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ── Analog speed gauge (bottom-right) ─────────────────────────────────────
+  const gCx = W - 50, gCy = H - 30, gR = 26;
+  const gaugeStart = Math.PI * 0.75;
+  const gaugeEnd   = Math.PI * 2.25;
+  const gaugeArc   = gaugeEnd - gaugeStart;
+  const spd = Math.min(1, Math.max(0, speed));
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(gCx, gCy, gR, gaugeStart, gaugeEnd, false);
+  ctx.strokeStyle = "#1e293b";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  // Colored speed arc
+  if (spd > 0) {
+    const spdColor = spd > 0.75 ? "#ef4444" : spd > 0.45 ? "#f59e0b" : "#22c55e";
+    ctx.beginPath();
+    ctx.arc(gCx, gCy, gR, gaugeStart, gaugeStart + spd * gaugeArc, false);
+    ctx.strokeStyle = spdColor;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+
+  // Needle
+  const needleAng = gaugeStart + spd * gaugeArc;
+  ctx.beginPath();
+  ctx.moveTo(gCx, gCy);
+  ctx.lineTo(gCx + Math.cos(needleAng) * (gR - 6), gCy + Math.sin(needleAng) * (gR - 6));
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(gCx, gCy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = "#475569";
+  ctx.fill();
+
+  // "KPH" label
+  ctx.font = "bold 7px monospace";
+  ctx.fillStyle = "#475569";
+  ctx.textAlign = "center";
+  ctx.fillText("KPH", gCx, gCy + gR + 8);
+  ctx.textAlign = "left";
 }
 
 function drawCar(
@@ -228,6 +284,7 @@ function drawCar(
   w: number, h: number,
   color: string,
   isPlayer: boolean,
+  animTime = 0,
 ) {
   const hw = w / 2, hh = h / 2;
   // Body
@@ -248,15 +305,31 @@ function drawCar(
   // Windshield
   ctx.fillStyle = color + "50";
   ctx.fillRect(cx - hw * 0.45, cy - hh * 0.55, hw * 0.9, hh * 0.7);
-  // Wheels
+  // Wheels (spinning for player car)
+  const wheelR = w * 0.12;
   ctx.fillStyle = "#0a0a14";
   ctx.strokeStyle = color + "80";
   ctx.lineWidth = 1;
-  [[-hw * 0.6, -hh * 0.8], [hw * 0.6, -hh * 0.8], [-hw * 0.6, hh * 0.6], [hw * 0.6, hh * 0.6]].forEach(([wx, wy]) => {
+  const wheelPositions: [number, number][] = [[-hw * 0.6, -hh * 0.8], [hw * 0.6, -hh * 0.8], [-hw * 0.6, hh * 0.6], [hw * 0.6, hh * 0.6]];
+  wheelPositions.forEach(([wx, wy]) => {
     ctx.beginPath();
-    ctx.arc(cx + wx, cy + wy, w * 0.12, 0, Math.PI * 2);
+    ctx.arc(cx + wx, cy + wy, wheelR, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    if (isPlayer && animTime > 0) {
+      // Spinning spoke to show wheel rotation
+      const angle = (animTime * 0.015) % (Math.PI * 2);
+      ctx.save();
+      ctx.translate(cx + wx, cy + wy);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(0, -wheelR * 0.75);
+      ctx.lineTo(0, wheelR * 0.75);
+      ctx.strokeStyle = color + "60";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.restore();
+    }
   });
 }
 
@@ -265,20 +338,21 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
   const [phase, setPhase] = useState<"loading" | "racing" | "finished">("loading");
   const [match, setMatch] = useState<RaceMatch | null>(null);
   const [gear, setGear] = useState(1);
-  const [lastShift, setLastShift] = useState<"hit" | "miss" | null>(null);
+  const [lastShift, setLastShift] = useState<"hit" | "miss" | "crash" | null>(null);
   const [nitroCount, setNitroCount] = useState(3);
   const [nitroFlash, setNitroFlash] = useState(false);
   const [acting, setActing] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const needleRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null); // flash overlay
   const matchRef = useRef<RaceMatch | null>(null);
   const scrollRef = useRef(0);
   const prevPctRef = useRef(0);
   const speedRef = useRef(0);
   const sweepStartRef = useRef(Date.now());
   const sweepDurRef = useRef(2400); // ms for one sweep
+  const animTimeRef = useRef(0);     // accumulated animation time for wheel spin + bob
+  const crashAlphaRef = useRef(0);   // 0–1 crash flash intensity, decays each frame
   const nitroActiveRef = useRef(false);
   const nitroTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animRef = useRef<number | null>(null);
@@ -322,8 +396,16 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
         needleRef.current.style.left = `${pos * 100}%`;
       }
 
+      // Accumulate animation time (for wheel spin + body bob)
+      animTimeRef.current += dt;
+      // Decay crash flash
+      if (crashAlphaRef.current > 0) {
+        crashAlphaRef.current = Math.max(0, crashAlphaRef.current - 0.05);
+      }
+
       const W = canvas!.width, H = canvas!.height;
-      renderFrame(ctx!, W, H, scrollRef.current, matchRef.current, user.id, nitroActiveRef.current);
+      renderFrame(ctx!, W, H, scrollRef.current, matchRef.current, user.id, nitroActiveRef.current,
+        animTimeRef.current, speedRef.current, crashAlphaRef.current);
 
       animRef.current = requestAnimationFrame(loop);
     }
@@ -343,6 +425,11 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
         setPhase("finished");
         onUserUpdate();
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      } else if (m.status === "abandoned") {
+        // Match was cancelled (nobody connected in time) — stop polling and return to hub
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
+        onNavigate("race-hub");
       }
     } catch { /* ignore */ }
   }, [user.id, onUserUpdate]);
@@ -366,6 +453,12 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
         matchIdRef.current = status.activeMatch.matchId;
         await fetchMatch(status.activeMatch.matchId);
         if (!cancelled) {
+          // Reset all per-race UI state so a second race starts clean
+          setGear(1);
+          sweepStartRef.current = Date.now();
+          sweepDurRef.current = 2400;
+          animTimeRef.current = 0;
+          crashAlphaRef.current = 0;
           setPhase("racing");
           pollRef.current = setInterval(() => {
             if (matchIdRef.current) fetchMatch(matchIdRef.current);
@@ -406,11 +499,17 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
 
     setActing(true);
     try {
-      // Server determines hit/miss authoritatively — client sends no hit value
-      const data = await api.post<{ match: RaceMatch; hit: boolean }>(`/race/match/${matchIdRef.current}/shift`, {});
-      // Correct feedback with server result
-      setLastShift(data.hit ? "hit" : "miss");
-      setTimeout(() => setLastShift(null), 600);
+      // Server determines hit/miss/crash authoritatively — client sends no hit value
+      const data = await api.post<{ match: RaceMatch; hit: boolean; crashed: boolean }>(`/race/match/${matchIdRef.current}/shift`, {});
+      // Correct feedback with authoritative server result
+      if (data.crashed) {
+        setLastShift("crash");
+        crashAlphaRef.current = 1.0;  // trigger red flash on canvas
+        setTimeout(() => setLastShift(null), 800);
+      } else {
+        setLastShift(data.hit ? "hit" : "miss");
+        setTimeout(() => setLastShift(null), 600);
+      }
       setMatch(data.match);
       const me = data.match.players.find(p => p.userId?.toString() === user.id);
       if (me) setNitroCount(3 - (me.nitroUsed ?? 0));
@@ -560,9 +659,10 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
 
           {/* Shift panel */}
           <div style={{
-            marginTop: 14, background: "#0a0a14", border: "1px solid #1e293b",
+            marginTop: 14, background: "#0a0a14",
+            border: `1px solid ${lastShift === "crash" ? "#ef444460" : "#1e293b"}`,
             borderRadius: 10, padding: "14px 14px 12px",
-            animation: lastShift === "hit" ? "shiftHit 0.6s ease" : lastShift === "miss" ? "shiftMiss 0.6s ease" : "none",
+            animation: lastShift === "hit" ? "shiftHit 0.6s ease" : lastShift === "miss" ? "shiftMiss 0.6s ease" : lastShift === "crash" ? "shiftMiss 0.8s ease" : "none",
           }}>
             {/* Timing strip */}
             <div style={{
@@ -609,14 +709,14 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
                 style={{
                   flex: 1, height: 48, borderRadius: 8, cursor: "pointer",
                   fontFamily: "monospace", fontSize: 15, fontWeight: "bold", letterSpacing: 2,
-                  background: lastShift === "hit" ? "#22c55e20" : lastShift === "miss" ? "#ef444420" : "linear-gradient(135deg, #00d4ff18, #00d4ff08)",
-                  border: `2px solid ${lastShift === "hit" ? "#22c55e" : lastShift === "miss" ? "#ef4444" : "#00d4ff60"}`,
-                  color: lastShift === "hit" ? "#22c55e" : lastShift === "miss" ? "#ef4444" : "#00d4ff",
-                  boxShadow: lastShift === "hit" ? "0 0 16px #22c55e40" : lastShift === "miss" ? "none" : "0 0 12px #00d4ff20",
+                  background: lastShift === "hit" ? "#22c55e20" : lastShift === "crash" ? "#ef444430" : lastShift === "miss" ? "#ef444420" : "linear-gradient(135deg, #00d4ff18, #00d4ff08)",
+                  border: `2px solid ${lastShift === "hit" ? "#22c55e" : (lastShift === "miss" || lastShift === "crash") ? "#ef4444" : "#00d4ff60"}`,
+                  color: lastShift === "hit" ? "#22c55e" : (lastShift === "miss" || lastShift === "crash") ? "#ef4444" : "#00d4ff",
+                  boxShadow: lastShift === "hit" ? "0 0 16px #22c55e40" : (lastShift === "miss" || lastShift === "crash") ? "0 0 12px #ef444430" : "0 0 12px #00d4ff20",
                   transition: "all 0.15s",
                 }}
               >
-                {lastShift === "hit" ? "✓ PERFECT" : lastShift === "miss" ? "✗ MISS" : "⚡ SHIFT"}
+                {lastShift === "hit" ? "✓ PERFECT" : lastShift === "crash" ? "💥 CRASH!" : lastShift === "miss" ? "✗ MISS" : "⚡ SHIFT"}
               </button>
 
               {/* NITRO button */}
@@ -646,21 +746,37 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
       )}
 
       {/* Finished phase */}
-      {phase === "finished" && match && (
+      {phase === "finished" && match && (() => {
+        // Base rewards table (mirrors backend constants, shown as estimates before daily cap)
+        const BASE_REWARDS: Record<number, { dc: number; xp: number; keyShards: number }> = {
+          1: { dc: 300, xp: 300, keyShards: 1 },
+          2: { dc: 150, xp: 180, keyShards: 0 },
+          3: { dc:  80, xp: 100, keyShards: 0 },
+          4: { dc:  40, xp:  60, keyShards: 0 },
+        };
+        const myRewards = BASE_REWARDS[myPlacement ?? 4] ?? BASE_REWARDS[4];
+        const plColor = PLACEMENT_COLORS[myPlacement ?? 4] ?? "#475569";
+
+        return (
         <div style={{ textAlign: "center", padding: "24px 16px" }}>
           {/* Placement banner */}
           <div style={{
             display: "inline-block", padding: "20px 40px", borderRadius: 12, marginBottom: 24,
-            background: `${PLACEMENT_COLORS[myPlacement ?? 4] ?? "#475569"}18`,
-            border: `2px solid ${PLACEMENT_COLORS[myPlacement ?? 4] ?? "#475569"}60`,
+            background: `${plColor}18`,
+            border: `2px solid ${plColor}60`,
             animation: "placeBanner 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards",
           }}>
-            <div style={{ fontFamily: "monospace", fontSize: 32, marginBottom: 4 }}>
-              {myPlacement === 1 ? "🏆" : myPlacement === 2 ? "🥈" : myPlacement === 3 ? "🥉" : "🏁"}
-            </div>
+            {/* Winner burnout animation */}
+            {myPlacement === 1 ? (
+              <div style={{ fontSize: 40, marginBottom: 6, animation: "burnout 0.15s ease infinite", display: "inline-block" }}>🏎</div>
+            ) : (
+              <div style={{ fontFamily: "monospace", fontSize: 32, marginBottom: 4 }}>
+                {myPlacement === 2 ? "🥈" : myPlacement === 3 ? "🥉" : "🏁"}
+              </div>
+            )}
             <div style={{
               fontFamily: "monospace", fontSize: 22, fontWeight: "bold", letterSpacing: 3,
-              color: PLACEMENT_COLORS[myPlacement ?? 4] ?? "#475569",
+              color: plColor,
             }}>
               {PLACEMENT_LABELS[myPlacement ?? 4] ?? "FINISHED"}
             </div>
@@ -696,13 +812,25 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
             })}
           </div>
 
-          {/* Rewards note */}
+          {/* Rewards breakdown */}
           <div style={{
-            fontFamily: "monospace", fontSize: 11, color: "#334155",
-            background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 8, padding: "10px 16px",
-            marginBottom: 20,
+            background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 8,
+            padding: "14px 16px", marginBottom: 20, textAlign: "left",
           }}>
-            Rewards credited — check your inbox notification for details
+            <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", marginBottom: 8 }}>REWARDS EARNED</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ fontFamily: "monospace", fontSize: 12, color: "#fbbf24" }}>+{myRewards.dc} DC</div>
+              <div style={{ fontFamily: "monospace", fontSize: 12, color: "#a855f7" }}>+{myRewards.xp} XP</div>
+              {myRewards.keyShards > 0 && (
+                <div style={{ fontFamily: "monospace", fontSize: 12, color: "#00d4ff" }}>+{myRewards.keyShards} Key Shard</div>
+              )}
+              {myPlacement === 1 && (
+                <div style={{ fontFamily: "monospace", fontSize: 11, color: "#f59e0b", opacity: 0.7 }}>10% chance +1 Key 🎰</div>
+              )}
+            </div>
+            <div style={{ fontFamily: "monospace", fontSize: 9, color: "#334155", marginTop: 6 }}>
+              Exact amount (with daily cap) in your inbox notification
+            </div>
           </div>
 
           <button
@@ -716,7 +844,8 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
             ← Back to Race Hub
           </button>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

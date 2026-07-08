@@ -18,12 +18,17 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 
-// ── AI names ──────────────────────────────────────────────────────────────────
+// ── AI names (50+) ────────────────────────────────────────────────────────────
 const AI_NAMES = [
   "DriftQueen","TurboNova","CyberSlick","NeonStreak","VoltRacer","PixelBurn","GridRunner","NightShift",
   "TarmacGhost","FuelCell","SpinCycle","TorqueKing","RampageX","GasThief","IronAxle","VelocityZ",
   "AsphaltAce","RoadDevil","Blacktop","BurnoutBob","ClutchKing","DragKween","EngineEater","FlashLap",
   "GearGrinder","HotTarmac","InjectaX","JunctionJ","KnockoutK","LapLord",
+  // second batch — 30 more = 60 total
+  "MaxOverrev","NitroNick","OvertakeO","PedalPusher","QuickShift","RedlineRex","SkidMark","ThrottleX",
+  "UltraLap","VanishV","WheelSpin","XhaustFire","YellowFlag","ZeroTraction","ApexHunter","BrakeLate",
+  "CurbCutter","DownforceD","EcoBoost","FullSend","GhostLine","HardLock","IronRim","JumpStart",
+  "KerbKing","LaneSwitch","MidCorner","NoseDive","OilSlick","PitStop",
 ];
 
 // ── Energy costs ──────────────────────────────────────────────────────────────
@@ -223,6 +228,64 @@ async function tryFillRace(mode: "2player" | "4player"): Promise<string | null> 
   return match.matchId;
 }
 
+// ── Match expiry / abandon worker (runs separately every 30s) ─────────────────
+setInterval(async () => {
+  const now = Date.now();
+
+  // 1. Matches where NO human ever shifted after 60s → abandoned, refund energy.
+  //    Atomically claim each match (active → abandoned) before doing any writes
+  //    so concurrent worker runs / multi-instance deploys never double-refund.
+  const abandonCandidates = await RaceMatch.find({
+    status: "active",
+    startedAt: { $lt: new Date(now - 60_000) },
+  }).lean();
+
+  for (const m of abandonCandidates) {
+    const anyHumanShifted = m.players.some((p: any) => !p.isAI && (p.shiftCount ?? 0) > 0);
+    if (!anyHumanShifted) {
+      // Atomic claim: only proceed if we are the one that flips status to "abandoned"
+      const claimed = await RaceMatch.findOneAndUpdate(
+        { _id: m._id, status: "active" },
+        { $set: { status: "abandoned" } },
+      ).lean();
+      if (!claimed) continue; // another instance already handled it
+
+      for (const p of m.players) {
+        if (!p.isAI && p.userId) {
+          await User.updateOne({ _id: p.userId }, { $inc: { energy: m.energyCost } }).catch(() => {});
+        }
+      }
+    }
+  }
+
+  // 2. Matches active > 10 minutes → force-complete with current standings, grant rewards.
+  //    Atomic claim via rewardsGranted flag so rewards are issued exactly once.
+  const tooLong = await RaceMatch.find({
+    status: "active",
+    rewardsGranted: { $ne: true },
+    startedAt: { $lt: new Date(now - 10 * 60_000) },
+  });
+
+  for (const m of tooLong) {
+    // Atomic claim: set rewardsGranted:true and status:complete in one op
+    const claimed = await RaceMatch.findOneAndUpdate(
+      { _id: m._id, status: "active", rewardsGranted: { $ne: true } },
+      { $set: { status: "complete", finishedAt: new Date(), rewardsGranted: true } },
+    );
+    if (!claimed) continue; // another instance beat us
+
+    // Assign placements by distancePct / finishTime on the claimed snapshot
+    const sorted = [...claimed.players].sort((a: any, b: any) => {
+      if (a.finishTime !== null && b.finishTime !== null) return a.finishTime - b.finishTime;
+      if (a.finishTime !== null) return -1;
+      if (b.finishTime !== null) return  1;
+      return b.distancePct - a.distancePct;
+    });
+    sorted.forEach((p: any, i: number) => { p.placement = i + 1; });
+    await grantRaceRewards(claimed).catch(() => {});
+  }
+}, 30_000);
+
 // ── Queue worker ──────────────────────────────────────────────────────────────
 // Groups all expired human players together into matches first, then AI-fills remaining seats.
 setInterval(async () => {
@@ -302,6 +365,23 @@ router.get("/match/:matchId", requireAuth, async (req: AuthRequest, res) => {
     if (!match) { res.status(404).json({ message: "Match not found" }); return; }
     const isPlayer = match.players.some(p => p.userId?.toString() === req.userId);
     if (!isPlayer) { res.status(403).json({ message: "Not your match" }); return; }
+
+    // Project AI progress in-memory for this response (not persisted) so
+    // clients see smooth AI movement between their own shift actions.
+    if (match.status === "active" && match.startedAt) {
+      const elapsed = Date.now() - new Date(match.startedAt).getTime();
+      for (const p of match.players) {
+        if (p.isAI && p.finishTime !== null) {
+          if (elapsed >= p.finishTime) {
+            p.distancePct = 100;
+          } else {
+            // Linear interpolation – no jitter here so mini-leaderboard doesn't flicker
+            p.distancePct = Math.min(99, (elapsed / p.finishTime) * 100);
+          }
+        }
+      }
+    }
+
     res.json({ match });
   } catch (err) {
     req.log.error({ err }, "race match get error");
@@ -356,7 +436,18 @@ router.post("/match/:matchId/shift", requireAuth, async (req: AuthRequest, res) 
     const baseGain = hit ? (0.08 + Math.random() * 0.04) : (0.03 + Math.random() * 0.03);
     const progress = baseGain * (0.8 + speedFactor * 0.4);
 
-    player.distancePct = Math.min(100, player.distancePct + progress * 100);
+    // ── Crash mechanic: obstacle chance ───────────────────────────────────────
+    // Perfect shifts have lower crash chance (skilled drivers dodge); misses are more likely to crash
+    const crashChance = hit ? 0.04 : 0.12;
+    const crashed = Math.random() < crashChance;
+    if (crashed) {
+      player.crashCount = (player.crashCount ?? 0) + 1;
+      // Crash penalty: lose 3–6% distance (net negative vs normal gain)
+      const penalty = 3 + Math.random() * 3;
+      player.distancePct = Math.max(0, player.distancePct - penalty);
+    } else {
+      player.distancePct = Math.min(100, player.distancePct + progress * 100);
+    }
 
     if (player.distancePct >= 100) {
       const finishTime = Date.now() - (match.startedAt?.getTime() ?? Date.now());
@@ -367,7 +458,7 @@ router.post("/match/:matchId/shift", requireAuth, async (req: AuthRequest, res) 
     // Check if all real players finished
     await checkRaceCompletion(match);
     await match.save();
-    res.json({ match, hit });  // return server-computed hit for accurate frontend feedback
+    res.json({ match, hit, crashed });  // return server-computed values for accurate frontend feedback
   } catch (err) {
     req.log.error({ err }, "race shift error");
     res.status(500).json({ message: "Internal server error" });
@@ -410,17 +501,31 @@ router.post("/match/:matchId/nitro", requireAuth, async (req: AuthRequest, res) 
 async function checkRaceCompletion(match: any) {
   if (match.status === "complete") return;
 
-  // Assign placements to AI based on pre-generated finish times (relative to start)
+  // Smooth AI progress interpolation — reveals AI position progressively each poll
   const now = Date.now();
   const elapsed = match.startedAt ? now - match.startedAt.getTime() : 0;
   for (const p of match.players) {
-    if (p.isAI && p.finishTime !== null && elapsed >= p.finishTime) {
-      p.distancePct = 100;
+    if (p.isAI && p.finishTime !== null) {
+      if (elapsed >= p.finishTime) {
+        p.distancePct = 100;
+      } else {
+        // Smooth linear interpolation so AI looks like it's actively racing
+        // Add a tiny random jitter to simulate gear-miss moments (±3% variance)
+        const base = (elapsed / p.finishTime) * 100;
+        const jitter = (Math.random() - 0.5) * 3;
+        p.distancePct = Math.min(99, Math.max(0, base + jitter));
+      }
     }
   }
 
-  const allFinished = match.players.every((p: any) => p.distancePct >= 100 || p.finishTime !== null);
-  if (!allFinished) return;
+  // All finished = every human has finishTime set, and all AI have elapsed past their time
+  const allHumansFinished = match.players
+    .filter((p: any) => !p.isAI)
+    .every((p: any) => p.finishTime !== null);
+  const allAIFinished = match.players
+    .filter((p: any) => p.isAI)
+    .every((p: any) => p.finishTime !== null && elapsed >= p.finishTime);
+  if (!allHumansFinished || !allAIFinished) return;
 
   // Sort by finish time (nulls last)
   const sorted = [...match.players].sort((a: any, b: any) => {
