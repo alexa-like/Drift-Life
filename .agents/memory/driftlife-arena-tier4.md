@@ -1,30 +1,43 @@
 ---
-name: DriftLife Arena Combat — Tier 4
-description: Key decisions, bugs found, and patterns for the arena combat system
+name: DriftLife Arena Combat (Tier 4)
+description: Combat system implementation details, fixes applied, and critical patterns to maintain.
 ---
 
-## Arena route registration
-`arena.ts` was NOT in `routes/index.ts` — always check this when adding a new route file. Added as `/api/arena`.
+# DriftLife Arena Combat — Tier 4
 
-## CombatMatch.player1/2ConsumablesUsed
-Originally typed as `number` (a count). Changed to `string[]` (tracks specific item IDs used) so the action handler can check which consumable slots are still available without reading them back from inventory.
+## What was built / fixed
+- Arena router registered in routes/index.ts
+- Element effects fully implemented (burn/bleed/toxic DoT, shock/stun skip, regen/regen_field heal-per-turn, headshot bonus, double_fire second hit, pierce_armor from AP ammo, block/dodge/anti_crit/retaliate armor effects)
+- Turn auto-timeout worker: setInterval every 5s, queries timed-out active matches, calls autoResolveTurn
+- Reward bug fixed: DC=0 after 50 matches (was 5% of DC), XP=5% still granted; Key Shard only for first 30 matches (< FULL_CAP)
+- CombatMatch.consumablesUsed must be string[] not number (old bug from before this session)
 
-## Defend timing in same-turn resolution
-The action handler resolves both the player action AND the AI counterattack in a single HTTP request. If the player defends, the defend bonus must apply to the AI's attack *in the same call* — not just the "previous turn's action" from `match.turns`. Fix: derive `p1DefendingThisTurn = action === "defend" && isP1` and pass that flag directly to `calcDamage`.
+## Architecture / patterns
 
-## Queue worker widened-range matching bug
-In the 15–30s bucket, the original code deleted both entries from `combatQueue` then called `tryMatch(entry)`. `tryMatch` only searches the queue — both were already deleted, so it found no candidates and returned null. Fix: `matchPair(a, b)` directly creates a match from two resolved entries without re-searching the queue.
+### Element effects
+- Effects are snapshotted into LoadoutSnapshot at match creation: `weaponEffect`, `weaponEffectChance`, `armorEffect`, `armorEffectChance`, `ammoArmorPierce`, `ammoEffect`, `ammoEffectChance`
+- Active effects stored on CombatMatch as `player1ActiveEffects`/`player2ActiveEffects` (Mixed array, `ActiveEffect[]`)
+- Applied at **start** of each turn via `applyActiveEffects()` before any action/attack runs
+- EFFECT_CONFIG defines `{ turns, value }` for each effect name
 
-**Why:** `tryMatch` is an opportunistic search helper; it must not be called after the entries it would find have already been removed.
+### Critical: DoT early-exit gate
+- After `applyActiveEffects`, ALWAYS check if HP <= 0 before running attacks — DoT can kill before the player's action
+- Early-exit block writes the turn record and completes the match without executing attacks
 
-## Atomic turn guard
-Action handler uses `findOne({ matchId, status: "active", currentTurn: expectedTurn })`. Client sends `expectedTurn` with every action request. If the turn has already advanced (concurrent submission), the findOne returns null and we return 409. Client on 409 silently re-fetches match state.
+### Critical: same-turn AI stun
+- AI stun check = `efxResult.p2Stunned || aiJustStunned`
+- `aiJustStunned` = player's attack applied shock/stun in the same resolution cycle (check p2Effects after addEffect)
 
-## PvP turn ownership
-For non-AI matches: odd `currentTurn` values = P1's turn, even = P2's turn. Enforced server-side before processing the action.
+### Critical: timeout worker race condition
+- `autoResolveTurn(matchId, expectedTurn)` uses `currentTurn: expectedTurn` in the findOneAndUpdate filter
+- If a player action resolved the turn first (incrementing currentTurn), the findOneAndUpdate won't match → safe no-op
+- Worker queries `matchId currentTurn` from the find, passes currentTurn to autoResolveTurn
 
-## Daily reward cap
-30 full-reward matches, 50 half-reward (0.5×), beyond 50 tiny (0.05×). Tracked via `user.miniGameMatchesToday` + `user.miniGameResetAt` (resets to midnight UTC). Key shards only granted on full-reward matches (mult >= 1).
+### Reward caps
+- FULL_CAP = 30 (matches 0–29: full DC + full XP + Key Shard for winner)
+- HALF_CAP = 50 (matches 30–49: 50% DC + 50% XP, no Key Shard)
+- After 50: DC = 0, XP = 5% only
+- `dcMult` and `xpMult` are separate variables (not a single `mult`)
 
-## Win streak bonus
-Capped at +300 DC bonus (streak × 50, max 6 streak positions). Stored on User as `combatWinStreak`. Must be included in `User` interface in `lib/types.ts`.
+**Why:** Spec says "tiny XP only after 50" — DC must be zero, not 5%.
+**How to apply:** Any future change to reward caps must maintain the separation of dcMult and xpMult.

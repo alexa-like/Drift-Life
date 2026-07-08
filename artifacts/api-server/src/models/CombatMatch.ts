@@ -31,6 +31,20 @@ interface LoadoutSnapshot {
   damage:      number;
   defense:     number;
   accuracy:    number;
+  // Element effects (optional — absent on matches created before this feature)
+  weaponEffect?:       string | null;
+  weaponEffectChance?: number;
+  armorEffect?:        string | null;
+  armorEffectChance?:  number;
+  ammoArmorPierce?:    number;
+  ammoEffect?:         string | null;
+  ammoEffectChance?:   number;
+}
+
+export interface ActiveEffect {
+  effect:   string;  // "burn" | "bleed" | "toxic" | "shock" | "stun" | "regen" | "regen_field"
+  turnsLeft: number;
+  value:    number;  // dmg per turn (DoT) or hp per turn (regen); 0 for stun
 }
 
 export interface ICombatMatch extends Document {
@@ -53,6 +67,9 @@ export interface ICombatMatch extends Document {
   // Track which consumable itemIds have been used during match
   player1ConsumablesUsed: string[];
   player2ConsumablesUsed: string[];
+  // Active status effects (DoT, stun, regen, etc.)
+  player1ActiveEffects: ActiveEffect[];
+  player2ActiveEffects: ActiveEffect[];
 }
 
 const LoadoutSnapshotSchema = new Schema<LoadoutSnapshot>(
@@ -66,6 +83,14 @@ const LoadoutSnapshotSchema = new Schema<LoadoutSnapshot>(
     damage:      { type: Number, default: 15 },
     defense:     { type: Number, default: 0 },
     accuracy:    { type: Number, default: 100 },
+    // Element effects — snapshotted at match start for efficient combat calculation
+    weaponEffect:       { type: String, default: null },
+    weaponEffectChance: { type: Number, default: 0 },
+    armorEffect:        { type: String, default: null },
+    armorEffectChance:  { type: Number, default: 0 },
+    ammoArmorPierce:    { type: Number, default: 0 },
+    ammoEffect:         { type: String, default: null },
+    ammoEffectChance:   { type: Number, default: 0 },
   },
   { _id: false },
 );
@@ -105,6 +130,8 @@ const CombatMatchSchema = new Schema<ICombatMatch>(
     rewardsGranted:       { type: Boolean, default: false },
     player1ConsumablesUsed: { type: [String], default: [] },
     player2ConsumablesUsed: { type: [String], default: [] },
+    player1ActiveEffects:   { type: Schema.Types.Mixed, default: [] },
+    player2ActiveEffects:   { type: Schema.Types.Mixed, default: [] },
   },
   { timestamps: true },
 );

@@ -23,12 +23,15 @@ interface TurnRecord {
   player1Effect: string | null; player2Effect: string | null;
   narrative: string;
 }
+interface ActiveEffect { effect: string; turnsLeft: number; value: number; }
+
 interface Match {
   matchId: string; status: string;
   player1Id: string; player2Id: string | null; isPlayer2AI: boolean; aiName: string | null;
   player1Loadout: LoadoutSnap; player2Loadout: LoadoutSnap;
   player1HP: number; player2HP: number;
   player1ConsumablesUsed: string[]; player2ConsumablesUsed: string[];
+  player1ActiveEffects: ActiveEffect[]; player2ActiveEffects: ActiveEffect[];
   currentTurn: number; currentTurnDeadline: string;
   turns: TurnRecord[]; winnerId: string | null; rewardsGranted: boolean;
 }
@@ -52,7 +55,39 @@ const COMBAT_CSS = `
 @keyframes foundSlide { 0%{opacity:0;transform:translateY(-24px)} 100%{opacity:1;transform:translateY(0)} }
 @keyframes barGlow { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 10px currentColor} }
 @keyframes streakPop { 0%{transform:scale(0.5)} 60%{transform:scale(1.15)} 100%{transform:scale(1)} }
+@keyframes effectPulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
 `;
+
+const EFFECT_ICONS: Record<string, { icon: string; color: string }> = {
+  burn:       { icon: "🔥", color: "#f97316" },
+  bleed:      { icon: "🩸", color: "#dc2626" },
+  toxic:      { icon: "☠", color: "#84cc16" },
+  shock:      { icon: "⚡", color: "#a855f7" },
+  stun:       { icon: "💫", color: "#a855f7" },
+  regen:      { icon: "💚", color: "#22c55e" },
+  regen_field:{ icon: "💚", color: "#22c55e" },
+};
+
+function ActiveEffectBadges({ effects }: { effects: ActiveEffect[] }) {
+  if (!effects || effects.length === 0) return null;
+  return (
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "center", marginTop: 4 }}>
+      {effects.map((eff, i) => {
+        const cfg = EFFECT_ICONS[eff.effect] ?? { icon: "✨", color: "#94a3b8" };
+        return (
+          <span key={i} style={{
+            fontFamily: "monospace", fontSize: 9, color: cfg.color,
+            background: `${cfg.color}18`, border: `1px solid ${cfg.color}40`,
+            borderRadius: 4, padding: "1px 5px",
+            animation: "effectPulse 1.5s ease-in-out infinite",
+          }}>
+            {cfg.icon} {eff.effect} {eff.turnsLeft}T
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 function HPBar({ current, max, color }: { current: number; max: number; color: string }) {
   const pct = Math.max(0, Math.min(100, (current / max) * 100));
@@ -580,6 +615,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
             />
             <div style={{ marginTop: 10 }}>
               <HPBar current={myHP} max={myMax} color="#00d4ff" />
+              <ActiveEffectBadges effects={isP1 ? (match.player1ActiveEffects ?? []) : (match.player2ActiveEffects ?? [])} />
               <div style={{ display: "flex", gap: 12, marginTop: 6, justifyContent: "center" }}>
                 <span style={{ fontFamily: "monospace", fontSize: 9, color: "#475569" }}>
                   ⚔ {isP1 ? match.player1Loadout.damage : match.player2Loadout.damage}
@@ -612,6 +648,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
             />
             <div style={{ marginTop: 10 }}>
               <HPBar current={oppHP} max={oppMax} color="#ff6b35" />
+              <ActiveEffectBadges effects={isP1 ? (match.player2ActiveEffects ?? []) : (match.player1ActiveEffects ?? [])} />
               <div style={{ display: "flex", gap: 12, marginTop: 6, justifyContent: "center" }}>
                 <span style={{ fontFamily: "monospace", fontSize: 9, color: "#475569" }}>
                   ⚔ {isP1 ? match.player2Loadout.damage : match.player1Loadout.damage}
@@ -674,12 +711,16 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
             <div style={{ fontFamily: "monospace", fontSize: 10, color: "#374151" }}>Match started — choose your action.</div>
           ) : (
             match.turns.slice(-30).map((turn, i) => {
-              const isCrit = turn.player1Effect === "crit" || turn.player2Effect === "crit";
-              const isHeal = turn.player1Effect === "heal" || turn.player2Effect === "heal";
+              const isCrit  = turn.player1Effect === "crit"  || turn.player2Effect === "crit";
+              const isHeal  = turn.player1Effect === "heal"  || turn.player2Effect === "heal";
+              const isStun  = turn.narrative.includes("stunned") || turn.narrative.includes("STUN") || turn.narrative.includes("SHOCK");
+              const isBurn  = turn.narrative.includes("burn") || turn.narrative.includes("BURN");
+              const isAuto  = turn.narrative.includes("[AUTO]");
+              const color = isCrit ? "#fbbf24" : isHeal ? "#22c55e" : isStun ? "#a855f7" : isBurn ? "#f97316" : isAuto ? "#374151" : "#475569";
               return (
                 <div key={i} style={{
                   fontFamily: "monospace", fontSize: 10,
-                  color: isCrit ? "#fbbf24" : isHeal ? "#22c55e" : "#475569",
+                  color,
                   marginBottom: 4, padding: "2px 0",
                   borderBottom: "1px solid #1e293b20",
                 }}>
