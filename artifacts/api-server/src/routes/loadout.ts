@@ -133,4 +133,70 @@ router.get("/inventory", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ── POST /api/loadout/sell — sell one MiniGameItem for DC ─────────────────────
+router.post("/sell", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { itemId } = req.body as { itemId?: string };
+    if (!itemId) {
+      res.status(400).json({ message: "itemId is required" });
+      return;
+    }
+
+    const inv = await PlayerMiniGameInventory.findOne({ userId: req.userId });
+    if (!inv) {
+      res.status(400).json({ message: "You have no combat items to sell" });
+      return;
+    }
+
+    // Find the item across all stacks
+    const categories = ["weapons", "armor", "consumables", "ammo"] as const;
+    let foundCategory: (typeof categories)[number] | null = null;
+    for (const cat of categories) {
+      if ((inv as any)[cat].some((e: { itemId: string; quantity: number }) => e.itemId === itemId && e.quantity > 0)) {
+        foundCategory = cat;
+        break;
+      }
+    }
+    if (!foundCategory) {
+      res.status(400).json({ message: "You don't own that item" });
+      return;
+    }
+
+    // Resolve DC value from tier
+    const itemDef = await MiniGameItem.findOne({ itemId }).lean();
+    if (!itemDef) {
+      res.status(400).json({ message: "Item definition not found" });
+      return;
+    }
+
+    const SELL_DC: Record<string, number> = {
+      common: 50, uncommon: 150, rare: 500, epic: 1500, legendary: 5000,
+    };
+    const dcGained = SELL_DC[itemDef.tier] ?? 50;
+
+    // Remove one from inventory
+    const arr = (inv as any)[foundCategory] as Array<{ itemId: string; quantity: number }>;
+    const idx = arr.findIndex(e => e.itemId === itemId);
+    if (idx === -1) {
+      res.status(400).json({ message: "Item not found in inventory" });
+      return;
+    }
+    if (arr[idx].quantity <= 1) {
+      arr.splice(idx, 1);
+    } else {
+      arr[idx].quantity -= 1;
+    }
+    await inv.save();
+
+    // Grant DC to player
+    const User = (await import("../models/User")).default;
+    await User.findByIdAndUpdate(req.userId, { $inc: { dc: dcGained } });
+
+    res.json({ message: `Sold ${itemDef.name} for ${dcGained} DC`, dcGained });
+  } catch (err) {
+    req.log.error({ err }, "loadout sell error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

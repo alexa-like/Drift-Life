@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
 import { User, PlayerGarage, OwnedCar, OwnedCarPartStack, CarPartDef, CarStats, CarPartType } from "../lib/types";
+import { CardArt } from "../components/CardArt";
 
 interface Props {
   user: User;
@@ -243,18 +244,27 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
                     key={car.carId}
                     onClick={() => setSelectedCar(car.carId)}
                     style={{
-                      textAlign: "left", padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                      textAlign: "left", padding: 0, borderRadius: 10, cursor: "pointer",
                       background: isSelected ? `${color}18` : "#0a0a14",
                       border: `1px solid ${isSelected ? color : "#1e293b"}`,
+                      overflow: "hidden",
+                      boxShadow: isSelected ? `0 0 10px ${color}25` : "none",
+                      transition: "all 0.15s",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: "bold", color: isSelected ? color : "#e2e8f0" }}>
-                        {def?.name ?? car.carId}
-                      </span>
-                      {isActive && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#22c55e" }}>● ACTIVE</span>}
+                    {/* Car art */}
+                    <div style={{ background: `${color}08`, display: "flex", justifyContent: "center", borderBottom: `1px solid ${color}20` }}>
+                      <CardArt itemType="car" tier={def?.tier ?? "common"} size={100} />
                     </div>
-                    <div style={{ fontFamily: "monospace", fontSize: 10, color }}>{def?.tier.toUpperCase() ?? ""}</div>
+                    <div style={{ padding: "8px 12px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: "bold", color: isSelected ? color : "#e2e8f0" }}>
+                          {def?.name ?? car.carId}
+                        </span>
+                        {isActive && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#22c55e" }}>● ACTIVE</span>}
+                      </div>
+                      <div style={{ fontFamily: "monospace", fontSize: 10, color }}>{def?.tier.toUpperCase() ?? ""}</div>
+                    </div>
                   </button>
                 );
               })}

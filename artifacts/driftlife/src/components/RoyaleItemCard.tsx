@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CardArt } from "./CardArt";
 
 export interface RoyaleWonItem {
   name: string;
@@ -109,50 +110,61 @@ export function RoyaleItemCard({ item, index, revealed }: Props) {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            padding: "8px 6px",
+            overflow: "hidden",
             animation: isLegendary ? "legendaryPulse 2s infinite" : undefined,
           }}
         >
-          <div style={{ fontSize: 28 }}>{icon}</div>
-          <div
-            style={{
-              fontFamily: "monospace",
-              fontSize: 11,
-              fontWeight: "bold",
-              color: styles.label,
-              textAlign: "center",
-              lineHeight: 1.2,
-            }}
-          >
-            {item.name}
-          </div>
-          <div
-            style={{
-              fontSize: 9,
-              fontFamily: "monospace",
-              color: "#475569",
-              textAlign: "center",
-              lineHeight: 1.3,
-            }}
-          >
-            {rewardSummary(item.reward)}
-          </div>
-          <div
-            style={{
-              fontSize: 8,
-              fontFamily: "monospace",
-              color: styles.border,
-              textTransform: "uppercase",
-              letterSpacing: 1,
-              background: `${styles.border}18`,
-              border: `1px solid ${styles.border}40`,
-              borderRadius: 4,
-              padding: "2px 6px",
-            }}
-          >
-            {item.tier}
+          {/* Card art — use imageCard if present, else programmatic art */}
+          {item.imageCard ? (
+            <img
+              src={item.imageCard}
+              alt={item.name}
+              style={{ width: "100%", height: 90, objectFit: "cover" }}
+              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <CardArt itemType={item.itemType} tier={item.tier} size={130} style={{ width: "100%", height: 90, objectFit: "cover" }} />
+          )}
+          {/* Info */}
+          <div style={{ padding: "4px 6px", display: "flex", flexDirection: "column", gap: 3, alignItems: "center", flex: 1, justifyContent: "center" }}>
+            <div
+              style={{
+                fontFamily: "monospace",
+                fontSize: 10,
+                fontWeight: "bold",
+                color: styles.label,
+                textAlign: "center",
+                lineHeight: 1.2,
+              }}
+            >
+              {item.name}
+            </div>
+            <div
+              style={{
+                fontSize: 8,
+                fontFamily: "monospace",
+                color: "#475569",
+                textAlign: "center",
+                lineHeight: 1.3,
+              }}
+            >
+              {rewardSummary(item.reward)}
+            </div>
+            <div
+              style={{
+                fontSize: 8,
+                fontFamily: "monospace",
+                color: styles.border,
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                background: `${styles.border}18`,
+                border: `1px solid ${styles.border}40`,
+                borderRadius: 4,
+                padding: "2px 6px",
+              }}
+            >
+              {item.tier}
+            </div>
           </div>
         </div>
       </div>
