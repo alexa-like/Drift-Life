@@ -50,9 +50,9 @@ export interface ICombatMatch extends Document {
   currentTurnDeadline:  Date | null;
   energyCost:           number;
   rewardsGranted:       boolean;
-  // Track consumable uses during match
-  player1ConsumablesUsed: number;
-  player2ConsumablesUsed: number;
+  // Track which consumable itemIds have been used during match
+  player1ConsumablesUsed: string[];
+  player2ConsumablesUsed: string[];
 }
 
 const LoadoutSnapshotSchema = new Schema<LoadoutSnapshot>(
@@ -103,8 +103,8 @@ const CombatMatchSchema = new Schema<ICombatMatch>(
     currentTurnDeadline:  { type: Date, default: null },
     energyCost:           { type: Number, default: 10 },
     rewardsGranted:       { type: Boolean, default: false },
-    player1ConsumablesUsed: { type: Number, default: 0 },
-    player2ConsumablesUsed: { type: Number, default: 0 },
+    player1ConsumablesUsed: { type: [String], default: [] },
+    player2ConsumablesUsed: { type: [String], default: [] },
   },
   { timestamps: true },
 );

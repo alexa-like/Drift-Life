@@ -44,6 +44,8 @@ import energyRouter from "./energy";
 import migrationAdminRouter from "./migration-admin";
 // ── Royale (Tier 2) ───────────────────────────────────────────────────────────
 import royaleRouter from "./royale";
+// ── Arena / Combat System (Tier 4) ───────────────────────────────────────────
+import arenaRouter from "./arena";
 
 const router: IRouter = Router();
 
@@ -89,6 +91,8 @@ router.use("/telegram", telegramRouter);
 router.use("/energy", energyRouter);
 // ── Royale (Tier 2) ───────────────────────────────────────────────────────────
 router.use("/royale", royaleRouter);
+// ── Arena / Combat System (Tier 4) ───────────────────────────────────────────
+router.use("/arena", arenaRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

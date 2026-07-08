@@ -9,59 +9,189 @@ interface Props {
   onNavigate: (page: string) => void;
 }
 
-type Phase = "idle" | "queuing" | "matched" | "complete";
+type Phase = "idle" | "queuing" | "found" | "matched" | "complete";
 type CombatAction = "attack" | "defend" | "use_item" | "reload" | "special";
 
-interface LoadoutSnap { hp: number; damage: number; defense: number; accuracy: number; weapon: string | null; armor: string | null; }
-interface TurnRecord { turnNumber: number; player1Action: string; player2Action: string; player1HpAfter: number; player2HpAfter: number; narrative: string; }
+interface LoadoutSnap {
+  hp: number; damage: number; defense: number; accuracy: number;
+  weapon: string | null; armor: string | null;
+  consumable1: string | null; consumable2: string | null; ammoType: string | null;
+}
+interface TurnRecord {
+  turnNumber: number; player1Action: string; player2Action: string;
+  player1HpAfter: number; player2HpAfter: number;
+  player1Effect: string | null; player2Effect: string | null;
+  narrative: string;
+}
 interface Match {
   matchId: string; status: string;
   player1Id: string; player2Id: string | null; isPlayer2AI: boolean; aiName: string | null;
   player1Loadout: LoadoutSnap; player2Loadout: LoadoutSnap;
   player1HP: number; player2HP: number;
+  player1ConsumablesUsed: string[]; player2ConsumablesUsed: string[];
   currentTurn: number; currentTurnDeadline: string;
   turns: TurnRecord[]; winnerId: string | null; rewardsGranted: boolean;
 }
 
-const ACTION_CONFIG: Record<CombatAction, { label: string; icon: string; color: string }> = {
-  attack:   { label: "Attack",   icon: "⚔",  color: "#ef4444" },
-  defend:   { label: "Defend",   icon: "🛡",  color: "#3b82f6" },
-  use_item: { label: "Use Item", icon: "💊",  color: "#22c55e" },
-  reload:   { label: "Reload",   icon: "🔄",  color: "#f59e0b" },
-  special:  { label: "Special",  icon: "⚡",  color: "#a855f7" },
-};
+// ── Floating damage number ────────────────────────────────────────────────────
+interface FloatDmg { id: number; value: number; isCrit: boolean; isHeal: boolean; side: "left" | "right" }
+let _floatId = 0;
+
+// ── Idle animation: gentle float ──────────────────────────────────────────────
+const COMBAT_CSS = `
+@keyframes arenaIdle { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+@keyframes arenaShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+@keyframes arenaCritShake { 0%,100%{transform:translate(0)} 10%{transform:translate(-12px,4px)} 20%{transform:translate(12px,-4px)} 30%{transform:translate(-10px)} 40%{transform:translate(10px)} 50%{transform:translate(-6px)} }
+@keyframes arenaAttackFwd { 0%{transform:translateX(0)} 40%{transform:translateX(32px)} 100%{transform:translateX(0)} }
+@keyframes arenaAttackBwd { 0%{transform:translateX(0)} 40%{transform:translateX(-32px)} 100%{transform:translateX(0)} }
+@keyframes floatUp { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-60px)} }
+@keyframes hitFlash { 0%,100%{filter:none} 30%,70%{filter:brightness(3) saturate(0)} }
+@keyframes critFlash { 0%,100%{filter:none} 25%,75%{filter:brightness(4) hue-rotate(0deg)} 50%{filter:brightness(5) hue-rotate(60deg)} }
+@keyframes healFlash { 0%,100%{filter:none} 50%{filter:brightness(2) hue-rotate(100deg)} }
+@keyframes queuePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.97)} }
+@keyframes foundSlide { 0%{opacity:0;transform:translateY(-24px)} 100%{opacity:1;transform:translateY(0)} }
+@keyframes barGlow { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 10px currentColor} }
+@keyframes streakPop { 0%{transform:scale(0.5)} 60%{transform:scale(1.15)} 100%{transform:scale(1)} }
+`;
 
 function HPBar({ current, max, color }: { current: number; max: number; color: string }) {
   const pct = Math.max(0, Math.min(100, (current / max) * 100));
   const barColor = pct > 50 ? color : pct > 25 ? "#f59e0b" : "#ef4444";
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontFamily: "monospace", fontSize: 11, color: "#94a3b8" }}>HP</span>
-        <span style={{ fontFamily: "monospace", fontSize: 11, color: barColor, fontWeight: "bold" }}>{current} / {max}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+        <span style={{ fontFamily: "monospace", fontSize: 10, color: "#64748b" }}>HP</span>
+        <span style={{ fontFamily: "monospace", fontSize: 11, color: barColor, fontWeight: "bold" }}>
+          {current} <span style={{ color: "#475569" }}>/ {max}</span>
+        </span>
       </div>
-      <div style={{ background: "#1e293b", borderRadius: 4, height: 8, overflow: "hidden" }}>
-        <div style={{ background: barColor, height: "100%", borderRadius: 4, width: `${pct}%`, transition: "width 0.5s ease-out", boxShadow: `0 0 6px ${barColor}60` }} />
+      <div style={{ background: "#0f172a", borderRadius: 4, height: 8, overflow: "hidden", border: "1px solid #1e293b" }}>
+        <div style={{
+          background: `linear-gradient(90deg, ${barColor}cc, ${barColor})`,
+          height: "100%", borderRadius: 4,
+          width: `${pct}%`,
+          transition: "width 0.6s cubic-bezier(0.4,0,0.2,1)",
+          boxShadow: `0 0 8px ${barColor}60`,
+        }} />
       </div>
     </div>
   );
 }
 
+// ── Character art: big tier-colored silhouette with weapon glyph ──────────────
+function CharacterBadge({ name, color, isLeft, animState }: {
+  name: string; color: string; isLeft: boolean;
+  animState: "idle" | "attack" | "hit" | "crit" | "dead";
+}) {
+  const anim = animState === "attack"
+    ? (isLeft ? "arenaAttackFwd 0.4s ease" : "arenaAttackBwd 0.4s ease")
+    : animState === "crit"
+    ? "arenaCritShake 0.5s ease"
+    : animState === "hit"
+    ? "arenaShake 0.35s ease"
+    : "arenaIdle 2.4s ease-in-out infinite";
+
+  const flashFilter = animState === "hit" ? { animation: "hitFlash 0.35s ease" }
+    : animState === "crit" ? { animation: "critFlash 0.5s ease" }
+    : {};
+
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+      animation: anim, ...flashFilter,
+    }}>
+      <div style={{
+        width: 72, height: 72, borderRadius: "50%",
+        border: `3px solid ${color}`,
+        background: `radial-gradient(circle at 35% 35%, ${color}25, ${color}08)`,
+        boxShadow: `0 0 20px ${color}30, inset 0 0 12px ${color}10`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 32,
+        opacity: animState === "dead" ? 0.35 : 1,
+        filter: animState === "dead" ? "grayscale(1)" : "none",
+        transition: "opacity 0.5s, filter 0.5s",
+      }}>
+        {animState === "dead" ? "💀" : "🥷"}
+      </div>
+      <span style={{
+        fontFamily: "monospace", fontSize: 10, color, fontWeight: "bold",
+        letterSpacing: 1, maxWidth: 90, textAlign: "center",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>{name}</span>
+    </div>
+  );
+}
+
 export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNavigate }: Props) {
-  const [phase, setPhase]   = useState<Phase>("idle");
-  const [match, setMatch]   = useState<Match | null>(null);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [match, setMatch] = useState<Match | null>(null);
   const [acting, setActing] = useState(false);
   const [turnTimer, setTurnTimer] = useState(15);
-  const [lastAction, setLastAction] = useState("");
+  const [lastAction, setLastAction] = useState<CombatAction | "">("");
+  const [floatDmgs, setFloatDmgs] = useState<FloatDmg[]>([]);
+  const [p1Anim, setP1Anim] = useState<"idle" | "attack" | "hit" | "crit" | "dead">("idle");
+  const [p2Anim, setP2Anim] = useState<"idle" | "attack" | "hit" | "crit" | "dead">("idle");
+  const [screenShake, setScreenShake] = useState(false);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   const isP1 = match?.player1Id === user.id;
 
-  const fetchMatch = useCallback(async (matchId: string) => {
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function spawnFloat(value: number, isCrit: boolean, isHeal: boolean, side: "left" | "right") {
+    const id = ++_floatId;
+    setFloatDmgs(prev => [...prev, { id, value, isCrit, isHeal, side }]);
+    setTimeout(() => setFloatDmgs(prev => prev.filter(f => f.id !== id)), 1200);
+  }
+
+  function triggerAnimFromTurn(newMatch: Match, oldMatch: Match | null) {
+    if (!oldMatch) return;
+    const lastTurn = newMatch.turns[newMatch.turns.length - 1];
+    if (!lastTurn) return;
+
+    const p1Effect = lastTurn.player1Effect;
+    const p2Effect = lastTurn.player2Effect;
+
+    // Determine who attacked whom
+    const p1DmgTaken = oldMatch.player1HP - newMatch.player1HP;
+    const p2DmgTaken = oldMatch.player2HP - newMatch.player2HP;
+
+    if (p2DmgTaken > 0) {
+      // P1 attacked P2
+      setP1Anim("attack"); setTimeout(() => setP1Anim("idle"), 450);
+      setP2Anim(p2Effect === "crit" ? "crit" : "hit"); setTimeout(() => setP2Anim(newMatch.player2HP <= 0 ? "dead" : "idle"), 500);
+      const side = isP1 ? "right" : "left";
+      spawnFloat(p2DmgTaken, p2Effect === "crit", false, side);
+      if (p2DmgTaken > 40 || p2Effect === "crit") { setScreenShake(true); setTimeout(() => setScreenShake(false), 500); }
+    }
+    if (p1DmgTaken > 0) {
+      // P2 attacked P1
+      setP2Anim("attack"); setTimeout(() => setP2Anim(newMatch.player2HP <= 0 ? "dead" : "idle"), 450);
+      setP1Anim(p1Effect === "crit" ? "crit" : "hit"); setTimeout(() => setP1Anim(newMatch.player1HP <= 0 ? "dead" : "idle"), 500);
+      const side = isP1 ? "left" : "right";
+      spawnFloat(p1DmgTaken, p1Effect === "crit", false, side);
+      if (p1DmgTaken > 40 || p1Effect === "crit") { setScreenShake(true); setTimeout(() => setScreenShake(false), 500); }
+    }
+    // Heals
+    if (lastTurn.player1Effect === "heal") {
+      const oldHP = oldMatch.player1HP;
+      const newHP = newMatch.player1HP;
+      if (newHP > oldHP) spawnFloat(newHP - oldHP, false, true, isP1 ? "left" : "right");
+    }
+    if (lastTurn.player2Effect === "heal") {
+      const oldHP = oldMatch.player2HP;
+      const newHP = newMatch.player2HP;
+      if (newHP > oldHP) spawnFloat(newHP - oldHP, false, true, isP1 ? "right" : "left");
+    }
+  }
+
+  const fetchMatch = useCallback(async (matchId: string, prevMatch?: Match | null) => {
     try {
       const data = await api.get<{ match: Match }>(`/arena/match/${matchId}`);
+      triggerAnimFromTurn(data.match, prevMatch ?? null);
       setMatch(data.match);
       if (data.match.status === "complete") {
         setPhase("complete");
@@ -71,17 +201,20 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
       }
       return data.match;
     } catch { return null; }
-  }, [onUserUpdate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onUserUpdate, isP1]);
 
-  // Poll every 2s when in active match
+  // Poll active match every 2s
   useEffect(() => {
     if (phase === "matched" && match?.matchId) {
-      pollRef.current = setInterval(() => fetchMatch(match.matchId), 2_000);
+      pollRef.current = setInterval(() => {
+        setMatch(prev => { fetchMatch(match.matchId, prev); return prev; });
+      }, 2_000);
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [phase, match?.matchId, fetchMatch]);
+  }, [phase, match?.matchId]); // eslint-disable-line
 
-  // Turn timer
+  // Turn timer countdown
   useEffect(() => {
     if (phase !== "matched" || match?.status !== "active") return;
     const deadline = match.currentTurnDeadline ? new Date(match.currentTurnDeadline).getTime() : Date.now() + 15_000;
@@ -92,30 +225,37 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [phase, match?.currentTurn, match?.currentTurnDeadline, match?.status]);
 
-  // Scroll turn log to bottom
+  // Scroll log to bottom
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [match?.turns.length]);
 
+  // Cleanup on unmount
+  useEffect(() => () => {
+    clearInterval(pollRef.current!);
+    clearInterval(timerRef.current!);
+    clearInterval(queuePollRef.current!);
+  }, []);
+
+  // ── Queue join ─────────────────────────────────────────────────────────────
   async function joinQueue() {
     setPhase("queuing");
     try {
       const data = await api.post<{ status: string; matchId?: string }>("/arena/queue/join");
       if (data.matchId) {
         const m = await fetchMatch(data.matchId);
-        if (m) { setPhase("matched"); }
+        if (m) { setPhase("found"); setTimeout(() => setPhase("matched"), 2_000); }
       } else {
-        // Poll queue status
-        const poll = setInterval(async () => {
+        queuePollRef.current = setInterval(async () => {
           try {
             const status = await api.get<{ inQueue: boolean; activeMatch: { matchId: string } | null }>("/arena/queue/status");
             if (status.activeMatch) {
-              clearInterval(poll);
+              clearInterval(queuePollRef.current!);
               const m = await fetchMatch(status.activeMatch.matchId);
-              if (m) setPhase("matched");
+              if (m) { setPhase("found"); setTimeout(() => setPhase("matched"), 2_000); }
             }
             if (!status.inQueue && !status.activeMatch) {
-              clearInterval(poll);
+              clearInterval(queuePollRef.current!);
               setPhase("idle");
             }
           } catch {}
@@ -128,6 +268,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
   }
 
   async function leaveQueue() {
+    clearInterval(queuePollRef.current!);
     try { await api.post("/arena/queue/leave"); } catch {}
     setPhase("idle");
   }
@@ -136,8 +277,19 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
     if (!match || acting) return;
     setActing(true);
     setLastAction(action);
+    const prevMatch = match;
+    const sentTurn = match.currentTurn; // optimistic guard: reject stale responses
     try {
-      const data = await api.post<{ match: Match }>(`/arena/match/${match.matchId}/action`, { action });
+      const data = await api.post<{ match: Match }>(`/arena/match/${match.matchId}/action`, {
+        action,
+        expectedTurn: sentTurn, // server rejects if turn has already advanced
+      });
+      if (data.match.currentTurn <= sentTurn && data.match.status === "active") {
+        // Server returned same turn — ignore (shouldn't happen, but guard against it)
+        setActing(false);
+        return;
+      }
+      triggerAnimFromTurn(data.match, prevMatch);
       setMatch(data.match);
       if (data.match.status === "complete") {
         setPhase("complete");
@@ -146,163 +298,396 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
         onUserUpdate();
       }
     } catch (err: any) {
-      addToast(err.message ?? "Action failed", "error");
+      if ((err as any)?.status === 409) {
+        // Turn already resolved by another submission — refresh state silently
+        if (prevMatch) fetchMatch(prevMatch.matchId, prevMatch);
+      } else {
+        addToast(err.message ?? "Action failed", "error");
+      }
     } finally {
       setActing(false);
     }
   }
 
-  // ── Render phases ──────────────────────────────────────────────────────────
+  // ── Consumable availability ────────────────────────────────────────────────
+  function hasConsumable(): boolean {
+    if (!match) return false;
+    const myLoadout = isP1 ? match.player1Loadout : match.player2Loadout;
+    const used = isP1 ? (match.player1ConsumablesUsed ?? []) : (match.player2ConsumablesUsed ?? []);
+    return !!(
+      (myLoadout.consumable1 && !used.includes(myLoadout.consumable1)) ||
+      (myLoadout.consumable2 && !used.includes(myLoadout.consumable2))
+    );
+  }
+
+  const ACTION_DEFS: Array<{ action: CombatAction; label: string; icon: string; color: string; desc: string; disabled?: boolean }> = [
+    { action: "attack",   label: "Attack",   icon: "⚔",  color: "#ef4444", desc: "Standard attack" },
+    { action: "defend",   label: "Defend",   icon: "🛡",  color: "#3b82f6", desc: "-50% next hit" },
+    { action: "use_item", label: "Use Item", icon: "💊",  color: "#22c55e", desc: "Heal HP", disabled: !hasConsumable() },
+    { action: "reload",   label: "Reload",   icon: "🔄",  color: "#f59e0b", desc: "60% dmg + setup" },
+    { action: "special",  label: "Special",  icon: "⚡",  color: "#a855f7", desc: "150% dmg" },
+  ];
+
+  // ── Render: Idle ───────────────────────────────────────────────────────────
   if (phase === "idle") {
     return (
-      <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center", paddingTop: 40 }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>⚔️</div>
-        <h1 style={{ fontFamily: "monospace", fontSize: 22, color: "#ff6b35", fontWeight: "bold", letterSpacing: 2, marginBottom: 8 }}>COMBAT ARENA</h1>
-        <p style={{ fontFamily: "monospace", fontSize: 12, color: "#475569", marginBottom: 24 }}>1v1 turn-based combat. Skill, loadout, and luck.</p>
-        <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 10, padding: 16, marginBottom: 24, display: "flex", gap: 16, justifyContent: "center" }}>
-          {[{ label: "Energy Cost", value: "10 ⚡" }, { label: "Win Reward", value: "+150 DC" }, { label: "Turn Timer", value: "15s" }].map(s => (
-            <div key={s.label} style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: "bold", color: "#e2e8f0" }}>{s.value}</div>
-              <div style={{ fontFamily: "monospace", fontSize: 9, color: "#475569" }}>{s.label}</div>
+      <div style={{ maxWidth: 500, margin: "0 auto", paddingTop: 32 }}>
+        <style>{COMBAT_CSS}</style>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 52, marginBottom: 8 }}>⚔️</div>
+          <h1 style={{ fontFamily: "monospace", fontSize: 24, color: "#ff6b35", fontWeight: "bold", letterSpacing: 3, margin: 0 }}>COMBAT ARENA</h1>
+          <p style={{ fontFamily: "monospace", fontSize: 11, color: "#475569", marginTop: 6 }}>1v1 turn-based. Skill, loadout, and nerve.</p>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 20 }}>
+          {[
+            { label: "Energy Cost", value: "10 ⚡" },
+            { label: "Win Reward", value: "+150 DC" },
+            { label: "Turn Timer", value: "15s ⏱" },
+          ].map(s => (
+            <div key={s.label} style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 8, padding: 12, textAlign: "center" }}>
+              <div style={{ fontFamily: "monospace", fontSize: 15, fontWeight: "bold", color: "#e2e8f0" }}>{s.value}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 9, color: "#475569", marginTop: 3 }}>{s.label}</div>
             </div>
           ))}
         </div>
-        {user.energy < 10 ? (
-          <div style={{ fontFamily: "monospace", fontSize: 12, color: "#ef4444", marginBottom: 16 }}>⚡ Not enough energy (need 10)</div>
-        ) : null}
+
+        {/* Action guide */}
+        <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 8, padding: 14, marginBottom: 20 }}>
+          <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", marginBottom: 8 }}>AVAILABLE ACTIONS</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            {[
+              { icon: "⚔", label: "Attack", desc: "Standard damage" },
+              { icon: "🛡", label: "Defend", desc: "Halve next hit taken" },
+              { icon: "💊", label: "Use Item", desc: "Heal with consumable" },
+              { icon: "🔄", label: "Reload", desc: "Setup big next turn" },
+              { icon: "⚡", label: "Special", desc: "150% damage burst" },
+            ].map(a => (
+              <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 14 }}>{a.icon}</span>
+                <div>
+                  <div style={{ fontFamily: "monospace", fontSize: 10, color: "#e2e8f0" }}>{a.label}</div>
+                  <div style={{ fontFamily: "monospace", fontSize: 9, color: "#475569" }}>{a.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Streak */}
+        {user.combatWinStreak > 0 && (
+          <div style={{ textAlign: "center", fontFamily: "monospace", fontSize: 12, color: "#f59e0b", marginBottom: 12 }}>
+            🔥 Win streak: {user.combatWinStreak} (+{Math.min(user.combatWinStreak * 50, 300)} DC bonus)
+          </div>
+        )}
+
+        {/* Energy warning */}
+        {user.energy < 10 && (
+          <div style={{ textAlign: "center", fontFamily: "monospace", fontSize: 11, color: "#ef4444", marginBottom: 12 }}>
+            ⚡ Not enough energy (need 10, have {user.energy})
+          </div>
+        )}
+
+        {/* Buttons */}
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
           <button
             onClick={joinQueue}
             disabled={user.energy < 10}
             style={{
-              padding: "14px 32px", borderRadius: 10, fontFamily: "monospace", fontSize: 14, fontWeight: "bold",
+              padding: "14px 36px", borderRadius: 10,
+              fontFamily: "monospace", fontSize: 14, fontWeight: "bold", letterSpacing: 1,
               cursor: user.energy >= 10 ? "pointer" : "not-allowed",
-              background: user.energy >= 10 ? "linear-gradient(135deg, #ff6b3520, #ff6b3510)" : "#1a1a2e",
+              background: user.energy >= 10 ? "linear-gradient(135deg,#ff6b3525,#ff6b3510)" : "#0d0d1a",
               border: `1px solid ${user.energy >= 10 ? "#ff6b35" : "#1e293b"}`,
-              color: user.energy >= 10 ? "#ff6b35" : "#374151", letterSpacing: 1,
+              color: user.energy >= 10 ? "#ff6b35" : "#374151",
+              transition: "all 0.2s",
             }}
-          >
-            ▶ FIND MATCH
-          </button>
-          <button onClick={() => onNavigate("arena")} style={{ padding: "14px 20px", borderRadius: 10, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: "#0a0a14", border: "1px solid #1e293b", color: "#475569" }}>
-            ← Loadout
-          </button>
+          >▶ FIND MATCH</button>
+          <button
+            onClick={() => onNavigate("arena")}
+            style={{ padding: "14px 20px", borderRadius: 10, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: "#0a0a14", border: "1px solid #1e293b", color: "#475569" }}
+          >← Loadout</button>
         </div>
       </div>
     );
   }
 
+  // ── Render: Queuing ────────────────────────────────────────────────────────
   if (phase === "queuing") {
     return (
-      <div style={{ maxWidth: 400, margin: "0 auto", textAlign: "center", paddingTop: 60 }}>
-        <div style={{ fontFamily: "monospace", fontSize: 16, color: "#ff6b35", marginBottom: 8, animation: "pulse 1.5s infinite" }}>
-          ◈ Searching for opponent...
+      <div style={{ maxWidth: 400, margin: "0 auto", textAlign: "center", paddingTop: 70 }}>
+        <style>{COMBAT_CSS}</style>
+        <div style={{ animation: "queuePulse 1.6s ease-in-out infinite" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
+          <div style={{ fontFamily: "monospace", fontSize: 16, color: "#ff6b35", marginBottom: 6, letterSpacing: 2 }}>SEARCHING…</div>
+          <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", marginBottom: 32 }}>AI opponent fills in after 30 seconds</div>
         </div>
-        <div style={{ fontFamily: "monospace", fontSize: 11, color: "#475569", marginBottom: 32 }}>AI fill after 30 seconds</div>
-        <button onClick={leaveQueue} style={{ padding: "10px 24px", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: "#0a0a14", border: "1px solid #ef4444", color: "#ef4444" }}>
-          Cancel
-        </button>
-        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
+        {[0, 1, 2].map(i => (
+          <span key={i} style={{
+            display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+            background: "#ff6b35", margin: "0 4px",
+            animation: `queuePulse 1.2s ease-in-out ${i * 0.25}s infinite`,
+          }} />
+        ))}
+        <div style={{ marginTop: 32 }}>
+          <button
+            onClick={leaveQueue}
+            style={{ padding: "10px 28px", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: "#0a0a14", border: "1px solid #ef4444", color: "#ef4444" }}
+          >✕ Cancel</button>
+        </div>
       </div>
     );
   }
 
+  // ── Render: Match Found announcement ──────────────────────────────────────
+  if (phase === "found" && match) {
+    const oppName = match.isPlayer2AI ? match.aiName : "Opponent";
+    return (
+      <div style={{ maxWidth: 440, margin: "0 auto", textAlign: "center", paddingTop: 60 }}>
+        <style>{COMBAT_CSS}</style>
+        <div style={{ animation: "foundSlide 0.4s ease" }}>
+          <div style={{ fontFamily: "monospace", fontSize: 11, color: "#22c55e", letterSpacing: 3, marginBottom: 8 }}>MATCH FOUND</div>
+          <div style={{ background: "#0d0d1a", border: "1px solid #22c55e30", borderRadius: 12, padding: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 36, marginBottom: 6 }}>🥷</div>
+                <div style={{ fontFamily: "monospace", fontSize: 12, color: "#00d4ff", fontWeight: "bold" }}>{user.username}</div>
+                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569" }}>You</div>
+              </div>
+              <div style={{ fontFamily: "monospace", fontSize: 20, color: "#ff6b35", fontWeight: "bold" }}>VS</div>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 36, marginBottom: 6 }}>🥷</div>
+                <div style={{ fontFamily: "monospace", fontSize: 12, color: "#ff6b35", fontWeight: "bold" }}>{oppName}</div>
+                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569" }}>{match.isPlayer2AI ? "AI Opponent" : "Player"}</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 16, fontFamily: "monospace", fontSize: 10, color: "#475569" }}>
+              Starting in 2 seconds…
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Render: Complete ───────────────────────────────────────────────────────
   if (phase === "complete" && match) {
     const won = match.winnerId === user.id;
     const draw = !match.winnerId;
+    const streak = user.combatWinStreak;
+    const streakBonus = won ? Math.min((streak) * 50, 300) : 0;
+
     return (
-      <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center", paddingTop: 40 }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>{draw ? "🤝" : won ? "🏆" : "💀"}</div>
-        <h2 style={{ fontFamily: "monospace", fontSize: 24, fontWeight: "bold", marginBottom: 8, color: draw ? "#f59e0b" : won ? "#22c55e" : "#ef4444" }}>
-          {draw ? "DRAW" : won ? "VICTORY!" : "DEFEATED"}
-        </h2>
-        <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 10, padding: 16, marginBottom: 24 }}>
-          <div style={{ fontFamily: "monospace", fontSize: 13, color: "#94a3b8" }}>
-            {draw ? "+80 DC, +100 XP" : won ? "+150 DC, +200 XP, +1 Key Shard" : "+40 DC, +60 XP"}
+      <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center", paddingTop: 32 }}>
+        <style>{COMBAT_CSS}</style>
+        <div style={{ animation: "foundSlide 0.35s ease" }}>
+          <div style={{ fontSize: 56, marginBottom: 12 }}>{draw ? "🤝" : won ? "🏆" : "💀"}</div>
+          <h2 style={{
+            fontFamily: "monospace", fontSize: 26, fontWeight: "bold", marginBottom: 4, letterSpacing: 3,
+            color: draw ? "#f59e0b" : won ? "#22c55e" : "#ef4444",
+          }}>{draw ? "DRAW" : won ? "VICTORY!" : "DEFEATED"}</h2>
+
+          <div style={{ background: "#0d0d1a", border: `1px solid ${draw ? "#f59e0b30" : won ? "#22c55e30" : "#ef444430"}`, borderRadius: 12, padding: 20, marginBottom: 20, marginTop: 16 }}>
+            <div style={{ fontFamily: "monospace", fontSize: 13, color: "#94a3b8", marginBottom: 8 }}>
+              {draw ? "+80 DC, +100 XP" : won ? `+${150 + streakBonus} DC, +200 XP, +1 Key Shard` : "+40 DC, +60 XP"}
+            </div>
+            {won && streak > 0 && (
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#f59e0b", animation: "streakPop 0.5s ease" }}>
+                🔥 Win streak: {streak} · Streak bonus: +{streakBonus} DC
+              </div>
+            )}
           </div>
-          {won && <div style={{ fontFamily: "monospace", fontSize: 11, color: "#22c55e", marginTop: 4 }}>
-            Win streak: {(user as any).combatWinStreak ?? "—"} 🔥
-          </div>}
-        </div>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <button onClick={() => { setMatch(null); setPhase("idle"); }} style={{ padding: "12px 24px", borderRadius: 8, fontFamily: "monospace", fontSize: 13, cursor: "pointer", background: "#ff6b3518", border: "1px solid #ff6b3560", color: "#ff6b35" }}>
-            ↺ Play Again
-          </button>
-          <button onClick={() => onNavigate("arena")} style={{ padding: "12px 20px", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: "#0a0a14", border: "1px solid #1e293b", color: "#475569" }}>
-            ← Loadout
-          </button>
+
+          {/* Turn log recap */}
+          {match.turns.length > 0 && (
+            <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 8, padding: 12, marginBottom: 20, maxHeight: 120, overflowY: "auto", textAlign: "left" }}>
+              {match.turns.slice(-8).map((t, i) => (
+                <div key={i} style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", marginBottom: 3 }}>
+                  <span style={{ color: "#334155" }}>T{t.turnNumber}:</span> {t.narrative}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+            <button
+              onClick={() => { setMatch(null); setPhase("idle"); setP1Anim("idle"); setP2Anim("idle"); }}
+              style={{ padding: "12px 28px", borderRadius: 8, fontFamily: "monospace", fontSize: 13, cursor: "pointer", background: "#ff6b3518", border: "1px solid #ff6b3560", color: "#ff6b35", fontWeight: "bold" }}
+            >↺ Play Again</button>
+            <button
+              onClick={() => onNavigate("arena")}
+              style={{ padding: "12px 20px", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: "#0a0a14", border: "1px solid #1e293b", color: "#475569" }}
+            >← Loadout</button>
+          </div>
         </div>
       </div>
     );
   }
 
+  // ── Render: Active Match ───────────────────────────────────────────────────
   if (phase === "matched" && match) {
-    const myHP     = isP1 ? match.player1HP : match.player2HP;
-    const oppHP    = isP1 ? match.player2HP : match.player1HP;
-    const myMax    = isP1 ? match.player1Loadout.hp : match.player2Loadout.hp;
-    const oppMax   = isP1 ? match.player2Loadout.hp : match.player1Loadout.hp;
-    const oppName  = match.isPlayer2AI ? match.aiName : "Opponent";
+    const myHP    = isP1 ? match.player1HP : match.player2HP;
+    const oppHP   = isP1 ? match.player2HP : match.player1HP;
+    const myMax   = isP1 ? match.player1Loadout.hp : match.player2Loadout.hp;
+    const oppMax  = isP1 ? match.player2Loadout.hp : match.player1Loadout.hp;
+    const oppName = match.isPlayer2AI ? (match.aiName ?? "AI") : "Opponent";
+
+    const leftAnim  = isP1 ? p1Anim : p2Anim;
+    const rightAnim = isP1 ? p2Anim : p1Anim;
+
+    const timerDanger = turnTimer <= 5;
+    const timerPct = (turnTimer / 15) * 100;
 
     return (
-      <div style={{ maxWidth: 600, margin: "0 auto" }}>
-        {/* Combatants */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 16, marginBottom: 20, alignItems: "center" }}>
-          <div style={{ background: "#0d0d1a", border: "1px solid #00d4ff30", borderRadius: 10, padding: 12 }}>
-            <div style={{ fontFamily: "monospace", fontSize: 12, fontWeight: "bold", color: "#00d4ff", marginBottom: 8 }}>{user.username}</div>
-            <HPBar current={myHP} max={myMax} color="#00d4ff" />
-            <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", marginTop: 6 }}>
-              DMG: {isP1 ? match.player1Loadout.damage : match.player2Loadout.damage} · DEF: {isP1 ? match.player1Loadout.defense : match.player2Loadout.defense}
+      <div style={{
+        maxWidth: 620, margin: "0 auto",
+        animation: screenShake ? "arenaCritShake 0.45s ease" : undefined,
+      }}>
+        <style>{COMBAT_CSS}</style>
+
+        {/* Floating damage numbers */}
+        <div style={{ position: "relative", height: 0, overflow: "visible" }}>
+          {floatDmgs.map(f => (
+            <div key={f.id} style={{
+              position: "absolute",
+              left: f.side === "left" ? "20%" : "65%",
+              top: -40,
+              fontFamily: "monospace",
+              fontSize: f.isCrit ? 22 : 16,
+              fontWeight: "bold",
+              color: f.isHeal ? "#22c55e" : f.isCrit ? "#fbbf24" : "#ef4444",
+              textShadow: f.isCrit ? "0 0 12px #fbbf24" : undefined,
+              animation: "floatUp 1.1s ease forwards",
+              pointerEvents: "none",
+              zIndex: 50,
+            }}>
+              {f.isHeal ? "+" : "-"}{f.value}{f.isCrit ? " CRIT!" : ""}
+            </div>
+          ))}
+        </div>
+
+        {/* Combatant panels */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 12, marginBottom: 16, alignItems: "start" }}>
+          {/* My panel */}
+          <div style={{ background: "#0d0d1a", border: "1px solid #00d4ff25", borderRadius: 10, padding: 14 }}>
+            <CharacterBadge
+              name={user.username}
+              color="#00d4ff"
+              isLeft={isP1}
+              animState={isP1 ? p1Anim : p2Anim}
+            />
+            <div style={{ marginTop: 10 }}>
+              <HPBar current={myHP} max={myMax} color="#00d4ff" />
+              <div style={{ display: "flex", gap: 12, marginTop: 6, justifyContent: "center" }}>
+                <span style={{ fontFamily: "monospace", fontSize: 9, color: "#475569" }}>
+                  ⚔ {isP1 ? match.player1Loadout.damage : match.player2Loadout.damage}
+                </span>
+                <span style={{ fontFamily: "monospace", fontSize: 9, color: "#475569" }}>
+                  🛡 {isP1 ? match.player1Loadout.defense : match.player2Loadout.defense}
+                </span>
+              </div>
             </div>
           </div>
-          <div style={{ fontFamily: "monospace", fontSize: 18, color: "#ff6b35", textAlign: "center" }}>VS</div>
-          <div style={{ background: "#0d0d1a", border: "1px solid #ff6b3530", borderRadius: 10, padding: 12 }}>
-            <div style={{ fontFamily: "monospace", fontSize: 12, fontWeight: "bold", color: "#ff6b35", marginBottom: 8 }}>{oppName}</div>
-            <HPBar current={oppHP} max={oppMax} color="#ff6b35" />
-            <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", marginTop: 6 }}>
-              DMG: {isP1 ? match.player2Loadout.damage : match.player1Loadout.damage} · DEF: {isP1 ? match.player2Loadout.defense : match.player1Loadout.defense}
+
+          {/* VS + timer */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingTop: 16 }}>
+            <span style={{ fontFamily: "monospace", fontSize: 14, color: "#ff6b35", fontWeight: "bold" }}>VS</span>
+            <div style={{ fontFamily: "monospace", fontSize: 18, fontWeight: "bold", color: timerDanger ? "#ef4444" : "#f59e0b", minWidth: 36, textAlign: "center" }}>
+              {turnTimer}
+            </div>
+            <div style={{ width: 4, height: 60, background: "#1e293b", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ width: "100%", background: timerDanger ? "#ef4444" : "#f59e0b", height: `${timerPct}%`, transition: "height 0.5s linear", marginTop: "auto" }} />
+            </div>
+          </div>
+
+          {/* Opponent panel */}
+          <div style={{ background: "#0d0d1a", border: "1px solid #ff6b3525", borderRadius: 10, padding: 14 }}>
+            <CharacterBadge
+              name={oppName}
+              color="#ff6b35"
+              isLeft={!isP1}
+              animState={isP1 ? p2Anim : p1Anim}
+            />
+            <div style={{ marginTop: 10 }}>
+              <HPBar current={oppHP} max={oppMax} color="#ff6b35" />
+              <div style={{ display: "flex", gap: 12, marginTop: 6, justifyContent: "center" }}>
+                <span style={{ fontFamily: "monospace", fontSize: 9, color: "#475569" }}>
+                  ⚔ {isP1 ? match.player2Loadout.damage : match.player1Loadout.damage}
+                </span>
+                <span style={{ fontFamily: "monospace", fontSize: 9, color: "#475569" }}>
+                  🛡 {isP1 ? match.player2Loadout.defense : match.player1Loadout.defense}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Turn info */}
-        <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 8, padding: "8px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontFamily: "monospace", fontSize: 11, color: "#475569" }}>Turn {match.currentTurn}</span>
-          <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: "bold", color: turnTimer <= 5 ? "#ef4444" : "#f59e0b" }}>
-            ⏱ {turnTimer}s
+        <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 8, padding: "6px 14px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontFamily: "monospace", fontSize: 10, color: "#475569" }}>Turn {match.currentTurn}</span>
+          <span style={{ fontFamily: "monospace", fontSize: 10, color: "#475569" }}>
+            {match.isPlayer2AI ? "vs AI" : "vs Player"}
+          </span>
+          <span style={{ fontFamily: "monospace", fontSize: 10, color: timerDanger ? "#ef4444" : "#475569" }}>
+            {acting ? "…" : "Your turn"}
           </span>
         </div>
 
-        {/* Actions */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
-          {(Object.entries(ACTION_CONFIG) as [CombatAction, typeof ACTION_CONFIG[CombatAction]][]).map(([act, cfg]) => (
-            <button
-              key={act}
-              onClick={() => doAction(act)}
-              disabled={acting || match.status !== "active"}
-              style={{
-                padding: "12px 8px", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: acting ? "not-allowed" : "pointer",
-                background: lastAction === act ? `${cfg.color}20` : "#0a0a14",
-                border: `1px solid ${lastAction === act ? cfg.color : "#1e293b"}`,
-                color: acting ? "#374151" : cfg.color,
-                transition: "all 0.15s",
-              }}
-            >
-              <div style={{ fontSize: 16, marginBottom: 2 }}>{cfg.icon}</div>
-              <div>{cfg.label}</div>
-            </button>
-          ))}
+        {/* Action buttons */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6, marginBottom: 12 }}>
+          {ACTION_DEFS.map(({ action, label, icon, color, desc, disabled }) => {
+            const isActive = lastAction === action && acting;
+            const isOff = disabled || acting || match.status !== "active";
+            return (
+              <button
+                key={action}
+                onClick={() => doAction(action)}
+                disabled={isOff}
+                title={desc}
+                style={{
+                  padding: "10px 4px", borderRadius: 8,
+                  fontFamily: "monospace", fontSize: 11,
+                  cursor: isOff ? "not-allowed" : "pointer",
+                  background: isActive ? `${color}25` : disabled ? "#080810" : "#0a0a14",
+                  border: `1px solid ${isActive ? color : disabled ? "#1e293b30" : "#1e293b"}`,
+                  color: isOff ? "#374151" : color,
+                  transition: "all 0.15s",
+                  opacity: disabled ? 0.35 : 1,
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{icon}</span>
+                <span>{label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Turn log */}
-        <div ref={logRef} style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 8, padding: 12, height: 140, overflowY: "auto" }}>
+        <div
+          ref={logRef}
+          style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 8, padding: "10px 12px", height: 130, overflowY: "auto" }}
+        >
           {match.turns.length === 0 ? (
-            <div style={{ fontFamily: "monospace", fontSize: 11, color: "#374151" }}>Match started — make your move!</div>
+            <div style={{ fontFamily: "monospace", fontSize: 10, color: "#374151" }}>Match started — choose your action.</div>
           ) : (
-            match.turns.slice(-20).map((turn, i) => (
-              <div key={i} style={{ fontFamily: "monospace", fontSize: 11, color: "#64748b", marginBottom: 4, padding: "3px 0", borderBottom: "1px solid #1e293b30" }}>
-                <span style={{ color: "#475569" }}>T{turn.turnNumber}:</span> {turn.narrative}
-              </div>
-            ))
+            match.turns.slice(-30).map((turn, i) => {
+              const isCrit = turn.player1Effect === "crit" || turn.player2Effect === "crit";
+              const isHeal = turn.player1Effect === "heal" || turn.player2Effect === "heal";
+              return (
+                <div key={i} style={{
+                  fontFamily: "monospace", fontSize: 10,
+                  color: isCrit ? "#fbbf24" : isHeal ? "#22c55e" : "#475569",
+                  marginBottom: 4, padding: "2px 0",
+                  borderBottom: "1px solid #1e293b20",
+                }}>
+                  <span style={{ color: "#334155" }}>T{turn.turnNumber}: </span>
+                  {turn.narrative}
+                </div>
+              );
+            })
           )}
         </div>
       </div>

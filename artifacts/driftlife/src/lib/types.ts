@@ -103,6 +103,8 @@ export interface User {
   keys: number;
   keyShards: number;
   spinTokens: number;
+  // ── Arena / Combat (Tier 4) ────────────────────────────────────────────────
+  combatWinStreak: number;
 }
 
 export interface FeedEvent {

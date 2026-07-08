@@ -9,3 +9,4 @@
 - [DriftLife Atomic Update Patterns](driftlife-atomic-patterns.md) — combat uses $inc for concurrent-safe writes; attacksToday uses $set (not $inc) to handle daily reset correctly; PRICE_OVERRIDES is a lazy-loaded in-memory cache backed by PriceOverride model
 - [DriftLife Frame System (current)](driftlife-frames.md) — full rebuild: 12 frames (8 elite/4 legendary), ChatFrame component, BodyArtLayer, GlitchLogo, FrameStore, FrameLocker tab on profile, banner zone
 - [DriftLife Telegram & Payment Fixes](driftlife-telegram-payment.md) — 4 root causes fixed: webhook never registered, invalid allowed_updates type, MongoDB $set nesting bug, secret now mandatory
+- [DriftLife Arena Combat (Tier 4)](driftlife-arena-tier4.md) — arena router was missing from routes/index.ts; CombatMatch consumablesUsed must be string[] not number; defend applies to same-turn AI counterattack; queue worker 15–30s bucket must use matchPair() not tryMatch() after deleting entries
