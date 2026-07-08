@@ -1,6 +1,22 @@
 import { useState } from "react";
 import { CardArt } from "./CardArt";
 
+/** Shows imageCard URL; on load error falls back to CardArt programmatic art. */
+function ImageWithFallback({ src, alt, itemType, tier }: { src: string; alt: string; itemType: string; tier: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <CardArt itemType={itemType} tier={tier} size={130} style={{ width: "100%", height: 90, objectFit: "cover" }} />;
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      style={{ width: "100%", height: 90, objectFit: "cover" }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export interface RoyaleWonItem {
   name: string;
   tier: "common" | "uncommon" | "rare" | "epic" | "legendary";
@@ -114,14 +130,9 @@ export function RoyaleItemCard({ item, index, revealed }: Props) {
             animation: isLegendary ? "legendaryPulse 2s infinite" : undefined,
           }}
         >
-          {/* Card art — use imageCard if present, else programmatic art */}
+          {/* Card art — use imageCard if present and valid, else programmatic art */}
           {item.imageCard ? (
-            <img
-              src={item.imageCard}
-              alt={item.name}
-              style={{ width: "100%", height: 90, objectFit: "cover" }}
-              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
+            <ImageWithFallback src={item.imageCard} alt={item.name} itemType={item.itemType} tier={item.tier} />
           ) : (
             <CardArt itemType={item.itemType} tier={item.tier} size={130} style={{ width: "100%", height: 90, objectFit: "cover" }} />
           )}

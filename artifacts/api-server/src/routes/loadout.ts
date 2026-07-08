@@ -174,23 +174,44 @@ router.post("/sell", requireAuth, async (req: AuthRequest, res) => {
     };
     const dcGained = SELL_DC[itemDef.tier] ?? 50;
 
-    // Remove one from inventory
-    const arr = (inv as any)[foundCategory] as Array<{ itemId: string; quantity: number }>;
-    const idx = arr.findIndex(e => e.itemId === itemId);
-    if (idx === -1) {
-      res.status(400).json({ message: "Item not found in inventory" });
-      return;
-    }
-    if (arr[idx].quantity <= 1) {
-      arr.splice(idx, 1);
-    } else {
-      arr[idx].quantity -= 1;
-    }
-    await inv.save();
-
-    // Grant DC to player
+    // Atomically decrement quantity (guard against concurrent sells)
     const User = (await import("../models/User")).default;
+
+    // Attempt atomic pull (quantity 1) or $inc decrement (quantity > 1)
+    // We use two conditional updates: try decrement first, fall back to pull
+    const decremented = await PlayerMiniGameInventory.findOneAndUpdate(
+      { userId: req.userId, [`${foundCategory}.itemId`]: itemId, [`${foundCategory}.$.quantity`]: { $gt: 1 } },
+      { $inc: { [`${foundCategory}.$.quantity`]: -1 } },
+      { new: true },
+    );
+
+    if (!decremented) {
+      // quantity was 1 — pull the whole entry
+      const pulled = await PlayerMiniGameInventory.findOneAndUpdate(
+        { userId: req.userId, [`${foundCategory}.itemId`]: itemId, [`${foundCategory}.$.quantity`]: 1 },
+        { $pull: { [foundCategory]: { itemId } } },
+        { new: true },
+      );
+      if (!pulled) {
+        res.status(409).json({ message: "Item was already sold or not found" });
+        return;
+      }
+    }
+
+    // Grant DC atomically
     await User.findByIdAndUpdate(req.userId, { $inc: { dc: dcGained } });
+
+    // Clear any loadout slots that held this specific itemId (non-fatal)
+    const currentLoadout = await PlayerLoadout.findOne({ userId: req.userId }).lean();
+    if (currentLoadout) {
+      const clearFields: Record<string, null> = {};
+      for (const slot of ["weapon", "armor", "consumable1", "consumable2", "ammoType"] as const) {
+        if ((currentLoadout as any)[slot] === itemId) clearFields[slot] = null;
+      }
+      if (Object.keys(clearFields).length > 0) {
+        await PlayerLoadout.updateOne({ userId: req.userId }, { $set: clearFields });
+      }
+    }
 
     res.json({ message: `Sold ${itemDef.name} for ${dcGained} DC`, dcGained });
   } catch (err) {

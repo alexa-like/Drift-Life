@@ -388,17 +388,39 @@ export default function ArenaHubPage({ user, addToast, onNavigate }: Props) {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(138px, 1fr))", gap: 10 }}>
                     {section.items.map(item => {
-                      const isEquipped = loadout.weapon === item.itemId || loadout.armor === item.itemId ||
-                        loadout.consumable1 === item.itemId || loadout.consumable2 === item.itemId || loadout.ammoType === item.itemId;
+                      const equippedSlot = (() => {
+                        if (loadout.weapon === item.itemId) return "weapon" as const;
+                        if (loadout.armor === item.itemId) return "armor" as const;
+                        if (loadout.consumable1 === item.itemId) return "consumable1" as const;
+                        if (loadout.consumable2 === item.itemId) return "consumable2" as const;
+                        if (loadout.ammoType === item.itemId) return "ammoType" as const;
+                        return null;
+                      })();
+                      const isEquipped = equippedSlot !== null;
                       return (
                         <FullItemCard
                           key={item.itemId}
                           stack={item}
                           selected={isEquipped}
                           onSelect={() => {
-                            // Equip to appropriate slot
-                            const k = section.slotKey;
-                            setLoadout(prev => ({ ...prev, [k]: isEquipped ? null : item.itemId }));
+                            if (isEquipped && equippedSlot) {
+                              // Unequip from the actual slot holding this item
+                              setLoadout(prev => ({ ...prev, [equippedSlot]: null }));
+                            } else {
+                              // Equip: for consumables try consumable1 first, then consumable2
+                              if (section.slotKey === "consumable1") {
+                                if (!loadout.consumable1) {
+                                  setLoadout(prev => ({ ...prev, consumable1: item.itemId }));
+                                } else if (!loadout.consumable2) {
+                                  setLoadout(prev => ({ ...prev, consumable2: item.itemId }));
+                                } else {
+                                  // Both full — replace consumable1
+                                  setLoadout(prev => ({ ...prev, consumable1: item.itemId }));
+                                }
+                              } else {
+                                setLoadout(prev => ({ ...prev, [section.slotKey]: item.itemId }));
+                              }
+                            }
                           }}
                           onSell={() => requestSell(item)}
                           showSell

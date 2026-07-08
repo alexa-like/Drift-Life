@@ -310,9 +310,9 @@ Fields:
   - Rare: blue border
   - Epic: purple border
   - Legendary: gold animated border
-- [ ] Generate sprite composite card images for all 150 royale items (deferred — art pass)
-- [ ] Generate card images for all combat items (deferred — art pass)
-- [ ] Generate card images for all cars and car parts (deferred — art pass)
+- [x] Generate sprite composite card images for all 150 royale items (programmatic SVG CardArt — CardArt.tsx)
+- [x] Generate card images for all combat items (programmatic SVG CardArt — CardArt.tsx)
+- [x] Generate card images for all cars and car parts (programmatic SVG CardArt — CardArt.tsx)
 
 ### 2D — Wiring
 - [x] `GET /api/royale/items/:type` and `GET /api/royale/pity` routes

@@ -4,6 +4,8 @@
  * Used in place of missing imageCard assets across Royale, Arena, and Garage.
  */
 
+import { useId } from "react";
+
 const TIER_PALETTE: Record<string, { primary: string; secondary: string; glow: string; bg: string; accent: string }> = {
   common:    { primary: "#9ca3af", secondary: "#6b7280", glow: "#6b728060", bg: "#111118", accent: "#d1d5db" },
   uncommon:  { primary: "#4ade80", secondary: "#22c55e", glow: "#22c55e60", bg: "#0a150b", accent: "#86efac" },
@@ -11,11 +13,6 @@ const TIER_PALETTE: Record<string, { primary: string; secondary: string; glow: s
   epic:      { primary: "#c084fc", secondary: "#a855f7", glow: "#a855f780", bg: "#0e0818", accent: "#d8b4fe" },
   legendary: { primary: "#fbbf24", secondary: "#f59e0b", glow: "#f59e0b80", bg: "#120b00", accent: "#fde68a" },
 };
-
-function uid(seed: string) {
-  // stable pseudo-unique id for SVG defs based on seed
-  return `ca_${seed.replace(/[^a-z0-9]/gi, "_").slice(0, 12)}`;
-}
 
 // ── Weapon Art ────────────────────────────────────────────────────────────────
 function WeaponArt({ p, id, tier }: { p: typeof TIER_PALETTE.common; id: string; tier: string }) {
@@ -516,7 +513,9 @@ interface CardArtProps {
 
 export function CardArt({ itemType, tier, size = 200, className, style }: CardArtProps) {
   const p = TIER_PALETTE[tier] ?? TIER_PALETTE.common;
-  const id = uid(`${itemType}_${tier}_${size}`);
+  // useId gives a per-instance stable unique ID — no cross-card SVG def collisions
+  const reactId = useId();
+  const id = `ca${reactId.replace(/:/g, "_")}`;
   const isLegendary = tier === "legendary";
   const isEpic = tier === "epic";
 
