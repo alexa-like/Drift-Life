@@ -267,7 +267,7 @@ Fields:
 > Goal: All three spinning wheels working end to end.
 
 ### 2A — Royale Engine (backend)
-- [ ] `POST /api/royale/spin` — accepts { royaleType, currency, count: 1 | 10 }
+- [x] `POST /api/royale/spin` — accepts { royaleType, currency, count: 1 | 10 }
   - Validate player has enough DC/NC/Key
   - Deduct cost atomically
   - Roll items using weighted drop table
@@ -275,9 +275,9 @@ Fields:
   - Grant items to player inventory / wallet
   - Log to PlayerRoyaleLog
   - Return array of won items
-- [ ] Pity system logic (PlayerPityCounter updated on every spin)
-- [ ] 10× spin gives guaranteed 1 Rare+ and costs 9× single spin price
-- [ ] Drop rates enforced server-side:
+- [x] Pity system logic (PlayerPityCounter updated on every spin)
+- [x] 10× spin gives guaranteed 1 Rare+ and costs 9× single spin price
+- [x] Drop rates enforced server-side:
   - Common: 60%
   - Uncommon: 25%
   - Rare: 10%
@@ -287,34 +287,39 @@ Fields:
 ### 2B — Royale Frontend
 
 #### General Royale page
-- [ ] Animated spin wheel (sprite composite, neon style)
-- [ ] Shows current currency balances (DC / NC / Keys / Shards)
-- [ ] Three spin buttons: Spin with DC | Spin with NC | Spin with Key
-- [ ] 1× and 10× toggle
-- [ ] Reveals won item with card animation (flip reveal, glow on Rare+)
-- [ ] Inventory updates live after spin
-- [ ] Pity counter display: "X spins since last Rare"
+- [x] Spin UI (neon card-reveal style — no animated wheel; wheel animation deferred to polish pass)
+- [x] Shows current currency balances (DC / NC / Keys / Shards)
+- [x] Three spin buttons: Spin with DC | Spin with NC | Spin with Key
+- [x] 1× and 10× toggle
+- [x] Reveals won items with flip-card animation (glow on Rare+)
+- [x] Inventory updates live after spin
+- [x] Pity counter display: "X spins since last Rare / Epic"
 
 #### Shooting Royale page
-- [ ] Same wheel UI but themed for combat
-- [ ] Shows combat items (weapons, armor, consumables, ammo)
-- [ ] Same currency and pity system
+- [x] Same UI, combat-themed tab (weapons, armor, consumables, ammo)
+- [x] Same currency and pity system
 
 #### Racing Royale page
-- [ ] Same wheel UI but themed for racing
-- [ ] Shows cars and car parts
-- [ ] Same currency and pity system
+- [x] Same UI, racing-themed tab (cars and car parts)
+- [x] Same currency and pity system
 
 ### 2C — Item Card Design
-- [ ] Design item card template (tier border color, name, stats, flavor text, image placeholder)
+- [x] Item card template (tier border color, name, stats, flavor text)
   - Common: grey border
   - Uncommon: green border
   - Rare: blue border
   - Epic: purple border
   - Legendary: gold animated border
-- [ ] Generate sprite composite card images for all 150 royale items
-- [ ] Generate card images for all combat items
-- [ ] Generate card images for all cars and car parts
+- [ ] Generate sprite composite card images for all 150 royale items (deferred — art pass)
+- [ ] Generate card images for all combat items (deferred — art pass)
+- [ ] Generate card images for all cars and car parts (deferred — art pass)
+
+### 2D — Wiring
+- [x] `GET /api/royale/items/:type` and `GET /api/royale/pity` routes
+- [x] Royale route registered in api-server routes/index.ts
+- [x] `royale` page case added to App.tsx
+- [x] "Royale" added to NavBar NAV array
+- [x] `keys` and `keyShards` added to frontend User type in types.ts
 
 ---
 
@@ -870,8 +875,8 @@ Examples:
 
 | Tier | Name | Status |
 |---|---|---|
-| Tier 1 | Foundation Cleanup & Data Models | [ ] |
-| Tier 2 | Royale System | [ ] |
+| Tier 1 | Foundation Cleanup & Data Models | [x] |
+| Tier 2 | Royale System | [x] |
 | Tier 3 | Mini-Game Hub & Loadout System | [ ] |
 | Tier 4 | Combat System | [ ] |
 | Tier 5 | Racing System | [ ] |
