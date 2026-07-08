@@ -80,7 +80,7 @@ export async function seedRaceCars(): Promise<void> {
   if (carCount === 0) {
     logger.info("Seeding race cars…");
     await RaceCar.insertMany(
-      RACE_CARS.map(c => ({ ...c, imageCard: `/assets/cars/${c.carId}.webp` })),
+      RACE_CARS.map(c => ({ ...c, imageCard: `/assets/cars/${c.carId}.png` })),
     );
     logger.info(`Seeded ${RACE_CARS.length} race cars`);
   }
@@ -88,7 +88,7 @@ export async function seedRaceCars(): Promise<void> {
   if (partCount === 0) {
     logger.info("Seeding car parts…");
     await CarPart.insertMany(
-      CAR_PARTS.map(p => ({ ...p, imageCard: `/assets/parts/${p.partId}.webp` })),
+      CAR_PARTS.map(p => ({ ...p, imageCard: `/assets/parts/${p.partId}.png` })),
     );
     logger.info(`Seeded ${CAR_PARTS.length} car parts`);
   }

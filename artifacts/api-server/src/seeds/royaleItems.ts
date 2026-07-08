@@ -196,10 +196,27 @@ export async function seedRoyaleItems(): Promise<void> {
 
   logger.info("Seeding royale items…");
 
+  // General royale items get their own generated icon; shooting/racing royale items
+  // reuse the actual combat item / car / car-part artwork they grant, so the reveal
+  // card shows the real weapon, armor, or vehicle the player just won.
+  const generalSlug = (name: string) => name.toLowerCase().replace(/\s+/g, "_").replace(/[(),]/g, "");
+
   const toInsert = [
-    ...GENERAL_ROYALE_ITEMS.map(i => ({ ...i, royaleType: "general", imageCard: `/assets/royale/general/${i.name.toLowerCase().replace(/\s+/g, "_")}.webp` })),
-    ...SHOOTING_ROYALE_ITEMS.map(i => ({ ...i, royaleType: "shooting", imageCard: `/assets/royale/shooting/${i.name.toLowerCase().replace(/\s+/g, "_")}.webp` })),
-    ...RACING_ROYALE_ITEMS.map(i => ({ ...i, royaleType: "racing", imageCard: `/assets/royale/racing/${i.name.toLowerCase().replace(/\s+/g, "_")}.webp` })),
+    ...GENERAL_ROYALE_ITEMS.map(i => ({ ...i, royaleType: "general", imageCard: `/assets/royale/general/${generalSlug(i.name)}.png` })),
+    ...SHOOTING_ROYALE_ITEMS.map(i => ({
+      ...i,
+      royaleType: "shooting",
+      imageCard: i.reward.miniGameItemId ? `/assets/items/${i.reward.miniGameItemId}.png` : "/assets/royale/placeholder.png",
+    })),
+    ...RACING_ROYALE_ITEMS.map(i => ({
+      ...i,
+      royaleType: "racing",
+      imageCard: i.reward.carId
+        ? `/assets/cars/${i.reward.carId}.png`
+        : i.reward.carPartId
+          ? `/assets/parts/${i.reward.carPartId}.png`
+          : "/assets/royale/placeholder.png",
+    })),
   ];
 
   await RoyaleItem.insertMany(toInsert);
