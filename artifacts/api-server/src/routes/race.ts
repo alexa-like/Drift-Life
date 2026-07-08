@@ -386,8 +386,13 @@ async function checkRaceCompletion(match: any) {
   }
 }
 
+// Daily reward cap constants (mirrors combat system)
+const RACE_FULL_CAP = 30;  // first 30 races: full rewards + Key Shard
+const RACE_HALF_CAP = 50;  // races 30–49: 50% DC + 50% XP, no Key Shard
+// 50+: DC = 0, XP = 5% only
+
 async function grantRaceRewards(match: any) {
-  const REWARDS: Record<number, { dc: number; xp: number; keyShards: number }> = {
+  const BASE_REWARDS: Record<number, { dc: number; xp: number; keyShards: number }> = {
     1: { dc: 300, xp: 300, keyShards: 1 },
     2: { dc: 150, xp: 180, keyShards: 0 },
     3: { dc:  80, xp: 100, keyShards: 0 },
@@ -397,13 +402,35 @@ async function grantRaceRewards(match: any) {
   for (const p of match.players) {
     if (p.isAI || !p.userId) continue;
     const placement = p.placement ?? 4;
-    const reward = REWARDS[placement] ?? REWARDS[4];
+    const base = BASE_REWARDS[placement] ?? BASE_REWARDS[4];
 
     const u = await User.findById(p.userId);
     if (!u) continue;
-    u.dc         += reward.dc;
-    u.xp         += reward.xp;
-    u.keyShards  += reward.keyShards;
+
+    // ── Daily cap check (same pattern as combat) ──────────────────────────────
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    if (!u.miniGameResetAt || u.miniGameResetAt < today) {
+      u.miniGameMatchesToday = 0;
+      u.miniGameResetAt = new Date(today.getTime() + 86_400_000);
+    }
+    const racesToday = u.miniGameMatchesToday ?? 0;
+    const dcMult  = racesToday >= RACE_HALF_CAP ? 0    : racesToday >= RACE_FULL_CAP ? 0.5 : 1;
+    const xpMult  = racesToday >= RACE_HALF_CAP ? 0.05 : racesToday >= RACE_FULL_CAP ? 0.5 : 1;
+    const fullRewards = racesToday < RACE_FULL_CAP;
+    u.miniGameMatchesToday = racesToday + 1;
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const dcEarned    = Math.floor(base.dc * dcMult);
+    const xpEarned    = Math.floor(base.xp * xpMult);
+    const shardsEarned = fullRewards ? base.keyShards : 0;
+    // 1st place: 10% chance of a bonus Key (Racing Royale spin token)
+    const bonusKey = placement === 1 && fullRewards && Math.random() < 0.1 ? 1 : 0;
+
+    u.dc         += dcEarned;
+    u.xp         += xpEarned;
+    u.keyShards  += shardsEarned;
+    u.keys       += bonusKey;
     u.totalRaces += 1;
     if (placement === 1) u.raceWins += 1;
     await u.save();
@@ -428,10 +455,11 @@ async function grantRaceRewards(match: any) {
       }
     }
 
+    const capNote = dcMult < 1 ? ` (${racesToday >= RACE_HALF_CAP ? "XP only" : "50% cap"})` : "";
     await Notification.create({
       userId: p.userId,
       type: "system",
-      message: `Race ${placement === 1 ? "Victory! 🏆" : `Finished #${placement}`} — +${reward.dc} DC, +${reward.xp} XP${reward.keyShards ? ", +1 Key Shard" : ""}`,
+      message: `Race ${placement === 1 ? "Victory! 🏆" : `Finished #${placement}`} — +${dcEarned} DC, +${xpEarned} XP${shardsEarned ? ", +1 Key Shard" : ""}${bonusKey ? ", +1 Key 🎰" : ""}${capNote}`,
       read: false,
       createdAt: new Date(),
     });

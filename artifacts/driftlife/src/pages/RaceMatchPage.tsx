@@ -9,353 +9,710 @@ interface Props {
   onNavigate: (page: string) => void;
 }
 
-type Phase = "idle" | "queuing" | "racing" | "complete";
-type RaceMode = "2player" | "4player";
-
-interface CarSnap { carId: string; topSpeed: number; accel: number; handling: number; nitro: number; }
 interface RacePlayer {
   userId: string | null; isAI: boolean; aiName: string | null;
-  placement: number | null; finishTime: number | null; distancePct: number;
-  nitroUsed: number; carSnapshot: CarSnap;
+  placement: number | null; finishTime: number | null;
+  distancePct: number; nitroUsed: number; crashCount: number;
+  carSnapshot: { carId: string; topSpeed: number; accel: number; handling: number; nitro: number };
 }
 interface RaceMatch {
-  matchId: string; mode: RaceMode; status: string;
-  players: RacePlayer[]; startedAt: string | null;
-  trackSeed: number; rewardsGranted: boolean;
+  matchId: string; mode: "2player" | "4player"; status: string;
+  players: RacePlayer[]; trackSeed: number;
+  startedAt: string | null; finishedAt: string | null; rewardsGranted: boolean;
 }
 
-export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate }: Props) {
-  const [phase, setPhase]   = useState<Phase>("idle");
-  const [mode, setMode]     = useState<RaceMode>("2player");
-  const [match, setMatch]   = useState<RaceMatch | null>(null);
-  const [shifting, setShifting] = useState(false);
-  const [nitroUsed, setNitroUsed] = useState(0);
-  const [queueSize, setQueueSize] = useState(0);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pollRef   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const animRef   = useRef<number | null>(null);
-  const frameRef  = useRef(0);
-
-  const myPlayer = match?.players.find(p => p.userId === user.id);
-  const myProgress = myPlayer?.distancePct ?? 0;
-  const maxNitro = 3;
-
-  const fetchMatch = useCallback(async (matchId: string) => {
-    try {
-      const data = await api.get<{ match: RaceMatch }>(`/race/match/${matchId}`);
-      setMatch(data.match);
-      if (data.match.status === "complete") {
-        setPhase("complete");
-        clearInterval(pollRef.current!);
-        cancelAnimationFrame(animRef.current!);
-        onUserUpdate();
-      }
-      return data.match;
-    } catch { return null; }
-  }, [onUserUpdate]);
-
-  // Pseudo-3D road renderer
-  useEffect(() => {
-    if (phase !== "racing" || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const W = canvas.width;
-    const H = canvas.height;
-    const seed = match?.trackSeed ?? 0;
-
-    function draw(frame: number) {
-      ctx!.clearRect(0, 0, W, H);
-
-      // Sky
-      const sky = ctx!.createLinearGradient(0, 0, 0, H * 0.5);
-      sky.addColorStop(0, "#05050f");
-      sky.addColorStop(1, "#0d0d2a");
-      ctx!.fillStyle = sky;
-      ctx!.fillRect(0, 0, W, H * 0.5);
-
-      // Road segments (pseudo-3D)
-      const HORIZON = H * 0.42;
-      const ROAD_W_FAR  = W * 0.05;
-      const ROAD_W_NEAR = W * 0.7;
-      const segments = 80;
-
-      for (let i = 0; i < segments; i++) {
-        const t0 = i / segments;
-        const t1 = (i + 1) / segments;
-        const y0 = HORIZON + (H - HORIZON) * Math.pow(t0, 1.5);
-        const y1 = HORIZON + (H - HORIZON) * Math.pow(t1, 1.5);
-        const w0 = ROAD_W_FAR + (ROAD_W_NEAR - ROAD_W_FAR) * Math.pow(t0, 1.5);
-        const w1 = ROAD_W_FAR + (ROAD_W_NEAR - ROAD_W_FAR) * Math.pow(t1, 1.5);
-        const x0 = (W - w0) / 2;
-        const x1 = (W - w1) / 2;
-
-        // Alternating road stripes
-        const stripe = Math.floor((i + Math.floor(frame / 2)) / 3) % 2;
-        ctx!.fillStyle = stripe ? "#1a1a3a" : "#141428";
-        ctx!.beginPath();
-        ctx!.moveTo(x0, y0); ctx!.lineTo(x0 + w0, y0);
-        ctx!.lineTo(x1 + w1, y1); ctx!.lineTo(x1, y1);
-        ctx!.fill();
-
-        // Road markings
-        if (i % 6 < 3) {
-          const markX = W / 2;
-          const markW = 6;
-          ctx!.fillStyle = "#ffff0080";
-          ctx!.fillRect(markX - markW / 2, y0, markW, y1 - y0);
-        }
-
-        // Neon edge lines
-        ctx!.strokeStyle = "#00d4ff60";
-        ctx!.lineWidth = 2;
-        ctx!.beginPath();
-        ctx!.moveTo(x0, y0); ctx!.lineTo(x1, y1);
-        ctx!.stroke();
-        ctx!.beginPath();
-        ctx!.moveTo(x0 + w0, y0); ctx!.lineTo(x1 + w1, y1);
-        ctx!.stroke();
-      }
-
-      // Player car
-      const carY = H * 0.7;
-      const carX = W / 2;
-      const bobY = Math.sin(frame * 0.3) * 2;
-
-      ctx!.fillStyle = "#00d4ff";
-      ctx!.beginPath();
-      ctx!.roundRect(carX - 20, carY - 12 + bobY, 40, 24, 4);
-      ctx!.fill();
-      ctx!.fillStyle = "#0a0a1a";
-      ctx!.fillRect(carX - 14, carY - 10 + bobY, 12, 14);
-      ctx!.fillRect(carX + 2,  carY - 10 + bobY, 12, 14);
-      // Wheels
-      ctx!.fillStyle = "#1e293b";
-      ctx!.fillRect(carX - 22, carY + 6 + bobY, 10, 8);
-      ctx!.fillRect(carX + 12, carY + 6 + bobY, 10, 8);
-
-      // Nitro flame
-      if (nitroUsed > 0 && frame % 4 < 2) {
-        ctx!.fillStyle = "#ff6b35";
-        ctx!.beginPath();
-        ctx!.moveTo(carX - 8, carY + 12 + bobY);
-        ctx!.lineTo(carX + 8, carY + 12 + bobY);
-        ctx!.lineTo(carX, carY + 28 + bobY);
-        ctx!.fill();
-      }
-
-      // Buildings on horizon
-      for (let b = 0; b < 8; b++) {
-        const bx = ((b * 137 + seed) % W) - 30;
-        const bh = 30 + ((b * 73 + seed) % 50);
-        ctx!.fillStyle = "#0d0d2a";
-        ctx!.fillRect(bx, HORIZON - bh, 25, bh);
-        // Neon window dots
-        ctx!.fillStyle = "#00d4ff40";
-        for (let wy = 0; wy < bh; wy += 8) {
-          ctx!.fillRect(bx + 5, HORIZON - bh + wy + 2, 5, 4);
-          ctx!.fillRect(bx + 14, HORIZON - bh + wy + 2, 5, 4);
-        }
-      }
-
-      frameRef.current = frame;
-      animRef.current = requestAnimationFrame(() => draw(frame + 1));
+// Pre-generated building layout (deterministic, no random in render loop)
+const BUILDINGS_LEFT = [
+  { x: 0,   w: 38, h: 75, color: "#a855f7" },
+  { x: 44,  w: 52, h: 95, color: "#00d4ff" },
+  { x: 102, w: 30, h: 58, color: "#f59e0b" },
+  { x: 138, w: 44, h: 82, color: "#22c55e" },
+];
+const BUILDINGS_RIGHT = [
+  { rx: 0,  w: 45, h: 88, color: "#00d4ff" },
+  { rx: 51, w: 58, h: 110, color: "#a855f7" },
+  { rx: 115, w: 35, h: 65, color: "#f59e0b" },
+  { rx: 156, w: 42, h: 78, color: "#ff6b35" },
+];
+// Pre-generate window grids to avoid flickering random in render
+type WindowGrid = { wx: number; wy: number; lit: boolean }[];
+function makeWindowGrid(bw: number, bh: number, seed: number): WindowGrid {
+  const grid: WindowGrid = [];
+  let r = seed;
+  const rng = () => { r = (r * 1664525 + 1013904223) & 0xffffffff; return (r >>> 0) / 0xffffffff; };
+  for (let wy = 8; wy < bh - 10; wy += 12) {
+    for (let wx = 5; wx < bw - 5; wx += 9) {
+      grid.push({ wx, wy, lit: rng() > 0.35 });
     }
+  }
+  return grid;
+}
+const BLDG_L_WINDOWS = BUILDINGS_LEFT.map((b, i) => makeWindowGrid(b.w, b.h, i * 12345));
+const BLDG_R_WINDOWS = BUILDINGS_RIGHT.map((b, i) => makeWindowGrid(b.w, b.h, i * 98765));
 
-    animRef.current = requestAnimationFrame(() => draw(frameRef.current));
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [phase, match?.trackSeed, nitroUsed]);
+const PLACEMENT_COLORS: Record<number, string> = { 1: "#f59e0b", 2: "#94a3b8", 3: "#b45309", 4: "#475569" };
+const PLACEMENT_LABELS: Record<number, string> = { 1: "🥇 1ST PLACE", 2: "🥈 2ND PLACE", 3: "🥉 3RD PLACE", 4: "4TH PLACE" };
 
-  // Poll match state
-  useEffect(() => {
-    if (phase === "racing" && match?.matchId) {
-      pollRef.current = setInterval(() => fetchMatch(match.matchId), 2_000);
-    }
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [phase, match?.matchId, fetchMatch]);
+const RACE_CSS = `
+@keyframes nitroFlare { 0%{opacity:1;transform:scaleX(1)} 100%{opacity:0;transform:scaleX(1.4)} }
+@keyframes shiftHit  { 0%{background:#22c55e40} 50%{background:#22c55e60} 100%{background:transparent} }
+@keyframes shiftMiss { 0%{background:#ef444430} 50%{background:#ef444450} 100%{background:transparent} }
+@keyframes placeBanner { 0%{opacity:0;transform:scale(0.6)} 60%{transform:scale(1.08)} 100%{opacity:1;transform:scale(1)} }
+@keyframes carBob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+@keyframes burnout { 0%,100%{transform:rotate(-1deg)} 50%{transform:rotate(1deg)} }
+`;
 
-  async function joinQueue() {
-    setPhase("queuing");
-    setQueueSize(1);
-    try {
-      const data = await api.post<{ status: string; matchId?: string; queueSize: number }>("/race/queue/join", { mode });
-      setQueueSize(data.queueSize ?? 1);
-      if (data.matchId) {
-        const m = await fetchMatch(data.matchId);
-        if (m) { setPhase("racing"); }
-      } else {
-        const poll = setInterval(async () => {
-          try {
-            const s = await api.get<{ inQueue: boolean; queueSize: number; activeMatch: { matchId: string } | null }>("/race/queue/status");
-            setQueueSize(s.queueSize ?? 0);
-            if (s.activeMatch) {
-              clearInterval(poll);
-              const m = await fetchMatch(s.activeMatch.matchId);
-              if (m) setPhase("racing");
-            }
-            if (!s.inQueue && !s.activeMatch) { clearInterval(poll); setPhase("idle"); }
-          } catch {}
-        }, 2_000);
+// ── Canvas renderer ───────────────────────────────────────────────────────────
+function renderFrame(
+  ctx: CanvasRenderingContext2D,
+  W: number, H: number,
+  scrollOffset: number,
+  match: RaceMatch | null,
+  userId: string,
+  nitroActive: boolean,
+) {
+  ctx.clearRect(0, 0, W, H);
+  const horizonY = H * 0.38;
+  const vpX = W / 2;
+
+  // Sky
+  const skyG = ctx.createLinearGradient(0, 0, 0, horizonY);
+  skyG.addColorStop(0, "#030308");
+  skyG.addColorStop(1, "#0d0520");
+  ctx.fillStyle = skyG;
+  ctx.fillRect(0, 0, W, horizonY);
+
+  // Horizon glow
+  const hGlow = ctx.createLinearGradient(0, horizonY - 24, 0, horizonY);
+  hGlow.addColorStop(0, "rgba(0,212,255,0)");
+  hGlow.addColorStop(1, "rgba(0,212,255,0.12)");
+  ctx.fillStyle = hGlow;
+  ctx.fillRect(0, horizonY - 24, W, 24);
+
+  // Buildings left
+  for (let bi = 0; bi < BUILDINGS_LEFT.length; bi++) {
+    const b = BUILDINGS_LEFT[bi];
+    const by = horizonY - b.h;
+    ctx.fillStyle = "#07070f";
+    ctx.fillRect(b.x, by, b.w, b.h);
+    ctx.strokeStyle = b.color + "50";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(b.x, by, b.w, b.h);
+    const wins = BLDG_L_WINDOWS[bi];
+    for (const w of wins) {
+      if (w.lit) {
+        ctx.fillStyle = b.color + "35";
+        ctx.fillRect(b.x + w.wx, by + w.wy, 5, 6);
       }
-    } catch (err: any) {
-      addToast(err.message ?? "Failed to join queue", "error");
-      setPhase("idle");
     }
   }
 
-  async function doShift(hit: boolean) {
-    if (!match || shifting) return;
-    setShifting(true);
+  // Buildings right
+  for (let bi = 0; bi < BUILDINGS_RIGHT.length; bi++) {
+    const b = BUILDINGS_RIGHT[bi];
+    const bx = W - b.rx - b.w;
+    const by = horizonY - b.h;
+    ctx.fillStyle = "#07070f";
+    ctx.fillRect(bx, by, b.w, b.h);
+    ctx.strokeStyle = b.color + "50";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, b.w, b.h);
+    const wins = BLDG_R_WINDOWS[bi];
+    for (const w of wins) {
+      if (w.lit) {
+        ctx.fillStyle = b.color + "35";
+        ctx.fillRect(bx + w.wx, by + w.wy, 5, 6);
+      }
+    }
+  }
+
+  // Road surface
+  const rBotL = W * 0.06, rBotR = W * 0.94;
+  const rTopL = vpX - 14, rTopR = vpX + 14;
+
+  ctx.beginPath();
+  ctx.moveTo(rTopL, horizonY); ctx.lineTo(rTopR, horizonY);
+  ctx.lineTo(rBotR, H); ctx.lineTo(rBotL, H);
+  ctx.closePath();
+  ctx.fillStyle = "#1a1a2e";
+  ctx.fill();
+
+  // Perspective road stripes
+  const SEG = 10;
+  const off = scrollOffset % 1;
+  for (let i = 0; i < SEG; i++) {
+    if (i % 2 === 0) continue;
+    const t1 = ((i + off) % SEG) / SEG;
+    const t2 = ((i + 1 + off) % SEG) / SEG;
+    if (t2 < t1) continue;
+    const p1 = t1 * t1;
+    const p2 = t2 * t2;
+    const y1 = horizonY + (H - horizonY) * (1 - p1);
+    const y2 = horizonY + (H - horizonY) * (1 - p2);
+    const xl1 = rTopL + (rBotL - rTopL) * (1 - p1);
+    const xr1 = rTopR + (rBotR - rTopR) * (1 - p1);
+    const xl2 = rTopL + (rBotL - rTopL) * (1 - p2);
+    const xr2 = rTopR + (rBotR - rTopR) * (1 - p2);
+    ctx.beginPath();
+    ctx.moveTo(xl2, y2); ctx.lineTo(xr2, y2);
+    ctx.lineTo(xr1, y1); ctx.lineTo(xl1, y1);
+    ctx.closePath();
+    ctx.fillStyle = "#12122a";
+    ctx.fill();
+  }
+
+  // Edge lines
+  ctx.strokeStyle = "#f59e0b80";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(rTopL, horizonY); ctx.lineTo(rBotL, H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(rTopR, horizonY); ctx.lineTo(rBotR, H); ctx.stroke();
+
+  // Center dashes
+  const DASHES = 7;
+  for (let i = 0; i < DASHES; i++) {
+    const t = ((i + scrollOffset * 0.7) % DASHES) / DASHES;
+    const persp = Math.pow(t, 1.8);
+    const cy = horizonY + (H - horizonY) * (1 - persp);
+    const dashH = (1 - persp) * 18 + 2;
+    const dashW = (1 - persp) * 3 + 1;
+    const alpha = Math.min(1, (1 - persp) * 2);
+    ctx.fillStyle = `rgba(255,255,255,${alpha * 0.5})`;
+    ctx.fillRect(vpX - dashW / 2, cy - dashH / 2, dashW, dashH);
+  }
+
+  // AI cars on road
+  if (match) {
+    const me = match.players.find(p => p.userId?.toString() === userId);
+    const myPct = me?.distancePct ?? 0;
+    const others = match.players.filter(p => p.userId?.toString() !== userId && !p.isAI);
+    const aiPlayers = match.players.filter(p => p.isAI);
+    const allOthers = [...others, ...aiPlayers].slice(0, 3);
+
+    const AI_COLORS = ["#ff6b35", "#a855f7", "#22c55e"];
+    allOthers.forEach((opp, idx) => {
+      const relPct = opp.distancePct - myPct;
+      // Only show cars within ±30% of player
+      if (relPct > 35 || relPct < -5) return;
+      // Convert relPct to road Y position
+      // relPct = 0 means same position as player (at bottom), positive = ahead (higher up road)
+      const t = Math.min(1, Math.max(0.05, relPct / 30 * 0.7 + 0.05));
+      const persp = Math.pow(t, 1.2);
+      const carY = horizonY + (H - horizonY) * (1 - persp);
+      const carScale = (1 - persp * 0.8);
+      drawCar(ctx, vpX + (idx - 1) * 30 * carScale, carY, carScale * 28, carScale * 16, AI_COLORS[idx % AI_COLORS.length], false);
+    });
+  }
+
+  // Nitro trail
+  if (nitroActive) {
+    const grad = ctx.createLinearGradient(vpX - 22, H - 28, vpX - 60, H - 20);
+    grad.addColorStop(0, "#ff6b35cc");
+    grad.addColorStop(0.4, "#f59e0b80");
+    grad.addColorStop(1, "transparent");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(vpX - 22, H - 28);
+    ctx.lineTo(vpX - 22, H - 18);
+    ctx.lineTo(vpX - 65, H - 23);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Player car (bottom-center)
+  drawCar(ctx, vpX, H - 24, 44, 24, "#00d4ff", true);
+}
+
+function drawCar(
+  ctx: CanvasRenderingContext2D,
+  cx: number, cy: number,
+  w: number, h: number,
+  color: string,
+  isPlayer: boolean,
+) {
+  const hw = w / 2, hh = h / 2;
+  // Body
+  ctx.fillStyle = isPlayer ? "#0d1a2e" : "#0a0a14";
+  ctx.beginPath();
+  ctx.roundRect(cx - hw, cy - hh, w, h, 4);
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = isPlayer ? 1.5 : 1;
+  ctx.beginPath();
+  ctx.roundRect(cx - hw, cy - hh, w, h, 4);
+  ctx.stroke();
+  // Glow
+  ctx.shadowColor = color;
+  ctx.shadowBlur = isPlayer ? 8 : 4;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // Windshield
+  ctx.fillStyle = color + "50";
+  ctx.fillRect(cx - hw * 0.45, cy - hh * 0.55, hw * 0.9, hh * 0.7);
+  // Wheels
+  ctx.fillStyle = "#0a0a14";
+  ctx.strokeStyle = color + "80";
+  ctx.lineWidth = 1;
+  [[-hw * 0.6, -hh * 0.8], [hw * 0.6, -hh * 0.8], [-hw * 0.6, hh * 0.6], [hw * 0.6, hh * 0.6]].forEach(([wx, wy]) => {
+    ctx.beginPath();
+    ctx.arc(cx + wx, cy + wy, w * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  });
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate }: Props) {
+  const [phase, setPhase] = useState<"loading" | "racing" | "finished">("loading");
+  const [match, setMatch] = useState<RaceMatch | null>(null);
+  const [gear, setGear] = useState(1);
+  const [lastShift, setLastShift] = useState<"hit" | "miss" | null>(null);
+  const [nitroCount, setNitroCount] = useState(3);
+  const [nitroFlash, setNitroFlash] = useState(false);
+  const [acting, setActing] = useState(false);
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const needleRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null); // flash overlay
+  const matchRef = useRef<RaceMatch | null>(null);
+  const scrollRef = useRef(0);
+  const prevPctRef = useRef(0);
+  const speedRef = useRef(0);
+  const sweepStartRef = useRef(Date.now());
+  const sweepDurRef = useRef(2400); // ms for one sweep
+  const nitroActiveRef = useRef(false);
+  const nitroTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animRef = useRef<number | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const matchIdRef = useRef<string | null>(null);
+
+  // Update matchRef whenever match state changes
+  useEffect(() => { matchRef.current = match; }, [match]);
+
+  // ── Canvas animation loop ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== "racing") return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let lastTs = 0;
+    function loop(ts: number) {
+      const dt = Math.min(50, ts - lastTs);
+      lastTs = ts;
+
+      // Update road scroll speed based on distancePct delta
+      const me = matchRef.current?.players.find(p => p.userId?.toString() === user.id);
+      const curPct = me?.distancePct ?? 0;
+      const delta = curPct - prevPctRef.current;
+      if (delta > 0) {
+        speedRef.current = Math.min(0.8, speedRef.current + delta * 0.5);
+        prevPctRef.current = curPct;
+      }
+      // Decay speed
+      speedRef.current = Math.max(0.03, speedRef.current * 0.97);
+      scrollRef.current = (scrollRef.current + speedRef.current * dt * 0.006) % 1;
+
+      // Needle position (direct DOM write, no state)
+      if (needleRef.current) {
+        const elapsed = Date.now() - sweepStartRef.current;
+        const sweep = sweepDurRef.current;
+        const raw = (elapsed % (sweep * 2)) / sweep; // 0→1→0 bounce
+        const pos = raw > 1 ? 2 - raw : raw;
+        needleRef.current.style.left = `${pos * 100}%`;
+      }
+
+      const W = canvas.width, H = canvas.height;
+      renderFrame(ctx, W, H, scrollRef.current, matchRef.current, user.id, nitroActiveRef.current);
+
+      animRef.current = requestAnimationFrame(loop);
+    }
+    animRef.current = requestAnimationFrame(loop);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [phase, user.id]);
+
+  // ── Poll match state ───────────────────────────────────────────────────────
+  const fetchMatch = useCallback(async (id: string) => {
     try {
-      const data = await api.post<{ match: RaceMatch }>(`/race/match/${match.matchId}/shift`, { hit });
-      setMatch(data.match);
-      if (data.match.status === "complete") {
-        setPhase("complete");
-        clearInterval(pollRef.current!);
+      const data = await api.get<{ match: RaceMatch }>(`/race/match/${id}`);
+      const m = data.match;
+      setMatch(m);
+      const me = m.players.find(p => p.userId?.toString() === user.id);
+      if (me) setNitroCount(3 - (me.nitroUsed ?? 0));
+      if (m.status === "complete") {
+        setPhase("finished");
         onUserUpdate();
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      }
+    } catch { /* ignore */ }
+  }, [user.id, onUserUpdate]);
+
+  // ── Discover match on mount ────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const status = await api.get<{
+          inQueue: boolean;
+          activeMatch: { matchId: string; status: string } | null;
+        }>("/race/queue/status");
+
+        if (cancelled) return;
+        if (!status.activeMatch) {
+          addToast("No active race found", "error");
+          onNavigate("race-hub");
+          return;
+        }
+        matchIdRef.current = status.activeMatch.matchId;
+        await fetchMatch(status.activeMatch.matchId);
+        if (!cancelled) {
+          setPhase("racing");
+          pollRef.current = setInterval(() => {
+            if (matchIdRef.current) fetchMatch(matchIdRef.current);
+          }, 1500);
+        }
+      } catch {
+        if (!cancelled) {
+          addToast("Failed to load race", "error");
+          onNavigate("race-hub");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      if (nitroTimerRef.current) clearTimeout(nitroTimerRef.current);
+    };
+  }, []); // eslint-disable-line
+
+  // ── Shift action ───────────────────────────────────────────────────────────
+  const handleShift = useCallback(async () => {
+    if (acting || !matchIdRef.current || phase !== "racing") return;
+    // Determine hit/miss from needle position
+    const elapsed = Date.now() - sweepStartRef.current;
+    const sweep = sweepDurRef.current;
+    const raw = (elapsed % (sweep * 2)) / sweep;
+    const pos = raw > 1 ? 2 - raw : raw; // 0-1
+    const GREEN_START = 0.35, GREEN_END = 0.65;
+    const hit = pos >= GREEN_START && pos <= GREEN_END;
+
+    // Reset sweep, speed up per gear
+    sweepStartRef.current = Date.now();
+    sweepDurRef.current = Math.max(900, sweepDurRef.current - 150);
+    setGear(g => Math.min(6, g + 1));
+    setLastShift(hit ? "hit" : "miss");
+    setTimeout(() => setLastShift(null), 600);
+
+    setActing(true);
+    try {
+      const data = await api.post<{ match: RaceMatch }>(`/race/match/${matchIdRef.current}/shift`, { hit });
+      setMatch(data.match);
+      const me = data.match.players.find(p => p.userId?.toString() === user.id);
+      if (me) setNitroCount(3 - (me.nitroUsed ?? 0));
+      if (data.match.status === "complete") {
+        setPhase("finished");
+        onUserUpdate();
+        if (pollRef.current) clearInterval(pollRef.current);
       }
     } catch (err: any) {
       addToast(err.message ?? "Shift failed", "error");
     } finally {
-      setShifting(false);
+      setActing(false);
     }
-  }
+  }, [acting, phase, user.id, addToast, onUserUpdate]);
 
-  async function doNitro() {
-    if (!match || nitroUsed >= maxNitro) return;
+  // ── Nitro action ───────────────────────────────────────────────────────────
+  const handleNitro = useCallback(async () => {
+    if (acting || !matchIdRef.current || phase !== "racing" || nitroCount <= 0) return;
+    nitroActiveRef.current = true;
+    setNitroFlash(true);
+    if (nitroTimerRef.current) clearTimeout(nitroTimerRef.current);
+    nitroTimerRef.current = setTimeout(() => {
+      nitroActiveRef.current = false;
+      setNitroFlash(false);
+    }, 800);
+
+    setActing(true);
     try {
-      const data = await api.post<{ match: RaceMatch }>(`/race/match/${match.matchId}/nitro`);
+      const data = await api.post<{ match: RaceMatch }>(`/race/match/${matchIdRef.current}/nitro`, {});
       setMatch(data.match);
-      setNitroUsed(prev => prev + 1);
-      if (data.match.status === "complete") { setPhase("complete"); clearInterval(pollRef.current!); onUserUpdate(); }
+      const me = data.match.players.find(p => p.userId?.toString() === user.id);
+      setNitroCount(me ? 3 - (me.nitroUsed ?? 0) : 0);
+      if (data.match.status === "complete") {
+        setPhase("finished");
+        onUserUpdate();
+        if (pollRef.current) clearInterval(pollRef.current);
+      }
     } catch (err: any) {
       addToast(err.message ?? "Nitro failed", "error");
+    } finally {
+      setActing(false);
     }
-  }
+  }, [acting, phase, nitroCount, addToast, onUserUpdate]);
 
-  // ── Phases ────────────────────────────────────────────────────────────────
-  if (phase === "idle") {
-    return (
-      <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center", paddingTop: 40 }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🏎️</div>
-        <h1 style={{ fontFamily: "monospace", fontSize: 22, color: "#a855f7", fontWeight: "bold", letterSpacing: 2, marginBottom: 8 }}>RACE</h1>
-        <p style={{ fontFamily: "monospace", fontSize: 12, color: "#475569", marginBottom: 24 }}>Parallel solo racing. Hit green zones to shift, use nitro to boost.</p>
-        <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 24 }}>
-          {(["2player","4player"] as RaceMode[]).map(m => (
-            <button key={m} onClick={() => setMode(m)} style={{ flex: 1, maxWidth: 160, padding: "12px 8px", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: mode === m ? "#a855f718" : "#0a0a14", border: `1px solid ${mode === m ? "#a855f7" : "#1e293b"}`, color: mode === m ? "#a855f7" : "#475569" }}>
-              {m === "2player" ? "👥 2-Player\n15 energy" : "👥👥 4-Player\n25 energy"}
-            </button>
-          ))}
-        </div>
-        {user.energy < (mode === "2player" ? 15 : 25) ? (
-          <div style={{ fontFamily: "monospace", fontSize: 12, color: "#ef4444", marginBottom: 16 }}>⚡ Not enough energy</div>
-        ) : null}
-        <button
-          onClick={joinQueue}
-          disabled={user.energy < (mode === "2player" ? 15 : 25)}
-          style={{ padding: "14px 32px", borderRadius: 10, fontFamily: "monospace", fontSize: 14, fontWeight: "bold", cursor: "pointer", background: "linear-gradient(135deg, #a855f720, #a855f710)", border: "1px solid #a855f760", color: "#a855f7", letterSpacing: 1 }}
-        >
-          ▶ START RACE
-        </button>
-      </div>
-    );
-  }
+  // Keyboard SHIFT = spacebar, NITRO = N
+  useEffect(() => {
+    if (phase !== "racing") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Space") { e.preventDefault(); handleShift(); }
+      if (e.code === "KeyN")  { e.preventDefault(); handleNitro(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase, handleShift, handleNitro]);
 
-  if (phase === "queuing") {
-    const needed = mode === "2player" ? 2 : 4;
-    return (
-      <div style={{ maxWidth: 400, margin: "0 auto", textAlign: "center", paddingTop: 60 }}>
-        <div style={{ fontFamily: "monospace", fontSize: 16, color: "#a855f7", marginBottom: 8 }}>
-          {queueSize}/{needed} racers ready...
-        </div>
-        <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 8, height: 12, margin: "16px auto", maxWidth: 200 }}>
-          <div style={{ background: "#a855f7", height: "100%", borderRadius: 8, width: `${(queueSize / needed) * 100}%`, transition: "width 0.3s" }} />
-        </div>
-        <div style={{ fontFamily: "monospace", fontSize: 11, color: "#475569", marginBottom: 24 }}>AI fill after 30 seconds</div>
-        <button onClick={async () => { try { await api.post("/race/queue/leave"); } catch {} setPhase("idle"); }} style={{ padding: "10px 24px", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: "#0a0a14", border: "1px solid #ef4444", color: "#ef4444" }}>Cancel</button>
-      </div>
-    );
-  }
+  // ── Derived state ──────────────────────────────────────────────────────────
+  const me = match?.players.find(p => p.userId?.toString() === user.id);
+  const myPct = me?.distancePct ?? 0;
+  const myPlacement = me?.placement ?? null;
 
-  if (phase === "complete" && match) {
-    const myP = match.players.find(p => p.userId === user.id);
-    const placement = myP?.placement ?? 4;
-    const won = placement === 1;
-    return (
-      <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center", paddingTop: 40 }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>{won ? "🏆" : placement === 2 ? "🥈" : placement === 3 ? "🥉" : "😤"}</div>
-        <h2 style={{ fontFamily: "monospace", fontSize: 24, fontWeight: "bold", marginBottom: 8, color: won ? "#22c55e" : "#a855f7" }}>
-          {won ? "1ST PLACE!" : `${placement}${placement === 2 ? "nd" : placement === 3 ? "rd" : "th"} PLACE`}
-        </h2>
-        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#94a3b8", marginBottom: 24 }}>
-          {placement === 1 ? "+300 DC, +300 XP, +1 Key Shard" : placement === 2 ? "+150 DC, +180 XP" : placement === 3 ? "+80 DC, +100 XP" : "+40 DC, +60 XP"}
-        </div>
-        <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 10, padding: 16, marginBottom: 24 }}>
-          {match.players.sort((a, b) => (a.placement ?? 99) - (b.placement ?? 99)).map((p, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", fontFamily: "monospace", fontSize: 12, padding: "6px 0", borderBottom: i < match.players.length - 1 ? "1px solid #1e293b" : "none", color: p.userId === user.id ? "#00d4ff" : "#475569" }}>
-              <span>#{p.placement ?? "—"} {p.isAI ? p.aiName : p.userId === user.id ? user.username : "Player"}</span>
-              <span>{p.finishTime ? `${(p.finishTime / 1000).toFixed(2)}s` : "DNF"}</span>
-            </div>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <button onClick={() => { setMatch(null); setPhase("idle"); setNitroUsed(0); }} style={{ padding: "12px 24px", borderRadius: 8, fontFamily: "monospace", fontSize: 13, cursor: "pointer", background: "#a855f718", border: "1px solid #a855f760", color: "#a855f7" }}>↺ Race Again</button>
-          <button onClick={() => onNavigate("mini-garage")} style={{ padding: "12px 20px", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: "#0a0a14", border: "1px solid #1e293b", color: "#475569" }}>← Garage</button>
-        </div>
-      </div>
-    );
-  }
+  const leaderboard = match ? [...match.players].sort((a, b) => {
+    if (a.placement !== null && b.placement !== null) return a.placement - b.placement;
+    if (a.placement !== null) return -1;
+    if (b.placement !== null) return 1;
+    return b.distancePct - a.distancePct;
+  }) : [];
 
-  // Racing view
+  const myRank = leaderboard.findIndex(p => p.userId?.toString() === user.id) + 1;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto" }}>
-      {/* Canvas */}
-      <canvas ref={canvasRef} width={560} height={280} style={{ width: "100%", borderRadius: 12, border: "1px solid #1e293b", display: "block", marginBottom: 12 }} />
+    <div style={{ maxWidth: 620, margin: "0 auto", padding: "8px 8px 24px" }}>
+      <style>{RACE_CSS}</style>
 
-      {/* Progress */}
-      <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-          <span style={{ fontFamily: "monospace", fontSize: 11, color: "#94a3b8" }}>Progress</span>
-          <span style={{ fontFamily: "monospace", fontSize: 11, color: "#00d4ff", fontWeight: "bold" }}>{myProgress.toFixed(1)}%</span>
-        </div>
-        <div style={{ background: "#1e293b", borderRadius: 4, height: 8 }}>
-          <div style={{ background: "linear-gradient(90deg, #a855f7, #00d4ff)", height: "100%", borderRadius: 4, width: `${myProgress}%`, transition: "width 0.3s", boxShadow: "0 0 8px #a855f760" }} />
-        </div>
-      </div>
-
-      {/* Live positions */}
-      {match && (
-        <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
-          {[...match.players].sort((a, b) => b.distancePct - a.distancePct).map((p, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <span style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", width: 16 }}>#{i + 1}</span>
-              <span style={{ fontFamily: "monospace", fontSize: 11, color: p.userId === user.id ? "#00d4ff" : "#64748b", flex: 1 }}>
-                {p.isAI ? p.aiName : p.userId === user.id ? user.username : "Player"}
-              </span>
-              <div style={{ width: 80, background: "#1e293b", borderRadius: 3, height: 5 }}>
-                <div style={{ background: p.userId === user.id ? "#00d4ff" : "#475569", height: "100%", borderRadius: 3, width: `${p.distancePct}%` }} />
-              </div>
-            </div>
-          ))}
+      {/* Loading */}
+      {phase === "loading" && (
+        <div style={{ textAlign: "center", padding: 60, fontFamily: "monospace", color: "#475569" }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🏎</div>
+          Loading race…
         </div>
       )}
 
-      {/* Shift panel */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 8, marginBottom: 8 }}>
-        <button onClick={() => doShift(false)} disabled={shifting} style={{ padding: "14px 0", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: "#0a0a14", border: "1px solid #1e293b", color: "#475569" }}>Miss</button>
-        <button
-          onClick={() => doShift(true)}
-          disabled={shifting}
-          style={{ padding: "14px 0", borderRadius: 8, fontFamily: "monospace", fontSize: 14, fontWeight: "bold", cursor: "pointer", background: "linear-gradient(135deg, #22c55e20, #22c55e10)", border: "2px solid #22c55e", color: "#22c55e", boxShadow: "0 0 16px #22c55e40", letterSpacing: 2 }}
-        >
-          {shifting ? "..." : "⚙ SHIFT"}
-        </button>
-        <button onClick={doNitro} disabled={nitroUsed >= maxNitro} style={{ padding: "14px 0", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: nitroUsed < maxNitro ? "pointer" : "not-allowed", background: nitroUsed < maxNitro ? "#ff6b3518" : "#0a0a14", border: `1px solid ${nitroUsed < maxNitro ? "#ff6b35" : "#1e293b"}`, color: nitroUsed < maxNitro ? "#ff6b35" : "#374151" }}>
-          🔥 {maxNitro - nitroUsed}
-        </button>
-      </div>
-      <div style={{ fontFamily: "monospace", fontSize: 10, color: "#374151", textAlign: "center" }}>Press SHIFT to hit green zone</div>
+      {/* Racing phase */}
+      {phase === "racing" && (
+        <>
+          {/* Header row */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontFamily: "monospace", fontSize: 13, color: "#00d4ff", fontWeight: "bold" }}>
+              GEAR {gear} &nbsp;
+              <span style={{ fontSize: 10, color: "#334155" }}>
+                {match?.mode === "4player" ? "4-PLAYER RACE" : "2-PLAYER RACE"}
+              </span>
+            </div>
+            <div style={{ fontFamily: "monospace", fontSize: 11, color: "#f59e0b" }}>
+              P{myRank} &nbsp; {myPct.toFixed(1)}%
+            </div>
+          </div>
+
+          {/* Canvas */}
+          <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: "1px solid #1e293b" }}>
+            <canvas
+              ref={canvasRef}
+              width={600} height={280}
+              style={{ display: "block", width: "100%", height: "auto", background: "#030308" }}
+            />
+            {/* Nitro flare overlay */}
+            {nitroFlash && (
+              <div style={{
+                position: "absolute", inset: 0,
+                background: "linear-gradient(to right, rgba(255,107,53,0.15), transparent)",
+                animation: "nitroFlare 0.8s ease-out forwards",
+                pointerEvents: "none",
+              }} />
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ marginTop: 6, background: "#0d0d1a", borderRadius: 4, height: 8, overflow: "hidden" }}>
+            <div style={{
+              height: "100%", borderRadius: 4,
+              background: "linear-gradient(90deg, #00d4ff, #a855f7)",
+              width: `${myPct}%`, transition: "width 0.4s ease",
+            }} />
+          </div>
+
+          {/* Mini leaderboard */}
+          <div style={{
+            display: "flex", gap: 6, marginTop: 6, overflowX: "auto",
+            paddingBottom: 2, scrollbarWidth: "none",
+          }}>
+            {leaderboard.map((p, i) => {
+              const isMe = p.userId?.toString() === user.id;
+              const name = p.isAI ? (p.aiName ?? "AI") : (isMe ? user.username : "Opp");
+              const pct  = p.distancePct.toFixed(0);
+              return (
+                <div key={i} style={{
+                  fontFamily: "monospace", fontSize: 9, padding: "3px 7px", borderRadius: 5, flexShrink: 0,
+                  background: isMe ? "#00d4ff15" : "#0a0a14",
+                  border: `1px solid ${isMe ? "#00d4ff40" : "#1e293b"}`,
+                  color: isMe ? "#00d4ff" : "#475569",
+                }}>
+                  {i + 1}. {name} <span style={{ color: isMe ? "#00d4ffaa" : "#334155" }}>{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Shift panel */}
+          <div style={{
+            marginTop: 14, background: "#0a0a14", border: "1px solid #1e293b",
+            borderRadius: 10, padding: "14px 14px 12px",
+            animation: lastShift === "hit" ? "shiftHit 0.6s ease" : lastShift === "miss" ? "shiftMiss 0.6s ease" : "none",
+          }}>
+            {/* Timing strip */}
+            <div style={{
+              position: "relative", height: 22, borderRadius: 4, marginBottom: 12, overflow: "hidden",
+              background: "linear-gradient(90deg, #1e293b 0%, #1e293b 30%, #15532a 35%, #16a34a 45%, #15803d 55%, #15532a 65%, #1e293b 70%, #1e293b 100%)",
+            }}>
+              {/* Green zone label */}
+              <div style={{
+                position: "absolute", left: "35%", right: "35%", top: 0, bottom: 0,
+                border: "1px solid #22c55e50", borderRadius: 2,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <span style={{ fontFamily: "monospace", fontSize: 8, color: "#22c55e90" }}>SHIFT ZONE</span>
+              </div>
+              {/* Needle */}
+              <div
+                ref={needleRef}
+                style={{
+                  position: "absolute", top: 0, bottom: 0, width: 3,
+                  background: "#ffffff", borderRadius: 2,
+                  boxShadow: "0 0 6px #fff",
+                  transform: "translateX(-50%)",
+                  transition: "none",
+                }}
+              />
+            </div>
+
+            {/* Controls */}
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              {/* Gear indicator */}
+              <div style={{
+                width: 40, height: 40, borderRadius: 8, flexShrink: 0,
+                background: "#0d1a2e", border: "1px solid #00d4ff40",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              }}>
+                <div style={{ fontFamily: "monospace", fontSize: 8, color: "#334155" }}>GEAR</div>
+                <div style={{ fontFamily: "monospace", fontSize: 16, fontWeight: "bold", color: "#00d4ff" }}>{gear}</div>
+              </div>
+
+              {/* SHIFT button */}
+              <button
+                onClick={handleShift}
+                disabled={acting}
+                style={{
+                  flex: 1, height: 48, borderRadius: 8, cursor: "pointer",
+                  fontFamily: "monospace", fontSize: 15, fontWeight: "bold", letterSpacing: 2,
+                  background: lastShift === "hit" ? "#22c55e20" : lastShift === "miss" ? "#ef444420" : "linear-gradient(135deg, #00d4ff18, #00d4ff08)",
+                  border: `2px solid ${lastShift === "hit" ? "#22c55e" : lastShift === "miss" ? "#ef4444" : "#00d4ff60"}`,
+                  color: lastShift === "hit" ? "#22c55e" : lastShift === "miss" ? "#ef4444" : "#00d4ff",
+                  boxShadow: lastShift === "hit" ? "0 0 16px #22c55e40" : lastShift === "miss" ? "none" : "0 0 12px #00d4ff20",
+                  transition: "all 0.15s",
+                }}
+              >
+                {lastShift === "hit" ? "✓ PERFECT" : lastShift === "miss" ? "✗ MISS" : "⚡ SHIFT"}
+              </button>
+
+              {/* NITRO button */}
+              <button
+                onClick={handleNitro}
+                disabled={acting || nitroCount <= 0}
+                style={{
+                  width: 64, height: 48, borderRadius: 8, cursor: nitroCount > 0 ? "pointer" : "not-allowed",
+                  fontFamily: "monospace", fontSize: 10, fontWeight: "bold",
+                  background: nitroFlash ? "#ff6b3520" : nitroCount > 0 ? "linear-gradient(135deg, #ff6b3518, #ff6b3508)" : "#0a0a14",
+                  border: `2px solid ${nitroFlash ? "#ff6b35" : nitroCount > 0 ? "#ff6b3560" : "#1e293b"}`,
+                  color: nitroCount > 0 ? "#ff6b35" : "#334155",
+                  boxShadow: nitroFlash ? "0 0 16px #ff6b3560" : "none",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+                }}
+              >
+                <span style={{ fontSize: 16 }}>🔥</span>
+                <span>×{nitroCount}</span>
+              </button>
+            </div>
+
+            <div style={{ fontFamily: "monospace", fontSize: 9, color: "#334155", marginTop: 8, textAlign: "center" }}>
+              SPACE = shift &nbsp;·&nbsp; N = nitro &nbsp;·&nbsp; Hit the green zone for maximum boost
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Finished phase */}
+      {phase === "finished" && match && (
+        <div style={{ textAlign: "center", padding: "24px 16px" }}>
+          {/* Placement banner */}
+          <div style={{
+            display: "inline-block", padding: "20px 40px", borderRadius: 12, marginBottom: 24,
+            background: `${PLACEMENT_COLORS[myPlacement ?? 4] ?? "#475569"}18`,
+            border: `2px solid ${PLACEMENT_COLORS[myPlacement ?? 4] ?? "#475569"}60`,
+            animation: "placeBanner 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards",
+          }}>
+            <div style={{ fontFamily: "monospace", fontSize: 32, marginBottom: 4 }}>
+              {myPlacement === 1 ? "🏆" : myPlacement === 2 ? "🥈" : myPlacement === 3 ? "🥉" : "🏁"}
+            </div>
+            <div style={{
+              fontFamily: "monospace", fontSize: 22, fontWeight: "bold", letterSpacing: 3,
+              color: PLACEMENT_COLORS[myPlacement ?? 4] ?? "#475569",
+            }}>
+              {PLACEMENT_LABELS[myPlacement ?? 4] ?? "FINISHED"}
+            </div>
+            {me?.finishTime != null && (
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#475569", marginTop: 6 }}>
+                Time: {(me.finishTime / 1000).toFixed(2)}s
+              </div>
+            )}
+          </div>
+
+          {/* Final leaderboard */}
+          <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 10, padding: 16, marginBottom: 20, textAlign: "left" }}>
+            <div style={{ fontFamily: "monospace", fontSize: 11, color: "#475569", marginBottom: 10 }}>FINAL STANDINGS</div>
+            {leaderboard.map((p, i) => {
+              const isMe = p.userId?.toString() === user.id;
+              const name = p.isAI ? (p.aiName ?? "AI") : (isMe ? user.username : "Opponent");
+              const pl = p.placement ?? (i + 1);
+              const plColor = PLACEMENT_COLORS[pl] ?? "#475569";
+              return (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "8px 0",
+                  borderBottom: i < leaderboard.length - 1 ? "1px solid #1e293b" : "none",
+                }}>
+                  <span style={{ fontFamily: "monospace", fontSize: 14, fontWeight: "bold", color: plColor, width: 24 }}>{pl}</span>
+                  <span style={{ fontFamily: "monospace", fontSize: 12, color: isMe ? "#00d4ff" : "#64748b", flex: 1 }}>{name}</span>
+                  {p.finishTime != null && (
+                    <span style={{ fontFamily: "monospace", fontSize: 10, color: "#334155" }}>
+                      {(p.finishTime / 1000).toFixed(2)}s
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Rewards note */}
+          <div style={{
+            fontFamily: "monospace", fontSize: 11, color: "#334155",
+            background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 8, padding: "10px 16px",
+            marginBottom: 20,
+          }}>
+            Rewards credited — check your inbox notification for details
+          </div>
+
+          <button
+            onClick={() => onNavigate("race-hub")}
+            style={{
+              padding: "12px 32px", borderRadius: 8, cursor: "pointer",
+              fontFamily: "monospace", fontSize: 12, fontWeight: "bold",
+              background: "#00d4ff18", border: "1px solid #00d4ff60", color: "#00d4ff",
+            }}
+          >
+            ← Back to Race Hub
+          </button>
+        </div>
+      )}
     </div>
   );
 }

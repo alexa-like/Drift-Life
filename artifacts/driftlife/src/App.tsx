@@ -32,6 +32,8 @@ import RoyalePage from "./pages/RoyalePage";
 import GaragePage from "./pages/GaragePage";
 import ArenaHubPage from "./pages/ArenaHubPage";
 import ArenaCombatPage from "./pages/ArenaCombatPage";
+import RaceHubPage from "./pages/RaceHubPage";
+import RaceMatchPage from "./pages/RaceMatchPage";
 import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
@@ -213,6 +215,8 @@ function GameApp() {
       case "royale":        return <RoyalePage user={user!} addToast={addToast} onUserUpdate={refreshUser} />;
       case "arena":         return <ArenaHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "arena-combat":  return <ArenaCombatPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
+      case "race-hub":      return <RaceHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
+      case "race-match":    return <RaceMatchPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />
