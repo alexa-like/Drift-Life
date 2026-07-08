@@ -111,8 +111,6 @@ export interface IUser extends Document {
   guildId: mongoose.Types.ObjectId | null;
   guildRole: "leader" | "officer" | "member" | "recruit" | null;
   properties: mongoose.Types.ObjectId[];
-  cars: mongoose.Types.ObjectId[];
-  activeCar: mongoose.Types.ObjectId | null;
   businesses: mongoose.Types.ObjectId[];
   companions: mongoose.Types.ObjectId[];
   referralCode: string;
@@ -259,8 +257,6 @@ const UserSchema = new Schema<IUser>(
     guildId: { type: Schema.Types.ObjectId, ref: "Guild", default: null },
     guildRole: { type: String, enum: ["leader", "officer", "member", "recruit", null], default: null },
     properties: [{ type: Schema.Types.ObjectId, ref: "Property" }],
-    cars: [{ type: Schema.Types.ObjectId, ref: "Car" }],
-    activeCar: { type: Schema.Types.ObjectId, ref: "Car", default: null },
     businesses: [{ type: Schema.Types.ObjectId, ref: "Business" }],
     companions: [{ type: Schema.Types.ObjectId, ref: "Companion" }],
     referralCode: { type: String, unique: true, sparse: true },

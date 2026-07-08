@@ -30,8 +30,8 @@ import craftingRouter from "./crafting";
 import tradeRouter from "./trade";
 // ── Wire Cartel additions ────────────────────────────────────────────────────
 import gymRouter from "./gym";
-import garageRouter from "./garage";
-import racesRouter from "./races";
+import garageRouter from "./minigame-garage";
+import loadoutRouter from "./loadout";
 import cityRouter from "./city";
 import netRouter from "./net";
 import worldRouter from "./world";
@@ -77,7 +77,7 @@ router.use("/trade", tradeRouter);
 // ── Wire Cartel ──────────────────────────────────────────────────────────────
 router.use("/gym", gymRouter);
 router.use("/garage", garageRouter);
-router.use("/races", racesRouter);
+router.use("/loadout", loadoutRouter);
 router.use("/city", cityRouter);
 router.use("/net", netRouter);
 router.use("/world", worldRouter);

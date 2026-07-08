@@ -46,6 +46,7 @@ const NAV: { id: string; label: string; minStage?: number; group?: string }[] = 
   { id: "cyber",        label: "Cyber",    group: "wc", minStage: 3 },
   { id: "guilds",       label: "Crew",     group: "wc", minStage: 2 },
   // Economy & social
+  { id: "arena",        label: "Arena" },
   { id: "combat",       label: "Combat" },
   { id: "market",       label: "Market" },
   { id: "friends",      label: "Friends" },

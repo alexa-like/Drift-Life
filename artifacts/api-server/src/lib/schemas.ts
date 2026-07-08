@@ -44,19 +44,6 @@ export const jobsMinigameCompleteSchema = z.object({
   score: z.coerce.number().finite().min(0).max(100),
 });
 
-// ── Garage ───────────────────────────────────────────────────────────────
-export const garageBuySchema = z.object({
-  carIndex: z.coerce.number().int().min(0),
-  name: z.string().trim().max(40).optional(),
-});
-export const garageTuneSchema = z.object({
-  stat: z.enum(["power", "handling", "grip", "nitro", "durability"]),
-  partId: z.string().trim().min(1).optional(),
-});
-export const garageSetActiveSchema = z.object({
-  carId: objectId,
-});
-
 // ── Crimes ───────────────────────────────────────────────────────────────
 export const pursuitResolveSchema = z.object({
   outcome: z.enum(["bribe", "outrun", "busted"]),

@@ -328,29 +328,31 @@ Fields:
 > Goal: The lobby where players prepare before entering combat or racing.
 
 ### 3A — Mini-Game Hub Frontend
-- [ ] New page/section: "Arena" (combat hub) and "Garage" (racing hub)
-- [ ] These hubs are separate from the main game inventory
-- [ ] Players cannot see main game items here, only mini-game items
+- [x] New page/section: "Arena" (combat hub) and "Garage" (racing hub)
+- [x] These hubs are separate from the main game inventory
+- [x] Players cannot see main game items here, only mini-game items
 
 ### 3B — Combat Loadout
-- [ ] Loadout screen: pick 1 weapon + 1 armor + 2 consumables + 1 ammo type
-- [ ] Shows item cards with stats
-- [ ] Loadout persists until player manually changes it
-- [ ] `POST /api/loadout/combat` — save loadout
-- [ ] `GET /api/loadout/combat` — get current loadout
-- [ ] Empty loadout = use default bare hands (no weapon, no armor)
+- [x] Loadout screen: pick 1 weapon + 1 armor + 2 consumables + 1 ammo type
+- [x] Shows item cards with stats
+- [x] Loadout persists until player manually changes it
+- [x] `POST /api/loadout/combat` — save loadout
+- [x] `GET /api/loadout/combat` — get current loadout
+- [x] Empty loadout = use default bare hands (no weapon, no armor)
 
 ### 3C — Garage & Car Tuning
-- [ ] Garage screen: shows all owned cars
-- [ ] Select active car
-- [ ] Tune car: equip engine, tires, nitro, body kit, spoiler (each slot shows owned parts)
-- [ ] Customization: pick paint, underglow color, decals, rims
-- [ ] Sell car button: confirmation modal → returns DC based on car tier
-- [ ] Scrap car button: confirmation modal → returns CarPart items based on car tier
-- [ ] Car stat preview: shows total speed/acceleration/handling/nitro after tuning
-- [ ] `POST /api/garage/tune` — save car tuning
-- [ ] `POST /api/garage/sell` — sell car
-- [ ] `POST /api/garage/scrap` — scrap car for parts
+- [x] Garage screen: shows all owned cars
+- [x] Select active car
+- [x] Tune car: equip engine, tires, nitro, body kit, spoiler (each slot shows owned parts)
+- [x] Customization: pick paint, underglow color, decals, rims
+- [x] Sell car button: confirmation modal → returns DC based on car tier
+- [x] Scrap car button: confirmation modal → returns CarPart items based on car tier
+- [x] Car stat preview: shows total speed/acceleration/handling/nitro after tuning
+- [x] `POST /api/garage/tune` — save car tuning
+- [x] `POST /api/garage/sell` — sell car
+- [x] `POST /api/garage/scrap` — scrap car for parts
+
+> Legacy replacement note: the old open-world Car model, `/api/garage` (buy/tune/chop-shop) and `/api/races` (drag/circuit/drift/pink-slip) routes, and the old GaragePage frontend were fully deleted and replaced by the RaceCar/CarPart/PlayerGarage mini-game system above. A one-time `runLegacyCarRefundMigration` job (`POST /api/admin/migration/cars`) converts any existing players' old cars to DC before the data is gone for good.
 
 ---
 
@@ -877,7 +879,7 @@ Examples:
 |---|---|---|
 | Tier 1 | Foundation Cleanup & Data Models | [x] |
 | Tier 2 | Royale System | [x] |
-| Tier 3 | Mini-Game Hub & Loadout System | [ ] |
+| Tier 3 | Mini-Game Hub & Loadout System | [x] |
 | Tier 4 | Combat System | [ ] |
 | Tier 5 | Racing System | [ ] |
 | Tier 6 | Leaderboards, Missions & Achievements | [ ] |

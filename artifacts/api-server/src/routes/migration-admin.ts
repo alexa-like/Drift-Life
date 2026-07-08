@@ -13,6 +13,7 @@ import {
   runAllMigrations,
   runMeritMigration,
   runItemRefundMigration,
+  runLegacyCarRefundMigration,
   runEquipmentClearMigration,
 } from "../jobs/migration";
 
@@ -48,6 +49,17 @@ router.post("/items", requireAuth, requireOwner, async (req: AuthRequest, res) =
   } catch (err: any) {
     req.log.error({ err }, "migration/items error");
     res.status(500).json({ message: "Item refund failed", error: err.message });
+  }
+});
+
+// Run legacy car refund only
+router.post("/cars", requireAuth, requireOwner, async (req: AuthRequest, res) => {
+  try {
+    const result = await runLegacyCarRefundMigration();
+    res.json({ message: "Legacy car refund complete", result });
+  } catch (err: any) {
+    req.log.error({ err }, "migration/cars error");
+    res.status(500).json({ message: "Legacy car refund failed", error: err.message });
   }
 });
 

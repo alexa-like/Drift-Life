@@ -422,18 +422,19 @@ router.post("/pursuit/resolve", requireAuth, validateBody(pursuitResolveSchema),
       user.heat = 40;
       message = `Slipped Chief Ralston ${bribeCost.toLocaleString()} DC. Heat reset to 40.`;
     } else if (outcome === "outrun") {
-      // Skill check: car speed + handling (stub until garage built)
-      // Use active car power+handling to compute outrun bonus (0 to 0.40)
+      // Skill check: active mini-game race car's topSpeed + handling drive the outrun bonus (0 to 0.40)
       let carBonus = 0;
-      if (user.activeCar) {
-        try {
-          const Car = (await import("../models/Car")).default;
-          const activeCar = await Car.findById(user.activeCar).select("power handling").lean();
-          if (activeCar) {
-            carBonus = Math.min(0.40, ((activeCar as any).power + (activeCar as any).handling) / 500);
+      try {
+        const PlayerGarage = (await import("../models/PlayerGarage")).default;
+        const RaceCar      = (await import("../models/RaceCar")).default;
+        const garage = await PlayerGarage.findOne({ userId: user._id }).lean();
+        if (garage?.activeCar) {
+          const car = await RaceCar.findOne({ carId: garage.activeCar }).select("baseStats").lean();
+          if (car) {
+            carBonus = Math.min(0.40, (car.baseStats.topSpeed + car.baseStats.handling) / 500);
           }
-        } catch { /* ignore — fallback to 0 */ }
-      }
+        }
+      } catch { /* ignore — fallback to 0 */ }
       const successChance = 0.40 + carBonus;
       if (Math.random() < successChance) {
         user.heat = 20;

@@ -29,6 +29,7 @@ import User, { WALLET_CAP } from "../models/User";
 import Item from "../models/Item";
 import Notification from "../models/Notification";
 import { logger } from "../lib/logger";
+import mongoose from "mongoose";
 
 const ITEM_RARITY_DC: Record<string, number> = {
   common:    50,
@@ -47,6 +48,11 @@ export interface MigrationResult {
   };
   itemRefund: {
     itemsRemoved:   number;
+    usersRefunded:  number;
+    totalDcGranted: number;
+  };
+  legacyCarRefund: {
+    carsRemoved:    number;
     usersRefunded:  number;
     totalDcGranted: number;
   };
@@ -183,12 +189,84 @@ export async function runEquipmentClearMigration(): Promise<{ usersUpdated: numb
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Job 4: Legacy Car → DC refund (retiring the old open-world street-racing
+ * Car model in favor of the new RaceCar/PlayerGarage mini-game system).
+ *   - Finds all legacy Car documents
+ *   - Converts each to DC based on its tuned stats: (power+handling+grip+nitro) * 50
+ *   - Adds DC to owner (atomic, capped at WALLET_CAP)
+ *   - Deletes the cars, clears User.cars/activeCar
+ *   - Sends grouped inbox notification per player
+ * Idempotent: cars are deleted after processing; re-run finds nothing.
+ */
+export async function runLegacyCarRefundMigration(): Promise<{
+  carsRemoved: number;
+  usersRefunded: number;
+  totalDcGranted: number;
+}> {
+  logger.info("Migration: starting legacy car → DC refund job");
+
+  // Lazy import — the Car model is being retired; keep the dependency
+  // isolated to this migration so the rest of the codebase never imports it.
+  let Car: mongoose.Model<any>;
+  try {
+    Car = (await import("../models/Car")).default;
+  } catch {
+    logger.info("Migration: legacy Car model not present, skipping");
+    return { carsRemoved: 0, usersRefunded: 0, totalDcGranted: 0 };
+  }
+
+  const cars = await Car.find({}).select("ownerId make carModel power handling grip nitro");
+  const byOwner: Record<string, { userId: any; lines: string[]; totalDc: number }> = {};
+
+  for (const car of cars) {
+    const ownerId = String(car.ownerId);
+    if (!byOwner[ownerId]) byOwner[ownerId] = { userId: car.ownerId, lines: [], totalDc: 0 };
+    const dc = Math.round(((car.power ?? 0) + (car.handling ?? 0) + (car.grip ?? 0) + (car.nitro ?? 0)) * 50);
+    byOwner[ownerId].lines.push(`• ${car.make} ${car.carModel} → ${dc.toLocaleString()} DC`);
+    byOwner[ownerId].totalDc += dc;
+  }
+
+  let usersRefunded  = 0;
+  let totalDcGranted = 0;
+  const carsRemoved  = cars.length;
+
+  for (const entry of Object.values(byOwner)) {
+    const owner = await User.findById(entry.userId).select("dc");
+    if (!owner) continue;
+
+    const toAdd = Math.min(entry.totalDc, WALLET_CAP - (owner.dc ?? 0));
+    if (toAdd > 0) {
+      await User.findByIdAndUpdate(entry.userId, { $inc: { dc: toAdd } });
+    }
+
+    const summary = entry.lines.join("\n");
+    await Notification.create({
+      userId: entry.userId,
+      type:   "system",
+      message: `🚗 The old garage system has been retired. Your cars were converted to DC:\n\n${summary}\n\nTotal received: ${entry.totalDc.toLocaleString()} DC\n\nVisit the new Garage to claim cars from the Royale wheel!`,
+    }).catch(() => {});
+
+    usersRefunded++;
+    totalDcGranted += entry.totalDc;
+  }
+
+  await Car.deleteMany({});
+  await User.updateMany({}, { $set: { cars: [], activeCar: null } });
+
+  logger.info({ carsRemoved, usersRefunded, totalDcGranted }, "Migration: legacy car refund complete");
+  return { carsRemoved, usersRefunded, totalDcGranted };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function runAllMigrations(): Promise<MigrationResult> {
   // Run wallet-affecting jobs sequentially to prevent concurrent DC mutations
   // on the same users from racing past the wallet cap.
   const meritMigration    = await runMeritMigration();
   const itemRefund        = await runItemRefundMigration();
+  const legacyCarRefund   = await runLegacyCarRefundMigration();
   // Equipment clear has no wallet side-effects — safe to run anytime
   const equipmentCleared  = await runEquipmentClearMigration();
-  return { meritMigration, itemRefund, equipmentCleared };
+  return { meritMigration, itemRefund, legacyCarRefund, equipmentCleared };
 }

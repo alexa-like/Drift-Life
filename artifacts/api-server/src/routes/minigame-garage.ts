@@ -10,9 +10,27 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import User from "../models/User";
 import PlayerGarage from "../models/PlayerGarage";
+import RaceCar from "../models/RaceCar";
+import CarPart from "../models/CarPart";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
+
+// Compute a car's total stats: base RaceCar stats + all equipped CarPart boosts, clamped 0-100
+function computeTotalStats(
+  base: { topSpeed: number; acceleration: number; handling: number; nitro: number },
+  parts: Array<{ statBoost: { topSpeed?: number; acceleration?: number; handling?: number; nitro?: number } } | null>,
+) {
+  const total = { ...base };
+  for (const part of parts) {
+    if (!part) continue;
+    total.topSpeed     = Math.min(100, total.topSpeed     + (part.statBoost.topSpeed     ?? 0));
+    total.acceleration = Math.min(100, total.acceleration + (part.statBoost.acceleration ?? 0));
+    total.handling     = Math.min(100, total.handling     + (part.statBoost.handling     ?? 0));
+    total.nitro        = Math.min(100, total.nitro        + (part.statBoost.nitro        ?? 0));
+  }
+  return total;
+}
 
 // Sell values by tier
 const SELL_VALUE: Record<string, number> = {
@@ -23,7 +41,7 @@ const SELL_VALUE: Record<string, number> = {
   legendary: 50_000,
 };
 
-// Car tier lookup — must match seeded RaceCar carId slugs
+// Car tier lookup — must match seeded RaceCar carId slugs (see seeds/raceCars.ts)
 const CAR_TIERS: Record<string, string> = {
   rustbucket_common:  "common",
   scooter_common:     "common",
@@ -33,22 +51,57 @@ const CAR_TIERS: Record<string, string> = {
   sport_bike_uncommon:"uncommon",
   sports_car_rare:    "rare",
   drift_coupe_rare:   "rare",
-  racing_motorcycle_rare: "rare",
+  race_moto_rare:     "rare",
   supercar_epic:      "epic",
   hyperbike_epic:     "epic",
+  elec_racer_epic:    "epic",
   cyberjet_legendary: "legendary",
   neon_beast_legendary:"legendary",
   hovercar_legendary: "legendary",
 };
 
+// ── GET /api/minigame-garage/catalog — all active RaceCar + CarPart defs ──────
+router.get("/catalog", requireAuth, async (_req: AuthRequest, res) => {
+  try {
+    const [cars, parts] = await Promise.all([
+      RaceCar.find({ isActive: true }).lean(),
+      CarPart.find({ isActive: true }).lean(),
+    ]);
+    res.json({ cars, parts });
+  } catch (err: any) {
+    _req.log.error({ err }, "minigame-garage catalog error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // ── GET /api/minigame-garage/ ─────────────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
-    let garage = await PlayerGarage.findOne({ userId: req.userId }).lean();
-    if (!garage) {
-      garage = { userId: new mongoose.Types.ObjectId(req.userId), cars: [], parts: [], activeCar: null } as any;
-    }
-    res.json({ garage });
+    const garage = await PlayerGarage.findOne({ userId: req.userId }).lean() ?? {
+      userId: new mongoose.Types.ObjectId(req.userId), cars: [], parts: [], activeCar: null,
+    };
+
+    const carIds  = garage.cars.map(c => c.carId);
+    const partIds = garage.parts.map(p => p.partId);
+    const [carDefs, partDefs] = await Promise.all([
+      carIds.length  ? RaceCar.find({ carId: { $in: carIds } }).lean()   : [],
+      partIds.length ? CarPart.find({ partId: { $in: partIds } }).lean() : [],
+    ]);
+    const carDefMap  = Object.fromEntries(carDefs.map(c => [c.carId, c]));
+    const partDefMap = Object.fromEntries(partDefs.map(p => [p.partId, p]));
+
+    const enrichedCars = garage.cars.map(c => {
+      const def = carDefMap[c.carId] ?? null;
+      const equippedPartDefs = Object.values(c.equippedParts).map(pid => (pid ? partDefMap[pid] ?? null : null));
+      const totalStats = def ? computeTotalStats(def.baseStats, equippedPartDefs) : null;
+      return { ...c, def, totalStats };
+    });
+
+    const enrichedParts = garage.parts.map(p => ({ ...p, def: partDefMap[p.partId] ?? null }));
+
+    res.json({
+      garage: { ...garage, cars: enrichedCars, parts: enrichedParts },
+    });
   } catch (err) {
     req.log.error({ err }, "minigame-garage get error");
     res.status(500).json({ message: "Internal server error" });
@@ -183,13 +236,13 @@ router.post("/scrap", requireAuth, async (req: AuthRequest, res) => {
 
     const tier = CAR_TIERS[carId] ?? "common";
 
-    // Scrap parts by tier
+    // Scrap parts by tier — must match seeded CarPart partId slugs (see seeds/raceCars.ts)
     const SCRAP_PARTS: Record<string, Array<{ partId: string; qty: number }>> = {
-      common:    [{ partId: "standard_engine_common",  qty: 1 }],
-      uncommon:  [{ partId: "v6_engine_uncommon",      qty: 1 }, { partId: "racing_tires_uncommon", qty: 1 }],
-      rare:      [{ partId: "v8_engine_rare",          qty: 1 }, { partId: "slick_tires_rare",      qty: 1 }, { partId: "nitro_tank_rare", qty: 1 }],
-      epic:      [{ partId: "electric_engine_epic",    qty: 1 }, { partId: "performance_tires_epic", qty: 1 }, { partId: "double_nitro_epic", qty: 1 }, { partId: "carbon_spoiler_epic", qty: 1 }],
-      legendary: [{ partId: "fusion_engine_legendary", qty: 2 }, { partId: "holographic_tires_legendary", qty: 1 }, { partId: "infinite_nitro_legendary", qty: 1 }, { partId: "ai_copilot_legendary", qty: 1 }],
+      common:    [{ partId: "std_engine_common",  qty: 1 }],
+      uncommon:  [{ partId: "v6_engine_uncommon", qty: 1 }, { partId: "race_tires_uncommon", qty: 1 }],
+      rare:      [{ partId: "v8_engine_rare",     qty: 1 }, { partId: "slick_tires_rare",    qty: 1 }, { partId: "nitro_tank_rare", qty: 1 }],
+      epic:      [{ partId: "elec_engine_epic",   qty: 1 }, { partId: "perf_tires_epic",     qty: 1 }, { partId: "double_nitro_epic", qty: 1 }, { partId: "carbon_spoiler_epic", qty: 1 }],
+      legendary: [{ partId: "fusion_engine_leg",  qty: 2 }, { partId: "holo_tires_leg",      qty: 1 }, { partId: "inf_nitro_leg", qty: 1 }, { partId: "quantum_brakes_leg", qty: 1 }],
     };
 
     const parts = SCRAP_PARTS[tier] ?? SCRAP_PARTS.common;

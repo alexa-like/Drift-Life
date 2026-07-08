@@ -283,37 +283,70 @@ export interface NPC {
   description: string;
 }
 
-export interface Car {
-  id: string;
-  ownerId: string;
-  name: string;
-  make: string;
-  model: string;
-  year: number;
-  power: number;
+// ── Mini-game Garage (Tier 3C) — RaceCar/CarPart catalog + PlayerGarage ────────
+export type RaceCarTier = "common" | "uncommon" | "rare" | "epic" | "legendary";
+export type CarPartType = "engine" | "tires" | "nitro" | "bodyKit" | "spoiler";
+
+export interface CarStats {
+  topSpeed: number;
+  acceleration: number;
   handling: number;
-  grip: number;
   nitro: number;
-  durability: number;
-  maxDurability: number;
-  paintId: string;
-  stance: string;
-  plateText: string;
-  isActive?: boolean;
-  raceWins: number;
-  raceLosses: number;
-  pinkSlipWins: number;
-  impoundedUntil: string | null;
-  isStolen: boolean;
-  parts: CarPart[];
 }
 
-export interface CarPart {
+export interface RaceCarDef {
+  carId: string;
+  name: string;
+  tier: RaceCarTier;
+  baseStats: CarStats;
+  imageCard: string;
+  flavorText: string;
+}
+
+export interface CarPartDef {
   partId: string;
-  type: string;
-  quality: "common" | "rare" | "legendary";
-  statAffected: string;
-  bonus: number;
+  name: string;
+  partType: CarPartType;
+  tier: RaceCarTier;
+  statBoost: Partial<CarStats>;
+  imageCard: string;
+  flavorText: string;
+}
+
+export interface EquippedParts {
+  engine: string | null;
+  tires: string | null;
+  nitro: string | null;
+  bodyKit: string | null;
+  spoiler: string | null;
+}
+
+export interface CarCustomization {
+  paint: string;
+  underglow: string;
+  decals: string;
+  rims: string;
+}
+
+export interface OwnedCar {
+  carId: string;
+  equippedParts: EquippedParts;
+  customization: CarCustomization;
+  acquiredAt: string;
+  def: RaceCarDef | null;
+  totalStats: CarStats | null;
+}
+
+export interface OwnedCarPartStack {
+  partId: string;
+  quantity: number;
+  def: CarPartDef | null;
+}
+
+export interface PlayerGarage {
+  cars: OwnedCar[];
+  parts: OwnedCarPartStack[];
+  activeCar: string | null;
 }
 
 export interface Business {
