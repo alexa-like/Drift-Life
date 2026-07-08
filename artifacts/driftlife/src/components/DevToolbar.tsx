@@ -103,7 +103,7 @@ export function DevToolbar({ user, onRefresh, addToast }: Props) {
                   min={1}
                   className="font-mono rounded px-1.5 py-1 flex-1 min-w-0"
                   style={{ fontSize: 10, background: "#0a0a0f", border: "1px solid #a855f730", color: "#a855f7" }}
-                  placeholder="UC amount"
+                  placeholder="NC amount"
                 />
                 <button
                   onClick={() => action("/dev/give-nc", { amount: Number(ncAmount) })}
@@ -111,7 +111,7 @@ export function DevToolbar({ user, onRefresh, addToast }: Props) {
                   className="px-2 py-1 font-mono rounded flex-shrink-0"
                   style={{ fontSize: 10, background: "#a855f720", color: "#a855f7", border: "1px solid #a855f740" }}
                 >
-                  +UC
+                  +NC
                 </button>
               </div>
             </div>

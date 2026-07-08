@@ -5,9 +5,9 @@ export interface ITelegramPayment extends Document {
   userId: mongoose.Types.ObjectId;
   productId: string;
   productType: "nc_pack" | "subscription";
-  tier: string | null;       // subscription tier, null for UC packs
+  tier: string | null;       // subscription tier, null for NC packs
   starsAmount: number;
-  ucGranted: number;
+  ncGranted: number;
   grantedAt: Date;
 }
 
@@ -19,7 +19,7 @@ const TelegramPaymentSchema = new Schema<ITelegramPayment>(
     productType: { type: String, enum: ["nc_pack", "subscription"], required: true },
     tier:        { type: String, default: null },
     starsAmount: { type: Number, required: true },
-    ucGranted:   { type: Number, default: 0 },
+    ncGranted:   { type: Number, default: 0 },
     grantedAt:   { type: Date, default: Date.now },
   },
   { timestamps: false }

@@ -23,7 +23,7 @@ Each tier has subcategories. Each subcategory has tasks. Each task is one checka
 - **Backend:** Express + Node.js (`artifacts/api-server`)
 - **Database:** MongoDB + Mongoose
 - **Auth:** Custom JWT + bcrypt + email OTP
-- **Payments:** Telegram Stars (XTR) + in-game UC
+- **Payments:** Telegram Stars (XTR) + in-game NC
 - **Art style:** Sprite composites (pre-rendered PNG/WebP cards, sprite sheets for animation)
 - **Animation:** Canvas 2D + CSS animations (NO real 3D, NO Three.js)
 
@@ -268,7 +268,7 @@ Fields:
 
 ### 2A — Royale Engine (backend)
 - [ ] `POST /api/royale/spin` — accepts { royaleType, currency, count: 1 | 10 }
-  - Validate player has enough DC/UC/Key
+  - Validate player has enough DC/NC/Key
   - Deduct cost atomically
   - Roll items using weighted drop table
   - Apply pity counter (15 spins without Rare+ → guarantee Rare+)
@@ -288,8 +288,8 @@ Fields:
 
 #### General Royale page
 - [ ] Animated spin wheel (sprite composite, neon style)
-- [ ] Shows current currency balances (DC / UC / Keys / Shards)
-- [ ] Three spin buttons: Spin with DC | Spin with UC | Spin with Key
+- [ ] Shows current currency balances (DC / NC / Keys / Shards)
+- [ ] Three spin buttons: Spin with DC | Spin with NC | Spin with Key
 - [ ] 1× and 10× toggle
 - [ ] Reveals won item with card animation (flip reveal, glow on Rare+)
 - [ ] Inventory updates live after spin
@@ -499,7 +499,7 @@ Examples (all referencing new systems only):
 - Finish a race in 1st place
 - Use a consumable in combat
 - Log in today
-- Claim daily UC (subscription players)
+- Claim daily NC (subscription players)
 - Complete 5 crime attempts
 
 - [ ] Build new daily mission system (remove all old ones)
@@ -559,13 +559,13 @@ Examples:
 - [ ] View royale spin logs per player
 - [ ] View combat match history
 - [ ] View race match history
-- [ ] Manually grant DC/UC/Keys to player
-- [ ] Run special events (toggle UC sources temporarily)
+- [ ] Manually grant DC/NC/Keys to player
+- [ ] Run special events (toggle NC sources temporarily)
 - [ ] Adjust royale drop rates without code deploy
 
 ### 8C — General Polish
 - [ ] Energy display always visible in header (with regen timer)
-- [ ] Currency display always visible in header: DC | UC | Keys | Shards
+- [ ] Currency display always visible in header: DC | NC | Keys | Shards
 - [ ] Item card animations: hover lift effect, tier glow pulse
 - [ ] Sound effects toggle (optional, off by default)
 - [ ] Match history page: last 20 combat matches and races
@@ -804,11 +804,11 @@ Examples:
 
 ## Royale Spin Pricing (to be confirmed by owner before Tier 2)
 
-| Royale | DC Spin | UC Spin | Key Spin |
+| Royale | DC Spin | NC Spin | Key Spin |
 |---|---|---|---|
-| General | 300 DC | 20 UC | 1 Key |
-| Shooting | 500 DC | 30 UC | 1 Key |
-| Racing | 500 DC | 30 UC | 1 Key |
+| General | 300 DC | 20 NC | 1 Key |
+| Shooting | 500 DC | 30 NC | 1 Key |
+| Racing | 500 DC | 30 NC | 1 Key |
 
 10× spin = 9× cost (one free spin), guaranteed 1 Rare+.
 
@@ -829,7 +829,7 @@ Examples:
 - Hospital: triggered ONLY by crime failure (injury)
 - Jail: triggered ONLY by crime failure (caught)
 - NO hospital or jail from combat mini-game
-- Players can reduce time with UC, items, or just wait
+- Players can reduce time with NC, items, or just wait
 - Hospital and jail block the player from doing crimes but NOT from playing mini-games
 
 ---

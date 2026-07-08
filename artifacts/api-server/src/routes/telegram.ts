@@ -55,7 +55,7 @@ function checkInvoiceRate(chatId: string): boolean {
 const MAIN_MENU_KB = [
   [
     { text: "📊 My Status",    callback_data: "status" },
-    { text: "💰 Buy UC",       callback_data: "packs"  },
+    { text: "💰 Buy NC",       callback_data: "packs"  },
   ],
   [
     { text: "💎 Subscribe",    callback_data: "tiers"  },
@@ -308,7 +308,7 @@ router.post("/unlink", requireAuth, async (req: AuthRequest, res) => {
 // ── POST /api/telegram/webhook ────────────────────────────────────────────────
 // SECURITY: TELEGRAM_WEBHOOK_SECRET is REQUIRED. Requests without a matching
 // secret are rejected with 401. Without this, forged successful_payment events
-// could mint UC for free.
+// could mint NC for free.
 router.post("/webhook", async (req, res) => {
   const secretToken = process.env["TELEGRAM_WEBHOOK_SECRET"];
 
@@ -471,7 +471,7 @@ router.post("/webhook", async (req, res) => {
           await TelegramPayment.create({
             chargeId, userId: pending.userId, productId,
             productType: "nc_pack", tier: null,
-            starsAmount: payment.total_amount, ucGranted: ncPack.nc,
+            starsAmount: payment.total_amount, ncGranted: ncPack.nc,
           });
           await User.updateOne({ _id: pending.userId }, { $inc: { nc: ncPack.nc } });
           await sendMessageWithKeyboard({
@@ -488,7 +488,7 @@ router.post("/webhook", async (req, res) => {
           await TelegramPayment.create({
             chargeId, userId: pending.userId, productId,
             productType: "subscription", tier: tierId,
-            starsAmount: payment.total_amount, ucGranted: 0,
+            starsAmount: payment.total_amount, ncGranted: 0,
           });
 
           const user = await User.findById(pending.userId)
@@ -562,7 +562,7 @@ router.post("/webhook", async (req, res) => {
           text:
             `✅ <b>DriftLife linked!</b>\n\n` +
             `Your Telegram account is now connected.\n\n` +
-            `You can now buy UC packs and subscriptions directly here using the menu below.`,
+            `You can now buy NC packs and subscriptions directly here using the menu below.`,
           inlineKeyboard: MAIN_MENU_KB,
         });
         return;

@@ -34,16 +34,16 @@ All bot commands now serve inline keyboard menus. Helpers:
 Callback data format: `menu`, `status`, `packs`, `tiers`, `buy:<packId>`, `sub:<tierId>`.
 `callback_query` is in `allowed_updates`. `answerCallbackQuery` called immediately on every button tap.
 
-## UC subscription purchase (in-game)
-`POST /api/store/buy-subscription-uc { tierId }` — buys a 30-day subscription with UC.
-Pricing: 6 UC/Star (1500/3000/6000 for street_runner/neon_syndicate/apex_sovereign).
-Uses Mongoose session+transaction so UC deduction, grant, and UcPurchaseLog all commit atomically.
-`UcPurchaseLog` model in `models/UcPurchaseLog.ts` for audit trail.
+## NC subscription purchase (in-game)
+`POST /api/store/buy-subscription-nc { tierId }` — buys a 30-day subscription with NC.
+Pricing: 6 NC/Star (1500/3000/6000 for street_runner/neon_syndicate/apex_sovereign).
+Uses Mongoose session+transaction so NC deduction, grant, and NcPurchaseLog all commit atomically.
+`NcPurchaseLog` model in `models/NcPurchaseLog.ts` for audit trail.
 
 ## StorePage dual payment
 Each subscription tier card shows two buttons:
 - `⭐ X Stars via Telegram` — existing Stars flow (opens invoice link)
-- `💰 X,XXX UC (in-game)` — confirm→API call flow; disabled/greyed if insufficient UC
+- `💰 X,XXX NC (in-game)` — confirm→API call flow; disabled/greyed if insufficient NC
 
 ## New bot commands
 `/status`, `/buy [pack_id]`, `/subscribe [tier_id]` — look up user by `telegramId`,

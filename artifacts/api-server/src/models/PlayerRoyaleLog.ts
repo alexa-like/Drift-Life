@@ -9,7 +9,7 @@ export interface IPlayerRoyaleLog extends Document {
   royaleType: "general" | "shooting" | "racing";
   currency:   "dc" | "nc" | "key";
   spinsCount: 1 | 10;
-  costPaid:   number;         // total DC / UC / keys spent
+  costPaid:   number;         // total DC / NC / keys spent
   results:    string[];       // array of RoyaleItem names won
   createdAt:  Date;
 }
