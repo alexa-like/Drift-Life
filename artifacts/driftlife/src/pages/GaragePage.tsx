@@ -5,6 +5,11 @@ import { CardArt } from "../components/CardArt";
 
 /** Shows the car's PNG asset; falls back to the programmatic CardArt if the file doesn't load. */
 function CarImage({ carId, tier, size }: { carId: string; tier: string; size: number }) {
+  // Keyed by carId so the failure state resets whenever the displayed car changes.
+  return <CarImageInner key={carId} carId={carId} tier={tier} size={size} />;
+}
+
+function CarImageInner({ carId, tier, size }: { carId: string; tier: string; size: number }) {
   const [failed, setFailed] = useState(false);
   if (!failed) {
     return (

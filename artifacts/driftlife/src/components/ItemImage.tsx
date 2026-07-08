@@ -355,6 +355,11 @@ function FallbackIcon({ type = "misc", size }: FallbackProps) {
 }
 
 export function ItemImage({ itemId, imageUrl, size = 48, className }: Props) {
+  return <ItemImageInner key={itemId} itemId={itemId} imageUrl={imageUrl} size={size} className={className} />;
+}
+
+/** Keyed by itemId at the call site above so failure state resets whenever the item changes. */
+function ItemImageInner({ itemId, imageUrl, size = 48, className }: Props) {
   const [pngFailed, setPngFailed] = useState(false);
   const [urlFailed, setUrlFailed] = useState(false);
 

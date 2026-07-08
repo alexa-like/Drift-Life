@@ -5,6 +5,12 @@ import { CardArt, inferItemType } from "../components/CardArt";
 
 /** Shows a combat item's PNG asset; falls back to CardArt if the file doesn't load. */
 function ItemPng({ itemId, itemType, tier, size }: { itemId: string; itemType: string; tier: string; size: number }) {
+  // Keyed by itemId so the failure state resets whenever the displayed item changes
+  // (e.g. swapping loadout slots or navigating between items in the same mounted slot).
+  return <ItemPngInner key={itemId} itemId={itemId} itemType={itemType} tier={tier} size={size} />;
+}
+
+function ItemPngInner({ itemId, itemType, tier, size }: { itemId: string; itemType: string; tier: string; size: number }) {
   const [failed, setFailed] = useState(false);
   if (!failed) {
     return (
