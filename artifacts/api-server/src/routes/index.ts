@@ -46,6 +46,8 @@ import migrationAdminRouter from "./migration-admin";
 import royaleRouter from "./royale";
 // ── Arena / Combat System (Tier 4) ───────────────────────────────────────────
 import arenaRouter from "./arena";
+// ── Racing System (Tier 5) ────────────────────────────────────────────────────
+import raceRouter from "./race";
 
 const router: IRouter = Router();
 
@@ -93,6 +95,8 @@ router.use("/energy", energyRouter);
 router.use("/royale", royaleRouter);
 // ── Arena / Combat System (Tier 4) ───────────────────────────────────────────
 router.use("/arena", arenaRouter);
+// ── Racing System (Tier 5) ────────────────────────────────────────────────────
+router.use("/race", raceRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

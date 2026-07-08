@@ -10,3 +10,4 @@
 - [DriftLife Frame System (current)](driftlife-frames.md) — full rebuild: 12 frames (8 elite/4 legendary), ChatFrame component, BodyArtLayer, GlitchLogo, FrameStore, FrameLocker tab on profile, banner zone
 - [DriftLife Telegram & Payment Fixes](driftlife-telegram-payment.md) — 4 root causes fixed: webhook never registered, invalid allowed_updates type, MongoDB $set nesting bug, secret now mandatory
 - [DriftLife Arena Combat (Tier 4)](driftlife-arena-tier4.md) — element effects (burn/shock/AP/block/etc), auto-timeout worker, DoT early-exit gate, same-turn AI stun, atomic turn claim in timeout worker; reward dcMult/xpMult are separate vars
+- [DriftLife Racing System (Tier 5)](driftlife-tier5-racing.md) — fully built; route was unregistered + no NavBar entry; fixed + anti-cheat (server-computes hit), atomic energy join, queue timeout batches humans first; lastShiftAt/shiftCount added to RaceMatch model

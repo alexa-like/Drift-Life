@@ -85,23 +85,27 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
       res.status(400).json({ message: "Invalid mode" }); return;
     }
 
-    const user = await User.findById(req.userId).select("username level energy maxEnergy");
-    if (!user) { res.status(404).json({ message: "User not found" }); return; }
-
-    const cost = ENERGY_COST[mode];
-    if (user.energy < cost) {
-      res.status(400).json({ message: `Not enough energy — need ${cost}` }); return;
-    }
-
-    // Check already queued
-    const q = mode === "2player" ? queue2p : queue4p;
-    if (q.has(req.userId!)) {
+    // Check already queued (before spending energy)
+    if (queue2p.has(req.userId!) || queue4p.has(req.userId!)) {
       res.status(400).json({ message: "Already in queue" }); return;
     }
 
-    // Deduct energy
-    user.energy -= cost;
-    await user.save();
+    const cost = ENERGY_COST[mode];
+
+    // Atomic energy deduction — prevents concurrent double-spend
+    const user = await User.findOneAndUpdate(
+      { _id: req.userId, energy: { $gte: cost } },
+      { $inc: { energy: -cost } },
+      { new: true, select: "username level energy maxEnergy" },
+    );
+    if (!user) {
+      // Either user not found or insufficient energy — check which
+      const exists = await User.exists({ _id: req.userId });
+      if (!exists) { res.status(404).json({ message: "User not found" }); return; }
+      res.status(400).json({ message: `Not enough energy — need ${cost}` }); return;
+    }
+
+    const q = mode === "2player" ? queue2p : queue4p;
 
     const carSnap = await getPlayerCarSnap(req.userId!);
     const entry: RaceQueueEntry = {
@@ -199,6 +203,8 @@ async function tryFillRace(mode: "2player" | "4player"): Promise<string | null> 
     distancePct: 0,
     nitroUsed:   0,
     crashCount:  0,
+    lastShiftAt: null,
+    shiftCount:  0,
     carSnapshot: e.carSnap,
   }));
 
@@ -218,49 +224,74 @@ async function tryFillRace(mode: "2player" | "4player"): Promise<string | null> 
 }
 
 // ── Queue worker ──────────────────────────────────────────────────────────────
+// Groups all expired human players together into matches first, then AI-fills remaining seats.
 setInterval(async () => {
   const now = Date.now();
-  for (const [userId, entry] of [...queue2p.entries(), ...queue4p.entries()]) {
-    const age = now - entry.joinedAt.getTime();
-    if (age < 30_000) continue;
 
-    // Fill with AI
-    const q = entry.mode === "2player" ? queue2p : queue4p;
-    q.delete(userId);
+  for (const mode of ["2player", "4player"] as const) {
+    const q      = mode === "2player" ? queue2p : queue4p;
+    const needed = mode === "2player" ? 2 : 4;
 
-    const needed = entry.mode === "2player" ? 2 : 4;
-    const realPlayers = [entry];
-    const user = await User.findById(userId).select("level").lean();
-    const level = user?.level ?? 1;
+    // Collect all expired entries (waited ≥ 30s)
+    const expired: RaceQueueEntry[] = [];
+    for (const [userId, entry] of q.entries()) {
+      if (now - entry.joinedAt.getTime() >= 30_000) {
+        expired.push(entry);
+        q.delete(userId);
+      }
+    }
 
-    const aiPlayers = Array.from({ length: needed - 1 }, () => ({
-      userId:      null,
-      isAI:        true,
-      aiName:      AI_NAMES[Math.floor(Math.random() * AI_NAMES.length)],
-      placement:   null as number | null,
-      finishTime:  generateAIFinishTime(generateAICarSnap(level)),
-      distancePct: 0,
-      nitroUsed:   0,
-      crashCount:  0,
-      carSnapshot: generateAICarSnap(level),
-    }));
+    if (expired.length === 0) continue;
 
-    await RaceMatch.create({
-      matchId:    randomUUID(),
-      mode:       entry.mode,
-      players:    [
-        { userId: entry.userId, isAI: false, aiName: null, placement: null,
-          finishTime: null, distancePct: 0, nitroUsed: 0, crashCount: 0,
-          carSnapshot: entry.carSnap },
-        ...aiPlayers,
-      ],
-      status:     "active",
-      trackSeed:  Math.floor(Math.random() * 1_000_000),
-      energyCost: ENERGY_COST[entry.mode],
-      startedAt:  new Date(),
-      queueExpiry: new Date(Date.now() + 60_000),
-      rewardsGranted: false,
-    }).catch(() => {});
+    // Batch expired humans into groups of `needed`, AI-fill the last partial group
+    for (let i = 0; i < expired.length; i += needed) {
+      const group = expired.slice(i, i + needed);
+      const avgLevel = Math.round(group.reduce((s, e) => s + e.level, 0) / group.length);
+
+      const humanPlayers = group.map(e => ({
+        userId:      e.userId,
+        isAI:        false,
+        aiName:      null,
+        placement:   null as number | null,
+        finishTime:  null as number | null,
+        distancePct: 0,
+        nitroUsed:   0,
+        crashCount:  0,
+        lastShiftAt: null as number | null,
+        shiftCount:  0,
+        carSnapshot: e.carSnap,
+      }));
+
+      const aiCount   = needed - group.length;
+      const aiPlayers = Array.from({ length: aiCount }, () => {
+        const carSnap = generateAICarSnap(avgLevel);
+        return {
+          userId:      null,
+          isAI:        true,
+          aiName:      AI_NAMES[Math.floor(Math.random() * AI_NAMES.length)],
+          placement:   null as number | null,
+          finishTime:  generateAIFinishTime(carSnap),
+          distancePct: 0,
+          nitroUsed:   0,
+          crashCount:  0,
+          lastShiftAt: null as number | null,
+          shiftCount:  0,
+          carSnapshot: carSnap,
+        };
+      });
+
+      await RaceMatch.create({
+        matchId:        randomUUID(),
+        mode,
+        players:        [...humanPlayers, ...aiPlayers],
+        status:         "active",
+        trackSeed:      Math.floor(Math.random() * 1_000_000),
+        energyCost:     ENERGY_COST[mode],
+        startedAt:      new Date(),
+        queueExpiry:    new Date(Date.now() + 60_000),
+        rewardsGranted: false,
+      }).catch(() => {});
+    }
   }
 }, 5_000);
 
@@ -278,10 +309,13 @@ router.get("/match/:matchId", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// Anti-cheat constants
+const MIN_SHIFT_INTERVAL_MS = 250;  // humanly impossible to shift faster than this
+const MAX_SHIFTS_PER_RACE   = 120;  // theoretical max: 100% / min_gain(3%) ≈ 34, cap at 3× that
+
 // ── POST /api/race/match/:matchId/shift ───────────────────────────────────────
 router.post("/match/:matchId/shift", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { hit = false } = req.body as { hit?: boolean };
     const match = await RaceMatch.findOne({ matchId: req.params["matchId"] });
     if (!match || match.status !== "active") {
       res.status(400).json({ message: "Match not active" }); return;
@@ -294,6 +328,27 @@ router.post("/match/:matchId/shift", requireAuth, async (req: AuthRequest, res) 
     if (player.finishTime !== null) {
       res.status(400).json({ message: "You already finished" }); return;
     }
+
+    // ── Anti-cheat: server-side cadence validation ────────────────────────────
+    const now = Date.now();
+    if (player.lastShiftAt !== null && (now - player.lastShiftAt) < MIN_SHIFT_INTERVAL_MS) {
+      res.status(429).json({ message: "Shift cadence too fast" }); return;
+    }
+    if ((player.shiftCount ?? 0) >= MAX_SHIFTS_PER_RACE) {
+      res.status(400).json({ message: "Max shifts reached" }); return;
+    }
+    player.lastShiftAt = now;
+    player.shiftCount  = (player.shiftCount ?? 0) + 1;
+
+    // ── Server-side timing window: green zone is 35–65% of a sweep cycle ─────
+    // Sweep duration decreases as gear increases (same logic as frontend)
+    const gear        = Math.min(6, player.shiftCount);
+    const sweepDur    = Math.max(900, 2400 - (gear - 1) * 150);
+    const raceStart   = match.startedAt?.getTime() ?? now;
+    const elapsed     = (now - raceStart) % (sweepDur * 2);
+    const raw         = elapsed / sweepDur;          // 0→2 bounce
+    const pos         = raw > 1 ? 2 - raw : raw;     // 0→1→0
+    const hit         = pos >= 0.35 && pos <= 0.65;  // green zone determined server-side
 
     // Progress increment: good shift = 8–12%, missed shift = 3–6%
     const carSnap = player.carSnapshot;
@@ -312,7 +367,7 @@ router.post("/match/:matchId/shift", requireAuth, async (req: AuthRequest, res) 
     // Check if all real players finished
     await checkRaceCompletion(match);
     await match.save();
-    res.json({ match });
+    res.json({ match, hit });  // return server-computed hit for accurate frontend feedback
   } catch (err) {
     req.log.error({ err }, "race shift error");
     res.status(500).json({ message: "Internal server error" });

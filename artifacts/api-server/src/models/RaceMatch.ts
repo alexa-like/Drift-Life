@@ -18,6 +18,8 @@ export interface RacePlayer {
   distancePct:  number;             // 0–100 progress % (updated on each shift action)
   nitroUsed:    number;             // total nitro boosts used
   crashCount:   number;             // total crashes this race
+  lastShiftAt:  number | null;      // ms timestamp of last shift (anti-cheat: reject impossible cadences)
+  shiftCount:   number;             // total shifts submitted (anti-cheat: cap max shifts)
   carSnapshot: {
     carId:     string;
     topSpeed:  number;
@@ -51,6 +53,8 @@ const RacePlayerSchema = new Schema<RacePlayer>(
     distancePct: { type: Number, default: 0, min: 0, max: 100 },
     nitroUsed:   { type: Number, default: 0 },
     crashCount:  { type: Number, default: 0 },
+    lastShiftAt: { type: Number, default: null },
+    shiftCount:  { type: Number, default: 0 },
     carSnapshot: {
       carId:    { type: String, default: "rustbucket_common" },
       topSpeed: { type: Number, default: 40 },

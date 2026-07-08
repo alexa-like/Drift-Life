@@ -322,8 +322,8 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
         needleRef.current.style.left = `${pos * 100}%`;
       }
 
-      const W = canvas.width, H = canvas.height;
-      renderFrame(ctx, W, H, scrollRef.current, matchRef.current, user.id, nitroActiveRef.current);
+      const W = canvas!.width, H = canvas!.height;
+      renderFrame(ctx!, W, H, scrollRef.current, matchRef.current, user.id, nitroActiveRef.current);
 
       animRef.current = requestAnimationFrame(loop);
     }
@@ -389,24 +389,28 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
   // ── Shift action ───────────────────────────────────────────────────────────
   const handleShift = useCallback(async () => {
     if (acting || !matchIdRef.current || phase !== "racing") return;
-    // Determine hit/miss from needle position
+
+    // Optimistic visual feedback using local timing estimate
     const elapsed = Date.now() - sweepStartRef.current;
     const sweep = sweepDurRef.current;
     const raw = (elapsed % (sweep * 2)) / sweep;
-    const pos = raw > 1 ? 2 - raw : raw; // 0-1
-    const GREEN_START = 0.35, GREEN_END = 0.65;
-    const hit = pos >= GREEN_START && pos <= GREEN_END;
+    const pos = raw > 1 ? 2 - raw : raw;
+    const optimisticHit = pos >= 0.35 && pos <= 0.65;
 
     // Reset sweep, speed up per gear
     sweepStartRef.current = Date.now();
     sweepDurRef.current = Math.max(900, sweepDurRef.current - 150);
     setGear(g => Math.min(6, g + 1));
-    setLastShift(hit ? "hit" : "miss");
+    setLastShift(optimisticHit ? "hit" : "miss");
     setTimeout(() => setLastShift(null), 600);
 
     setActing(true);
     try {
-      const data = await api.post<{ match: RaceMatch }>(`/race/match/${matchIdRef.current}/shift`, { hit });
+      // Server determines hit/miss authoritatively — client sends no hit value
+      const data = await api.post<{ match: RaceMatch; hit: boolean }>(`/race/match/${matchIdRef.current}/shift`, {});
+      // Correct feedback with server result
+      setLastShift(data.hit ? "hit" : "miss");
+      setTimeout(() => setLastShift(null), 600);
       setMatch(data.match);
       const me = data.match.players.find(p => p.userId?.toString() === user.id);
       if (me) setNitroCount(3 - (me.nitroUsed ?? 0));

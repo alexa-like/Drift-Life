@@ -423,43 +423,43 @@ Fields:
 > Goal: Full parallel solo racing working end to end.
 
 ### 5A — Matchmaking Backend
-- [ ] `POST /api/race/queue/join` — join queue
+- [x] `POST /api/race/queue/join` — join queue
   - Accept mode: 2player | 4player
   - Deduct energy (15 for 2-player, 25 for 4-player)
   - Show queue as 1/2 or 1/4
   - Queue waits up to 30 seconds for real players
   - Fill remaining with AI if timeout
-- [ ] `POST /api/race/queue/leave` — leave queue (refund energy)
-- [ ] AI racer generation:
+- [x] `POST /api/race/queue/leave` — leave queue (refund energy)
+- [x] AI racer generation:
   - Human-like name from name pool
   - Car tier matched to player level
   - Pre-generate finish time server-side with realistic variance
   - AI sometimes misses gear shifts (random), sometimes crashes (random)
 
 ### 5B — Race Engine Backend
-- [ ] `GET /api/race/match/:matchId` — get match state
-- [ ] `POST /api/race/match/:matchId/shift` — submit gear shift action
+- [x] `GET /api/race/match/:matchId` — get match state
+- [x] `POST /api/race/match/:matchId/shift` — submit gear shift action
   - Validate timing window (green zone hit or miss)
   - Calculate speed boost or miss penalty
   - Update player progress
   - Check if player reached finish line
-- [ ] `POST /api/race/match/:matchId/nitro` — use nitro
+- [x] `POST /api/race/match/:matchId/nitro` — use nitro
   - Validate player has nitro remaining
   - Apply speed burst
-- [ ] Server calculates final placement by comparing finish times
-- [ ] Leaderboard endpoint returns live positions by % of track completed
-- [ ] Anti-cheat: validate all inputs, reject impossible timing sequences
+- [x] Server calculates final placement by comparing finish times
+- [x] Leaderboard endpoint returns live positions by % of track completed
+- [x] Anti-cheat: validate all inputs, reject impossible timing sequences
 
 #### Rewards
-- [ ] 1st place: +300 DC, +300 XP, +1 Key Shard, 10% chance Racing Royale spin token
-- [ ] 2nd place: +150 DC, +180 XP
-- [ ] 3rd place: +80 DC, +100 XP
-- [ ] 4th place: +40 DC, +60 XP
-- [ ] Same daily cap as combat
+- [x] 1st place: +300 DC, +300 XP, +1 Key Shard, 10% chance Racing Royale spin token
+- [x] 2nd place: +150 DC, +180 XP
+- [x] 3rd place: +80 DC, +100 XP
+- [x] 4th place: +40 DC, +60 XP
+- [x] Same daily cap as combat
 
 ### 5C — Race Frontend (Garage + Race Screen)
-- [ ] Queue screen: "1/2 players" or "1/4 players" counter, animated, cancel button
-- [ ] Race screen (Canvas 2D):
+- [x] Queue screen: "1/2 players" or "1/4 players" counter, animated, cancel button
+- [x] Race screen (Canvas 2D):
   - **Pseudo-3D scrolling road** (horizon line, perspective road lines, buildings scaling)
   - Player's car visible with spinning wheel animation, body bobbing
   - Nitro triggers flame sprite behind car
@@ -474,7 +474,7 @@ Fields:
   - Nitro button (lights up when available)
   - Distance to finish progress bar
   - Live mini-leaderboard (names + % complete, updates per second)
-- [ ] Finish screen: placement banner, rewards breakdown, car animation (winner does burnout)
+- [x] Finish screen: placement banner, rewards breakdown, car animation (winner does burnout)
 
 ---
 
@@ -881,7 +881,7 @@ Examples:
 | Tier 2 | Royale System | [x] |
 | Tier 3 | Mini-Game Hub & Loadout System | [x] |
 | Tier 4 | Combat System | [ ] |
-| Tier 5 | Racing System | [ ] |
+| Tier 5 | Racing System | [x] |
 | Tier 6 | Leaderboards, Missions & Achievements | [ ] |
 | Tier 7 | Training Center (Restructured Gym) | [ ] |
 | Tier 8 | Polish, Notifications & Admin | [ ] |
