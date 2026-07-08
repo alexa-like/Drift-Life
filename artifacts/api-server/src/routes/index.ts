@@ -56,6 +56,9 @@ import miniLeaderboardRouter from "./mini-leaderboard";
 import trainingRouter from "./training";
 // ── Match History (Tier 8) ────────────────────────────────────────────────────
 import matchHistoryRouter from "./match-history";
+// ── Platform Verification & Linking ───────────────────────────────────────────
+import platformRouter from "./platform";
+import discordRouter from "./discord";
 
 const router: IRouter = Router();
 
@@ -113,6 +116,9 @@ router.use("/mini-leaderboard", miniLeaderboardRouter);
 router.use("/training", trainingRouter);
 // ── Match History (Tier 8) ────────────────────────────────────────────────────
 router.use("/match-history", matchHistoryRouter);
+// ── Platform Verification & Linking ───────────────────────────────────────────
+router.use("/platform", platformRouter);
+router.use("/discord", discordRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

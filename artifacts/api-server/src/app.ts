@@ -107,7 +107,13 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({
+  // Capture raw body string — needed by the Discord interactions endpoint
+  // for Ed25519 signature verification (Discord signs the raw bytes, not parsed JSON).
+  verify(req: any, _res, buf) {
+    req.rawBody = buf.toString("utf8");
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);

@@ -75,6 +75,8 @@ export interface IUser extends Document {
   dailyStreak: number;
   telegramId: string | null;
   telegramNotifications: boolean;
+  discordId: string | null;
+  discordUsername: string | null;
   isEmailVerified: boolean;
   emailOtp: string | null;
   emailOtpExpiry: Date | null;
@@ -293,6 +295,8 @@ const UserSchema = new Schema<IUser>(
     telegramUsername: { type: String, default: null },
     telegramLinkCode: { type: String, default: null },
     telegramLinkCodeExpiry: { type: Date, default: null },
+    discordId:       { type: String, default: null, index: true, sparse: true },
+    discordUsername: { type: String, default: null },
     keys:               { type: Number, default: 0 },
     keyShards:          { type: Number, default: 0 },
     spinTokens:         { type: Number, default: 0 },

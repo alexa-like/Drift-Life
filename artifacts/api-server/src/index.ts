@@ -6,6 +6,7 @@ import { connectDB } from "./lib/db";
 import { startKeepAlive, stopKeepAlive } from "./lib/keepAlive";
 import { seed } from "./lib/seed";
 import { registerWebhook, setMyCommands } from "./lib/telegram";
+import { registerGuildCommands } from "./lib/discord";
 import User from "./models/User";
 import { allowedOrigins } from "./lib/cors";
 
@@ -262,6 +263,37 @@ async function start() {
       logger.warn("TELEGRAM_WEBHOOK_URL is set but TELEGRAM_WEBHOOK_SECRET is missing — webhook NOT registered (required for security)");
     } else {
       logger.info("TELEGRAM_WEBHOOK_URL not set — skipping Telegram webhook registration");
+    }
+
+    // ── Discord slash command registration ────────────────────────────────────
+    // Requires DISCORD_APPLICATION_ID, DISCORD_BOT_TOKEN, and DISCORD_GUILD_ID.
+    // Commands are registered as guild commands (instant propagation vs global 1h delay).
+    const discordGuildId = process.env["DISCORD_GUILD_ID"];
+    if (discordGuildId) {
+      registerGuildCommands(discordGuildId, [
+        {
+          name:        "verify",
+          description: "One-time identity verification with your DriftLife account",
+          options: [{
+            name:        "token",
+            description: "Session token from the DriftLife Connections page",
+            type:        3,       // STRING
+            required:    true,
+          }],
+        },
+        {
+          name:        "link",
+          description: "Permanently link your Discord account to DriftLife",
+          options: [{
+            name:        "token",
+            description: "Session token from the DriftLife Connections page",
+            type:        3,       // STRING
+            required:    true,
+          }],
+        },
+      ]).catch((err: unknown) => logger.warn({ err }, "Discord command registration failed"));
+    } else {
+      logger.info("DISCORD_GUILD_ID not set — skipping Discord command registration");
     }
   });
 }

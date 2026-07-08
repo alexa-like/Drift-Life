@@ -41,6 +41,7 @@ import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
 import { FrameStore } from "./pages/FrameStore";
 import { StorePage } from "./pages/StorePage";
+import { ConnectionsPage } from "./pages/ConnectionsPage";
 import { NavBar } from "./components/NavBar";
 import { PageTransition } from "./components/PageTransition";
 import { ToastContainer } from "./components/ToastContainer";
@@ -216,6 +217,7 @@ function GameApp() {
       case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
       case "chatframes":    return <FrameStore {...pageProps} />;
       case "store":         return <StorePage user={user!} onUserUpdate={refreshUser} onNavigate={setPage} />;
+      case "connections":  return <ConnectionsPage user={user!} />;
       case "royale":        return <RoyalePage user={user!} addToast={addToast} onUserUpdate={refreshUser} />;
       case "arena":         return <ArenaHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "arena-combat":  return <ArenaCombatPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;

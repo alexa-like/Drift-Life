@@ -529,34 +529,111 @@ router.post("/webhook", async (req, res) => {
         return;
       }
 
-      // ── 3b. Link code handling ──────────────────────────────────────────
-      let code: string | null = null;
+      // ── 3b. Deep-link and code handling ────────────────────────────────
+      // The /start payload can be:
+      //   verify_<24-char-token>  — platform verification flow (new)
+      //   link_<24-char-token>    — platform linking flow (new)
+      //   <6-char-hex>            — legacy in-memory link code (Store page)
+      //   (anything else)         — fall through to text commands
+
       if (text.startsWith("/start ")) {
-        code = text.slice(7).trim().toUpperCase();
-      } else if (/^[0-9A-F]{6}$/i.test(text)) {
-        code = text.toUpperCase();
+        const payload = text.slice(7).trim();
+
+        // ── New verify/link deep-link flows ──────────────────────────────
+        if (payload.startsWith("verify_") || payload.startsWith("link_")) {
+          const isVerify  = payload.startsWith("verify_");
+          const flowType  = isVerify ? "verify" : "link";
+          const token     = isVerify ? payload.slice(7) : payload.slice(5);
+
+          const { consumeToken, createCode } = await import("../lib/platformCodes");
+          const tokenEntry = consumeToken(token);
+
+          if (!tokenEntry) {
+            await sendTelegramMessage(
+              chatId,
+              `❌ Session token expired or not found.\n\nGo back to DriftLife and start a new ${flowType} session.`,
+            );
+            return;
+          }
+          if (tokenEntry.platform !== "telegram") {
+            await sendTelegramMessage(chatId, `❌ This token is not for Telegram.`);
+            return;
+          }
+
+          const dbUser = await User.findById(tokenEntry.userId).select("username").lean();
+          const playerName = (dbUser as any)?.username ?? "Player";
+
+          const code = createCode({
+            userId:   tokenEntry.userId,
+            type:     flowType,
+            platform: "telegram",
+            chatId,
+          });
+
+          await sendTelegramMessage(
+            chatId,
+            `Hey ${playerName},\n` +
+            `Here's your DriftLife ${flowType === "verify" ? "verification" : "linking"} code:\n\n` +
+            `<code>${code}</code>\n\n` +
+            `Enter it in the DriftLife game within <b>30 seconds</b>.`,
+          );
+          return;
+        }
+
+        // ── Legacy link code via /start ───────────────────────────────────
+        const legacyCode = payload.toUpperCase();
+        if (/^[0-9A-F]{6}$/.test(legacyCode)) {
+          const entry = _linkCodes.get(legacyCode);
+          if (!entry || Date.now() > entry.expiresAt) {
+            await sendTelegramMessage(chatId, "❌ Code expired or invalid. Generate a new one in DriftLife → Store.");
+            _linkCodes.delete(legacyCode);
+            return;
+          }
+          const existingLink = await User.findOne({ telegramId: chatId }).lean();
+          if (existingLink && String((existingLink as any)._id) !== entry.userId) {
+            await sendTelegramMessage(chatId, "⚠️ This Telegram account is already linked to a different DriftLife account.");
+            return;
+          }
+          await User.updateOne(
+            { _id: entry.userId },
+            { $set: { telegramId: chatId, telegramUsername: fromUsername } },
+          );
+          _linkCodes.delete(legacyCode);
+          await sendMessageWithKeyboard({
+            chatId,
+            text:
+              `✅ <b>DriftLife linked!</b>\n\n` +
+              `Your Telegram account is now connected.\n\n` +
+              `You can now buy NC packs and subscriptions directly here using the menu below.`,
+            inlineKeyboard: MAIN_MENU_KB,
+          });
+          return;
+        }
+
+        // Unknown /start payload — show the main menu
+        await showMainMenu(chatId);
+        return;
       }
 
-      if (code) {
+      // ── Bare 6-char code typed manually (legacy Store page flow) ───────
+      if (/^[0-9A-F]{6}$/i.test(text)) {
+        const code = text.toUpperCase();
         const entry = _linkCodes.get(code);
         if (!entry || Date.now() > entry.expiresAt) {
           await sendTelegramMessage(chatId, "❌ Code expired or invalid. Generate a new one in DriftLife → Store.");
           _linkCodes.delete(code);
           return;
         }
-
         const existingLink = await User.findOne({ telegramId: chatId }).lean();
         if (existingLink && String((existingLink as any)._id) !== entry.userId) {
           await sendTelegramMessage(chatId, "⚠️ This Telegram account is already linked to a different DriftLife account.");
           return;
         }
-
         await User.updateOne(
           { _id: entry.userId },
           { $set: { telegramId: chatId, telegramUsername: fromUsername } },
         );
         _linkCodes.delete(code);
-
         await sendMessageWithKeyboard({
           chatId,
           text:
