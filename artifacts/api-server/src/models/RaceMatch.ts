@@ -41,6 +41,9 @@ export interface IRaceMatch extends Document {
   rewardsGranted: boolean;
   // Queue info
   queueExpiry: Date;     // if not filled by this time, fill with AI
+  // Injected by { timestamps: true }
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const RacePlayerSchema = new Schema<RacePlayer>(

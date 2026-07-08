@@ -70,6 +70,9 @@ export interface ICombatMatch extends Document {
   // Active status effects (DoT, stun, regen, etc.)
   player1ActiveEffects: ActiveEffect[];
   player2ActiveEffects: ActiveEffect[];
+  // Injected by { timestamps: true }
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const LoadoutSnapshotSchema = new Schema<LoadoutSnapshot>(

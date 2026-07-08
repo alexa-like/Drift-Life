@@ -104,6 +104,10 @@ router.get("/me/all", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── Weekly reset + reward job ─────────────────────────────────────────────────
+// weekStart = the Monday that JUST ended (previous week).
+// Uses an atomic claim (findOneAndUpdate rewardGranted: false → true) before
+// granting currency, so concurrent runners or a manual + scheduled overlap
+// cannot double-pay the same entry.
 async function runWeeklyReset(weekStart: Date) {
   const REWARDS: Record<number, { keys: number; dc: number }> = {
     1: { keys: 5, dc: 5_000 },
@@ -113,18 +117,28 @@ async function runWeeklyReset(weekStart: Date) {
 
   for (const type of LEADERBOARD_TYPES) {
     const sortDir = ASCENDING.includes(type) ? 1 : -1;
-    const top3 = await MiniGameLeaderboard.find({ leaderboardType: type, weekStart, rewardGranted: false })
+    // Fetch top 3 candidates (may include already-claimed entries from a
+    // previous concurrent run — we guard against that with atomic claim below)
+    const top3 = await MiniGameLeaderboard.find({ leaderboardType: type, weekStart })
       .sort({ score: sortDir })
       .limit(3)
       .lean();
 
-    top3.forEach(async (entry, i) => {
+    for (let i = 0; i < top3.length; i++) {
+      const entry = top3[i];
       const rank = i + 1;
       const reward = REWARDS[rank];
-      if (!reward) return;
+      if (!reward) continue;
+
+      // Atomic claim: only proceeds if rewardGranted is still false.
+      // If another runner already claimed this entry, modifiedCount === 0 → skip.
+      const claim = await MiniGameLeaderboard.updateOne(
+        { _id: entry._id, rewardGranted: { $ne: true } },
+        { $set: { rewardGranted: true } },
+      );
+      if (claim.modifiedCount === 0) continue; // already claimed — skip
 
       await User.updateOne({ _id: entry.userId }, { $inc: { keys: reward.keys, dc: reward.dc } });
-      await MiniGameLeaderboard.updateOne({ _id: entry._id }, { $set: { rewardGranted: true } });
 
       await Notification.create({
         userId: entry.userId,
@@ -133,14 +147,22 @@ async function runWeeklyReset(weekStart: Date) {
         read:    false,
         createdAt: new Date(),
       });
-    });
+    }
   }
+}
+
+// Returns the start of the previous (just-ended) week — used by both the
+// scheduled job and the manual owner endpoint so they target the same data.
+function getPreviousWeekStart(): Date {
+  const d = getWeekStart();
+  d.setUTCDate(d.getUTCDate() - 7);
+  return d;
 }
 
 // ── POST /api/mini-leaderboard/reset (owner) ─────────────────────────────────
 router.post("/reset", requireOwner, async (req: AuthRequest, res) => {
   try {
-    const weekStart = getWeekStart();
+    const weekStart = getPreviousWeekStart();
     await runWeeklyReset(weekStart);
     res.json({ message: "Weekly reset complete" });
   } catch (err) {
@@ -157,9 +179,7 @@ function scheduleWeeklyReset() {
   const delay = nextMonday.getTime() - now.getTime();
 
   setTimeout(async () => {
-    const weekStart = getWeekStart();
-    weekStart.setUTCDate(weekStart.getUTCDate() - 7); // last week
-    await runWeeklyReset(weekStart).catch(console.error);
+    await runWeeklyReset(getPreviousWeekStart()).catch(console.error);
     scheduleWeeklyReset();
   }, delay);
 }
