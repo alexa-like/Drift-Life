@@ -623,4 +623,106 @@ router.get("/royale-items", async (_req, res) => {
   }
 });
 
+// ── GET /api/owner/royale-tier-weights — get current tier weights ─────────────
+router.get("/royale-tier-weights", requireOwner as any, async (_req, res) => {
+  try {
+    const cfg = await ServerConfig.findOne({ key: "royaleTierWeights" }).lean();
+    const defaults = { common: 60, uncommon: 25, rare: 10, epic: 4, legendary: 1 };
+    const weights = cfg?.value ? { ...defaults, ...(cfg.value as Record<string, number>) } : defaults;
+    res.json({ weights });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── PATCH /api/owner/royale-tier-weights — set tier weights at runtime ─────────
+router.patch("/royale-tier-weights", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { common, uncommon, rare, epic, legendary } = req.body as Record<string, number>;
+    const weights = {
+      common:    Math.max(0, Number(common)    || 60),
+      uncommon:  Math.max(0, Number(uncommon)  || 25),
+      rare:      Math.max(0, Number(rare)      || 10),
+      epic:      Math.max(0, Number(epic)      ||  4),
+      legendary: Math.max(0, Number(legendary) ||  1),
+    };
+    await ServerConfig.findOneAndUpdate(
+      { key: "royaleTierWeights" },
+      { $set: { value: weights, updatedAt: new Date() } },
+      { upsert: true },
+    );
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "set-royale-tier-weights", details: weights });
+    res.json({ message: "Tier weights updated — takes effect within 30 seconds", weights });
+  } catch (err: any) {
+    req.log.error({ err }, "royale-tier-weights error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── GET /api/owner/special-event — get current special event status ────────────
+router.get("/special-event", requireOwner as any, async (_req, res) => {
+  try {
+    const cfg = await ServerConfig.findOne({ key: "specialEvent" }).lean();
+    if (!cfg?.value) {
+      res.json({ active: false, type: null, expiresAt: null });
+      return;
+    }
+    const ev = cfg.value as { active?: boolean; type?: string; expiresAt?: string };
+    // Auto-expire
+    const expired = ev.expiresAt && new Date(ev.expiresAt) < new Date();
+    res.json({ active: !!ev.active && !expired, type: ev.type ?? null, expiresAt: ev.expiresAt ?? null });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/owner/special-event — activate or deactivate a special event ────
+// Body: { type: "nc_royale_drop", durationHours: number } to activate
+//       { active: false } to deactivate
+router.post("/special-event", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { active, type, durationHours } = req.body as {
+      active?: boolean;
+      type?: string;
+      durationHours?: number;
+    };
+
+    if (active === false) {
+      // Deactivate
+      await ServerConfig.findOneAndUpdate(
+        { key: "specialEvent" },
+        { $set: { value: { active: false, type: null, expiresAt: null }, updatedAt: new Date() } },
+        { upsert: true },
+      );
+      logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "deactivate-special-event", details: {} });
+      res.json({ message: "Special event deactivated", active: false });
+      return;
+    }
+
+    if (!type) {
+      res.status(400).json({ message: "type is required to activate an event" });
+      return;
+    }
+    const VALID_TYPES = ["nc_royale_drop"];
+    if (!VALID_TYPES.includes(type)) {
+      res.status(400).json({ message: `Invalid event type. Valid: ${VALID_TYPES.join(", ")}` });
+      return;
+    }
+
+    const hours = Math.max(0.5, Math.min(168, Number(durationHours) || 4)); // 30min–7d
+    const expiresAt = new Date(Date.now() + hours * 3_600_000).toISOString();
+
+    await ServerConfig.findOneAndUpdate(
+      { key: "specialEvent" },
+      { $set: { value: { active: true, type, expiresAt }, updatedAt: new Date() } },
+      { upsert: true },
+    );
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "activate-special-event", details: { type, hours, expiresAt } });
+    res.json({ message: `Special event "${type}" activated for ${hours}h`, active: true, type, expiresAt });
+  } catch (err: any) {
+    req.log.error({ err }, "special-event error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

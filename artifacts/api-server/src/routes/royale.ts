@@ -29,48 +29,79 @@ const SPIN_COSTS: Record<string, Record<string, number>> = {
 const PITY_RARE = 15;   // spins without Rare+ → guarantee Rare+
 const PITY_EPIC = 50;   // spins without Epic+ → guarantee Epic+
 
-// ── Tier weights for weighted random ─────────────────────────────────────────
-const TIER_WEIGHTS: Record<RoyaleTier, number> = {
+// ── Tier weights — defaults + runtime-adjustable cache ───────────────────────
+import ServerConfig from "../models/ServerConfig";
+
+const DEFAULT_TIER_WEIGHTS: Record<RoyaleTier, number> = {
   common:    60,
   uncommon:  25,
   rare:      10,
   epic:       4,
   legendary:  1,
 };
-const TOTAL_WEIGHT = Object.values(TIER_WEIGHTS).reduce((a, b) => a + b, 0); // 100
 
-function rollTier(forceMinTier?: "rare" | "epic"): RoyaleTier {
+let _activeTierWeights: Record<RoyaleTier, number> = { ...DEFAULT_TIER_WEIGHTS };
+let _tierWeightsCacheTs = 0;
+const TIER_WEIGHTS_TTL = 30_000; // 30 seconds
+
+/** Refresh tier weights from ServerConfig if cache is stale. */
+async function refreshTierWeights(): Promise<void> {
+  const now = Date.now();
+  if (now - _tierWeightsCacheTs < TIER_WEIGHTS_TTL) return;
+  try {
+    const cfg = await ServerConfig.findOne({ key: "royaleTierWeights" }).lean();
+    if (cfg?.value && typeof cfg.value === "object") {
+      _activeTierWeights = { ...DEFAULT_TIER_WEIGHTS, ...(cfg.value as Record<RoyaleTier, number>) };
+    } else {
+      _activeTierWeights = { ...DEFAULT_TIER_WEIGHTS };
+    }
+  } catch { /* keep existing cache on DB error */ }
+  _tierWeightsCacheTs = now;
+}
+
+/** Check if the NC royale-drop special event is currently active. */
+async function isNcEventActive(): Promise<boolean> {
+  try {
+    const cfg = await ServerConfig.findOne({ key: "specialEvent" }).lean();
+    if (!cfg?.value) return false;
+    const ev = cfg.value as { active?: boolean; type?: string; expiresAt?: string };
+    if (!ev.active || ev.type !== "nc_royale_drop") return false;
+    if (ev.expiresAt && new Date(ev.expiresAt) < new Date()) return false;
+    return true;
+  } catch { return false; }
+}
+
+function rollTier(weights: Record<RoyaleTier, number>, forceMinTier?: "rare" | "epic"): RoyaleTier {
   if (forceMinTier === "epic") {
-    // Must be epic or legendary
     const pool: RoyaleTier[] = ["epic", "legendary"];
-    const weights = [TIER_WEIGHTS.epic, TIER_WEIGHTS.legendary];
-    const total = weights.reduce((a, b) => a + b, 0);
+    const ws = [weights.epic, weights.legendary];
+    const total = ws.reduce((a, b) => a + b, 0);
     const roll = Math.random() * total;
     let cumulative = 0;
     for (let i = 0; i < pool.length; i++) {
-      cumulative += weights[i];
+      cumulative += ws[i];
       if (roll < cumulative) return pool[i];
     }
     return "epic";
   }
   if (forceMinTier === "rare") {
-    // Must be rare, epic, or legendary
     const pool: RoyaleTier[] = ["rare", "epic", "legendary"];
-    const weights = [TIER_WEIGHTS.rare, TIER_WEIGHTS.epic, TIER_WEIGHTS.legendary];
-    const total = weights.reduce((a, b) => a + b, 0);
+    const ws = [weights.rare, weights.epic, weights.legendary];
+    const total = ws.reduce((a, b) => a + b, 0);
     const roll = Math.random() * total;
     let cumulative = 0;
     for (let i = 0; i < pool.length; i++) {
-      cumulative += weights[i];
+      cumulative += ws[i];
       if (roll < cumulative) return pool[i];
     }
     return "rare";
   }
 
   // Normal roll
-  const roll = Math.random() * TOTAL_WEIGHT;
+  const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
+  const roll = Math.random() * totalWeight;
   let cumulative = 0;
-  const tiers = Object.entries(TIER_WEIGHTS) as [RoyaleTier, number][];
+  const tiers = Object.entries(weights) as [RoyaleTier, number][];
   for (const [tier, weight] of tiers) {
     cumulative += weight;
     if (roll < cumulative) return tier;
@@ -347,6 +378,10 @@ router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
+    // Refresh dynamic tier weights + check NC event (non-blocking on failure)
+    await refreshTierWeights();
+    const ncEventActive = await isNcEventActive();
+
     // ── Load all active items for this wheel (keyed by tier) ──────────────────
     const allItems = await RoyaleItem.find({ royaleType, isActive: true }).lean();
     const itemsByTier: Record<RoyaleTier, typeof allItems> = {
@@ -392,7 +427,7 @@ router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
         guaranteedRareUsed = false;
       }
 
-      const tier = rollTier(forceMinTier);
+      const tier = rollTier(_activeTierWeights, forceMinTier);
 
       // Pick random item from tier (by dropWeight)
       let pool = itemsByTier[tier];
@@ -437,6 +472,23 @@ router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
 
     // Save pity counter
     await pity.save();
+
+    // ── Special event: NC royale drop (5% chance per spin when active) ────────
+    if (ncEventActive) {
+      const ncBonus = wonItems.reduce((bonus) => {
+        return bonus + (Math.random() < 0.05 ? 10 : 0);
+      }, 0);
+      if (ncBonus > 0) {
+        await User.updateOne({ _id: req.userId }, { $inc: { nc: ncBonus } });
+        wonItems.push({
+          name: `+${ncBonus} NC (Event Bonus)`,
+          tier: "rare",
+          itemType: "currency",
+          imageCard: "",
+          reward: { type: "nc", amount: ncBonus },
+        });
+      }
+    }
 
     // Log spin + track total spins on user
     await Promise.all([

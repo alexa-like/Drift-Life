@@ -70,7 +70,7 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -153,6 +153,14 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [grantKeysAmt, setGrantKeysAmt] = useState("");
   const [grantShardsAmt, setGrantShardsAmt] = useState("");
   const [grantingKeys, setGrantingKeys] = useState(false);
+  // Special Events & Tier Weights tab
+  const [specialEvent, setSpecialEvent] = useState<{ active: boolean; type: string | null; expiresAt: string | null } | null>(null);
+  const [specialEventLoading, setSpecialEventLoading] = useState(false);
+  const [eventType] = useState("nc_royale_drop");
+  const [eventHours, setEventHours] = useState("4");
+  const [settingEvent, setSettingEvent] = useState(false);
+  const [tierWeights, setTierWeights] = useState({ common: 60, uncommon: 25, rare: 10, epic: 4, legendary: 1 });
+  const [savingTierWeights, setSavingTierWeights] = useState(false);
 
   const loadStats = useCallback(async () => {
     try {
@@ -260,6 +268,16 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         .then(setRoyaleItems)
         .catch(() => {})
         .finally(() => setRoyaleItemsLoading(false));
+    }
+    if (tab === "special-events") {
+      setSpecialEventLoading(true);
+      Promise.all([
+        api.get<{ active: boolean; type: string | null; expiresAt: string | null }>("/owner/special-event"),
+        api.get<{ weights: Record<string, number> }>("/owner/royale-tier-weights"),
+      ]).then(([ev, tw]) => {
+        setSpecialEvent(ev);
+        setTierWeights({ common: tw.weights.common ?? 60, uncommon: tw.weights.uncommon ?? 25, rare: tw.weights.rare ?? 10, epic: tw.weights.epic ?? 4, legendary: tw.weights.legendary ?? 1 });
+      }).catch(() => {}).finally(() => setSpecialEventLoading(false));
     }
   }, [tab]);
 
@@ -468,12 +486,14 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
           style={{ background: tab === "vanta" ? "#ff2d5518" : "#111118", color: tab === "vanta" ? "#ff2d55" : "#475569", border: `1px solid ${tab === "vanta" ? "#ff2d5540" : "#1e1e2e"}` }}>
           VantaLog
         </button>
-        {["Economy", "Events"].map(n => (
-          <button key={n} className="px-4 py-2 rounded font-mono text-xs opacity-40 cursor-not-allowed"
-            style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Coming soon — Phase 2">
-            {n}
-          </button>
-        ))}
+        <button onClick={() => setTab("special-events")} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "special-events" ? "#f59e0b18" : "#111118", color: tab === "special-events" ? "#f59e0b" : "#475569", border: `1px solid ${tab === "special-events" ? "#f59e0b40" : "#1e1e2e"}` }}>
+          Events
+        </button>
+        <button className="px-4 py-2 rounded font-mono text-xs opacity-40 cursor-not-allowed"
+          style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Coming soon — Phase 2">
+          Economy
+        </button>
       </div>
 
       {/* DASHBOARD TAB */}
@@ -1251,6 +1271,126 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
               {royaleItems.length === 0 && <div className="font-mono text-xs text-center py-6" style={{ color: "#475569" }}>No royale items found</div>}
             </div>
           )}
+        </div>
+      )}
+
+      {/* SPECIAL EVENTS TAB */}
+      {tab === "special-events" && (
+        <div className="space-y-5">
+          {/* NC Royale Drop Event */}
+          <div style={s}>
+            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#f59e0b", letterSpacing: "0.1em" }}>SPECIAL EVENT — NC ROYALE DROP</div>
+            <div className="font-mono text-xs mb-4" style={{ color: "#475569" }}>
+              When active, each royale spin has a 5% chance to award an additional 10 NC bonus. NC is otherwise never a royale drop.
+            </div>
+            {specialEventLoading ? (
+              <div className="font-mono text-xs text-center py-6 animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="font-mono text-xs" style={{ color: "#e2e8f0" }}>
+                    Status: <span style={{ color: specialEvent?.active ? "#22c55e" : "#ef4444" }}>
+                      {specialEvent?.active ? "ACTIVE" : "INACTIVE"}
+                    </span>
+                  </div>
+                  {specialEvent?.active && specialEvent.expiresAt && (
+                    <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+                      Expires: {new Date(specialEvent.expiresAt).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+                {specialEvent?.active ? (
+                  <button
+                    onClick={async () => {
+                      setSettingEvent(true);
+                      try {
+                        await api.post<any>("/owner/special-event", { active: false });
+                        setSpecialEvent({ active: false, type: null, expiresAt: null });
+                        addToast("Special event deactivated", "success");
+                      } catch (e: any) { addToast(e.message, "error"); }
+                      finally { setSettingEvent(false); }
+                    }}
+                    disabled={settingEvent}
+                    className="font-mono text-xs px-4 py-2 rounded"
+                    style={{ background: "#ef444418", color: "#ef4444", border: "1px solid #ef444440" }}
+                  >
+                    {settingEvent ? "…" : "Deactivate Event"}
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs" style={{ color: "#64748b" }}>Duration (hours):</span>
+                      <input
+                        value={eventHours}
+                        onChange={e => setEventHours(e.target.value)}
+                        type="number" min={0.5} max={168} step={0.5}
+                        className="font-mono text-xs px-2 py-1 rounded"
+                        style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", width: 70, outline: "none" }}
+                      />
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setSettingEvent(true);
+                        try {
+                          const r = await api.post<{ active: boolean; type: string; expiresAt: string }>("/owner/special-event", { type: eventType, durationHours: Number(eventHours) });
+                          setSpecialEvent(r);
+                          addToast(`Event activated for ${eventHours}h`, "success");
+                        } catch (e: any) { addToast(e.message, "error"); }
+                        finally { setSettingEvent(false); }
+                      }}
+                      disabled={settingEvent}
+                      className="font-mono text-xs px-4 py-2 rounded"
+                      style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}
+                    >
+                      {settingEvent ? "…" : "Activate NC Royale Drop"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Tier Weights */}
+          <div style={s}>
+            <div className="font-mono text-xs font-bold mb-1" style={{ color: "#a855f7", letterSpacing: "0.1em" }}>ROYALE TIER WEIGHTS</div>
+            <div className="font-mono text-xs mb-4" style={{ color: "#475569" }}>
+              Adjust the probability of each tier being rolled. Changes take effect within 30 seconds. Values do not need to sum to 100 — relative weights are used.
+            </div>
+            {(["common", "uncommon", "rare", "epic", "legendary"] as const).map(tier => {
+              const TIER_COLORS: Record<string, string> = { legendary: "#f59e0b", epic: "#a855f7", rare: "#3b82f6", uncommon: "#22c55e", common: "#6b7280" };
+              const total = Object.values(tierWeights).reduce((a, b) => a + b, 0);
+              return (
+                <div key={tier} className="flex items-center gap-3 mb-2">
+                  <span className="font-mono text-xs w-24" style={{ color: TIER_COLORS[tier] }}>{tier.toUpperCase()}</span>
+                  <input
+                    value={tierWeights[tier]}
+                    onChange={e => setTierWeights(prev => ({ ...prev, [tier]: Number(e.target.value) }))}
+                    type="number" min={0} step={1}
+                    className="font-mono text-xs px-2 py-1 rounded"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", width: 70, outline: "none" }}
+                  />
+                  <span className="font-mono text-xs" style={{ color: "#334155" }}>
+                    ({total > 0 ? (tierWeights[tier] / total * 100).toFixed(1) : "0.0"}%)
+                  </span>
+                </div>
+              );
+            })}
+            <button
+              onClick={async () => {
+                setSavingTierWeights(true);
+                try {
+                  await api.patch<any>("/owner/royale-tier-weights", tierWeights);
+                  addToast("Tier weights updated — live in ~30s", "success");
+                } catch (e: any) { addToast(e.message, "error"); }
+                finally { setSavingTierWeights(false); }
+              }}
+              disabled={savingTierWeights}
+              className="font-mono text-xs px-4 py-2 rounded mt-2"
+              style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740" }}
+            >
+              {savingTierWeights ? "Saving…" : "Save Tier Weights"}
+            </button>
+          </div>
         </div>
       )}
 

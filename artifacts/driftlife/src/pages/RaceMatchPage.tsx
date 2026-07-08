@@ -20,6 +20,7 @@ interface RaceMatch {
   players: RacePlayer[]; trackSeed: number;
   startedAt: string | null; finishedAt: string | null; rewardsGranted: boolean;
 }
+interface Spark { x: number; y: number; vx: number; vy: number; life: number; color: string; }
 
 // Pre-generated building layout (deterministic, no random in render loop)
 const BUILDINGS_LEFT = [
@@ -62,6 +63,15 @@ const RACE_CSS = `
 @keyframes burnout { 0%,100%{transform:rotate(-1deg)} 50%{transform:rotate(1deg)} }
 `;
 
+// ── Tier color by car top-speed ───────────────────────────────────────────────
+function carTierColor(topSpeed: number): string {
+  if (topSpeed <= 40) return "#6b7280"; // common — grey
+  if (topSpeed <= 60) return "#22c55e"; // uncommon — green
+  if (topSpeed <= 75) return "#3b82f6"; // rare — blue
+  if (topSpeed <= 92) return "#a855f7"; // epic — purple
+  return "#f59e0b";                      // legendary — gold
+}
+
 // ── Canvas renderer ───────────────────────────────────────────────────────────
 function renderFrame(
   ctx: CanvasRenderingContext2D,
@@ -73,6 +83,8 @@ function renderFrame(
   animTime: number,    // accumulated ms — drives wheel spin + body bob
   speed: number,       // 0–1 for speed gauge needle
   crashAlpha: number,  // 0–1 red flash on crash
+  swerveOffset: number, // lateral crash offset (px)
+  sparks: Spark[],     // crash spark particles
 ) {
   ctx.clearRect(0, 0, W, H);
   const horizonY = H * 0.38;
@@ -191,7 +203,6 @@ function renderFrame(
     const aiPlayers = match.players.filter(p => p.isAI);
     const allOthers = [...others, ...aiPlayers].slice(0, 3);
 
-    const AI_COLORS = ["#ff6b35", "#a855f7", "#22c55e"];
     allOthers.forEach((opp, idx) => {
       const relPct = opp.distancePct - myPct;
       // Only show cars within ±30% of player
@@ -202,8 +213,28 @@ function renderFrame(
       const persp = Math.pow(t, 1.2);
       const carY = horizonY + (H - horizonY) * (1 - persp);
       const carScale = (1 - persp * 0.8);
-      drawCar(ctx, vpX + (idx - 1) * 30 * carScale, carY, carScale * 28, carScale * 16, AI_COLORS[idx % AI_COLORS.length], false);
+      const oppColor = carTierColor(opp.carSnapshot?.topSpeed ?? 45);
+      drawCar(ctx, vpX + (idx - 1) * 30 * carScale, carY, carScale * 28, carScale * 16, oppColor, false);
     });
+
+    // ── Obstacle (traffic) cars — deterministic positions from trackSeed ─────
+    if (match.trackSeed) {
+      const seed = match.trackSeed;
+      for (let i = 0; i < 8; i++) {
+        // Simple LCG — generates a stable pct and lane offset per obstacle
+        const pctRaw = ((seed * (i * 1664525 + 1013904223) + i * 22695477 + 1) >>> 0) / 0xFFFFFFFF;
+        const obsPct = 5 + pctRaw * 88; // 5–93% of track
+        const laneRaw = ((seed * (i * 22695477 + 1013904223) + i * 6364136 + 1) >>> 0) / 0xFFFFFFFF;
+        const laneOffset = (laneRaw - 0.5) * 52;
+        const relPct = obsPct - myPct;
+        if (relPct > 35 || relPct < -2) continue; // only visible range
+        const t = Math.min(1, Math.max(0.05, relPct / 30 * 0.7 + 0.05));
+        const persp = Math.pow(t, 1.2);
+        const carY = horizonY + (H - horizonY) * (1 - persp);
+        const carScale = 1 - persp * 0.8;
+        drawCar(ctx, vpX + laneOffset * carScale, carY, carScale * 22, carScale * 12, "#334155", false);
+      }
+    }
   }
 
   // Nitro trail
@@ -223,12 +254,27 @@ function renderFrame(
 
   // Player car (bottom-center) — body bobbing based on animTime
   const bobY = Math.sin(animTime * 0.006) * 2;
-  drawCar(ctx, vpX, H - 24 + bobY, 44, 24, "#00d4ff", true, animTime);
+  drawCar(ctx, vpX + swerveOffset, H - 24 + bobY, 44, 24, "#00d4ff", true, animTime);
 
   // ── Crash flash overlay ────────────────────────────────────────────────────
   if (crashAlpha > 0) {
     ctx.fillStyle = `rgba(239,68,68,${Math.min(0.45, crashAlpha * 0.45)})`;
     ctx.fillRect(0, 0, W, H);
+  }
+
+  // ── Crash spark particles ──────────────────────────────────────────────────
+  if (sparks.length > 0) {
+    ctx.save();
+    for (const spark of sparks) {
+      ctx.globalAlpha = Math.min(1, spark.life);
+      ctx.beginPath();
+      ctx.arc(spark.x, spark.y, 1.5 + spark.life * 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = spark.color;
+      ctx.shadowColor = spark.color;
+      ctx.shadowBlur = 6;
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   // ── Analog speed gauge (bottom-right) ─────────────────────────────────────
@@ -353,6 +399,8 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
   const sweepDurRef = useRef(2400); // ms for one sweep
   const animTimeRef = useRef(0);     // accumulated animation time for wheel spin + bob
   const crashAlphaRef = useRef(0);   // 0–1 crash flash intensity, decays each frame
+  const swerveRef = useRef(0);       // lateral crash offset (px), decays each frame
+  const sparksRef = useRef<Spark[]>([]);  // crash spark particles
   const nitroActiveRef = useRef(false);
   const nitroTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animRef = useRef<number | null>(null);
@@ -402,10 +450,21 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
       if (crashAlphaRef.current > 0) {
         crashAlphaRef.current = Math.max(0, crashAlphaRef.current - 0.05);
       }
+      // Decay crash swerve
+      if (swerveRef.current !== 0) {
+        swerveRef.current *= 0.82;
+        if (Math.abs(swerveRef.current) < 0.5) swerveRef.current = 0;
+      }
+      // Advance spark particles
+      if (sparksRef.current.length > 0) {
+        sparksRef.current = sparksRef.current
+          .map(s => ({ ...s, x: s.x + s.vx * dt * 0.05, y: s.y + s.vy * dt * 0.05, life: s.life - dt * 0.004 }))
+          .filter(s => s.life > 0);
+      }
 
       const W = canvas!.width, H = canvas!.height;
       renderFrame(ctx!, W, H, scrollRef.current, matchRef.current, user.id, nitroActiveRef.current,
-        animTimeRef.current, speedRef.current, crashAlphaRef.current);
+        animTimeRef.current, speedRef.current, crashAlphaRef.current, swerveRef.current, sparksRef.current);
 
       animRef.current = requestAnimationFrame(loop);
     }
@@ -505,6 +564,19 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
       if (data.crashed) {
         setLastShift("crash");
         crashAlphaRef.current = 1.0;  // trigger red flash on canvas
+        // Crash swerve — random left or right
+        swerveRef.current = (Math.random() > 0.5 ? 1 : -1) * 22;
+        // Spawn spark particles at player car canvas position
+        const cnv = canvasRef.current;
+        const cx = cnv ? cnv.width / 2 : 300;
+        const cy = cnv ? cnv.height - 28 : 252;
+        sparksRef.current = Array.from({ length: 20 }, () => ({
+          x: cx, y: cy,
+          vx: (Math.random() - 0.5) * 220,
+          vy: -(Math.random() * 160 + 40),
+          life: 0.6 + Math.random() * 0.5,
+          color: Math.random() > 0.5 ? "#f59e0b" : "#ff6b35",
+        }));
         setTimeout(() => setLastShift(null), 800);
       } else {
         setLastShift(data.hit ? "hit" : "miss");
