@@ -63,26 +63,26 @@ Each tier has subcategories. Each subcategory has tasks. Each task is one checka
 
 > These systems must be deleted or disabled before or during Tier 1.
 
-- [ ] All existing open-world PvP attacks between players
-- [ ] All PvP-related routes, models, and frontend pages
-- [ ] Merit currency (model, routes, frontend display)
-- [ ] All existing combat/weapon/gear items from player inventories
-- [ ] Gym stat system (strength, charisma, intelligence, street cred, defense) — gym UI restructured into Training Center
-- [ ] Hospital usage from PvP (hospital stays only for crime failures)
-- [ ] All existing daily missions and achievements that reference removed systems
-- [ ] Any leaderboards tied to removed PvP systems
+- [x] All existing open-world PvP attacks between players
+- [x] All PvP-related routes, models, and frontend pages
+- [x] Merit currency (model, routes, frontend display)
+- [x] All existing combat/weapon/gear items from player inventories
+- [x] Gym stat system (strength, charisma, intelligence, street cred, defense) — gym UI restructured into Training Center
+- [x] Hospital usage from PvP (hospital stays only for crime failures)
+- [x] All existing daily missions and achievements that reference removed systems
+- [x] Any leaderboards tied to removed PvP systems
 
 ---
 
 ## Migration Jobs (run once on redeploy)
 
-- [ ] **Merit → DC conversion job**
+- [x] **Merit → DC conversion job**
   - Convert every player's merit balance at rate: 1 Merit = 10 DC
   - Add DC to player account atomically
   - Send inbox notification per player: "Merit has been retired. Your X Merit were converted to Y DC."
   - Log conversion per player to audit collection
 
-- [ ] **Old item removal + DC refund job**
+- [x] **Old item removal + DC refund job**
   - Scan every player inventory for old combat/gear items
   - Convert each item to DC at fair rate (common = 50 DC, uncommon = 150 DC, rare = 500 DC, epic = 1500 DC, legendary = 5000 DC)
   - Add DC to player account atomically

@@ -174,11 +174,6 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
         <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
           <RollingNC value={user.nc} /> NC
         </span>
-        {(user.merit ?? 0) > 0 && (
-          <span className="font-mono flex-shrink-0" style={{ color: "#39d353" }}>
-            {(user.merit ?? 0).toLocaleString()} M
-          </span>
-        )}
       </div>
 
       {/* Nav row */}

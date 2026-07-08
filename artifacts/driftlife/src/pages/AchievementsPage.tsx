@@ -65,7 +65,7 @@ export function AchievementsPage({ user, refreshUser, addToast }: Props) {
 
   const filtered = category === "all" ? achievements : achievements.filter(a => a.category === category);
   const completed = achievements.filter(a => a.completed).length;
-  const totalMerit = achievements.filter(a => a.completed).reduce((s, a) => s + a.meritReward, 0);
+  const totalDC = achievements.filter(a => a.completed).reduce((s, a) => s + (a.dcReward ?? 0), 0);
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto" }}>
@@ -76,8 +76,7 @@ export function AchievementsPage({ user, refreshUser, addToast }: Props) {
           </h1>
           <div className="font-mono" style={{ color: "#475569", fontSize: 12, marginTop: 2 }}>
             {completed}/{achievements.length} completed &nbsp;·&nbsp;
-            <span style={{ color: "#39d353" }}>{totalMerit.toLocaleString()} M</span> earned
-            &nbsp;·&nbsp; Balance: <span style={{ color: "#39d353" }}>{(user.merit ?? 0).toLocaleString()} M</span>
+            <span style={{ color: "#f59e0b" }}>{totalDC.toLocaleString()} DC</span> earned
           </div>
         </div>
         <button
@@ -164,8 +163,8 @@ export function AchievementsPage({ user, refreshUser, addToast }: Props) {
                       <span className="font-mono font-bold" style={{ color: a.completed ? color : "#e2e8f0", fontSize: 13 }}>
                         {a.name}
                       </span>
-                      <span className="font-mono" style={{ fontSize: 10, color: color, background: color + "20", padding: "1px 6px", borderRadius: 4 }}>
-                        +{a.meritReward} M
+                      <span className="font-mono" style={{ fontSize: 10, color: "#f59e0b", background: "#f59e0b20", padding: "1px 6px", borderRadius: 4 }}>
+                        +{a.dcReward ?? 0} DC
                       </span>
                     </div>
                     <p className="font-mono" style={{ color: "#64748b", fontSize: 11, marginBottom: 6 }}>{a.description}</p>

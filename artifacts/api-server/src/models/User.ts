@@ -127,6 +127,7 @@ export interface IUser extends Document {
   // ── Mini-game currencies ──────────────────────────────────────────────────
   keys: number;               // hard currency: 1 key = 1 royale spin (guaranteed Rare+)
   keyShards: number;          // 10 shards = 1 key; softer grind path
+  spinTokens: number;         // earned from royale; 1 token = 1 free spin on any wheel
   // ── Mini-game stats ───────────────────────────────────────────────────────
   combatWinStreak:      number;  // consecutive combat wins; resets on loss
   miniGameMatchesToday: number;  // matches played today (for daily reward cap)
@@ -292,6 +293,7 @@ const UserSchema = new Schema<IUser>(
     telegramLinkCodeExpiry: { type: Date, default: null },
     keys:               { type: Number, default: 0 },
     keyShards:          { type: Number, default: 0 },
+    spinTokens:         { type: Number, default: 0 },
     combatWinStreak:      { type: Number, default: 0 },
     miniGameMatchesToday: { type: Number, default: 0 },
     miniGameResetAt:      { type: Date, default: () => new Date(new Date().setUTCHours(24, 0, 0, 0)) },

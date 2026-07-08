@@ -281,7 +281,6 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
         {[
           { label: "DC", value: formatDC(user.dc), color: "#f59e0b" },
           { label: "NC", value: user.nc.toLocaleString(), color: "#a855f7" },
-          { label: "M",  value: (user as any).merit?.toLocaleString?.() ?? "0", color: "#39d353" },
         ].map(w => (
           <div key={w.label} className="font-mono" style={{ fontSize: 11 }}>
             <span style={{ color: "#475569" }}>{w.label} </span>
@@ -666,12 +665,12 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
               const completed = achievements.filter((a: any) => a.completed);
               const total = achievements.length;
               const pct = total ? Math.round((completed.length / total) * 100) : 0;
-              const totalMerit = completed.reduce((s: number, a: any) => s + a.meritReward, 0);
+              const totalDC = completed.reduce((s: number, a: any) => s + (a.dcReward ?? 0), 0);
               return (
                 <>
                   <div className="flex items-center gap-4 mb-4 flex-wrap">
                     <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>{completed.length}/{total} completed</span>
-                    <span className="font-mono text-xs" style={{ color: "#39d353" }}>{totalMerit.toLocaleString()} M earned</span>
+                    <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>{totalDC.toLocaleString()} DC earned</span>
                   </div>
                   <div style={{ background: "#0a0a0f", borderRadius: 4, height: 6, marginBottom: 16, overflow: "hidden" }}>
                     <div style={{ width: `${pct}%`, height: "100%", background: frame ? accent : "#39d353", transition: "width 0.5s" }} />
@@ -683,7 +682,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                           <div className="font-mono text-xs font-bold" style={{ color: "#39d353" }}>{a.name}</div>
                           <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>{a.description}</div>
                         </div>
-                        <div className="font-mono text-xs font-bold flex-shrink-0" style={{ color: "#39d353" }}>+{a.meritReward} M</div>
+                        <div className="font-mono text-xs font-bold flex-shrink-0" style={{ color: "#f59e0b" }}>+{a.dcReward ?? 0} DC</div>
                       </div>
                     ))}
                     {completed.length === 0 && (

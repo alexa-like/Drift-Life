@@ -32,6 +32,8 @@ export interface IMiniGameItem extends Document {
   };
   imageCard: string;          // asset path or URL
   flavorText: string;
+  stackable: boolean;         // true = multiple can be held; false = one at a time (e.g. unique armor)
+  maxStack: number;           // max quantity per inventory slot (1 for non-stackable)
   isActive: boolean;
 }
 
@@ -55,6 +57,8 @@ const MiniGameItemSchema = new Schema<IMiniGameItem>(
     },
     imageCard:   { type: String, default: "/assets/items/placeholder.webp" },
     flavorText:  { type: String, default: "" },
+    stackable:   { type: Boolean, default: true },
+    maxStack:    { type: Number, default: 99 },
     isActive:    { type: Boolean, default: true },
   },
   { timestamps: true },

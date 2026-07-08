@@ -102,6 +102,7 @@ export interface User {
   // ── Mini-game currencies (Tier 2+) ─────────────────────────────────────────
   keys: number;
   keyShards: number;
+  spinTokens: number;
 }
 
 export interface FeedEvent {
@@ -210,7 +211,7 @@ export interface Achievement {
   name: string;
   description: string;
   category: "combat" | "crime" | "wealth" | "social" | "exploration" | "collection";
-  meritReward: number;
+  dcReward: number;
   progress: number;
   target: number;
   completed: boolean;

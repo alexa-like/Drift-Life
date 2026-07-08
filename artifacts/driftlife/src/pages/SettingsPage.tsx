@@ -150,7 +150,6 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
               { label: "Email",         value: user.email },
               { label: "Role",          value: user.role },
               { label: "Faction",       value: user.faction || "None" },
-              { label: "Merit Balance", value: `${(user.merit ?? 0).toLocaleString()} M` },
               { label: "Referral Code", value: user.referralCode },
               { label: "Member since",  value: new Date(user.createdAt).toLocaleDateString() },
             ].map(f => (

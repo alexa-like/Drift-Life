@@ -76,7 +76,10 @@ export async function seedMiniGameItems(): Promise<void> {
   await MiniGameItem.insertMany(
     COMBAT_ITEMS.map(item => ({
       ...item,
-      imageCard: `/assets/items/${item.itemId}.webp`,
+      imageCard:  `/assets/items/${item.itemId}.webp`,
+      // Weapons & armor: one equipped at a time; consumables & ammo: stackable
+      stackable: item.category === "consumable" || item.category === "ammo",
+      maxStack:  item.category === "consumable" || item.category === "ammo" ? 99 : 1,
     })),
   );
   logger.info(`Seeded ${COMBAT_ITEMS.length} combat items`);

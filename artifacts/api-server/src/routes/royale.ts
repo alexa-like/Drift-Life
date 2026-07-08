@@ -90,10 +90,11 @@ async function grantReward(
   const $push: Record<string, unknown> = {};
   const $addToSet: Record<string, unknown> = {};
 
-  if (r.dc && r.dc > 0)           $inc["dc"]         = r.dc;
-  if (r.keys && r.keys > 0)       $inc["keys"]       = r.keys;
-  if (r.keyShards && r.keyShards > 0) $inc["keyShards"] = r.keyShards;
-  if (r.xp && r.xp > 0)          $inc["xp"]         = r.xp;
+  if (r.dc && r.dc > 0)               $inc["dc"]         = r.dc;
+  if (r.keys && r.keys > 0)           $inc["keys"]       = r.keys;
+  if (r.keyShards && r.keyShards > 0) $inc["keyShards"]  = r.keyShards;
+  if (r.xp && r.xp > 0)              $inc["xp"]         = r.xp;
+  if (r.spinTokens && r.spinTokens > 0) $inc["spinTokens"] = r.spinTokens;
 
   if (r.energyAmount && r.energyAmount > 0) {
     // Use MongoDB $min to cap at maxEnergy — done below separately
@@ -103,9 +104,13 @@ async function grantReward(
     // Cap at 300 — done via aggregation pipeline update
   }
 
-  if (r.titleId) $addToSet["titles"] = r.titleId;
-  if (r.badgeId) $addToSet["titles"] = r.badgeId; // stored same place for now
-  if (r.backgroundId) $addToSet["titles"] = r.backgroundId;
+  // Collect all cosmetic unlocks into one $addToSet/$each call so multiple
+  // types on the same item don't overwrite each other.
+  const cosmeticIds: string[] = [];
+  if (r.titleId)      cosmeticIds.push(r.titleId);
+  if (r.badgeId)      cosmeticIds.push(r.badgeId);
+  if (r.backgroundId) cosmeticIds.push(r.backgroundId);
+  if (cosmeticIds.length > 0) $addToSet["titles"] = { $each: cosmeticIds };
 
   if (Object.keys($inc).length > 0 || Object.keys($addToSet).length > 0) {
     const update: Record<string, unknown> = {};
@@ -199,6 +204,27 @@ async function grantReward(
       },
       { upsert: true, session },
     );
+  }
+
+  // Loot crate — stored as a consumable stack in PlayerMiniGameInventory
+  // itemId convention: "loot_crate_<tier>" (e.g. "loot_crate_common")
+  if (r.lootCrateTier) {
+    const crateItemId = `loot_crate_${r.lootCrateTier}`;
+    const inv = await PlayerMiniGameInventory.findOne({ userId }).session(session ?? null);
+    if (inv) {
+      const existing = inv.consumables.find((e) => e.itemId === crateItemId);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        inv.consumables.push({ itemId: crateItemId, quantity: 1 });
+      }
+      await inv.save({ session });
+    } else {
+      await PlayerMiniGameInventory.create(
+        [{ userId, weapons: [], armor: [], consumables: [{ itemId: crateItemId, quantity: 1 }], ammo: [] }],
+        { session },
+      );
+    }
   }
 
   // Car part
