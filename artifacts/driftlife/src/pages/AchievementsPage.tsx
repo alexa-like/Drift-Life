@@ -159,13 +159,20 @@ export function AchievementsPage({ user, refreshUser, addToast }: Props) {
                     <div style={{ width: 10, height: 10, borderRadius: "50%", background: a.completed ? color : "#1e1e2e" }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
                       <span className="font-mono font-bold" style={{ color: a.completed ? color : "#e2e8f0", fontSize: 13 }}>
                         {a.name}
                       </span>
-                      <span className="font-mono" style={{ fontSize: 10, color: "#f59e0b", background: "#f59e0b20", padding: "1px 6px", borderRadius: 4 }}>
-                        +{a.dcReward ?? 0} DC
-                      </span>
+                      {(a.dcReward ?? 0) > 0 && (
+                        <span className="font-mono" style={{ fontSize: 10, color: "#f59e0b", background: "#f59e0b20", padding: "1px 6px", borderRadius: 4 }}>
+                          +{a.dcReward ?? 0} DC
+                        </span>
+                      )}
+                      {(a as any).keyReward > 0 && (
+                        <span className="font-mono" style={{ fontSize: 10, color: "#00d4ff", background: "#00d4ff20", padding: "1px 6px", borderRadius: 4 }}>
+                          +{(a as any).keyReward} Key{(a as any).keyReward !== 1 ? "s" : ""}
+                        </span>
+                      )}
                     </div>
                     <p className="font-mono" style={{ color: "#64748b", fontSize: 11, marginBottom: 6 }}>{a.description}</p>
                     {!a.completed && (

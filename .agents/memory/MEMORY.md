@@ -11,3 +11,4 @@
 - [DriftLife Telegram & Payment Fixes](driftlife-telegram-payment.md) — 4 root causes fixed: webhook never registered, invalid allowed_updates type, MongoDB $set nesting bug, secret now mandatory
 - [DriftLife Arena Combat (Tier 4)](driftlife-arena-tier4.md) — element effects (burn/shock/AP/block/etc), auto-timeout worker, DoT early-exit gate, same-turn AI stun, atomic turn claim in timeout worker; reward dcMult/xpMult are separate vars
 - [DriftLife Racing System (Tier 5)](driftlife-tier5-racing.md) — fully built; route was unregistered + no NavBar entry; fixed + anti-cheat (server-computes hit), atomic energy join, queue timeout batches humans first; lastShiftAt/shiftCount added to RaceMatch model
+- [DriftLife Tier 6 Completion](driftlife-tier6.md) — Missions/Achievements/Leaderboards all wired; fireMissionEvent in lib/missionEvents.ts; maxCombatWinStreak on User; mini-leaderboard registered; keyReward in achievement grants + API response

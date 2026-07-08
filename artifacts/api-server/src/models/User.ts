@@ -128,6 +128,7 @@ export interface IUser extends Document {
   spinTokens: number;         // earned from royale; 1 token = 1 free spin on any wheel
   // ── Mini-game stats ───────────────────────────────────────────────────────
   combatWinStreak:      number;  // consecutive combat wins; resets on loss
+  maxCombatWinStreak:   number;  // highest streak ever reached (for achievements)
   miniGameMatchesToday: number;  // matches played today (for daily reward cap)
   miniGameResetAt:      Date;    // next daily cap reset (midnight UTC)
   totalRoyaleSpins:     number;  // lifetime royale spins (for achievements)
@@ -294,6 +295,7 @@ const UserSchema = new Schema<IUser>(
     keyShards:          { type: Number, default: 0 },
     spinTokens:         { type: Number, default: 0 },
     combatWinStreak:      { type: Number, default: 0 },
+    maxCombatWinStreak:   { type: Number, default: 0 },
     miniGameMatchesToday: { type: Number, default: 0 },
     miniGameResetAt:      { type: Date, default: () => new Date(new Date().setUTCHours(24, 0, 0, 0)) },
     totalRoyaleSpins:     { type: Number, default: 0 },

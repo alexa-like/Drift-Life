@@ -209,6 +209,7 @@ export interface Notification {
 }
 
 export interface Achievement {
+  keyReward?: number;
   id: string;
   name: string;
   description: string;

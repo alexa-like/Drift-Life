@@ -48,8 +48,9 @@ import royaleRouter from "./royale";
 import arenaRouter from "./arena";
 // ── Racing System (Tier 5) ────────────────────────────────────────────────────
 import raceRouter from "./race";
-// ── Missions (Tier 6) ─────────────────────────────────────────────────────────
+// ── Missions & Leaderboards (Tier 6) ──────────────────────────────────────────
 import missionsRouter from "./missions";
+import miniLeaderboardRouter from "./mini-leaderboard";
 
 const router: IRouter = Router();
 
@@ -99,8 +100,9 @@ router.use("/royale", royaleRouter);
 router.use("/arena", arenaRouter);
 // ── Racing System (Tier 5) ────────────────────────────────────────────────────
 router.use("/race", raceRouter);
-// ── Missions (Tier 6) ─────────────────────────────────────────────────────────
+// ── Missions & Leaderboards (Tier 6) ──────────────────────────────────────────
 router.use("/missions", missionsRouter);
+router.use("/mini-leaderboard", miniLeaderboardRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

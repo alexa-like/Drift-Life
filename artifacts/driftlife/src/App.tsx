@@ -32,6 +32,7 @@ import RoyalePage from "./pages/RoyalePage";
 import GaragePage from "./pages/GaragePage";
 import ArenaHubPage from "./pages/ArenaHubPage";
 import ArenaCombatPage from "./pages/ArenaCombatPage";
+import { MissionsPage } from "./pages/MissionsPage";
 import RaceHubPage from "./pages/RaceHubPage";
 import RaceMatchPage from "./pages/RaceMatchPage";
 import CityPage from "./pages/CityPage";
@@ -196,6 +197,7 @@ function GameApp() {
       case "settings":     return <SettingsPage {...pageProps} onLogout={handleLogout} />;
       case "notifications":return <NotificationsPage onUnreadChange={setUnreadNotifs} onInspectPlayer={setInspectUserId} />;
       case "achievements":  return <AchievementsPage {...pageProps} />;
+      case "missions":      return <MissionsPage {...pageProps} />;
       case "chat":          return <ChatPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       case "skills":        return <SkillsPage user={user!} addToast={addToast} />;
       case "guilds":        return <GuildsPage user={user!} addToast={addToast} />;

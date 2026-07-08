@@ -13,6 +13,8 @@ import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
 import PlayerGarage from "../models/PlayerGarage";
 import MiniGameItem from "../models/MiniGameItem";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { fireMissionEvent } from "../lib/missionEvents";
+import { checkAchievements } from "./achievements";
 
 const router = Router();
 
@@ -436,15 +438,22 @@ router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
     // Save pity counter
     await pity.save();
 
-    // Log spin
-    await PlayerRoyaleLog.create({
-      userId: req.userId,
-      royaleType,
-      currency,
-      spinsCount: count,
-      costPaid: totalCost,
-      results: wonItems.map((w) => w.name),
-    });
+    // Log spin + track total spins on user
+    await Promise.all([
+      PlayerRoyaleLog.create({
+        userId: req.userId,
+        royaleType,
+        currency,
+        spinsCount: count,
+        costPaid: totalCost,
+        results: wonItems.map((w) => w.name),
+      }),
+      User.updateOne({ _id: req.userId }, { $inc: { totalRoyaleSpins: count } }),
+    ]);
+
+    // Fire mission event (non-fatal)
+    fireMissionEvent(String(req.userId), "royale_spin", count).catch(() => {});
+    checkAchievements(String(req.userId)).catch(() => {});
 
     // Return refreshed balances
     const refreshed = await User.findById(req.userId)

@@ -15,6 +15,8 @@ import PlayerGarage from "../models/PlayerGarage";
 import MiniGameLeaderboard from "../models/MiniGameLeaderboard";
 import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { fireMissionEvent } from "../lib/missionEvents";
+import { checkAchievements } from "./achievements";
 
 const router = Router();
 
@@ -491,6 +493,8 @@ router.post("/match/:matchId/nitro", requireAuth, async (req: AuthRequest, res) 
 
     await checkRaceCompletion(match);
     await match.save();
+    // Fire nitro mission event (non-fatal)
+    fireMissionEvent(String(req.userId), "nitro_use").catch(() => {});
     res.json({ match });
   } catch (err) {
     req.log.error({ err }, "race nitro error");
@@ -623,6 +627,12 @@ async function grantRaceRewards(match: any) {
       read: false,
       createdAt: new Date(),
     });
+
+    // Fire mission events (non-fatal)
+    fireMissionEvent(String(p.userId), "race_play").catch(() => {});
+    if (placement === 1) fireMissionEvent(String(p.userId), "race_win").catch(() => {});
+    if (dcEarned > 0) fireMissionEvent(String(p.userId), "dc_earned", dcEarned).catch(() => {});
+    checkAchievements(String(p.userId)).catch(() => {});
   }
 }
 

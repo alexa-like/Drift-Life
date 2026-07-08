@@ -5,6 +5,7 @@ import Item from "../models/Item";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { checkAchievements } from "./achievements";
 import { levelUp } from "../lib/regen";
+import { fireMissionEvent } from "../lib/missionEvents";
 
 const router = Router();
 
@@ -185,6 +186,7 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
     }
 
     checkAchievements(String(req.userId)).catch(() => {});
+    fireMissionEvent(String(req.userId), "login").catch(() => {});
 
     // daily rewards are private — no feed post
 

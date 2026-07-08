@@ -15,6 +15,8 @@ import MiniGameItem from "../models/MiniGameItem";
 import MiniGameLeaderboard from "../models/MiniGameLeaderboard";
 import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { fireMissionEvent } from "../lib/missionEvents";
+import { checkAchievements } from "./achievements";
 
 const router = Router();
 
@@ -711,6 +713,8 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
         }
       }
       narrative = `${isP1 ? p1Name : p2Name} used a med-kit — healed ${healAmount} HP`;
+      // Fire consumable mission event (non-fatal, fire-and-forget)
+      fireMissionEvent(String(req.userId), "consumable").catch(() => {});
     } else {
       // attack / reload / special
       const attackerName = isP1 ? p1Name : (match.isPlayer2AI ? match.aiName ?? "AI" : p2Name);
@@ -1043,6 +1047,13 @@ async function grantCombatRewards(match: any) {
       u.losses += 1;
     }
     u.totalFights += 1;
+    // Track max streak for achievements
+    if (isWinner) {
+      const newStreak = u.combatWinStreak ?? 0;
+      if (newStreak > ((u as any).maxCombatWinStreak ?? 0)) {
+        (u as any).maxCombatWinStreak = newStreak;
+      }
+    }
     await u.save();
 
     // Update mini-game leaderboard
@@ -1059,6 +1070,12 @@ async function grantCombatRewards(match: any) {
         { upsert: true },
       );
     }
+
+    // Fire mission events (non-fatal)
+    fireMissionEvent(userId, "combat_play").catch(() => {});
+    if (isWinner) fireMissionEvent(userId, "combat_win").catch(() => {});
+    if (isWinner && dcEarned > 0) fireMissionEvent(userId, "dc_earned", dcEarned).catch(() => {});
+    checkAchievements(userId).catch(() => {});
 
     // Notification — reflects actual earned amounts including streak bonus and daily cap
     const capNote = dcMult < 1 ? ` (${matchesToday >= HALF_CAP ? "XP only" : "50% cap"})` : "";

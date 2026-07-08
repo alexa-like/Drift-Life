@@ -7,6 +7,167 @@ import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { CyberButton } from "../components/CyberButton";
 
 type SortType = "level" | "dc" | "wins" | "crimes";
+type BoardTab = "city" | "minigame";
+
+type MiniLBType = "combat_wins" | "combat_streak" | "race_wins" | "race_fastest_2p" | "race_fastest_4p";
+interface MiniLBEntry { _id: string; userId: string; username: string; avatar: string; score: number; rank: number }
+interface MiniLBResponse { type: MiniLBType; label: string; nextReset: string; entries: MiniLBEntry[]; myEntry: (MiniLBEntry & { rank: number | null }) | null }
+
+const MINI_TYPES: { id: MiniLBType; label: string; color: string; asc: boolean }[] = [
+  { id: "combat_wins",      label: "Combat Wins",    color: "#ff2d55", asc: false },
+  { id: "combat_streak",   label: "Best Streak",    color: "#ff6b35", asc: false },
+  { id: "race_wins",       label: "Race Wins",      color: "#00d4ff", asc: false },
+  { id: "race_fastest_2p", label: "Fastest 2p",     color: "#f59e0b", asc: true  },
+  { id: "race_fastest_4p", label: "Fastest 4p",     color: "#a855f7", asc: true  },
+];
+
+function formatScore(type: MiniLBType, score: number): string {
+  if (type === "race_fastest_2p" || type === "race_fastest_4p") {
+    const ms = score;
+    const s  = Math.floor(ms / 1000);
+    const cs = Math.floor((ms % 1000) / 10);
+    return `${s}.${String(cs).padStart(2,"0")}s`;
+  }
+  return String(score);
+}
+
+function MiniLeaderboard() {
+  const [activeType, setActiveType] = useState<MiniLBType>("combat_wins");
+  const [data, setData] = useState<MiniLBResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get<MiniLBResponse>(`/mini-leaderboard/${activeType}?limit=50`)
+      .then(setData).catch(() => {}).finally(() => setLoading(false));
+  }, [activeType]);
+
+  const cfg = MINI_TYPES.find(t => t.id === activeType)!;
+
+  function useCountdown(isoDate: string | undefined) {
+    const [text, setText] = useState("");
+    useEffect(() => {
+      if (!isoDate) return;
+      function calc() {
+        const diff = new Date(isoDate!).getTime() - Date.now();
+        if (diff <= 0) { setText("now"); return; }
+        const d = Math.floor(diff / 86_400_000);
+        const h = Math.floor((diff % 86_400_000) / 3_600_000);
+        const m = Math.floor((diff % 3_600_000) / 60_000);
+        setText(d > 0 ? `${d}d ${h}h` : `${h}h ${m}m`);
+      }
+      calc();
+      const iv = setInterval(calc, 30_000);
+      return () => clearInterval(iv);
+    }, [isoDate]);
+    return text;
+  }
+
+  const countdown = useCountdown(data?.nextReset);
+
+  return (
+    <div>
+      {/* Type tabs */}
+      <div className="flex gap-2 flex-wrap mb-4">
+        {MINI_TYPES.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setActiveType(t.id)}
+            className="font-mono text-xs"
+            style={{
+              padding: "4px 10px", borderRadius: 4, cursor: "pointer",
+              background: activeType === t.id ? t.color + "20" : "#111118",
+              border: `1px solid ${activeType === t.id ? t.color : "#1e1e2e"}`,
+              color: activeType === t.id ? t.color : "#475569",
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Header */}
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-mono font-bold" style={{ color: cfg.color, fontSize: 13, letterSpacing: "0.1em" }}>
+          {cfg.label.toUpperCase()} — WEEKLY
+        </h3>
+        {countdown && (
+          <span className="font-mono" style={{ fontSize: 10, color: "#475569" }}>
+            RESET IN <span style={{ color: "#f59e0b" }}>{countdown}</span>
+          </span>
+        )}
+      </div>
+
+      {/* Rewards info */}
+      <div className="flex gap-3 mb-4 flex-wrap">
+        {[{ rank: "🥇", r: "5 Keys + 5,000 DC" }, { rank: "🥈", r: "3 Keys + 2,000 DC" }, { rank: "🥉", r: "1 Key + 1,000 DC" }].map(({ rank, r }) => (
+          <div key={rank} className="font-mono" style={{ fontSize: 10, color: "#64748b", background: "#111118", border: "1px solid #1e1e2e", borderRadius: 4, padding: "3px 8px" }}>
+            {rank} {r}
+          </div>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="font-mono text-xs text-center py-8 animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+      ) : !data || data.entries.length === 0 ? (
+        <div className="font-mono text-xs text-center py-8" style={{ color: "#475569" }}>
+          No entries yet this week. Be the first!
+        </div>
+      ) : (
+        <div style={{ border: "1px solid #1e1e2e", borderRadius: 8, overflow: "hidden" }}>
+          {data.entries.map((e, idx) => {
+            const medalColors = ["#FFD700", "#C0C0C0", "#CD7F32"];
+            const rowColor = idx < 3 ? medalColors[idx] : cfg.color;
+            const isMe = data.myEntry?.userId === e.userId;
+            return (
+              <motion.div
+                key={e._id ?? e.userId}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: idx * 0.02 }}
+                className="flex items-center gap-3 px-4 py-3"
+                style={{
+                  background: isMe ? cfg.color + "10" : idx % 2 === 0 ? "#111118" : "#0d0d15",
+                  borderBottom: "1px solid #1e1e2e",
+                  borderLeft: `3px solid ${rowColor}${isMe ? "ff" : "30"}`,
+                }}
+              >
+                <div className="font-mono font-bold flex-shrink-0 text-center" style={{ width: 24, fontSize: 12, color: idx < 3 ? rowColor : "#334155" }}>
+                  {e.rank}
+                </div>
+                <div style={{
+                  width: 28, height: 28, borderRadius: "50%", background: "#1e1e2e", flexShrink: 0,
+                  border: `1px solid ${rowColor}30`, overflow: "hidden",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, color: rowColor,
+                }}>
+                  {e.username?.charAt(0).toUpperCase() ?? "?"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-sm" style={{ color: isMe ? cfg.color : "#e2e8f0" }}>{e.username}</span>
+                    {isMe && <span className="font-mono" style={{ fontSize: 9, color: cfg.color, border: `1px solid ${cfg.color}`, padding: "1px 4px", borderRadius: 3 }}>YOU</span>}
+                  </div>
+                </div>
+                <div className="font-mono font-bold flex-shrink-0" style={{ fontSize: 12, color: rowColor }}>
+                  {formatScore(activeType, e.score)}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* My rank (if outside top 50) */}
+      {data?.myEntry && !data.entries.some(e => e.userId === data.myEntry?.userId) && (
+        <div className="font-mono text-xs mt-3 text-center" style={{ color: "#475569" }}>
+          Your rank: <span style={{ color: cfg.color }}>#{data.myEntry.rank}</span> with{" "}
+          <span style={{ color: cfg.color }}>{formatScore(activeType, data.myEntry.score)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 const TOP3_COLORS = ["#FFD700", "#C0C0C0", "#CD7F32"];
@@ -112,6 +273,7 @@ const SORT_OPTS: { id: SortType; label: string; color: string }[] = [
 ];
 
 export function LeaderboardPage() {
+  const [tab, setTab] = useState<BoardTab>("city");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [sortType, setSortType] = useState<SortType>("level");
   const [loading, setLoading] = useState(true);
@@ -140,18 +302,37 @@ export function LeaderboardPage() {
   return (
     <div className="max-w-2xl mx-auto">
       {/* Header */}
-      <div className="mb-6 flex justify-between items-end flex-wrap gap-3">
+      <div className="mb-4 flex justify-between items-end flex-wrap gap-3">
         <div>
           <CyberSectionHeader title="New Vanta Rankings" accent="#f59e0b" size="lg" cursor className="mb-1" />
           <p className="font-mono text-xs" style={{ color: "#64748b" }}>Who runs this city</p>
         </div>
-        {weeklyCountdown && (
-          <div className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#111118", border: "1px solid #1e1e2e", color: "#64748b" }}>
-            RESET IN <span style={{ color: "#f59e0b" }}>{weeklyCountdown}</span>
-          </div>
-        )}
       </div>
 
+      {/* Main tab: City vs Mini-Game */}
+      <div className="flex gap-2 mb-5">
+        {([["city", "City Rankings", "#f59e0b"], ["minigame", "Mini-Game Weekly", "#00d4ff"]] as const).map(([id, label, color]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id as BoardTab)}
+            className="font-mono font-bold text-xs"
+            style={{
+              padding: "6px 14px", borderRadius: 4, cursor: "pointer",
+              background: tab === id ? (color as string) + "20" : "#111118",
+              border: `1px solid ${tab === id ? color : "#1e1e2e"}`,
+              color: tab === id ? color as string : "#475569",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Mini-game leaderboard */}
+      {tab === "minigame" && <MiniLeaderboard />}
+
+      {/* City rankings */}
+      {tab === "city" && <>
       {/* Sort filters */}
       <div className="flex gap-2 flex-wrap mb-6">
         {SORT_OPTS.map(opt => (
@@ -282,6 +463,7 @@ export function LeaderboardPage() {
           )}
         </>
       )}
+      </>}
     </div>
   );
 }

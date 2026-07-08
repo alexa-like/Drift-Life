@@ -10,48 +10,12 @@
 import { Router } from "express";
 import User from "../models/User";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { MISSION_CATALOG, MissionDef, getDailyMissions } from "../lib/missionEvents";
+
+export type { MissionDef };
+export { MISSION_CATALOG };
 
 const router = Router();
-
-// ── Mission catalog ───────────────────────────────────────────────────────────
-export interface MissionDef {
-  id:          string;
-  label:       string;
-  description: string;
-  type:        string;   // event key matched in progress updates
-  target:      number;
-  rewards:     { dc: number; xp: number; keyShards: number };
-}
-
-export const MISSION_CATALOG: MissionDef[] = [
-  // Combat
-  { id: "win_2_combat",    label: "Fighter",       description: "Win 2 combat matches",           type: "combat_win",   target: 2,   rewards: { dc: 200,  xp: 300,  keyShards: 0 } },
-  { id: "play_5_combat",   label: "Brawler",       description: "Play 5 combat matches",           type: "combat_play",  target: 5,   rewards: { dc: 150,  xp: 200,  keyShards: 0 } },
-  { id: "use_consumable",  label: "Medic",         description: "Use a consumable in combat",       type: "consumable",   target: 1,   rewards: { dc: 100,  xp: 150,  keyShards: 1 } },
-  // Racing
-  { id: "complete_3_races",label: "Racer",         description: "Complete 3 races",                 type: "race_play",    target: 3,   rewards: { dc: 200,  xp: 250,  keyShards: 0 } },
-  { id: "win_race",        label: "Pole Position", description: "Finish 1st in a race",             type: "race_win",     target: 1,   rewards: { dc: 300,  xp: 400,  keyShards: 1 } },
-  { id: "nitro_10",        label: "Full Throttle", description: "Use nitro 10 times across races",  type: "nitro_use",    target: 10,  rewards: { dc: 150,  xp: 200,  keyShards: 0 } },
-  // Royale
-  { id: "open_1_spin",     label: "Gambler",       description: "Open 1 royale spin",               type: "royale_spin",  target: 1,   rewards: { dc: 100,  xp: 120,  keyShards: 0 } },
-  { id: "open_5_spins",    label: "High Roller",   description: "Open 5 royale spins",              type: "royale_spin",  target: 5,   rewards: { dc: 400,  xp: 500,  keyShards: 1 } },
-  // General
-  { id: "login_today",     label: "Present",       description: "Log in today",                     type: "login",        target: 1,   rewards: { dc: 50,   xp: 50,   keyShards: 0 } },
-  { id: "earn_500_dc",     label: "Money Moves",   description: "Earn 500 DC from matches",          type: "dc_earned",    target: 500, rewards: { dc: 250,  xp: 300,  keyShards: 0 } },
-  { id: "daily_nc",        label: "Subscriber",    description: "Claim daily NC (subscribers only)", type: "nc_claim",     target: 1,   rewards: { dc: 100,  xp: 100,  keyShards: 0 } },
-  { id: "complete_5_crimes",label:"Operator",      description: "Complete 5 crime attempts",         type: "crime_play",   target: 5,   rewards: { dc: 150,  xp: 200,  keyShards: 0 } },
-];
-
-// ── Daily mission pool (6 per day, seeded by date) ────────────────────────────
-function getDailyMissions(seed: number): MissionDef[] {
-  // Deterministic shuffle based on day seed
-  const shuffled = [...MISSION_CATALOG];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = (seed * (i + 1) * 1_234_567) % (i + 1);
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled.slice(0, 6);
-}
 
 function getTodaySeed(): number {
   const d = new Date();

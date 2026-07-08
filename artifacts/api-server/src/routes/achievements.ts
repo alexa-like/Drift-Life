@@ -43,6 +43,10 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         case "level": return user!.level;
         case "prestige": return user!.prestige;
         case "uniqueJobsCompleted": return progressMap["all_jobs"]?.progress || 0;
+        case "raceWins": return (user as any).raceWins ?? 0;
+        case "totalRaces": return (user as any).totalRaces ?? 0;
+        case "royaleSpins": return (user as any).totalRoyaleSpins ?? 0;
+        case "combatWinStreak": return (user as any).maxCombatWinStreak ?? 0;
         default: return 0;
       }
     }
@@ -57,6 +61,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
           description: a.description,
           category: a.category,
           dcReward: a.dcReward,
+          keyReward: (a as any).keyReward ?? 0,
           progress,
           target: a.target,
           completed: saved?.completed ?? false,
@@ -94,6 +99,10 @@ export async function checkAchievements(userId: string): Promise<void> {
         case "dailyStreak": return user!.dailyStreak;
         case "level": return user!.level;
         case "prestige": return user!.prestige;
+        case "raceWins": return (user as any).raceWins ?? 0;
+        case "totalRaces": return (user as any).totalRaces ?? 0;
+        case "royaleSpins": return (user as any).totalRoyaleSpins ?? 0;
+        case "combatWinStreak": return (user as any).maxCombatWinStreak ?? 0;
         default: return progressMap[`_${stat}`]?.progress ?? 0;
       }
     }
@@ -121,12 +130,15 @@ export async function checkAchievements(userId: string): Promise<void> {
         );
       }
 
-      // Grant DC reward on completion (was merit — now DC)
-      if (completed && !saved?.rewardGranted && a.dcReward > 0) {
-        await Promise.all([
-          User.findByIdAndUpdate(userId, { $inc: { dc: a.dcReward } }),
-          UserAchievement.updateOne({ userId, achievementId: a.id }, { rewardGranted: true }),
-        ]);
+      // Grant DC + Key rewards on completion
+      if (completed && !saved?.rewardGranted) {
+        const inc: Record<string, number> = {};
+        if (a.dcReward > 0)        inc["dc"]   = a.dcReward;
+        if ((a as any).keyReward)  inc["keys"] = (a as any).keyReward;
+        if (Object.keys(inc).length > 0) {
+          await User.findByIdAndUpdate(userId, { $inc: inc });
+        }
+        await UserAchievement.updateOne({ userId, achievementId: a.id }, { rewardGranted: true });
       }
     }
 

@@ -483,16 +483,16 @@ Fields:
 > Goal: Progression systems that give players long-term goals.
 
 ### 6A — Leaderboards
-- [ ] Weekly combat wins leaderboard
-- [ ] Weekly combat win streak leaderboard
-- [ ] Weekly race wins leaderboard
-- [ ] Weekly fastest race time leaderboard (per mode: 2p and 4p separate)
-- [ ] Reset every Monday at 00:00 UTC
-- [ ] Top 3 reward on reset:
+- [x] Weekly combat wins leaderboard
+- [x] Weekly combat win streak leaderboard
+- [x] Weekly race wins leaderboard
+- [x] Weekly fastest race time leaderboard (per mode: 2p and 4p separate)
+- [x] Reset every Monday at 00:00 UTC
+- [x] Top 3 reward on reset:
   - 1st: 5 Keys + 5,000 DC
   - 2nd: 3 Keys + 2,000 DC
   - 3rd: 1 Key + 1,000 DC
-- [ ] Leaderboard page in frontend with weekly countdown timer
+- [x] Leaderboard page in frontend with weekly countdown timer (mini-game tab on LeaderboardPage)
 
 ### 6B — Daily Missions (new set, replacing old)
 Missions reset daily at 00:00 UTC. Give XP, DC, Key Shards.
@@ -509,9 +509,9 @@ Examples (all referencing new systems only):
 - Claim daily NC (subscription players)
 - Complete 5 crime attempts
 
-- [ ] Build new daily mission system (remove all old ones)
-- [ ] Mission progress tracks automatically from game events
-- [ ] Rewards delivered on mission completion, not at end of day
+- [x] Build new daily mission system (remove all old ones)
+- [x] Mission progress tracks automatically from game events (arena, race, royale, daily, crimes)
+- [x] Rewards delivered on mission completion, not at end of day
 
 ### 6C — Achievements (new set, replacing old)
 One-time unlocks. Give Keys, DC, titles, badges.
@@ -528,9 +528,9 @@ Examples:
 - Complete all daily missions in a day → Rare spin token
 - Earn a Legendary item from royale → special badge
 
-- [ ] Build new achievement system (remove all old ones)
-- [ ] Achievements check automatically on relevant events
-- [ ] Inbox notification on unlock
+- [x] Build new achievement system (remove all old ones)
+- [x] Achievements check automatically on relevant events (fired from arena, race, royale, daily)
+- [x] Key rewards granted alongside DC rewards on achievement completion
 
 ---
 
