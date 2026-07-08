@@ -1,23 +1,24 @@
 // ─── Subscription Tier Config ────────────────────────────────────────────────
 // Single source of truth for all tier perks — never store these values on the
 // user document. Always derive perks from the tier enum at runtime.
+// Premium currency is Nova Credits (NC). UltraCredits / UC does not exist.
 
 export type SubscriptionTier = 'street_runner' | 'neon_syndicate' | 'apex_sovereign';
 
 export interface TierConfig {
   name: string;
   starsPerMonth: number;
-  /** UC cost when purchasing subscription directly in-game (not via Telegram Stars).
-   *  Priced at 6 UC per Star — mildly favourable vs the starter pack rate (5 UC/Star)
+  /** NC cost when purchasing subscription directly in-game (not via Telegram Stars).
+   *  Priced at 6 NC per Star — mildly favourable vs the starter pack rate (5 NC/Star)
    *  but not so cheap it trivialises Stars purchases. */
-  ucPrice: number;
-  dailyUc: number;              // UC granted per daily claim
+  ncPrice: number;
+  dailyNc: number;              // NC granted per daily claim
   jobXpMult: number;            // applied to xpGained in jobs
   crimeRewardMult: number;      // applied to dcGained in crimes
   extraCrimeSlots: number;      // added to RUNS_PER_HOUR_CAP
   hospitalSpeedPct: number;     // % reduction in hospitalization duration
   extraGymSessions: number;     // added to TRAINS_PER_HOUR_CAP
-  bankInterestBonus: number;    // extra % interest on bank balance (not currently used)
+  bankInterestBonus: number;    // extra % interest on bank balance
   monthlyNc: number;            // NC granted on subscription activation
   frameId: string;              // exclusive frame id granted on subscribe
   chatColor: string;            // username color in chat
@@ -29,8 +30,8 @@ export const TIER_CONFIG: Record<SubscriptionTier, TierConfig> = {
   street_runner: {
     name: 'Street Runner',
     starsPerMonth: 250,
-    ucPrice: 1500,   // 250 Stars × 6 UC/Star
-    dailyUc: 60,
+    ncPrice: 1500,   // 250 Stars × 6 NC/Star
+    dailyNc: 60,
     jobXpMult: 1.15,
     crimeRewardMult: 1.10,
     extraCrimeSlots: 1,
@@ -46,8 +47,8 @@ export const TIER_CONFIG: Record<SubscriptionTier, TierConfig> = {
   neon_syndicate: {
     name: 'Neon Syndicate',
     starsPerMonth: 500,
-    ucPrice: 3000,   // 500 Stars × 6 UC/Star
-    dailyUc: 130,
+    ncPrice: 3000,   // 500 Stars × 6 NC/Star
+    dailyNc: 130,
     jobXpMult: 1.25,
     crimeRewardMult: 1.25,
     extraCrimeSlots: 2,
@@ -63,8 +64,8 @@ export const TIER_CONFIG: Record<SubscriptionTier, TierConfig> = {
   apex_sovereign: {
     name: 'Apex Sovereign',
     starsPerMonth: 1000,
-    ucPrice: 6000,   // 1000 Stars × 6 UC/Star
-    dailyUc: 275,
+    ncPrice: 6000,   // 1000 Stars × 6 NC/Star
+    dailyNc: 275,
     jobXpMult: 1.50,
     crimeRewardMult: 1.50,
     extraCrimeSlots: 3,
@@ -79,14 +80,14 @@ export const TIER_CONFIG: Record<SubscriptionTier, TierConfig> = {
   },
 };
 
-export const UC_PACKS = [
-  { id: 'uc_500',  uc: 500,  stars: 100,  bonusPct: 0,  label: 'Starter Pack'   },
-  { id: 'uc_1200', uc: 1200, stars: 220,  bonusPct: 10, label: 'Runner Pack'    },
-  { id: 'uc_3000', uc: 3000, stars: 500,  bonusPct: 20, label: 'Syndicate Pack' },
-  { id: 'uc_7500', uc: 7500, stars: 1100, bonusPct: 30, label: 'Sovereign Pack' },
+export const NC_PACKS = [
+  { id: 'nc_500',  nc: 500,  stars: 100,  bonusPct: 0,  label: 'Starter Pack'   },
+  { id: 'nc_1200', nc: 1200, stars: 220,  bonusPct: 10, label: 'Runner Pack'    },
+  { id: 'nc_3000', nc: 3000, stars: 500,  bonusPct: 20, label: 'Syndicate Pack' },
+  { id: 'nc_7500', nc: 7500, stars: 1100, bonusPct: 30, label: 'Sovereign Pack' },
 ] as const;
 
-export type UcPackId = typeof UC_PACKS[number]['id'];
+export type NcPackId = typeof NC_PACKS[number]['id'];
 
 /** Get active tier config from a user object. Returns null if no active sub. */
 export function getActiveTier(user: {

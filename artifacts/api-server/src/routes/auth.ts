@@ -80,11 +80,10 @@ export function safeUser(user: InstanceType<typeof User>) {
     ownedChatFrames: (user as any).ownedChatFrames || [],
     equippedChatFrame: (user as any).equippedChatFrame || null,
     // ── Monetization ───────────────────────────────────────────────────────
-    uc: (user as any).uc ?? 0,
     subscriptionTier: (user as any).subscriptionTier ?? null,
     subscriptionExpiresAt: (user as any).subscriptionExpiresAt ?? null,
-    ucDailyClaimedAt: (user as any).ucDailyClaimedAt ?? null,
-    ucClaimStreak: (user as any).ucClaimStreak ?? 0,
+    ncDailyClaimedAt: (user as any).ncDailyClaimedAt ?? null,
+    ncClaimStreak: (user as any).ncClaimStreak ?? 0,
     telegramLinked: !!(user as any).telegramId,
     telegramUsername: (user as any).telegramUsername ?? null,
     gameTheme: (user as any).gameTheme ?? "default",
@@ -149,7 +148,7 @@ router.post("/register", async (req, res) => {
       faction: faction && ["suits", "street", "grid"].includes(faction) ? faction : null,
       referralCode: refCode,
       referredBy: referralCode || null,
-      uc: 25, // welcome bonus for new players
+      nc: 25, // welcome bonus — 25 Nova Credits for new players
     });
 
     // Referral bonus

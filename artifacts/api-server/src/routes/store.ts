@@ -1,10 +1,10 @@
 /**
- * Store routes — UC packs + subscription tiers via Telegram Stars or in-game UC.
- * GET  /api/store/status               — uc, sub tier, days left, claim status
- * POST /api/store/create-invoice       — Telegram Stars invoice link
- * POST /api/store/buy-subscription-uc  — buy subscription with in-game UC
- * POST /api/store/claim-daily-uc       — claim daily UC (streak + rollover)
- * POST /api/store/gift-uc              — P2P UC transfer (10% fee)
+ * Store routes — NC (Nova Credits) packs + subscription tiers via Telegram Stars or in-game NC.
+ * GET  /api/store/status                — nc balance, sub tier, days left, claim status
+ * POST /api/store/create-invoice        — Telegram Stars invoice link
+ * POST /api/store/buy-subscription-nc   — buy subscription with in-game NC
+ * POST /api/store/claim-daily-nc        — claim daily NC (streak + rollover)
+ * POST /api/store/gift-nc               — P2P NC transfer (10% fee)
  */
 import { Router } from "express";
 import crypto from "crypto";
@@ -13,7 +13,7 @@ import User from "../models/User";
 import UcPurchaseLog from "../models/UcPurchaseLog";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { createInvoiceLink } from "../lib/telegram";
-import { UC_PACKS, TIER_CONFIG, getActiveTier, type SubscriptionTier } from "../lib/subscription";
+import { NC_PACKS, TIER_CONFIG, getActiveTier, type SubscriptionTier } from "../lib/subscription";
 
 const router = Router();
 
@@ -45,7 +45,7 @@ export function peekPending(payload: string): { userId: string; productId: strin
 router.get("/status", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId)
-      .select("uc subscriptionTier subscriptionExpiresAt ucDailyClaimedAt ucClaimStreak ucRolloverDays telegramId telegramUsername")
+      .select("nc subscriptionTier subscriptionExpiresAt ncDailyClaimedAt ncClaimStreak ncRolloverDays telegramId telegramUsername")
       .lean();
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -54,7 +54,7 @@ router.get("/status", requireAuth, async (req: AuthRequest, res) => {
     const now = new Date();
 
     // Determine if today's claim is already taken
-    const lastClaim: Date | null = u.ucDailyClaimedAt ? new Date(u.ucDailyClaimedAt) : null;
+    const lastClaim: Date | null = u.ncDailyClaimedAt ? new Date(u.ncDailyClaimedAt) : null;
     const todayStr = now.toDateString();
     const claimedToday = lastClaim ? lastClaim.toDateString() === todayStr : false;
 
@@ -65,27 +65,27 @@ router.get("/status", requireAuth, async (req: AuthRequest, res) => {
       : 0;
 
     // Preview next claim amount (including streak bonus on day 7)
-    const streak: number = u.ucClaimStreak ?? 0;
-    const rollover: number = u.ucRolloverDays ?? 0;
+    const streak: number = u.ncClaimStreak ?? 0;
+    const rollover: number = u.ncRolloverDays ?? 0;
     const nextStreak = streak + 1;
-    const baseUc = tier?.dailyUc ?? 0;
-    const streakBonus = nextStreak % 7 === 0 ? Math.floor(baseUc * 0.5) : 0;
-    const rolloverBonus = Math.floor(baseUc * Math.min(rollover, 3) * 0.1);
-    const nextClaimAmount = baseUc + streakBonus + rolloverBonus;
+    const baseNc = tier?.dailyNc ?? 0;
+    const streakBonus = nextStreak % 7 === 0 ? Math.floor(baseNc * 0.5) : 0;
+    const rolloverBonus = Math.floor(baseNc * Math.min(rollover, 3) * 0.1);
+    const nextClaimAmount = baseNc + streakBonus + rolloverBonus;
 
     res.json({
-      uc: u.uc ?? 0,
+      nc: u.nc ?? 0,
       subscriptionTier: tier ? u.subscriptionTier : null,
       subscriptionExpiresAt: subExpires,
       subDaysLeft,
-      ucDailyClaimedAt: u.ucDailyClaimedAt,
+      ncDailyClaimedAt: u.ncDailyClaimedAt,
       claimedToday,
-      ucClaimStreak: streak,
-      ucRolloverDays: rollover,
+      ncClaimStreak: streak,
+      ncRolloverDays: rollover,
       nextClaimAmount: tier ? nextClaimAmount : 0,
       telegramLinked: !!u.telegramId,
       telegramUsername: u.telegramUsername ?? null,
-      ucPacks: UC_PACKS,
+      ncPacks: NC_PACKS,
       tiers: Object.entries(TIER_CONFIG).map(([id, cfg]) => ({ id, ...cfg })),
     });
   } catch (err: any) {
@@ -102,37 +102,31 @@ router.post("/create-invoice", requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: "productId required" });
     }
 
-    // Determine product type
-    const ucPack = UC_PACKS.find(p => p.id === productId);
+    const ncPack = NC_PACKS.find(p => p.id === productId);
     const subTierEntry = Object.entries(TIER_CONFIG).find(([id]) => id === productId);
-    if (!ucPack && !subTierEntry) {
+    if (!ncPack && !subTierEntry) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Check Telegram linked
     const user = await User.findById(req.userId).select("telegramId subscriptionTier subscriptionExpiresAt").lean();
     if (!user) return res.status(404).json({ message: "User not found" });
     if (!(user as any).telegramId) {
       return res.status(400).json({ message: "Link your Telegram account first", needsTelegramLink: true });
     }
 
-    const isUcPack = !!ucPack;
-    const stars = isUcPack ? ucPack!.stars : subTierEntry![1].starsPerMonth;
-    const title = isUcPack
-      ? `${ucPack!.uc} UltraCredits`
+    const isNcPack = !!ncPack;
+    const stars = isNcPack ? ncPack!.stars : subTierEntry![1].starsPerMonth;
+    const title = isNcPack
+      ? `${ncPack!.nc.toLocaleString()} Nova Credits`
       : `${subTierEntry![1].name} — 30 days`;
-    const description = isUcPack
-      ? `${ucPack!.uc} UC${ucPack!.bonusPct > 0 ? ` (+${ucPack!.bonusPct}% bonus)` : ""} for DriftLife`
-      : `${subTierEntry![1].name} subscription: daily UC, exclusive frame, XP & crime boosts`;
+    const description = isNcPack
+      ? `${ncPack!.nc.toLocaleString()} NC${ncPack!.bonusPct > 0 ? ` (+${ncPack!.bonusPct}% bonus)` : ""} for DriftLife`
+      : `${subTierEntry![1].name} subscription: daily NC, exclusive frame, XP & crime boosts`;
 
-    // Build a unique payload for replay protection
     const nonce = crypto.randomBytes(8).toString("hex");
     const payload = `${req.userId}:${productId}:${nonce}`;
-
-    // Store pending record so webhook can validate the userId
     storePending(payload, String(req.userId), productId);
 
-    // Create the Telegram invoice link
     const invoiceLink = await createInvoiceLink({
       title,
       description,
@@ -151,23 +145,22 @@ router.post("/create-invoice", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// ── POST /api/store/claim-daily-uc ────────────────────────────────────────────
-router.post("/claim-daily-uc", requireAuth, async (req: AuthRequest, res) => {
+// ── POST /api/store/claim-daily-nc ────────────────────────────────────────────
+router.post("/claim-daily-nc", requireAuth, async (req: AuthRequest, res) => {
   try {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    // Atomic: acquire the claim slot in a single operation.
-    // Only succeeds if the user has NOT claimed today. Returns pre-update doc.
+    // Atomic: only fires if not already claimed today
     const pre = await User.findOneAndUpdate(
       {
         _id: req.userId,
         $or: [
-          { ucDailyClaimedAt: null },
-          { ucDailyClaimedAt: { $lt: todayStart } },
+          { ncDailyClaimedAt: null },
+          { ncDailyClaimedAt: { $lt: todayStart } },
         ],
       },
-      { $set: { ucDailyClaimedAt: now } },
+      { $set: { ncDailyClaimedAt: now } },
       { new: false },
     );
 
@@ -178,15 +171,13 @@ router.post("/claim-daily-uc", requireAuth, async (req: AuthRequest, res) => {
     const u = pre as any;
     const tier = getActiveTier(u);
     if (!tier) {
-      // Subscription expired; undo the claim-date mark
-      await User.updateOne({ _id: req.userId }, { $set: { ucDailyClaimedAt: u.ucDailyClaimedAt ?? null } });
+      await User.updateOne({ _id: req.userId }, { $set: { ncDailyClaimedAt: u.ncDailyClaimedAt ?? null } });
       return res.status(400).json({ message: "No active subscription" });
     }
 
-    // Streak + rollover logic (computed from pre-update document)
-    const lastClaim: Date | null = u.ucDailyClaimedAt ? new Date(u.ucDailyClaimedAt) : null;
-    let streak: number = u.ucClaimStreak ?? 0;
-    let rollover: number = u.ucRolloverDays ?? 0;
+    const lastClaim: Date | null = u.ncDailyClaimedAt ? new Date(u.ncDailyClaimedAt) : null;
+    let streak: number = u.ncClaimStreak ?? 0;
+    let rollover: number = u.ncRolloverDays ?? 0;
 
     if (lastClaim) {
       const daysSinceLast = Math.floor((now.getTime() - lastClaim.getTime()) / 86_400_000);
@@ -205,45 +196,41 @@ router.post("/claim-daily-uc", requireAuth, async (req: AuthRequest, res) => {
       rollover = 0;
     }
 
-    const base = tier.dailyUc;
+    const base = tier.dailyNc;
     const streakBonus = streak % 7 === 0 ? Math.floor(base * 0.5) : 0;
     const rolloverBonus = Math.floor(base * rollover * 0.1);
-    const totalUc = base + streakBonus + rolloverBonus;
+    const totalNc = base + streakBonus + rolloverBonus;
 
-    // Second update: grant UC and persist streak/rollover
     await User.updateOne(
       { _id: req.userId },
       {
-        $inc: { uc: totalUc },
-        $set: { ucClaimStreak: streak, ucRolloverDays: rollover },
+        $inc: { nc: totalNc },
+        $set: { ncClaimStreak: streak, ncRolloverDays: rollover },
       }
     );
 
     res.json({
-      claimed: totalUc,
+      claimed: totalNc,
       base,
       streakBonus,
       rolloverBonus,
       streak,
-      newUcBalance: (u.uc ?? 0) + totalUc,
+      newNcBalance: (u.nc ?? 0) + totalNc,
       message: streakBonus > 0
-        ? `🔥 Day 7 streak! Claimed ${totalUc} UC (includes +${streakBonus} streak bonus)`
-        : `Claimed ${totalUc} UC${rolloverBonus > 0 ? ` (+${rolloverBonus} rollover bonus)` : ""}`,
+        ? `🔥 Day 7 streak! Claimed ${totalNc} NC (includes +${streakBonus} streak bonus)`
+        : `Claimed ${totalNc} NC${rolloverBonus > 0 ? ` (+${rolloverBonus} rollover bonus)` : ""}`,
     });
   } catch (err: any) {
-    req.log.error({ err }, "claim-daily-uc error");
+    req.log.error({ err }, "claim-daily-nc error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// ── POST /api/store/buy-subscription-uc ──────────────────────────────────────
-// Purchase a 30-day subscription by spending in-game UC instead of Telegram Stars.
-// Pricing: ucPrice on TIER_CONFIG (6 UC per Star — slight reward for active players).
-//
-// Uses a Mongoose session transaction so UC deduction, subscription grant, and
-// audit log all commit atomically — a failure at any step rolls everything back
-// and the user never loses UC without receiving the subscription.
-router.post("/buy-subscription-uc", requireAuth, async (req: AuthRequest, res) => {
+// ── POST /api/store/buy-subscription-nc ──────────────────────────────────────
+// Purchase a 30-day subscription by spending in-game NC instead of Telegram Stars.
+// Uses a Mongoose session transaction so NC deduction, subscription grant, and
+// audit log all commit atomically.
+router.post("/buy-subscription-nc", requireAuth, async (req: AuthRequest, res) => {
   const session = await mongoose.startSession();
   try {
     const { tierId } = req.body as { tierId?: string };
@@ -256,23 +243,22 @@ router.post("/buy-subscription-uc", requireAuth, async (req: AuthRequest, res) =
       return res.status(404).json({ message: "Subscription tier not found" });
     }
     const [, tierCfg] = tierEntry;
-    const ucCost = tierCfg.ucPrice;
+    const ncCost = tierCfg.ncPrice;
     const expiresAt = new Date(Date.now() + 30 * 86_400_000);
     const tier = tierId as SubscriptionTier;
 
-    // Transactional error signal
-    class InsufficientUcError extends Error { constructor() { super("NOT_ENOUGH_UC"); } }
+    class InsufficientNcError extends Error { constructor() { super("NOT_ENOUGH_NC"); } }
 
     let frameIsNew = false;
 
     await session.withTransaction(async () => {
-      // Step 1 — atomic UC deduction (fails if balance < cost)
+      // Step 1 — atomic NC deduction
       const pre = await User.findOneAndUpdate(
-        { _id: req.userId, uc: { $gte: ucCost } },
-        { $inc: { uc: -ucCost } },
+        { _id: req.userId, nc: { $gte: ncCost } },
+        { $inc: { nc: -ncCost } },
         { new: false, session },
       );
-      if (!pre) throw new InsufficientUcError();
+      if (!pre) throw new InsufficientNcError();
 
       // Step 2 — grant subscription
       const ownedFrames: string[] = (pre as any).ownedChatFrames ?? [];
@@ -281,9 +267,9 @@ router.post("/buy-subscription-uc", requireAuth, async (req: AuthRequest, res) =
       const setFields: any = {
         subscriptionTier: tier,
         subscriptionExpiresAt: expiresAt,
-        ucDailyClaimedAt: null,
-        ucClaimStreak: 0,
-        ucRolloverDays: 0,
+        ncDailyClaimedAt: null,
+        ncClaimStreak: 0,
+        ncRolloverDays: 0,
       };
       const updateOp: any = { $set: setFields };
       if (frameIsNew)           updateOp.$addToSet = { ownedChatFrames: tierCfg.frameId };
@@ -291,13 +277,13 @@ router.post("/buy-subscription-uc", requireAuth, async (req: AuthRequest, res) =
 
       await User.updateOne({ _id: req.userId }, updateOp, { session });
 
-      // Step 3 — audit log (array form required when passing session to create())
+      // Step 3 — audit log
       await UcPurchaseLog.create(
         [{
           userId:       req.userId,
           tierId,
           tierName:     tierCfg.name,
-          ucSpent:      ucCost,
+          ncSpent:      ncCost,
           frameGranted: frameIsNew ? tierCfg.frameId : null,
           ncGranted:    tierCfg.monthlyNc,
         }],
@@ -308,74 +294,72 @@ router.post("/buy-subscription-uc", requireAuth, async (req: AuthRequest, res) =
     res.json({
       subscriptionTier: tier,
       subscriptionExpiresAt: expiresAt,
-      ucSpent: ucCost,
+      ncSpent: ncCost,
       frameUnlocked: frameIsNew,
       ncGranted: tierCfg.monthlyNc,
       message: `🎉 ${tierCfg.name} activated for 30 days!`,
     });
   } catch (err: any) {
-    if (err?.message === "NOT_ENOUGH_UC") {
+    if (err?.message === "NOT_ENOUGH_NC") {
       const tierEntry = Object.entries(TIER_CONFIG).find(([id]) => id === req.body?.tierId);
       const tierCfg = tierEntry?.[1];
       return res.status(400).json({
-        message: `Not enough UC. You need ${(tierCfg?.ucPrice ?? 0).toLocaleString()} UC for ${tierCfg?.name ?? "this tier"}.`,
-        notEnoughUc: true,
+        message: `Not enough NC. You need ${(tierCfg?.ncPrice ?? 0).toLocaleString()} NC for ${tierCfg?.name ?? "this tier"}.`,
+        notEnoughNc: true,
       });
     }
-    req.log.error({ err }, "buy-subscription-uc error");
+    req.log.error({ err }, "buy-subscription-nc error");
     res.status(500).json({ message: "Internal server error" });
   } finally {
     session.endSession();
   }
 });
 
-// ── POST /api/store/gift-uc ───────────────────────────────────────────────────
-// Send UC to another player (10% fee, min 100 UC, max 10,000 UC per gift)
-router.post("/gift-uc", requireAuth, async (req: AuthRequest, res) => {
+// ── POST /api/store/gift-nc ───────────────────────────────────────────────────
+// Send NC to another player (10% fee, min 100 NC, max 10,000 NC per gift)
+router.post("/gift-nc", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { recipientUsername, amount } = req.body as { recipientUsername?: string; amount?: number };
     if (!recipientUsername || typeof amount !== "number") {
       return res.status(400).json({ message: "recipientUsername and amount required" });
     }
     if (amount < 100 || amount > 10_000) {
-      return res.status(400).json({ message: "Gift amount must be 100–10,000 UC" });
+      return res.status(400).json({ message: "Gift amount must be 100–10,000 NC" });
     }
 
-    const sender = await User.findById(req.userId).select("uc username");
+    const sender = await User.findById(req.userId).select("nc username");
     if (!sender) return res.status(404).json({ message: "User not found" });
 
     const fee = Math.ceil(amount * 0.10);
     const totalCost = amount + fee;
-    if ((sender as any).uc < totalCost) {
-      return res.status(400).json({ message: `Not enough UC. Need ${totalCost} UC (${amount} + ${fee} fee)` });
+    if ((sender as any).nc < totalCost) {
+      return res.status(400).json({ message: `Not enough NC. Need ${totalCost} NC (${amount} + ${fee} fee)` });
     }
 
-    const recipient = await User.findOne({ username: recipientUsername }).select("_id username uc");
+    const recipient = await User.findOne({ username: recipientUsername }).select("_id username nc");
     if (!recipient) return res.status(404).json({ message: "Player not found" });
     if (String(recipient._id) === String(req.userId)) {
-      return res.status(400).json({ message: "Cannot gift UC to yourself" });
+      return res.status(400).json({ message: "Cannot gift NC to yourself" });
     }
 
-    // Atomic deduct from sender
     const updated = await User.findOneAndUpdate(
-      { _id: req.userId, uc: { $gte: totalCost } },
-      { $inc: { uc: -totalCost } },
+      { _id: req.userId, nc: { $gte: totalCost } },
+      { $inc: { nc: -totalCost } },
       { new: true }
     );
-    if (!updated) return res.status(400).json({ message: "Not enough UC (concurrent check failed)" });
+    if (!updated) return res.status(400).json({ message: "Not enough NC (concurrent check failed)" });
 
-    // Grant to recipient
-    await User.updateOne({ _id: recipient._id }, { $inc: { uc: amount } });
+    await User.updateOne({ _id: recipient._id }, { $inc: { nc: amount } });
 
     res.json({
       sent: amount,
       fee,
       totalCost,
       recipientUsername: (recipient as any).username,
-      message: `Gifted ${amount} UC to ${(recipient as any).username} (fee: ${fee} UC)`,
+      message: `Gifted ${amount} NC to ${(recipient as any).username} (fee: ${fee} NC)`,
     });
   } catch (err: any) {
-    req.log.error({ err }, "gift-uc error");
+    req.log.error({ err }, "gift-nc error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

@@ -33,17 +33,19 @@ Each tier has subcategories. Each subcategory has tasks. Each task is one checka
 
 | Currency | Symbol | Earned From | Used For | Notes |
 |---|---|---|---|---|
-| UltraCredits | UC | Purchase (real money), subscriptions only | Premium spins, energy refills, exclusive cosmetics | NEVER drops from royale or missions |
+| Nova Credits | NC | Purchase (real money via Telegram Stars), subscriptions only | Premium NC spins, energy refills, exclusive cosmetics, gifting | NEVER drops from royale or missions |
 | DriftCoin | DC | Match rewards, missions, achievements, selling/scrapping items | DC spins, basic shop, car tuning | Main free currency |
 | Keys | Key | Leveling up, missions, achievements, General Royale drops | High-tier spins (guaranteed Rare+) | Hard to earn, don't make too easy |
 | Key Shards | Shard | General Royale, daily missions | 10 shards = 1 Key | Soft path to keys |
 | Energy | EN | Regenerates automatically, energy items | Play combat matches, play races | Max 200, regen 1 per 3 min |
 
-### UC Rules (strict)
-- UC is ONLY earned by: buying with real money, or monthly subscription reward
-- UC is NEVER a drop from any royale wheel
-- UC is NEVER a mission or achievement reward (unless owner runs a special event)
-- UC can be used to spin royale wheels (premium spin option)
+### NC Rules (strict)
+- **NC = Nova Credits** — this is the ONLY premium currency. There is no UC or UltraCredits.
+- NC is ONLY earned by: buying with real money (Telegram Stars), or subscription daily rewards
+- NC is NEVER a drop from any royale wheel
+- NC is NEVER a mission or achievement reward (unless owner runs a special event)
+- NC can be used to spin royale wheels (premium NC spin option)
+- NC can be gifted to other players (10% fee applies)
 
 ### Energy Rules
 - Max energy: 200 (can be increased permanently by items, cap at 300)

@@ -24,7 +24,7 @@ import {
   answerPreCheckoutQuery,
   sendInvoice,
 } from "../lib/telegram";
-import { UC_PACKS, TIER_CONFIG, getActiveTier, type SubscriptionTier } from "../lib/subscription";
+import { NC_PACKS, TIER_CONFIG, getActiveTier, type SubscriptionTier } from "../lib/subscription";
 import { resolvePending, peekPending, storePending } from "./store";
 
 const router = Router();
@@ -75,7 +75,7 @@ const TIER_EMOJI: Record<string, string> = {
 async function showMainMenu(chatId: string, editMsgId?: number): Promise<void> {
   const text =
     `<b>🏙 DriftLife Bot</b>\n\n` +
-    `Use the buttons below to manage your account, buy UC packs, or subscribe.\n\n` +
+    `Use the buttons below to manage your account, buy NC packs, or subscribe.\n\n` +
     `<i>Tip: Link your account in-game first if you haven't already.</i>`;
 
   if (editMsgId) {
@@ -97,25 +97,25 @@ async function showStatus(chatId: string, linkedUser: any, editMsgId?: number): 
     ? `   Expires: ${new Date(linkedUser.subscriptionExpiresAt).toDateString()}`
     : "";
 
-  const lastClaim: Date | null = linkedUser.ucDailyClaimedAt
-    ? new Date(linkedUser.ucDailyClaimedAt)
+  const lastClaim: Date | null = linkedUser.ncDailyClaimedAt
+    ? new Date(linkedUser.ncDailyClaimedAt)
     : null;
   const claimedToday = lastClaim
     ? lastClaim.toDateString() === new Date().toDateString()
     : false;
   const claimLine = tier
     ? claimedToday
-      ? `✅ Daily UC: already claimed today`
-      : `⏳ Daily UC: ready to claim (${tierCfg!.dailyUc} UC)`
+      ? `✅ Daily NC: already claimed today`
+      : `⏳ Daily NC: ready to claim (${tierCfg!.dailyNc} NC)`
     : "";
 
   const text =
     `<b>📊 @${linkedUser.username} — Status</b>\n\n` +
-    `⭐ UC Balance: <b>${(linkedUser.uc ?? 0).toLocaleString()} UC</b>\n` +
+    `💎 NC Balance: <b>${(linkedUser.nc ?? 0).toLocaleString()} NC</b>\n` +
     `${subLine}\n` +
     `${expiresLine ? expiresLine + "\n" : ""}` +
     `${claimLine ? claimLine + "\n" : ""}` +
-    `\nUse the menu to buy UC or subscribe.`;
+    `\nUse the menu to buy NC or subscribe.`;
 
   if (editMsgId) {
     await editMessageText({ chatId, messageId: editMsgId, text, inlineKeyboard: BACK_KB });
@@ -126,19 +126,19 @@ async function showStatus(chatId: string, linkedUser: any, editMsgId?: number): 
 
 async function showPacksList(chatId: string, editMsgId?: number): Promise<void> {
   const packKb = [
-    ...UC_PACKS.map(p => [{
-      text: `${p.uc.toLocaleString()} UC — ⭐${p.stars}${p.bonusPct > 0 ? ` +${p.bonusPct}%` : ""}`,
+    ...NC_PACKS.map(p => [{
+      text: `${p.nc.toLocaleString()} NC — ⭐${p.stars}${p.bonusPct > 0 ? ` +${p.bonusPct}%` : ""}`,
       callback_data: `buy:${p.id}`,
     }]),
     [{ text: "⬅ Back to Menu", callback_data: "menu" }],
   ];
 
-  const packLines = UC_PACKS.map(p =>
-    `• <b>${p.uc.toLocaleString()} UC</b> — ⭐ ${p.stars} Stars${p.bonusPct > 0 ? ` <i>(+${p.bonusPct}% bonus)</i>` : ""} — ${p.label}`
+  const packLines = NC_PACKS.map(p =>
+    `• <b>${p.nc.toLocaleString()} NC</b> — ⭐ ${p.stars} Stars${p.bonusPct > 0 ? ` <i>(+${p.bonusPct}% bonus)</i>` : ""} — ${p.label}`
   ).join("\n");
 
   const text =
-    `<b>💰 UC Packs</b>\n\n` +
+    `<b>💎 NC Packs (Nova Credits)</b>\n\n` +
     `${packLines}\n\n` +
     `Tap a pack to receive a payment invoice directly in this chat.`;
 
@@ -166,7 +166,7 @@ async function showTiersList(chatId: string, linkedUser: any, editMsgId?: number
     const active = activeTierId === id ? " <b>(ACTIVE)</b>" : "";
     return (
       `${TIER_EMOJI[id] ?? "•"} <b>${cfg.name}</b>${active}\n` +
-      `   ⭐ ${cfg.starsPerMonth} Stars/month · ${cfg.dailyUc} UC/day · XP ×${cfg.jobXpMult}`
+      `   ⭐ ${cfg.starsPerMonth} Stars/month · ${cfg.dailyNc} NC/day · XP ×${cfg.jobXpMult}`
     );
   }).join("\n\n");
 
@@ -182,9 +182,9 @@ async function showTiersList(chatId: string, linkedUser: any, editMsgId?: number
   }
 }
 
-/** Create & send a UC pack invoice directly in the chat. */
+/** Create & send an NC pack invoice directly in the chat. */
 async function sendPackInvoice(chatId: string, userId: string, packId: string): Promise<void> {
-  const pack = UC_PACKS.find(p => p.id === packId);
+  const pack = NC_PACKS.find(p => p.id === packId);
   if (!pack) {
     await sendTelegramMessage(chatId, `❌ Pack not found. Use /buy to see available packs.`);
     return;
@@ -194,8 +194,8 @@ async function sendPackInvoice(chatId: string, userId: string, packId: string): 
   storePending(payload, userId, pack.id);
   await sendInvoice({
     chatId,
-    title: `${pack.uc.toLocaleString()} UltraCredits`,
-    description: `${pack.uc.toLocaleString()} UC${pack.bonusPct > 0 ? ` (+${pack.bonusPct}% bonus)` : ""} for DriftLife · ${pack.label}`,
+    title: `${pack.nc.toLocaleString()} Nova Credits`,
+    description: `${pack.nc.toLocaleString()} NC${pack.bonusPct > 0 ? ` (+${pack.bonusPct}% bonus)` : ""} for DriftLife · ${pack.label}`,
     payload,
     currency: "XTR",
     amount: pack.stars,
@@ -236,7 +236,7 @@ async function sendTierInvoice(
   await sendInvoice({
     chatId,
     title: `${tierCfg.name} — 30 days`,
-    description: `${tierCfg.name}: ${tierCfg.dailyUc} UC/day, exclusive frame, XP ×${tierCfg.jobXpMult}, crime ×${tierCfg.crimeRewardMult}`,
+    description: `${tierCfg.name}: ${tierCfg.dailyNc} NC/day, exclusive frame, XP ×${tierCfg.jobXpMult}, crime ×${tierCfg.crimeRewardMult}`,
     payload,
     currency: "XTR",
     amount: tierCfg.starsPerMonth,
@@ -334,9 +334,9 @@ router.post("/webhook", async (req, res) => {
       if (!peeked) {
         errorMessage = "Invoice expired or not found. Please create a new invoice in DriftLife.";
       } else {
-        const ucPack = UC_PACKS.find(p => p.id === peeked.productId);
+        const ncPackPrecheck = NC_PACKS.find(p => p.id === peeked.productId);
         const subEntry = Object.entries(TIER_CONFIG).find(([id]) => id === peeked.productId);
-        const expectedStars = ucPack ? ucPack.stars : subEntry?.[1].starsPerMonth;
+        const expectedStars = ncPackPrecheck ? ncPackPrecheck.stars : subEntry?.[1].starsPerMonth;
         if (!expectedStars) {
           errorMessage = "Product no longer available.";
         } else if (pcq.currency !== "XTR" || pcq.total_amount !== expectedStars) {
@@ -456,27 +456,27 @@ router.post("/webhook", async (req, res) => {
         const productId = pending.productId;
 
         // Verify amount matches catalog
-        const ucPackCheck = UC_PACKS.find(p => p.id === productId);
+        const ncPackCheck = NC_PACKS.find(p => p.id === productId);
         const subEntryCheck = Object.entries(TIER_CONFIG).find(([id]) => id === productId);
-        const expectedStars = ucPackCheck ? ucPackCheck.stars : subEntryCheck?.[1].starsPerMonth;
+        const expectedStars = ncPackCheck ? ncPackCheck.stars : subEntryCheck?.[1].starsPerMonth;
         if (!expectedStars || payment.total_amount !== expectedStars || payment.currency !== "XTR") {
           req.log?.warn({ productId, expected: expectedStars, received: payment.total_amount }, "Payment mismatch — skipping");
           return;
         }
 
-        const ucPack = UC_PACKS.find(p => p.id === productId);
+        const ncPack = NC_PACKS.find(p => p.id === productId);
         const subEntry = Object.entries(TIER_CONFIG).find(([id]) => id === productId);
 
-        if (ucPack) {
+        if (ncPack) {
           await TelegramPayment.create({
             chargeId, userId: pending.userId, productId,
-            productType: "uc_pack", tier: null,
-            starsAmount: payment.total_amount, ucGranted: ucPack.uc,
+            productType: "nc_pack", tier: null,
+            starsAmount: payment.total_amount, ucGranted: ncPack.nc,
           });
-          await User.updateOne({ _id: pending.userId }, { $inc: { uc: ucPack.uc } });
+          await User.updateOne({ _id: pending.userId }, { $inc: { nc: ncPack.nc } });
           await sendMessageWithKeyboard({
             chatId,
-            text: `✅ <b>${ucPack.uc.toLocaleString()} UC credited!</b>\n\nYour UltraCredits balance has been updated in DriftLife. Enjoy!`,
+            text: `✅ <b>${ncPack.nc.toLocaleString()} NC credited!</b>\n\nYour Nova Credits balance has been updated in DriftLife. Enjoy!`,
             inlineKeyboard: MAIN_MENU_KB,
           });
 
@@ -498,9 +498,9 @@ router.post("/webhook", async (req, res) => {
           const setFields: any = {
             subscriptionTier: tier,
             subscriptionExpiresAt: expiresAt,
-            ucDailyClaimedAt: null,
-            ucClaimStreak: 0,
-            ucRolloverDays: 0,
+            ncDailyClaimedAt: null,
+            ncClaimStreak: 0,
+            ncRolloverDays: 0,
           };
           const updateOp: any = { $set: setFields };
 
@@ -519,10 +519,10 @@ router.post("/webhook", async (req, res) => {
             text:
               `🎉 <b>${tierCfg.name} activated!</b>\n\n` +
               `Your 30-day subscription is live:\n` +
-              `• Daily UC claim: ${tierCfg.dailyUc} UC/day\n` +
+              `• Daily NC claim: ${tierCfg.dailyNc} NC/day\n` +
               `• Exclusive frame unlocked\n` +
               `• XP ×${tierCfg.jobXpMult} &amp; crime ×${tierCfg.crimeRewardMult} boosts active\n\n` +
-              `Claim your daily UC in the DriftLife Store every day. Streak 7 days for a bonus! 🔥`,
+              `Claim your daily NC in the DriftLife Store every day. Streak 7 days for a bonus! 🔥`,
             inlineKeyboard: [[{ text: "📊 View My Status", callback_data: "status" }]],
           });
         }

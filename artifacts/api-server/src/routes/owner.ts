@@ -472,19 +472,19 @@ router.post("/revoke-subscription", requireStaff, async (req: AuthRequest, res) 
   }
 });
 
-// POST /api/owner/adjust-uc — add or subtract UC from any player
-router.post("/adjust-uc", requireStaff, async (req: AuthRequest, res) => {
+// POST /api/owner/adjust-nc — add or subtract NC (Nova Credits) from any player
+router.post("/adjust-nc", requireStaff, async (req: AuthRequest, res) => {
   try {
     const { userId, amount } = req.body;
     const delta = Math.floor(Number(amount));
     if (!userId || isNaN(delta)) return res.status(400).json({ message: "userId and amount required" });
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-    await User.updateOne({ _id: userId }, { $inc: { uc: delta } });
-    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "adjust-uc", targetId: user.id, targetUsername: user.username, details: { delta } });
-    res.json({ message: `${delta >= 0 ? "+" : ""}${delta} UC applied to ${user.username}` });
+    await User.updateOne({ _id: userId }, { $inc: { nc: delta } });
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "adjust-nc", targetId: user.id, targetUsername: user.username, details: { delta } });
+    res.json({ message: `${delta >= 0 ? "+" : ""}${delta} NC applied to ${user.username}` });
   } catch (err: any) {
-    req.log.error({ err }, "adjust-uc error");
+    req.log.error({ err }, "adjust-nc error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

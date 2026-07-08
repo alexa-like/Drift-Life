@@ -1,7 +1,7 @@
 /**
- * StorePage — UC packs + subscription tier selection via Telegram Stars.
+ * StorePage — NC (Nova Credits) packs + subscription tier selection via Telegram Stars.
  *
- * Two tabs: UC Packs / Subscriptions
+ * Two tabs: NC Packs / Subscriptions
  * Handles: Telegram link flow (inline modal), daily claim widget, tier cards.
  */
 
@@ -11,23 +11,23 @@ import { api } from "../lib/api";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface StoreStatus {
-  uc: number;
+  nc: number;
   subscriptionTier: string | null;
   subscriptionExpiresAt: string | null;
   subDaysLeft: number;
   claimedToday: boolean;
-  ucClaimStreak: number;
-  ucRolloverDays: number;
+  ncClaimStreak: number;
+  ncRolloverDays: number;
   nextClaimAmount: number;
   telegramLinked: boolean;
   telegramUsername: string | null;
-  ucPacks: UcPack[];
+  ncPacks: NcPack[];
   tiers: TierInfo[];
 }
 
-interface UcPack {
+interface NcPack {
   id: string;
-  uc: number;
+  nc: number;
   stars: number;
   bonusPct: number;
   label: string;
@@ -37,8 +37,8 @@ interface TierInfo {
   id: string;
   name: string;
   starsPerMonth: number;
-  ucPrice: number;
-  dailyUc: number;
+  ncPrice: number;
+  dailyNc: number;
   jobXpMult: number;
   crimeRewardMult: number;
   extraCrimeSlots: number;
@@ -86,7 +86,7 @@ interface Props {
 }
 
 export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
-  const [tab, setTab] = useState<"uc" | "subs">("uc");
+  const [tab, setTab] = useState<"nc" | "subs">("nc");
   const [status, setStatus] = useState<StoreStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState<string | null>(null);
@@ -97,13 +97,13 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
   const [linkData, setLinkData] = useState<LinkInitResponse | null>(null);
   const [linkPollActive, setLinkPollActive] = useState(false);
 
-  // UC subscription payment state
-  // ucConfirm = tierId that is pending confirmation, ucBuying = tierId currently processing
-  const [ucConfirm, setUcConfirm] = useState<string | null>(null);
-  const [ucBuying, setUcBuying] = useState<string | null>(null);
-  const [ucBuyResult, setUcBuyResult] = useState<{ tierId: string; msg: string; ok: boolean } | null>(null);
+  // NC subscription payment state
+  // ncConfirm = tierId pending confirmation, ncBuying = tierId currently processing
+  const [ncConfirm, setNcConfirm] = useState<string | null>(null);
+  const [ncBuying, setNcBuying] = useState<string | null>(null);
+  const [ncBuyResult, setNcBuyResult] = useState<{ tierId: string; msg: string; ok: boolean } | null>(null);
 
-  // Gift UC modal
+  // Gift NC modal
   const [giftModal, setGiftModal] = useState(false);
   const [giftRecipient, setGiftRecipient] = useState("");
   const [giftAmount, setGiftAmount] = useState(100);
@@ -175,19 +175,19 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
     }
   }
 
-  async function handleBuyWithUC(tierId: string) {
-    setUcBuying(tierId);
-    setUcBuyResult(null);
+  async function handleBuyWithNC(tierId: string) {
+    setNcBuying(tierId);
+    setNcBuyResult(null);
     try {
-      const r = await api.post<{ message: string }>("/store/buy-subscription-uc", { tierId });
-      setUcBuyResult({ tierId, msg: r.message, ok: true });
+      const r = await api.post<{ message: string }>("/store/buy-subscription-nc", { tierId });
+      setNcBuyResult({ tierId, msg: r.message, ok: true });
       onUserUpdate?.();
       await loadStatus();
     } catch (e: any) {
-      setUcBuyResult({ tierId, msg: e.message || "Purchase failed", ok: false });
+      setNcBuyResult({ tierId, msg: e.message || "Purchase failed", ok: false });
     } finally {
-      setUcBuying(null);
-      setUcConfirm(null);
+      setNcBuying(null);
+      setNcConfirm(null);
     }
   }
 
@@ -195,7 +195,7 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
     setClaiming(true);
     setClaimResult(null);
     try {
-      const r = await api.post<{ message: string }>("/store/claim-daily-uc");
+      const r = await api.post<{ message: string }>("/store/claim-daily-nc");
       setClaimResult(r.message);
       onUserUpdate?.();
       await loadStatus();
@@ -210,7 +210,7 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
     setGifting(true);
     setGiftMsg(null);
     try {
-      const r = await api.post<{ message: string }>("/store/gift-uc", { recipientUsername: giftRecipient, amount: giftAmount });
+      const r = await api.post<{ message: string }>("/store/gift-nc", { recipientUsername: giftRecipient, amount: giftAmount });
       setGiftMsg(r.message);
       onUserUpdate?.();
       await loadStatus();
@@ -224,7 +224,7 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
 
   const activeTier = status?.subscriptionTier;
   const activeTierInfo = status?.tiers.find(t => t.id === activeTier);
-  const uc = status?.uc ?? (user?.uc ?? 0);
+  const nc = status?.nc ?? (user?.nc ?? 0);
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto p-4">
@@ -236,8 +236,8 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
           <p className="text-xs font-mono" style={{ color: "#475569" }}>New Vanta · Premium Shop</p>
         </div>
         <div className="text-right">
-          <div className="font-mono font-bold text-lg" style={{ color: "#FFD700" }}>
-            ⭐ {uc.toLocaleString()} UC
+          <div className="font-mono font-bold text-lg" style={{ color: "#a855f7" }}>
+            💎 {nc.toLocaleString()} NC
           </div>
           {activeTier && activeTierInfo && (
             <div className="text-xs font-mono" style={{ color: TIER_COLOR[activeTier] }}>
@@ -254,7 +254,7 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
             📱 Link Telegram to purchase
           </div>
           <div className="font-mono text-xs mb-3" style={{ color: "#64748b" }}>
-            DriftLife uses Telegram Stars for payments. Link your account to buy UC or subscribe.
+            DriftLife uses Telegram Stars for payments. Link your account to buy NC packs or subscribe.
           </div>
           <button
             onClick={handleLinkTelegram}
@@ -315,13 +315,13 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                 {TIER_BADGE[activeTier]} {activeTierInfo.name}
               </div>
               <div className="font-mono text-xs" style={{ color: "#475569" }}>
-                {status.subDaysLeft} days remaining · Streak: {status.ucClaimStreak} days
-                {status.ucRolloverDays > 0 && ` · ${status.ucRolloverDays}d rollover`}
+                {status.subDaysLeft} days remaining · Streak: {status.ncClaimStreak} days
+                {status.ncRolloverDays > 0 && ` · ${status.ncRolloverDays}d rollover`}
               </div>
             </div>
-            {status.ucClaimStreak > 0 && (
+            {status.ncClaimStreak > 0 && (
               <div className="font-mono text-xl font-black" title="Claim streak">
-                {'🔥'.repeat(Math.min(status.ucClaimStreak, 7))}
+                {'🔥'.repeat(Math.min(status.ncClaimStreak, 7))}
               </div>
             )}
           </div>
@@ -344,8 +344,8 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
             }}
           >
             {claiming ? "Claiming…" :
-             status.claimedToday ? `✓ Claimed today (${activeTierInfo.dailyUc} UC)` :
-             `Claim ${status.nextClaimAmount} UC ${status.ucClaimStreak % 6 === 5 ? '🔥 Streak bonus tomorrow!' : ''}`}
+             status.claimedToday ? `✓ Claimed today (${activeTierInfo.dailyNc} NC)` :
+             `Claim ${status.nextClaimAmount} NC ${status.ncClaimStreak % 6 === 5 ? '🔥 Streak bonus tomorrow!' : ''}`}
           </button>
 
           <div className="flex gap-2 mt-2 flex-wrap">
@@ -372,12 +372,12 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
       {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
       <div className="flex gap-0 rounded overflow-hidden" style={{ border: "1px solid #1e1e2e" }}>
         {[
-          { key: "uc",   label: "⭐ UC Packs"      },
-          { key: "subs", label: "💎 Subscriptions"  },
+          { key: "nc",   label: "💎 NC Packs"        },
+          { key: "subs", label: "⭐ Subscriptions"    },
         ].map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key as "uc" | "subs")}
+            onClick={() => setTab(t.key as "nc" | "subs")}
             className="flex-1 font-mono text-xs font-bold py-2 transition-colors"
             style={{
               background: tab === t.key ? "#0f0f1a" : "#070710",
@@ -394,16 +394,16 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
         <div className="text-center font-mono text-sm py-8" style={{ color: "#475569" }}>Loading store…</div>
       )}
 
-      {/* ── UC Packs tab ─────────────────────────────────────────────────────── */}
-      {!loading && tab === "uc" && status && (
+      {/* ── NC Packs tab ─────────────────────────────────────────────────────── */}
+      {!loading && tab === "nc" && status && (
         <div className="space-y-3">
           <div className="font-mono text-xs" style={{ color: "#475569" }}>
-            UC (UltraCredits) are used to buy premium chat frames in the Frame Store.
+            NC (Nova Credits) are the premium currency — used for exclusive frames, premium royale spins, and gifting.
             Purchased via Telegram Stars ⭐.
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            {status.ucPacks.map(pack => (
+            {status.ncPacks.map(pack => (
               <div
                 key={pack.id}
                 style={{
@@ -420,15 +420,15 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                 {pack.bonusPct > 0 && (
                   <div style={{
                     position: "absolute", top: -8, right: 10,
-                    background: "#00E0FF", color: "#000",
+                    background: "#a855f7", color: "#fff",
                     fontSize: 10, fontWeight: 700, fontFamily: "monospace",
                     padding: "2px 6px", borderRadius: 4,
                   }}>
                     +{pack.bonusPct}% BONUS
                   </div>
                 )}
-                <div className="font-mono font-black text-lg" style={{ color: "#FFD700" }}>
-                  {pack.uc.toLocaleString()} UC
+                <div className="font-mono font-black text-lg" style={{ color: "#a855f7" }}>
+                  {pack.nc.toLocaleString()} NC
                 </div>
                 <div className="font-mono text-xs" style={{ color: "#64748b" }}>{pack.label}</div>
                 <button
@@ -448,17 +448,17 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
             ))}
           </div>
 
-          {/* UC Gifting */}
+          {/* NC Gifting */}
           <div style={{ background: "#0a0a14", border: "1px solid #1e1e2e", borderRadius: 10, padding: 14 }}>
             <div className="flex items-center justify-between">
               <div>
-                <div className="font-mono text-xs font-bold" style={{ color: "#a0a0c0" }}>Gift UC to a player</div>
-                <div className="font-mono text-xs" style={{ color: "#475569" }}>100–10,000 UC · 10% fee applies</div>
+                <div className="font-mono text-xs font-bold" style={{ color: "#a0a0c0" }}>Gift NC to a player</div>
+                <div className="font-mono text-xs" style={{ color: "#475569" }}>100–10,000 NC · 10% fee applies</div>
               </div>
               <button
                 onClick={() => setGiftModal(!giftModal)}
                 className="font-mono text-xs px-3 py-1 rounded"
-                style={{ background: "#1e1e2e", color: "#00E0FF", border: "1px solid #00E0FF40" }}
+                style={{ background: "#1e1e2e", color: "#a855f7", border: "1px solid #a855f740" }}
               >
                 🎁 Gift
               </button>
@@ -485,11 +485,11 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                     style={{ background: "#070710", border: "1px solid #1e1e2e", color: "#e2e8f0" }}
                   />
                   <span className="font-mono text-xs" style={{ color: "#475569" }}>
-                    UC (fee: {Math.ceil(giftAmount * 0.1)})
+                    NC (fee: {Math.ceil(giftAmount * 0.1)})
                   </span>
                 </div>
                 {giftMsg && (
-                  <div className="font-mono text-xs" style={{ color: giftMsg.includes("Gift") ? "#00E0FF" : "#FF4FA3" }}>
+                  <div className="font-mono text-xs" style={{ color: giftMsg.includes("Gift") ? "#a855f7" : "#FF4FA3" }}>
                     {giftMsg}
                   </div>
                 )}
@@ -497,9 +497,9 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                   onClick={handleGift}
                   disabled={gifting || !giftRecipient || giftAmount < 100}
                   className="font-mono text-xs font-bold px-4 py-2 rounded"
-                  style={{ background: gifting ? "#1e1e2e" : "#00E0FF20", color: "#00E0FF", border: "1px solid #00E0FF40" }}
+                  style={{ background: gifting ? "#1e1e2e" : "#a855f720", color: "#a855f7", border: "1px solid #a855f740" }}
                 >
-                  {gifting ? "Sending…" : `Send ${giftAmount} UC`}
+                  {gifting ? "Sending…" : `Send ${giftAmount} NC`}
                 </button>
               </div>
             )}
@@ -520,11 +520,11 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                 <span style={{ color: "#0088cc" }}>⭐ Telegram Stars</span> — pay via Telegram (real money)
               </div>
               <div className="font-mono text-xs" style={{ color: "#475569" }}>
-                <span style={{ color: "#FFD700" }}>💰 UC</span> — spend in-game UltraCredits
+                <span style={{ color: "#a855f7" }}>💎 NC</span> — spend in-game Nova Credits
               </div>
             </div>
             <div className="font-mono text-xs mt-1" style={{ color: "#334155" }}>
-              You have <span style={{ color: "#FFD700", fontWeight: 700 }}>{uc.toLocaleString()} UC</span> available.
+              You have <span style={{ color: "#a855f7", fontWeight: 700 }}>{nc.toLocaleString()} NC</span> available.
             </div>
           </div>
 
@@ -534,10 +534,10 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
             const isActive = activeTier === tierId;
             const color = TIER_COLOR[tierId];
             const badge = TIER_BADGE[tierId];
-            const canAffordUc = uc >= tier.ucPrice;
-            const isUcConfirming = ucConfirm === tierId;
-            const isUcBuying = ucBuying === tierId;
-            const ucResult = ucBuyResult?.tierId === tierId ? ucBuyResult : null;
+            const canAffordNc = nc >= tier.ncPrice;
+            const isNcConfirming = ncConfirm === tierId;
+            const isNcBuying = ncBuying === tierId;
+            const ncResult = ncBuyResult?.tierId === tierId ? ncBuyResult : null;
 
             return (
               <div
@@ -556,8 +556,8 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                     </div>
                     <div className="font-mono text-xs" style={{ color: "#475569" }}>
                       ⭐ {tier.starsPerMonth} Stars <span style={{ color: "#334155" }}>or</span>{" "}
-                      💰 {tier.ucPrice.toLocaleString()} UC /month ·{" "}
-                      <span style={{ color: "#22c55e" }}>{tier.dailyUc * 30} UC/month value</span>
+                      💎 {tier.ncPrice.toLocaleString()} NC /month ·{" "}
+                      <span style={{ color: "#22c55e" }}>{tier.dailyNc * 30} NC/month value</span>
                     </div>
                   </div>
                   {isActive && (
@@ -570,7 +570,7 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                 {/* Feature grid */}
                 <div className="grid grid-cols-2 gap-1 mb-3">
                   {[
-                    { label: `${tier.dailyUc} UC/day`, icon: "⭐" },
+                    { label: `${tier.dailyNc} NC/day`, icon: "💎" },
                     { label: `XP ×${tier.jobXpMult}`, icon: "📈" },
                     { label: `Crime ×${tier.crimeRewardMult}`, icon: "💰" },
                     { label: `+${tier.extraCrimeSlots} crime slots/hr`, icon: "⚡" },
@@ -591,16 +591,16 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
 
                 {/* Value callout */}
                 <div className="font-mono text-xs mb-3 p-2 rounded" style={{ background: "#00000040", color: "#22c55e" }}>
-                  💡 Daily UC value ({tier.dailyUc * 30} UC/month) exceeds the subscription cost — you get more than you pay for.
+                  💡 Daily NC value ({tier.dailyNc * 30} NC/month) exceeds the subscription NC cost — you get more than you spend.
                 </div>
 
-                {/* UC buy result banner */}
-                {ucResult && (
+                {/* NC buy result banner */}
+                {ncResult && (
                   <div
                     className="font-mono text-xs mb-2 p-2 rounded"
-                    style={{ background: ucResult.ok ? "#00E0FF15" : "#FF4FA315", color: ucResult.ok ? "#00E0FF" : "#FF4FA3", border: `1px solid ${ucResult.ok ? "#00E0FF30" : "#FF4FA330"}` }}
+                    style={{ background: ncResult.ok ? "#a855f715" : "#FF4FA315", color: ncResult.ok ? "#a855f7" : "#FF4FA3", border: `1px solid ${ncResult.ok ? "#a855f730" : "#FF4FA330"}` }}
                   >
-                    {ucResult.msg}
+                    {ncResult.msg}
                   </div>
                 )}
 
@@ -628,29 +628,29 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                       {buying === tierId ? "Opening Telegram…" : `⭐ ${tier.starsPerMonth} Stars via Telegram`}
                     </button>
 
-                    {/* UC payment — confirm → buy flow */}
-                    {isUcConfirming ? (
+                    {/* NC payment — confirm → buy flow */}
+                    {isNcConfirming ? (
                       <div
                         className="p-3 rounded"
-                        style={{ background: "#FFD70015", border: "1px solid #FFD70040" }}
+                        style={{ background: "#a855f715", border: "1px solid #a855f740" }}
                       >
-                        <div className="font-mono text-xs mb-2" style={{ color: "#FFD700" }}>
-                          Spend <b>{tier.ucPrice.toLocaleString()} UC</b> on {tier.name}?
+                        <div className="font-mono text-xs mb-2" style={{ color: "#a855f7" }}>
+                          Spend <b>{tier.ncPrice.toLocaleString()} NC</b> on {tier.name}?
                           <br />
-                          <span style={{ color: "#475569" }}>Your balance: {uc.toLocaleString()} UC → {(uc - tier.ucPrice).toLocaleString()} UC after</span>
+                          <span style={{ color: "#475569" }}>Your balance: {nc.toLocaleString()} NC → {(nc - tier.ncPrice).toLocaleString()} NC after</span>
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handleBuyWithUC(tierId)}
-                            disabled={isUcBuying}
+                            onClick={() => handleBuyWithNC(tierId)}
+                            disabled={isNcBuying}
                             className="flex-1 font-mono text-xs font-bold py-2 rounded"
-                            style={{ background: "#FFD700", color: "#000", opacity: isUcBuying ? 0.6 : 1 }}
+                            style={{ background: "#a855f7", color: "#fff", opacity: isNcBuying ? 0.6 : 1 }}
                           >
-                            {isUcBuying ? "Processing…" : "✓ Confirm"}
+                            {isNcBuying ? "Processing…" : "✓ Confirm"}
                           </button>
                           <button
-                            onClick={() => setUcConfirm(null)}
-                            disabled={isUcBuying}
+                            onClick={() => setNcConfirm(null)}
+                            disabled={isNcBuying}
                             className="font-mono text-xs px-4 py-2 rounded"
                             style={{ background: "#1e1e2e", color: "#475569", border: "1px solid #2a2a3e" }}
                           >
@@ -660,20 +660,20 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
                       </div>
                     ) : (
                       <button
-                        onClick={() => canAffordUc ? setUcConfirm(tierId) : undefined}
-                        disabled={!canAffordUc || !!ucBuying}
+                        onClick={() => canAffordNc ? setNcConfirm(tierId) : undefined}
+                        disabled={!canAffordNc || !!ncBuying}
                         className="w-full font-mono text-sm font-bold py-2 rounded transition-opacity"
                         style={{
-                          background: canAffordUc ? "#FFD70020" : "#1e1e2e",
-                          color: canAffordUc ? "#FFD700" : "#334155",
-                          border: `1px solid ${canAffordUc ? "#FFD70040" : "#1e1e2e"}`,
-                          cursor: canAffordUc ? "pointer" : "default",
+                          background: canAffordNc ? "#a855f720" : "#1e1e2e",
+                          color: canAffordNc ? "#a855f7" : "#334155",
+                          border: `1px solid ${canAffordNc ? "#a855f740" : "#1e1e2e"}`,
+                          cursor: canAffordNc ? "pointer" : "default",
                         }}
-                        title={canAffordUc ? undefined : `Need ${tier.ucPrice.toLocaleString()} UC — you have ${uc.toLocaleString()}`}
+                        title={canAffordNc ? undefined : `Need ${tier.ncPrice.toLocaleString()} NC — you have ${nc.toLocaleString()}`}
                       >
-                        {canAffordUc
-                          ? `💰 ${tier.ucPrice.toLocaleString()} UC (in-game)`
-                          : `💰 ${tier.ucPrice.toLocaleString()} UC needed (have ${uc.toLocaleString()})`}
+                        {canAffordNc
+                          ? `💎 ${tier.ncPrice.toLocaleString()} NC (in-game Nova Credits)`
+                          : `💎 ${tier.ncPrice.toLocaleString()} NC needed (have ${nc.toLocaleString()})`}
                       </button>
                     )}
                   </>
@@ -684,7 +684,7 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
 
           <div className="font-mono text-xs text-center" style={{ color: "#334155" }}>
             ⭐ Stars payments processed by Telegram — no refunds per Telegram policy<br />
-            💰 UC purchases are instant and final · Subscriptions do not auto-renew
+            💎 NC purchases are instant and final · Subscriptions do not auto-renew
           </div>
         </div>
       )}

@@ -253,8 +253,8 @@ async function start() {
       // Register bot command menu shown in the Telegram "/" picker
       setMyCommands([
         { command: "start",     description: "Open the DriftLife menu" },
-        { command: "status",    description: "View your UC balance & subscription" },
-        { command: "buy",       description: "Browse & buy UC packs" },
+        { command: "status",    description: "View your NC balance & subscription" },
+        { command: "buy",       description: "Browse & buy NC packs" },
         { command: "subscribe", description: "View & purchase subscription tiers" },
         { command: "help",      description: "Show all commands" },
       ]).catch((err) => logger.warn({ err }, "Telegram setMyCommands failed"));

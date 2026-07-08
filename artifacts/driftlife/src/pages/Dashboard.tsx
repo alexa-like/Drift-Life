@@ -195,9 +195,9 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
               </div>
             )}
             <div className="flex justify-between items-center">
-              <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>UC (NeoCoins)</span>
+              <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>NC (Nova Credits)</span>
               <span className="text-sm font-mono font-bold" style={{ color: "#a855f7" }}>
-                <StatCounter value={user.nc} format={formatDC} color="#a855f7" suffix=" UC" />
+                <StatCounter value={user.nc} format={formatDC} color="#a855f7" suffix=" NC" />
               </span>
             </div>
           </div>

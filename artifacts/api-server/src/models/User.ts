@@ -132,12 +132,12 @@ export interface IUser extends Document {
   miniGameMatchesToday: number;  // matches played today (for daily reward cap)
   miniGameResetAt:      Date;    // next daily cap reset (midnight UTC)
   // ── Monetization ─────────────────────────────────────────────────────────
-  uc: number;                          // UltraCredits (premium currency)
+  // nc (Nova Credits) is the premium currency — earned via Telegram Stars or subscriptions.
   subscriptionTier: 'street_runner' | 'neon_syndicate' | 'apex_sovereign' | null;
   subscriptionExpiresAt: Date | null;
-  ucDailyClaimedAt: Date | null;       // last time daily UC was claimed
-  ucClaimStreak: number;               // consecutive days claimed
-  ucRolloverDays: number;              // unclaimed days rolled over (max 3)
+  ncDailyClaimedAt: Date | null;       // last time daily NC was claimed
+  ncClaimStreak: number;               // consecutive days claimed
+  ncRolloverDays: number;              // unclaimed days rolled over (max 3)
   telegramUsername: string | null;     // @handle from Telegram
   telegramLinkCode: string | null;     // one-time 6-char link code
   telegramLinkCodeExpiry: Date | null;
@@ -278,16 +278,15 @@ const UserSchema = new Schema<IUser>(
     ownedChatFrames: { type: [String], default: [] },
     equippedChatFrame: { type: String, default: null },
     // ── Monetization ─────────────────────────────────────────────────────────
-    uc: { type: Number, default: 0 },
     subscriptionTier: {
       type: String,
       enum: ["street_runner", "neon_syndicate", "apex_sovereign", null],
       default: null,
     },
     subscriptionExpiresAt: { type: Date, default: null },
-    ucDailyClaimedAt: { type: Date, default: null },
-    ucClaimStreak: { type: Number, default: 0 },
-    ucRolloverDays: { type: Number, default: 0 },
+    ncDailyClaimedAt: { type: Date, default: null },
+    ncClaimStreak: { type: Number, default: 0 },
+    ncRolloverDays: { type: Number, default: 0 },
     telegramUsername: { type: String, default: null },
     telegramLinkCode: { type: String, default: null },
     telegramLinkCodeExpiry: { type: Date, default: null },

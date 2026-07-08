@@ -92,11 +92,10 @@ export interface User {
   ownedChatFrames: string[];
   equippedChatFrame: string | null;
   // ── Monetization ──────────────────────────────────────────────────────────
-  uc: number;
   subscriptionTier: "street_runner" | "neon_syndicate" | "apex_sovereign" | null;
   subscriptionExpiresAt: string | null;
-  ucDailyClaimedAt: string | null;
-  ucClaimStreak: number;
+  ncDailyClaimedAt: string | null;
+  ncClaimStreak: number;
   telegramLinked: boolean;
   telegramUsername: string | null;
   gameTheme: string;
