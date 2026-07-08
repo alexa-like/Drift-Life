@@ -64,8 +64,6 @@ export interface IUser extends Document {
   losses: number;
   reputation: number;
   attacksToday: number;
-  attackResetAt: Date;
-  attackCooldowns: Array<{ targetId: string; until: Date }>;
   hospitalizedUntil: Date | null;
   jailUntil: Date | null;
   jailDuration: number;   // original sentence in ms (for bail calculation)
@@ -217,8 +215,6 @@ const UserSchema = new Schema<IUser>(
     losses: { type: Number, default: 0 },
     reputation: { type: Number, default: 0 },
     attacksToday: { type: Number, default: 0 },
-    attackResetAt: { type: Date, default: Date.now },
-    attackCooldowns: [{ targetId: String, until: Date }],
     hospitalizedUntil: { type: Date, default: null },
     jailUntil: { type: Date, default: null },
     jailDuration: { type: Number, default: 0 },

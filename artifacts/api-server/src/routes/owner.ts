@@ -640,11 +640,11 @@ router.patch("/royale-tier-weights", requireOwner as any, async (req: AuthReques
   try {
     const { common, uncommon, rare, epic, legendary } = req.body as Record<string, number>;
     const weights = {
-      common:    Math.max(0, Number(common)    || 60),
-      uncommon:  Math.max(0, Number(uncommon)  || 25),
-      rare:      Math.max(0, Number(rare)      || 10),
-      epic:      Math.max(0, Number(epic)      ||  4),
-      legendary: Math.max(0, Number(legendary) ||  1),
+      common:    Math.max(0, isFinite(Number(common))    ? Number(common)    : 60),
+      uncommon:  Math.max(0, isFinite(Number(uncommon))  ? Number(uncommon)  : 25),
+      rare:      Math.max(0, isFinite(Number(rare))      ? Number(rare)      : 10),
+      epic:      Math.max(0, isFinite(Number(epic))      ? Number(epic)      :  4),
+      legendary: Math.max(0, isFinite(Number(legendary)) ? Number(legendary) :  1),
     };
     await ServerConfig.findOneAndUpdate(
       { key: "royaleTierWeights" },
@@ -709,7 +709,12 @@ router.post("/special-event", requireOwner as any, async (req: AuthRequest, res)
       return;
     }
 
-    const hours = Math.max(0.5, Math.min(168, Number(durationHours) || 4)); // 30min–7d
+    const rawHours = Number(durationHours);
+    if (!isFinite(rawHours) || rawHours <= 0) {
+      res.status(400).json({ message: "durationHours must be a positive number (max 168)" });
+      return;
+    }
+    const hours = Math.max(0.5, Math.min(168, rawHours));
     const expiresAt = new Date(Date.now() + hours * 3_600_000).toISOString();
 
     await ServerConfig.findOneAndUpdate(

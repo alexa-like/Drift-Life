@@ -5,6 +5,8 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen } from "../lib/regen";
 import { safeUser } from "./auth";
 import FeedEvent from "../models/FeedEvent";
+import PlayerGarage from "../models/PlayerGarage";
+import MiniGameLeaderboard from "../models/MiniGameLeaderboard";
 
 const router = Router();
 

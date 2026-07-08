@@ -234,18 +234,23 @@ router.post("/scrap", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    const tier = CAR_TIERS[carId] ?? "common";
+    // Return any parts currently equipped on this specific car instance
+    const car = garage.cars[idx];
+    const ep = car.equippedParts ?? {};
+    const equippedIds = [ep.engine, ep.tires, ep.nitro, ep.bodyKit, ep.spoiler].filter(Boolean) as string[];
 
-    // Scrap parts by tier — must match seeded CarPart partId slugs (see seeds/raceCars.ts)
-    const SCRAP_PARTS: Record<string, Array<{ partId: string; qty: number }>> = {
+    // Fall back to tier-based table only when the car has no equipped parts
+    const tier = CAR_TIERS[carId] ?? "common";
+    const SCRAP_FALLBACK: Record<string, Array<{ partId: string; qty: number }>> = {
       common:    [{ partId: "std_engine_common",  qty: 1 }],
       uncommon:  [{ partId: "v6_engine_uncommon", qty: 1 }, { partId: "race_tires_uncommon", qty: 1 }],
       rare:      [{ partId: "v8_engine_rare",     qty: 1 }, { partId: "slick_tires_rare",    qty: 1 }, { partId: "nitro_tank_rare", qty: 1 }],
       epic:      [{ partId: "elec_engine_epic",   qty: 1 }, { partId: "perf_tires_epic",     qty: 1 }, { partId: "double_nitro_epic", qty: 1 }, { partId: "carbon_spoiler_epic", qty: 1 }],
       legendary: [{ partId: "fusion_engine_leg",  qty: 2 }, { partId: "holo_tires_leg",      qty: 1 }, { partId: "inf_nitro_leg", qty: 1 }, { partId: "quantum_brakes_leg", qty: 1 }],
     };
-
-    const parts = SCRAP_PARTS[tier] ?? SCRAP_PARTS.common;
+    const parts: Array<{ partId: string; qty: number }> = equippedIds.length > 0
+      ? equippedIds.map(partId => ({ partId, qty: 1 }))
+      : (SCRAP_FALLBACK[tier] ?? SCRAP_FALLBACK.common);
 
     for (const { partId, qty } of parts) {
       const existing = garage.parts.find(p => p.partId === partId);

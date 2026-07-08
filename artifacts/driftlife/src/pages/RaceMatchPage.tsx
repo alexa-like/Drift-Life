@@ -218,7 +218,7 @@ function renderFrame(
     });
 
     // ── Obstacle (traffic) cars — deterministic positions from trackSeed ─────
-    if (match.trackSeed) {
+    if (match.trackSeed != null) {
       const seed = match.trackSeed;
       for (let i = 0; i < 8; i++) {
         // Simple LCG — generates a stable pct and lane offset per obstacle
