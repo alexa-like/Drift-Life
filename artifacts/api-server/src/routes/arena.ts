@@ -185,8 +185,11 @@ router.post("/queue/leave", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
     combatQueue.delete(req.userId!);
-    // Refund energy
-    await User.updateOne({ _id: req.userId }, { $inc: { energy: ENERGY_COST } });
+    // Refund energy — capped at maxEnergy using aggregation pipeline update
+    await User.updateOne(
+      { _id: req.userId },
+      [{ $set: { energy: { $min: ["$maxEnergy", { $add: ["$energy", ENERGY_COST] }] } } }],
+    );
     res.json({ message: "Left queue — energy refunded" });
   } catch (err) {
     req.log.error({ err }, "arena queue leave error");
@@ -299,31 +302,28 @@ setInterval(async () => {
     const age = now - entry.joinedAt.getTime();
     if (age < 5_000) continue;
 
-    // After 15s widen range — find a partner and directly pair them
-    if (age >= 15_000 && age < 30_000) {
-      const wideRange = 0.25;
-      const opp = entries.find(([id, e]) =>
-        id !== userId &&
-        !matched.has(id) &&
-        Math.abs(e.score - entry.score) <= entry.score * wideRange,
-      );
-      if (opp) {
-        const [oppId, oppEntry] = opp;
-        combatQueue.delete(userId);
-        combatQueue.delete(oppId);
-        matched.add(userId);
-        matched.add(oppId);
-        // Directly create match from pair — avoids re-searching deleted entries
-        await matchPair(entry, oppEntry).catch(() => {});
-        continue;
-      }
-    }
-
-    // After 30s fill with AI
+    // After 30s fill with AI — takes priority
     if (age >= 30_000) {
       combatQueue.delete(userId);
       matched.add(userId);
       await fillWithAI(entry).catch(() => {});
+      continue;
+    }
+
+    // 5s–15s: narrow range (±10%), 15s–30s: wider range (±25%)
+    const range = age >= 15_000 ? 0.25 : 0.10;
+    const opp = entries.find(([id, e]) =>
+      id !== userId &&
+      !matched.has(id) &&
+      Math.abs(e.score - entry.score) <= entry.score * range,
+    );
+    if (opp) {
+      const [oppId, oppEntry] = opp;
+      combatQueue.delete(userId);
+      combatQueue.delete(oppId);
+      matched.add(userId);
+      matched.add(oppId);
+      await matchPair(entry, oppEntry).catch(() => {});
     }
   }
 }, 5_000);
@@ -611,11 +611,18 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
 
     await match.save();
 
-    // Grant rewards if complete
-    if (match.status === "complete" && !match.rewardsGranted) {
-      await grantCombatRewards(match);
-      match.rewardsGranted = true;
-      await match.save();
+    // Grant rewards if complete — use atomic findOneAndUpdate to prevent double-grant
+    // in the unlikely case of a retry hitting the same turn before status flips.
+    if (match.status === "complete") {
+      const claimed = await CombatMatch.findOneAndUpdate(
+        { matchId: match.matchId, rewardsGranted: false },
+        { $set: { rewardsGranted: true } },
+        { new: false }, // return old doc — truthy means we claimed it first
+      );
+      if (claimed) {
+        await grantCombatRewards(match);
+        match.rewardsGranted = true;
+      }
     }
 
     res.json({ match });
@@ -649,17 +656,28 @@ async function grantCombatRewards(match: any) {
     const mult = matchesToday >= HALF_CAP ? 0.05 : matchesToday >= FULL_CAP ? 0.5 : 1;
     u.miniGameMatchesToday = matchesToday + 1;
 
+    let dcEarned = 0;
+    let xpEarned = 0;
+    let shardsEarned = 0;
+
     if (isDraw) {
-      u.dc += Math.floor(80 * mult); u.xp += Math.floor(100 * mult);
+      dcEarned = Math.floor(80 * mult);
+      xpEarned = Math.floor(100 * mult);
+      u.dc += dcEarned; u.xp += xpEarned;
     } else if (isWinner) {
       const streakBonus = Math.min(((u.combatWinStreak ?? 0) + 1) * 50, 300);
-      u.dc += Math.floor((150 + streakBonus) * mult);
-      u.xp += Math.floor(200 * mult);
+      dcEarned  = Math.floor((150 + streakBonus) * mult);
+      xpEarned  = Math.floor(200 * mult);
+      shardsEarned = mult >= 1 ? 1 : 0;
+      u.dc += dcEarned;
+      u.xp += xpEarned;
       u.combatWinStreak = (u.combatWinStreak ?? 0) + 1;
-      if (mult >= 1) u.keyShards += 1; // key shard only on full-reward matches
+      if (shardsEarned) u.keyShards += 1;
       u.wins += 1;
     } else {
-      u.dc += Math.floor(40 * mult); u.xp += Math.floor(60 * mult);
+      dcEarned = Math.floor(40 * mult);
+      xpEarned = Math.floor(60 * mult);
+      u.dc += dcEarned; u.xp += xpEarned;
       u.combatWinStreak = 0;
       u.losses += 1;
     }
@@ -681,12 +699,14 @@ async function grantCombatRewards(match: any) {
       );
     }
 
-    // Notification
+    // Notification — reflects actual earned amounts including streak bonus and daily cap
+    const capNote = mult < 1 ? ` (${mult < 0.1 ? "5%" : "50%"} cap)` : "";
     const notifTitle = isDraw ? "Combat Draw" : isWinner ? "Combat Victory! 🏆" : "Combat Defeat";
     const notifBody  = isDraw
-      ? `Draw vs ${match.isPlayer2AI ? match.aiName : "opponent"} — +80 DC, +100 XP`
-      : isWinner ? `You won! +150 DC, +200 XP, +1 Key Shard`
-      : `You lost — +40 DC, +60 XP`;
+      ? `Draw — +${dcEarned} DC, +${xpEarned} XP${capNote}`
+      : isWinner
+        ? `Victory! +${dcEarned} DC, +${xpEarned} XP${shardsEarned ? ", +1 Key Shard" : ""}${capNote}`
+        : `Defeat — +${dcEarned} DC, +${xpEarned} XP${capNote}`;
     await Notification.create({
       userId,
       type: "system",
