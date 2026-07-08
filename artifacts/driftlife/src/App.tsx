@@ -28,6 +28,7 @@ import { CraftingPage } from "./pages/CraftingPage";
 import { TradePage } from "./pages/TradePage";
 import { FriendsPage } from "./pages/FriendsPage";
 import TrainingCenterPage from "./pages/TrainingCenterPage";
+import MatchHistoryPage from "./pages/MatchHistoryPage";
 import RoyalePage from "./pages/RoyalePage";
 import GaragePage from "./pages/GaragePage";
 import ArenaHubPage from "./pages/ArenaHubPage";
@@ -220,6 +221,7 @@ function GameApp() {
       case "arena-combat":  return <ArenaCombatPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "race-hub":      return <RaceHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "race-match":    return <RaceMatchPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
+      case "match-history": return <MatchHistoryPage />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />

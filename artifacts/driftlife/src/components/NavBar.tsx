@@ -98,6 +98,33 @@ function RollingNumber({ value, color }: { value: number; color: string }) {
   );
 }
 
+function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; maxEnergy: number; energyRegenAt?: string | null }) {
+  const [secsLeft, setSecsLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!energyRegenAt || energy >= maxEnergy) { setSecsLeft(null); return; }
+    function calc() {
+      const ms = new Date(energyRegenAt!).getTime() + 180_000 - Date.now();
+      setSecsLeft(ms > 0 ? Math.ceil(ms / 1000) : 0);
+    }
+    calc();
+    const iv = setInterval(calc, 1_000);
+    return () => clearInterval(iv);
+  }, [energyRegenAt, energy, maxEnergy]);
+
+  const isFull = energy >= maxEnergy;
+  const color = isFull ? "#39d353" : "#f59e0b";
+  return (
+    <span className="font-mono" style={{ color, fontWeight: "bold", fontSize: 11 }}>
+      ⚡{energy}/{maxEnergy}
+      {!isFull && secsLeft !== null && secsLeft > 0 && (
+        <span style={{ color: "#475569", fontWeight: "normal", fontSize: 10, marginLeft: 3 }}>
+          +1 in {secsLeft}s
+        </span>
+      )}
+    </span>
+  );
+}
+
 interface Props {
   user: User;
   active: string;
@@ -179,6 +206,19 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
         <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
           <RollingNC value={user.nc} /> NC
         </span>
+        <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
+          <EnergyDisplay energy={user.energy} maxEnergy={user.maxEnergy} energyRegenAt={(user as any).energyRegenAt} />
+        </span>
+        {(user.keys ?? 0) > 0 && (
+          <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
+            🗝️ <span style={{ color: "#f59e0b", fontWeight: "bold", fontSize: 11 }}>{user.keys}</span>
+          </span>
+        )}
+        {(user.keyShards ?? 0) > 0 && (
+          <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
+            🔮 <span style={{ color: "#a855f7", fontWeight: "bold", fontSize: 11 }}>{user.keyShards}</span>
+          </span>
+        )}
       </div>
 
       {/* Nav row */}

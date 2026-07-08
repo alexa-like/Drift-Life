@@ -489,4 +489,138 @@ router.post("/adjust-nc", requireStaff, async (req: AuthRequest, res) => {
   }
 });
 
+// ── POST /api/owner/grant/keys — grant Keys + Key Shards ──────────────────────
+router.post("/grant/keys", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { userId, keys = 0, keyShards = 0 } = req.body;
+    const k  = Math.floor(Number(keys));
+    const ks = Math.floor(Number(keyShards));
+    if (!userId || (k === 0 && ks === 0)) {
+      return res.status(400).json({ message: "userId and at least one of keys/keyShards required" });
+    }
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const inc: Record<string, number> = {};
+    if (k  !== 0) inc["keys"]      = k;
+    if (ks !== 0) inc["keyShards"] = ks;
+    await User.findByIdAndUpdate(userId, { $inc: inc });
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "grant-keys", targetId: user.id, targetUsername: user.username, details: { keys: k, keyShards: ks } });
+    res.json({ message: `Granted${k ? ` +${k} Keys` : ""}${ks ? ` +${ks} Shards` : ""} to ${user.username}` });
+  } catch (err: any) {
+    req.log.error({ err }, "grant-keys error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── GET /api/owner/royale-logs — paginated royale spin history ─────────────────
+router.get("/royale-logs", async (req: AuthRequest, res) => {
+  try {
+    const PlayerRoyaleLog = (await import("../models/PlayerRoyaleLog")).default;
+    const page     = Math.max(1, Number(req.query.page) || 1);
+    const limit    = Math.min(50, Number(req.query.limit) || 20);
+    const userId   = req.query.userId as string | undefined;
+    const filter: Record<string, unknown> = userId ? { userId } : {};
+    const [logs, total] = await Promise.all([
+      PlayerRoyaleLog.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      PlayerRoyaleLog.countDocuments(filter),
+    ]);
+    // Attach username to each log
+    const userIds = [...new Set(logs.map((l: any) => l.userId?.toString()))];
+    const users   = await User.find({ _id: { $in: userIds } }).select("username").lean();
+    const userMap = Object.fromEntries(users.map(u => [u._id.toString(), u.username]));
+    res.json({
+      logs: logs.map((l: any) => ({ ...l, username: userMap[l.userId?.toString()] ?? "?" })),
+      total, page, pages: Math.ceil(total / limit),
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "royale-logs error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── GET /api/owner/combat-history — paginated combat match history ─────────────
+router.get("/combat-history", async (req: AuthRequest, res) => {
+  try {
+    const CombatMatch = (await import("../models/CombatMatch")).default;
+    const page   = Math.max(1, Number(req.query.page) || 1);
+    const limit  = Math.min(50, Number(req.query.limit) || 20);
+    const userId = req.query.userId as string | undefined;
+    const filter: Record<string, unknown> = { status: "complete" };
+    if (userId) filter["$or"] = [{ player1Id: userId }, { player2Id: userId }];
+    const [matches, total] = await Promise.all([
+      CombatMatch.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit)
+        .select("matchId player1Id player2Id isPlayer2AI aiName winnerId player1HP player2HP currentTurn energyCost rewardsGranted createdAt").lean(),
+      CombatMatch.countDocuments(filter),
+    ]);
+    const allIds = [...new Set(
+      matches.flatMap((m: any) => [m.player1Id?.toString(), m.player2Id?.toString()].filter(Boolean))
+    )];
+    const users   = await User.find({ _id: { $in: allIds } }).select("username").lean();
+    const userMap = Object.fromEntries(users.map(u => [u._id.toString(), u.username]));
+    res.json({
+      matches: matches.map((m: any) => ({
+        ...m,
+        player1Name: userMap[m.player1Id?.toString()] ?? "?",
+        player2Name: m.isPlayer2AI ? (m.aiName ?? "AI") : (userMap[m.player2Id?.toString()] ?? "?"),
+      })),
+      total, page, pages: Math.ceil(total / limit),
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "combat-history error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── GET /api/owner/race-history — paginated race match history ─────────────────
+router.get("/race-history", async (req: AuthRequest, res) => {
+  try {
+    const RaceMatch = (await import("../models/RaceMatch")).default;
+    const page   = Math.max(1, Number(req.query.page) || 1);
+    const limit  = Math.min(50, Number(req.query.limit) || 20);
+    const userId = req.query.userId as string | undefined;
+    const filter: Record<string, unknown> = { status: "complete" };
+    if (userId) filter["players.userId"] = userId;
+    const [matches, total] = await Promise.all([
+      RaceMatch.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit)
+        .select("matchId mode players status energyCost createdAt").lean(),
+      RaceMatch.countDocuments(filter),
+    ]);
+    res.json({ matches, total, page, pages: Math.ceil(total / limit) });
+  } catch (err: any) {
+    req.log.error({ err }, "race-history error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── PATCH /api/owner/royale-items/:id/dropweight — adjust drop weight in DB ────
+router.patch("/royale-items/:id/dropweight", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const RoyaleItem = (await import("../models/RoyaleItem")).default;
+    const weight = Math.max(0, Number(req.body.dropWeight));
+    if (isNaN(weight)) return res.status(400).json({ message: "Invalid dropWeight" });
+    const item = await RoyaleItem.findByIdAndUpdate(
+      req.params.id,
+      { $set: { dropWeight: weight } },
+      { new: true }
+    ).lean();
+    if (!item) return res.status(404).json({ message: "Item not found" });
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "set-royale-dropweight", details: { itemId: req.params.id, dropWeight: weight } });
+    res.json({ message: `Drop weight set to ${weight}`, item });
+  } catch (err: any) {
+    req.log.error({ err }, "royale-dropweight error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── GET /api/owner/royale-items — list all royale items with current drop weights
+router.get("/royale-items", async (_req, res) => {
+  try {
+    const RoyaleItem = (await import("../models/RoyaleItem")).default;
+    const items = await RoyaleItem.find().sort({ royaleType: 1, tier: 1, name: 1 }).lean();
+    res.json(items);
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

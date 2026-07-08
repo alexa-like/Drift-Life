@@ -3,6 +3,7 @@ import User from "../models/User";
 import UserAchievement, { ACHIEVEMENT_CATALOG } from "../models/Achievement";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { logger } from "../lib/logger";
+import Notification from "../models/Notification";
 
 const router = Router();
 
@@ -139,6 +140,19 @@ export async function checkAchievements(userId: string): Promise<void> {
           await User.findByIdAndUpdate(userId, { $inc: inc });
         }
         await UserAchievement.updateOne({ userId, achievementId: a.id }, { rewardGranted: true });
+
+        // Inbox notification
+        const rewardParts: string[] = [];
+        if (a.dcReward > 0)        rewardParts.push(`+${a.dcReward.toLocaleString()} DC`);
+        if ((a as any).keyReward)  rewardParts.push(`+${(a as any).keyReward} Key${(a as any).keyReward > 1 ? "s" : ""}`);
+        const rewardStr = rewardParts.length ? ` — ${rewardParts.join(", ")}` : "";
+        Notification.create({
+          userId,
+          type: "system",
+          message: `Achievement unlocked: ${a.name}${rewardStr}`,
+          read: false,
+          createdAt: new Date(),
+        }).catch(() => {});
       }
     }
 

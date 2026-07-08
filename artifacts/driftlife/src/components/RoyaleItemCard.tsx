@@ -67,6 +67,7 @@ interface Props {
 
 export function RoyaleItemCard({ item, index, revealed }: Props) {
   const [flipped, setFlipped] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const styles = TIER_STYLES[item.tier] ?? TIER_STYLES.common;
   const icon = TYPE_ICON[item.itemType] ?? "🎁";
 
@@ -80,8 +81,13 @@ export function RoyaleItemCard({ item, index, revealed }: Props) {
         perspective: 600,
         cursor: "pointer",
         animation: revealed ? `cardReveal 0.4s ${index * 0.12}s both` : undefined,
+        transform: hovered ? "translateY(-6px) scale(1.03)" : "translateY(0) scale(1)",
+        transition: "transform 0.2s ease",
+        filter: hovered ? `drop-shadow(0 8px 20px ${styles.glow})` : "none",
       }}
       onClick={() => setFlipped(!flipped)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <div
         style={{

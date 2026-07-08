@@ -70,7 +70,7 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -131,6 +131,28 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [flagSeverity, setFlagSeverity] = useState("medium");
   const [flagDetails, setFlagDetails] = useState("");
   const [flagging, setFlagging] = useState(false);
+  // Royale Logs tab
+  const [royaleLogs, setRoyaleLogs] = useState<any[]>([]);
+  const [royaleLogsPage, setRoyaleLogsPage] = useState(1);
+  const [royaleLogsTotal, setRoyaleLogsTotal] = useState(0);
+  const [royaleLogsLoading, setRoyaleLogsLoading] = useState(false);
+  const [royaleLogUserFilter, setRoyaleLogUserFilter] = useState("");
+  // Match History (admin) tab
+  const [adminMatchTab, setAdminMatchTab] = useState<"combat" | "race">("combat");
+  const [adminCombatMatches, setAdminCombatMatches] = useState<any[]>([]);
+  const [adminRaceMatches, setAdminRaceMatches] = useState<any[]>([]);
+  const [adminMatchLoading, setAdminMatchLoading] = useState(false);
+  const [adminMatchUserFilter, setAdminMatchUserFilter] = useState("");
+  // Drop Rates tab
+  const [royaleItems, setRoyaleItems] = useState<any[]>([]);
+  const [royaleItemsLoading, setRoyaleItemsLoading] = useState(false);
+  const [editingDropId, setEditingDropId] = useState<string | null>(null);
+  const [editingDropVal, setEditingDropVal] = useState("");
+  const [savingDrop, setSavingDrop] = useState(false);
+  // Keys Grant
+  const [grantKeysAmt, setGrantKeysAmt] = useState("");
+  const [grantShardsAmt, setGrantShardsAmt] = useState("");
+  const [grantingKeys, setGrantingKeys] = useState(false);
 
   const loadStats = useCallback(async () => {
     try {
@@ -209,6 +231,37 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   useEffect(() => {
     if (tab === "vanta") loadVanta(vantaFilter === "dismissed");
   }, [tab, vantaFilter, loadVanta]);
+  useEffect(() => {
+    if (tab === "royale-logs") {
+      setRoyaleLogsLoading(true);
+      api.get<any>(`/owner/royale-logs?page=${royaleLogsPage}&limit=20${royaleLogUserFilter ? `&userId=${royaleLogUserFilter}` : ""}`)
+        .then(r => { setRoyaleLogs(r.logs); setRoyaleLogsTotal(r.total); })
+        .catch(() => {})
+        .finally(() => setRoyaleLogsLoading(false));
+    }
+  }, [tab, royaleLogsPage, royaleLogUserFilter]);
+  useEffect(() => {
+    if (tab === "combat-hist" || tab === "race-hist") {
+      setAdminMatchLoading(true);
+      const type = tab === "combat-hist" ? "combat-history" : "race-history";
+      api.get<any>(`/owner/${type}?page=1&limit=20${adminMatchUserFilter ? `&userId=${adminMatchUserFilter}` : ""}`)
+        .then(r => {
+          if (tab === "combat-hist") setAdminCombatMatches(r.matches);
+          else setAdminRaceMatches(r.matches);
+        })
+        .catch(() => {})
+        .finally(() => setAdminMatchLoading(false));
+    }
+  }, [tab, adminMatchUserFilter]);
+  useEffect(() => {
+    if (tab === "drop-rates") {
+      setRoyaleItemsLoading(true);
+      api.get<any[]>("/owner/royale-items")
+        .then(setRoyaleItems)
+        .catch(() => {})
+        .finally(() => setRoyaleItemsLoading(false));
+    }
+  }, [tab]);
 
   async function banUser(userId: string) {
     if (!banReason.trim()) { addToast("Enter a ban reason", "error"); return; }
@@ -369,12 +422,16 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const isMuted = (u: PlayerRow) => u.mutedUntil && new Date(u.mutedUntil) > new Date();
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: "stats",       label: "Dashboard" },
-    { id: "users",       label: `Players (${total || "?"})` },
-    { id: "activity",   label: "Activity" },
-    { id: "patch-notes", label: "Patch Notes" },
-    { id: "items",       label: "Items" },
-    { id: "grants",      label: "Grants" },
+    { id: "stats",        label: "Dashboard" },
+    { id: "users",        label: `Players (${total || "?"})` },
+    { id: "activity",     label: "Activity" },
+    { id: "patch-notes",  label: "Patch Notes" },
+    { id: "items",        label: "Items" },
+    { id: "grants",       label: "Grants" },
+    { id: "royale-logs",  label: "Royale Logs" },
+    { id: "combat-hist",  label: "Combat" },
+    { id: "race-hist",    label: "Races" },
+    { id: "drop-rates",   label: "Drop Rates" },
   ];
 
   const s = { background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 };
@@ -833,6 +890,30 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
               </button>
             </div>
 
+            {/* Keys grant */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <label className="font-mono text-xs" style={{ color: "#64748b", width: 60 }}>Keys</label>
+              <input value={grantKeysAmt} onChange={e => setGrantKeysAmt(e.target.value)} type="number" placeholder="keys" className="font-mono text-xs px-2 py-1.5 rounded" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", width: 70 }} />
+              <input value={grantShardsAmt} onChange={e => setGrantShardsAmt(e.target.value)} type="number" placeholder="shards" className="font-mono text-xs px-2 py-1.5 rounded" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", width: 70 }} />
+              <button
+                onClick={async () => {
+                  if (!grantTargetId || (!grantKeysAmt && !grantShardsAmt)) return;
+                  setGrantingKeys(true);
+                  try {
+                    const r = await api.post<{ message: string }>("/owner/grant/keys", { userId: grantTargetId, keys: Number(grantKeysAmt) || 0, keyShards: Number(grantShardsAmt) || 0 });
+                    addToast(r.message, "success");
+                    setGrantKeysAmt(""); setGrantShardsAmt("");
+                  } catch (e: any) { addToast(e.message, "error"); }
+                  finally { setGrantingKeys(false); }
+                }}
+                disabled={grantingKeys || !grantTargetId || (!grantKeysAmt && !grantShardsAmt)}
+                className="font-mono text-xs px-3 py-1.5 rounded"
+                style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}
+              >
+                {grantingKeys ? "..." : "Grant Keys"}
+              </button>
+            </div>
+
           </div>
         </div>
       )}
@@ -1017,6 +1098,162 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
           </div>
         </div>
       )}
+      {/* ROYALE LOGS TAB */}
+      {tab === "royale-logs" && (
+        <div className="space-y-3">
+          <div style={s}>
+            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#f59e0b", letterSpacing: "0.1em" }}>ROYALE SPIN LOGS</div>
+            <div className="font-mono text-xs mb-2" style={{ color: "#64748b" }}>Total: {royaleLogsTotal.toLocaleString()} spins</div>
+            {royaleLogsLoading ? (
+              <div className="font-mono text-xs text-center py-8 animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+            ) : (
+              <div className="space-y-2">
+                {royaleLogs.map((log: any, i: number) => (
+                  <div key={log._id ?? i} style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 6, padding: "8px 12px" }}>
+                    <div className="flex justify-between items-center gap-4">
+                      <div>
+                        <span className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{log.username ?? log.userId}</span>
+                        <span className="font-mono text-xs ml-3" style={{ color: "#475569" }}>→ {log.itemName ?? log.royaleType ?? "?"}</span>
+                        {log.tier && <span className="font-mono text-xs ml-2" style={{ color: { legendary: "#f59e0b", epic: "#a855f7", rare: "#3b82f6", uncommon: "#22c55e", common: "#6b7280" }[log.tier as string] ?? "#6b7280" }}>[{log.tier}]</span>}
+                      </div>
+                      <span className="font-mono text-xs" style={{ color: "#334155" }}>{log.createdAt ? new Date(log.createdAt).toLocaleString() : ""}</span>
+                    </div>
+                  </div>
+                ))}
+                {royaleLogs.length === 0 && <div className="font-mono text-xs text-center py-6" style={{ color: "#475569" }}>No spin logs found</div>}
+              </div>
+            )}
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setRoyaleLogsPage(p => Math.max(1, p - 1))} disabled={royaleLogsPage <= 1} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#1e1e2e", color: "#64748b", border: "1px solid #1e1e2e" }}>← Prev</button>
+              <span className="font-mono text-xs px-3 py-1.5" style={{ color: "#475569" }}>Page {royaleLogsPage}</span>
+              <button onClick={() => setRoyaleLogsPage(p => p + 1)} disabled={royaleLogs.length < 20} className="font-mono text-xs px-3 py-1.5 rounded" style={{ background: "#1e1e2e", color: "#64748b", border: "1px solid #1e1e2e" }}>Next →</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COMBAT HISTORY TAB */}
+      {tab === "combat-hist" && (
+        <div style={s}>
+          <div className="font-mono text-xs font-bold mb-3" style={{ color: "#ff2d55", letterSpacing: "0.1em" }}>COMBAT MATCH HISTORY</div>
+          {adminMatchLoading ? (
+            <div className="font-mono text-xs text-center py-8 animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+          ) : (
+            <div className="space-y-2">
+              {adminCombatMatches.map((m: any, i: number) => {
+                const result = !m.winnerId ? "DRAW" : m.winnerId?.toString() === m.player1Id?.toString() ? `${m.player1Name} wins` : `${m.player2Name} wins`;
+                return (
+                  <div key={m.matchId ?? i} style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 6, padding: "8px 12px" }}>
+                    <div className="flex justify-between items-center gap-4 flex-wrap">
+                      <div>
+                        <span className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{m.player1Name ?? "?"}</span>
+                        <span className="font-mono text-xs mx-2" style={{ color: "#334155" }}>vs</span>
+                        <span className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{m.player2Name ?? (m.isPlayer2AI ? "AI" : "?")}</span>
+                        <span className="font-mono text-xs ml-3" style={{ color: "#64748b" }}>{result}</span>
+                      </div>
+                      <div className="font-mono text-xs" style={{ color: "#334155" }}>
+                        {m.currentTurn} turns · {m.createdAt ? new Date(m.createdAt).toLocaleString() : ""}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {adminCombatMatches.length === 0 && <div className="font-mono text-xs text-center py-6" style={{ color: "#475569" }}>No combat matches found</div>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* RACE HISTORY TAB */}
+      {tab === "race-hist" && (
+        <div style={s}>
+          <div className="font-mono text-xs font-bold mb-3" style={{ color: "#00d4ff", letterSpacing: "0.1em" }}>RACE MATCH HISTORY</div>
+          {adminMatchLoading ? (
+            <div className="font-mono text-xs text-center py-8 animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+          ) : (
+            <div className="space-y-2">
+              {adminRaceMatches.map((m: any, i: number) => (
+                <div key={m.matchId ?? i} style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 6, padding: "8px 12px" }}>
+                  <div className="flex justify-between items-center gap-4 flex-wrap">
+                    <div>
+                      <span className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{m.mode === "2player" ? "2P" : "4P"} Race</span>
+                      <span className="font-mono text-xs ml-3" style={{ color: "#64748b" }}>
+                        {m.players?.length ?? 0} racers
+                        {m.players?.some((p: any) => p.isAI) ? " (AI)" : ""}
+                      </span>
+                    </div>
+                    <span className="font-mono text-xs" style={{ color: "#334155" }}>{m.createdAt ? new Date(m.createdAt).toLocaleString() : ""}</span>
+                  </div>
+                </div>
+              ))}
+              {adminRaceMatches.length === 0 && <div className="font-mono text-xs text-center py-6" style={{ color: "#475569" }}>No race matches found</div>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* DROP RATES TAB */}
+      {tab === "drop-rates" && (
+        <div style={s}>
+          <div className="font-mono text-xs font-bold mb-3" style={{ color: "#a855f7", letterSpacing: "0.1em" }}>ROYALE DROP WEIGHTS</div>
+          <div className="font-mono text-xs mb-3" style={{ color: "#475569" }}>Higher weight = more likely to drop. Changes take effect immediately.</div>
+          {royaleItemsLoading ? (
+            <div className="font-mono text-xs text-center py-8 animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+          ) : (
+            <div className="space-y-2">
+              {royaleItems.map((item: any) => (
+                <div key={item._id} style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 6, padding: "8px 12px" }}>
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex-1">
+                      <span className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{item.name}</span>
+                      <span className="font-mono text-xs ml-2" style={{ color: { legendary: "#f59e0b", epic: "#a855f7", rare: "#3b82f6", uncommon: "#22c55e", common: "#6b7280" }[item.tier as string] ?? "#6b7280" }}>[{item.tier}]</span>
+                      <span className="font-mono text-xs ml-2" style={{ color: "#475569" }}>{item.royaleType ?? item.itemType}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {editingDropId === item._id ? (
+                        <>
+                          <input
+                            value={editingDropVal}
+                            onChange={e => setEditingDropVal(e.target.value)}
+                            type="number" min={0} step={0.1}
+                            className="font-mono text-xs px-2 py-1 rounded"
+                            style={{ background: "#111118", border: "1px solid #a855f740", color: "#e2e8f0", width: 70, outline: "none" }}
+                          />
+                          <button
+                            onClick={async () => {
+                              setSavingDrop(true);
+                              try {
+                                await api.patch(`/owner/royale-items/${item._id}/dropweight`, { dropWeight: Number(editingDropVal) });
+                                setRoyaleItems(prev => prev.map(it => it._id === item._id ? { ...it, dropWeight: Number(editingDropVal) } : it));
+                                setEditingDropId(null);
+                                addToast(`Drop weight updated to ${editingDropVal}`, "success");
+                              } catch (e: any) { addToast(e.message, "error"); }
+                              finally { setSavingDrop(false); }
+                            }}
+                            disabled={savingDrop}
+                            className="font-mono text-xs px-2 py-1 rounded"
+                            style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740" }}
+                          >
+                            {savingDrop ? "…" : "Save"}
+                          </button>
+                          <button onClick={() => setEditingDropId(null)} className="font-mono text-xs px-2 py-1 rounded" style={{ color: "#475569", background: "none", border: "none" }}>✕</button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-mono text-xs" style={{ color: "#64748b" }}>w: <span style={{ color: "#e2e8f0" }}>{item.dropWeight ?? "?"}</span></span>
+                          <button onClick={() => { setEditingDropId(item._id); setEditingDropVal(String(item.dropWeight ?? 1)); }} className="font-mono text-xs px-2 py-1 rounded" style={{ background: "#1e1e2e", color: "#64748b", border: "1px solid #1e1e2e" }}>Edit</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {royaleItems.length === 0 && <div className="font-mono text-xs text-center py-6" style={{ color: "#475569" }}>No royale items found</div>}
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }

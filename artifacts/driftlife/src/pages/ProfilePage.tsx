@@ -474,6 +474,9 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                       { label: "CRIME RATE", value: `${crimeSuccessRate}%`,   sub: `${user.successfulCrimes}/${user.totalCrimes ?? 0}`, color: "#ff6b35" },
                       { label: "RACE W/R",   value: `${raceWinRate}%`,        sub: `${user.raceWins ?? 0}/${user.totalRaces ?? 0}`,  color: "#00d4ff" },
                       { label: "STREAK",     value: `${user.dailyStreak ?? 0}d`, sub: "daily check-in",                              color: frame ? accent : "#f59e0b" },
+                      ...(user.keys ?? 0) > 0 || (user.keyShards ?? 0) > 0 ? [
+                        { label: "KEYS",  value: `🗝️ ${user.keys ?? 0}`, sub: `🔮 ${user.keyShards ?? 0} shards`, color: "#f59e0b" },
+                      ] : [],
                     ].map(s => (
                       <div key={s.label} style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
                         <div className="font-mono" style={{ fontSize: 9, color: frame ? accent : "#475569", letterSpacing: "0.08em" }}>{s.label}</div>

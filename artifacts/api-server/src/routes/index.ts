@@ -54,6 +54,8 @@ import miniLeaderboardRouter from "./mini-leaderboard";
 
 // ── Training Center (Tier 7) ───────────────────────────────────────────────────
 import trainingRouter from "./training";
+// ── Match History (Tier 8) ────────────────────────────────────────────────────
+import matchHistoryRouter from "./match-history";
 
 const router: IRouter = Router();
 
@@ -109,6 +111,8 @@ router.use("/mini-leaderboard", miniLeaderboardRouter);
 
 // ── Training Center (Tier 7) ───────────────────────────────────────────────────
 router.use("/training", trainingRouter);
+// ── Match History (Tier 8) ────────────────────────────────────────────────────
+router.use("/match-history", matchHistoryRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

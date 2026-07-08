@@ -42,6 +42,7 @@ const INPUT = {
 
 export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
   const [tab,        setTab]      = useState<"account" | "privacy" | "notifications" | "password" | "reset">("account");
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("driftlife_sounds_enabled") === "true");
   const [current,   setCurrent]  = useState("");
   const [newPass,   setNewPass]  = useState("");
   const [newPass2,  setNewPass2] = useState("");
@@ -225,6 +226,16 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
               />
             </div>
           ))}
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>Sound Effects</div>
+              <div className="font-mono" style={{ color: "#64748b", fontSize: 11 }}>Play audio feedback on actions</div>
+            </div>
+            <Toggle
+              checked={soundEnabled}
+              onChange={v => { setSoundEnabled(v); localStorage.setItem("driftlife_sounds_enabled", v ? "true" : "false"); }}
+            />
+          </div>
           <CyberButton variant="primary" loading={saving} onClick={saveNotifications}>
             Save Notification Preferences
           </CyberButton>
