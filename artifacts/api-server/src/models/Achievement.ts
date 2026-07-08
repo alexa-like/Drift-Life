@@ -1,22 +1,23 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export type AchievementCategory = "combat" | "crime" | "wealth" | "social" | "exploration" | "collection";
+export type AchievementCategory = "combat" | "crime" | "wealth" | "social" | "exploration" | "collection" | "racing";
 
 export interface IAchievementDef {
   id: string;
   name: string;
   description: string;
   category: AchievementCategory;
-  dcReward: number;   // DC granted on completion (merit removed)
+  dcReward:  number;   // DC granted on completion
+  keyReward?: number;  // Keys granted on completion (Tier 6+)
   target: number;
   stat: string;
 }
 
 export const ACHIEVEMENT_CATALOG: IAchievementDef[] = [
   // COMBAT (NPC fights + mini-game combined via totalFights/wins)
-  { id: "first_blood",      name: "First Blood",        description: "Win your first fight.",                   category: "combat",      dcReward: 100,    target: 1,    stat: "wins" },
-  { id: "fighter_10",       name: "Brawler",             description: "Win 10 fights.",                          category: "combat",      dcReward: 500,    target: 10,   stat: "wins" },
-  { id: "fighter_50",       name: "Street Soldier",      description: "Win 50 fights.",                          category: "combat",      dcReward: 1500,   target: 50,   stat: "wins" },
+  { id: "first_blood",      name: "First Blood",        description: "Win your first fight.",                   category: "combat",      dcReward: 100,   keyReward: 1, target: 1,    stat: "wins" },
+  { id: "fighter_10",       name: "Brawler",             description: "Win 10 fights.",                          category: "combat",      dcReward: 500,   keyReward: 3, target: 10,   stat: "wins" },
+  { id: "fighter_50",       name: "Street Soldier",      description: "Win 50 fights.",                          category: "combat",      dcReward: 1500,  keyReward: 5, target: 50,   stat: "wins" },
   { id: "fighter_100",      name: "Enforcer",            description: "Win 100 fights.",                         category: "combat",      dcReward: 5000,   target: 100,  stat: "wins" },
   { id: "fighter_500",      name: "Ghost Hunter",        description: "Win 500 fights.",                         category: "combat",      dcReward: 20000,  target: 500,  stat: "wins" },
   { id: "fighter_1000",     name: "War Machine",         description: "Win 1,000 fights.",                       category: "combat",      dcReward: 100000, target: 1000, stat: "wins" },
@@ -51,15 +52,28 @@ export const ACHIEVEMENT_CATALOG: IAchievementDef[] = [
   // EXPLORATION
   { id: "first_travel",     name: "Wanderer",            description: "Travel to a new district.",               category: "exploration", dcReward: 100,    target: 1,    stat: "districtsVisited" },
   { id: "all_districts",    name: "City Map",            description: "Visit all 5 districts.",                  category: "exploration", dcReward: 2000,   target: 5,    stat: "districtsVisited" },
-  { id: "level_10",         name: "Getting Serious",     description: "Reach level 10.",                         category: "exploration", dcReward: 500,    target: 10,   stat: "level" },
-  { id: "level_25",         name: "Mid-Tier",            description: "Reach level 25.",                         category: "exploration", dcReward: 1500,   target: 25,   stat: "level" },
-  { id: "level_50",         name: "Veteran Runner",      description: "Reach level 50.",                         category: "exploration", dcReward: 5000,   target: 50,   stat: "level" },
+  { id: "level_10",         name: "Getting Serious",     description: "Reach level 10.",                         category: "exploration", dcReward: 500,   keyReward: 1, target: 10,   stat: "level" },
+  { id: "level_25",         name: "Mid-Tier",            description: "Reach level 25.",                         category: "exploration", dcReward: 1500,  keyReward: 3, target: 25,   stat: "level" },
+  { id: "level_50",         name: "Veteran Runner",      description: "Reach level 50.",                         category: "exploration", dcReward: 5000,  keyReward: 5, target: 50,   stat: "level" },
   { id: "level_75",         name: "New Vanta Elite",     description: "Reach level 75.",                         category: "exploration", dcReward: 20000,  target: 75,   stat: "level" },
   { id: "level_100",        name: "God Tier",            description: "Reach level 100.",                        category: "exploration", dcReward: 100000, target: 100,  stat: "level" },
   { id: "prestige_1",       name: "Reborn",              description: "Reach your first prestige.",              category: "exploration", dcReward: 50000,  target: 1,    stat: "prestige" },
   { id: "all_jobs",         name: "Jack of All Trades",  description: "Complete every job type at least once.",  category: "exploration", dcReward: 2000,   target: 5,    stat: "uniqueJobsCompleted" },
 
-  // COLLECTION (empty for now — items filled in Tier 6)
+  // COLLECTION (Royale)
+  { id: "royale_spins_10",  name: "Gambler",             description: "Open 10 royale spins.",                   category: "collection",  dcReward: 200,   target: 10,  stat: "royaleSpins" },
+  { id: "royale_spins_50",  name: "High Roller",         description: "Open 50 royale spins.",                   category: "collection",  dcReward: 1000,  target: 50,  stat: "royaleSpins" },
+
+  // RACING
+  { id: "race_first_win",   name: "Pole Position",       description: "Finish 1st in a race.",                   category: "racing",      dcReward: 500,   keyReward: 1, target: 1,   stat: "raceWins" },
+  { id: "race_wins_10",     name: "Speed Demon",         description: "Win 10 races.",                           category: "racing",      dcReward: 1500,  keyReward: 3, target: 10,  stat: "raceWins" },
+  { id: "race_wins_50",     name: "Street Racer",        description: "Win 50 races.",                           category: "racing",      dcReward: 5000,  keyReward: 5, target: 50,  stat: "raceWins" },
+  { id: "race_plays_10",    name: "On The Grid",         description: "Complete 10 races.",                      category: "racing",      dcReward: 300,   target: 10,  stat: "totalRaces" },
+  { id: "race_plays_50",    name: "Track Regular",       description: "Complete 50 races.",                      category: "racing",      dcReward: 1500,  target: 50,  stat: "totalRaces" },
+
+  // COMBAT STREAKS (progress = max streak ever achieved)
+  { id: "combat_streak_5",  name: "Hot Streak",          description: "Reach a 5 combat win streak.",            category: "combat",      dcReward: 500,   keyReward: 2, target: 5,   stat: "combatWinStreak" },
+  { id: "combat_streak_10", name: "Unstoppable",         description: "Reach a 10 combat win streak.",           category: "combat",      dcReward: 2000,  keyReward: 5, target: 10,  stat: "combatWinStreak" },
 ];
 
 export interface IUserAchievement extends Document {

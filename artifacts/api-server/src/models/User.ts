@@ -130,6 +130,9 @@ export interface IUser extends Document {
   combatWinStreak:      number;  // consecutive combat wins; resets on loss
   miniGameMatchesToday: number;  // matches played today (for daily reward cap)
   miniGameResetAt:      Date;    // next daily cap reset (midnight UTC)
+  totalRoyaleSpins:     number;  // lifetime royale spins (for achievements)
+  dailyMissionProgress: Record<string, { progress: number; completed: boolean; claimedAt: Date | null }>;
+  dailyMissionDate:     string | null;  // YYYY-MM-DD key of current mission day
   // ── Monetization ─────────────────────────────────────────────────────────
   // nc (Nova Credits) is the premium currency — earned via Telegram Stars or subscriptions.
   subscriptionTier: 'street_runner' | 'neon_syndicate' | 'apex_sovereign' | null;
@@ -293,6 +296,9 @@ const UserSchema = new Schema<IUser>(
     combatWinStreak:      { type: Number, default: 0 },
     miniGameMatchesToday: { type: Number, default: 0 },
     miniGameResetAt:      { type: Date, default: () => new Date(new Date().setUTCHours(24, 0, 0, 0)) },
+    totalRoyaleSpins:     { type: Number, default: 0 },
+    dailyMissionProgress: { type: Schema.Types.Mixed, default: {} },
+    dailyMissionDate:     { type: String, default: null },
     gameTheme: { type: String, default: "default" },
     implants: {
       type: [{

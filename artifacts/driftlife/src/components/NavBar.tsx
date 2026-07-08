@@ -55,6 +55,7 @@ const NAV: { id: string; label: string; minStage?: number; group?: string }[] = 
   { id: "crafting",     label: "Craft" },
   { id: "skills",       label: "Skills" },
   { id: "achievements", label: "Achiev" },
+  { id: "daily",        label: "Daily" },
   // ── Mini-game hub (Tier 2+) ──────────────────────────────────────────────
   { id: "royale",       label: "Royale" },
   // ── Racing System (Tier 5) ──────────────────────────────────────────────
