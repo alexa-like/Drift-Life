@@ -1,172 +1,119 @@
 import { Router } from "express";
 import FeedEvent from "../models/FeedEvent";
-import User from "../models/User";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { notifyMentions } from "../lib/mentions";
+import { requireAuth, requireStaff, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 
-// GET /api/feed — returns manual posts only, ranked algorithmically
-// Scoring: engagement (reactions × 2 + comments × 3) + recency decay (24h window) + random jitter
-// This produces a TikTok/Facebook-style feed where every refresh surfaces different posts.
+// System-generated event types — these are the only ones shown on the broadcast feed.
+// "post" is excluded: players cannot self-post to the system feed.
+const SYSTEM_EVENT_TYPES = [
+  "crime", "fight", "job", "level_up", "market", "bank",
+  "system", "hospital", "travel", "daily", "achievement",
+  "race", "hack", "garage",
+];
+
+// GET /api/feed?page=1&limit=30
+// Returns system-generated broadcast events only (no player self-posts).
+// Pinned events (weekly recap etc.) always sort to the top.
 router.get("/", requireAuth, async (req, res) => {
   try {
-    const limit = Math.min(Number(req.query.limit) || 30, 100);
+    const limit  = Math.min(Number(req.query.limit) || 30, 100);
+    const page   = Math.max(Number(req.query.page)  || 1,  1);
+    const skip   = (page - 1) * limit;
 
-    // Fetch a larger pool so the ranking has material to work with
-    const pool = await FeedEvent.find({ type: "post" })
-      .sort({ createdAt: -1 })
-      .limit(200)
-      .lean();
+    const [pinned, rest] = await Promise.all([
+      FeedEvent.find({ type: { $in: SYSTEM_EVENT_TYPES }, pinned: true })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean(),
+      FeedEvent.find({ type: { $in: SYSTEM_EVENT_TYPES }, pinned: { $ne: true } })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
 
-    // Score each post
-    const now = Date.now();
-    const scored = pool.map(p => {
-      const ageMs      = now - new Date((p as any).createdAt).getTime();
-      const ageHours   = ageMs / 3_600_000;
-      const recency    = Math.max(0, 1 - ageHours / 24);         // 1 → 0 over 24 h
-      const reactions  = Object.values((p as any).reactions ?? {} as Record<string, number>)
-        .reduce((s: number, v: unknown) => s + Number(v), 0);
-      const comments   = ((p as any).comments ?? []).length;
-      const engagement = (reactions as number) * 2 + comments * 3;
-      // jitter: reproducible per post per ~5-minute window so scrolling isn't too jumpy
-      const windowSeed = Math.floor(now / 300_000);
-      const jitter     = Math.abs(parseInt(String(p._id).slice(-4), 16) ^ windowSeed) % 1000 / 1000;
-      const score      = recency * 60 + engagement * 30 + jitter * 10;
-      return { p, score };
-    });
-    scored.sort((a, b) => b.score - a.score);
-    const events = scored.slice(0, limit).map(s => s.p);
+    const events = [...pinned, ...rest];
 
-    // Batch-fetch actor avatars
-    const actorIds = [...new Set(events.map(e => e.actorId).filter(Boolean))];
-    const actorMap: Record<string, { avatarUrl?: string | null }> = {};
-    if (actorIds.length > 0) {
-      const actors = await User.find({ _id: { $in: actorIds } })
-        .select("_id avatarUrl")
-        .lean();
-      for (const a of actors) {
-        actorMap[String(a._id)] = { avatarUrl: (a as any).avatarUrl ?? null };
-      }
-    }
-
-    res.json(events.map(e => {
-      const actorData = e.actorId ? actorMap[String(e.actorId)] : undefined;
-      return {
-        id:             e._id,
-        type:           e.type,
-        actor:          e.actor,
-        actorId:        e.actorId,
-        actorAvatarUrl: actorData?.avatarUrl ?? (e as any).actorAvatarUrl ?? null,
-        actorChatFrame: (e as any).actorChatFrame ?? null,
-        actorLevel:     (e as any).actorLevel ?? 1,
-        target:         e.target,
-        message:        e.message,
-        dc:             e.dc,
-        xp:             e.xp,
-        reactions:      (e as any).reactions ?? { like: 0, laugh: 0, shock: 0, respect: 0 },
-        comments:       (e as any).comments  ?? [],
-        createdAt:      e.createdAt,
-      };
-    }));
+    res.json(events.map(e => ({
+      id:        e._id,
+      type:      e.type,
+      actor:     e.actor,
+      actorId:   e.actorId,
+      target:    e.target,
+      message:   e.message,
+      dc:        e.dc,
+      xp:        e.xp,
+      pinned:    (e as any).pinned ?? false,
+      createdAt: e.createdAt,
+    })));
   } catch (err: any) {
     req.log.error({ err }, "feed error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// POST /api/feed — create manual post
-router.post("/", requireAuth, async (req: AuthRequest, res) => {
+// POST /api/feed — manual system announcement, staff/admin/owner only.
+// Body: { message: string, category?: string, district?: string }
+router.post("/", requireAuth, requireStaff, async (req: AuthRequest, res) => {
   try {
-    const { content } = req.body;
-    if (!content || typeof content !== "string") return res.status(400).json({ message: "content required" });
-    const trimmed = content.trim().slice(0, 280);
-    if (!trimmed) return res.status(400).json({ message: "Content cannot be empty" });
-
-    const user = await User.findById(req.userId).lean();
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const { message, category, district } = req.body;
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ message: "message required" });
+    }
+    const trimmed = message.trim().slice(0, 1000);
+    if (!trimmed) return res.status(400).json({ message: "message cannot be empty" });
 
     const event = await FeedEvent.create({
-      type: "post",
-      actor: user.username,
-      actorId: user._id,
+      type:    "system",
+      actor:   "SYSTEM",
+      actorId: null,
       message: trimmed,
-      actorChatFrame: (user as any).equippedChatFrame || null,
-      actorLevel: user.level || 1,
+      ...(district ? { target: district } : {}),
     });
-
-    notifyMentions({ text: trimmed, senderId: user._id, senderName: user.username, sourceLabel: "City Feed", sourcePage: "feed" });
 
     res.status(201).json({ id: event._id, message: trimmed, createdAt: event.createdAt });
   } catch (err: any) {
-    req.log.error({ err }, "create post error");
+    req.log.error({ err }, "system feed post error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// DELETE /api/feed/:id — owner or staff/admin/owner role can delete
-router.delete("/:id", requireAuth, async (req: AuthRequest, res) => {
+// POST /api/system/feed — alias for the staff endpoint above (spec-named route).
+router.post("/system", requireAuth, requireStaff, async (req: AuthRequest, res) => {
+  try {
+    const { message, category, district } = req.body;
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ message: "message required" });
+    }
+    const trimmed = message.trim().slice(0, 1000);
+    if (!trimmed) return res.status(400).json({ message: "message cannot be empty" });
+
+    const event = await FeedEvent.create({
+      type:    "system",
+      actor:   "SYSTEM",
+      actorId: null,
+      message: trimmed,
+      ...(district ? { target: district } : {}),
+    });
+
+    res.status(201).json({ id: event._id, message: trimmed, createdAt: event.createdAt });
+  } catch (err: any) {
+    req.log.error({ err }, "system feed post error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// DELETE /api/feed/:id — staff/admin/owner only.
+router.delete("/:id", requireAuth, requireStaff, async (req: AuthRequest, res) => {
   try {
     const event = await FeedEvent.findById(req.params.id);
-    if (!event) return res.status(404).json({ message: "Post not found" });
-
-    const user = await User.findById(req.userId).select("role").lean();
-    if (!user) return res.status(401).json({ message: "Unauthorized" });
-
-    const isOwner = event.actorId && String(event.actorId) === String(req.userId);
-    const isMod = ["admin", "staff", "owner"].includes((user as any).role);
-    if (!isOwner && !isMod) return res.status(403).json({ message: "Cannot delete this post" });
+    if (!event) return res.status(404).json({ message: "Event not found" });
 
     await FeedEvent.findByIdAndDelete(req.params.id);
     res.status(204).end();
   } catch (err: any) {
     req.log.error({ err }, "delete feed event error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// POST /api/feed/:id/react
-router.post("/:id/react", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { reaction } = req.body;
-    const validReactions = ["like", "laugh", "shock", "respect"];
-    if (!validReactions.includes(reaction)) return res.status(400).json({ message: "Invalid reaction" });
-
-    const event = await FeedEvent.findById(req.params.id);
-    if (!event) return res.status(404).json({ message: "Post not found" });
-
-    const reactions = (event as any).reactions || { like: 0, laugh: 0, shock: 0, respect: 0 };
-    reactions[reaction] = (reactions[reaction] || 0) + 1;
-    (event as any).reactions = reactions;
-    await event.save();
-
-    res.json({ reactions });
-  } catch (err: any) {
-    req.log.error({ err }, "react error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// POST /api/feed/:id/comment
-router.post("/:id/comment", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { content } = req.body;
-    if (!content) return res.status(400).json({ message: "content required" });
-    const event = await FeedEvent.findById(req.params.id);
-    if (!event) return res.status(404).json({ message: "Post not found" });
-    const user = await User.findById(req.userId).lean();
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const comment = { username: user.username, content: String(content).slice(0, 280), at: new Date() };
-    if (!(event as any).comments) (event as any).comments = [];
-    (event as any).comments.push(comment);
-    await event.save();
-
-    notifyMentions({ text: String(content), senderId: user._id, senderName: user.username, sourceLabel: "Feed Comment", sourcePage: "feed" });
-
-    res.status(201).json({ comment });
-  } catch (err: any) {
-    req.log.error({ err }, "comment error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

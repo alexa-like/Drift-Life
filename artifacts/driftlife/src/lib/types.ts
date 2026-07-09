@@ -134,8 +134,7 @@ export interface FeedEvent {
   message: string;
   dc: number;
   xp: number;
-  reactions: { like: number; laugh: number; shock: number; respect: number };
-  comments: Array<{ username: string; content: string; at: string }>;
+  pinned?: boolean;
   createdAt: string;
 }
 
