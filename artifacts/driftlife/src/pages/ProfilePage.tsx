@@ -15,8 +15,19 @@ import { ChatFrame } from "../components/ChatFrame";
 import { getFrame, FRAMES, RARITY_COLOR, RARITY_LABEL, enrichFrames } from "../lib/chatFrames";
 import { SubscriberNameBadge, type SubscriberTier } from "../components/SubscriberNameBadge";
 import { BodyArtLayer } from "../components/frame-art";
+import { PrestigeConfirmModal } from "../components/PrestigeConfirmModal";
 
 // Inject header CSS for banner zone (APEX shimmer + Sovereign weave)
+const PRESTIGE_GLOW_CSS = `
+@keyframes prestigeBtnGlow {
+  0%, 100% { box-shadow: 0 0 8px #FFD70088, 0 0 20px #FFD70033; border-color: #FFD700bb; }
+  50%       { box-shadow: 0 0 18px #FFD700cc, 0 0 36px #FFD70055; border-color: #fffbe6; }
+}
+.prestige-btn-eligible {
+  animation: prestigeBtnGlow 1.8s ease-in-out infinite;
+}
+`;
+
 const BANNER_CSS = `
 @keyframes apexHeaderShimmer {
   0%   { background-position: -200% 0; }
@@ -66,6 +77,24 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const [ownedFrames, setOwnedFrames]   = useState<string[]>(user.ownedChatFrames || []);
   const [equippedFrame, setEquippedFrame] = useState<string | null>(user.equippedChatFrame || null);
   const [equipping, setEquipping]       = useState<string | null>(null);
+
+  // Prestige
+  const [showPrestigeModal, setShowPrestigeModal] = useState(false);
+  const [prestiging, setPrestiging]               = useState(false);
+
+  async function handlePrestige() {
+    setPrestiging(true);
+    try {
+      await api.post("/user/prestige", {});
+      addToast("🏆 Prestige unlocked! Welcome to Prestige " + ((user.prestige ?? 0) + 1), "success");
+      setShowPrestigeModal(false);
+      refreshUser();
+    } catch (e: any) {
+      addToast(e.message || "Prestige failed", "error");
+    } finally {
+      setPrestiging(false);
+    }
+  }
 
   async function togglePin(achievementId: string) {
     const isPinned = pinnedBadges.includes(achievementId);
@@ -180,6 +209,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   // RENDER
   // ============================================================
   return (
+    <>
     <div className="space-y-0 max-w-2xl mx-auto">
       <style>{BANNER_CSS}</style>
 
@@ -454,6 +484,38 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                 </button>
               )}
               <p className="font-mono mt-2" style={{ fontSize: 10, color: "#64748b" }}>Powered by Pollinations AI</p>
+            </div>
+
+            {/* Prestige */}
+            <div style={{ background: "#111118", border: "1px solid #FFD70030", borderLeft: "3px solid #FFD70066", borderRadius: 8, padding: 20 }}>
+              <style>{PRESTIGE_GLOW_CSS}</style>
+              <CyberSectionHeader title="PRESTIGE" accent="#FFD700" size="sm" className="mb-3" />
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <div className="font-mono text-xs" style={{ color: "#94a3b8", marginBottom: 4 }}>
+                    Current Prestige: <span style={{ color: "#FFD700", fontWeight: "bold" }}>
+                      {user.prestige ? `P${user.prestige}` : "None"}
+                    </span>
+                  </div>
+                  <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>
+                    Requires Level 100 to prestige. You are Level {user.level}.
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowPrestigeModal(true)}
+                  className={user.level >= 100 ? "prestige-btn-eligible" : ""}
+                  style={{
+                    padding: "0.5rem 1.25rem", borderRadius: 8,
+                    background: user.level >= 100 ? "#FFD70018" : "#1e1e2e",
+                    border: `1px solid ${user.level >= 100 ? "#FFD700aa" : "#334155"}`,
+                    color: user.level >= 100 ? "#FFD700" : "#475569",
+                    fontFamily: "monospace", fontWeight: "bold", fontSize: "0.8rem",
+                    cursor: "pointer", letterSpacing: "0.05em",
+                  }}
+                >
+                  👑 PRESTIGE {user.prestige ? user.prestige + 1 : 1}
+                </button>
+              </div>
             </div>
 
             {/* Referral */}
@@ -779,5 +841,16 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
         )}
       </div>
     </div>
+
+    {/* Prestige confirm modal */}
+    {showPrestigeModal && (
+      <PrestigeConfirmModal
+        user={user}
+        onClose={() => setShowPrestigeModal(false)}
+        onConfirm={handlePrestige}
+        confirming={prestiging}
+      />
+    )}
+    </>
   );
 }
