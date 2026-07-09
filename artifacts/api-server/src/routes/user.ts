@@ -186,7 +186,7 @@ router.get("/profile", requireAuth, async (req: AuthRequest, res) => {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
     const equippedItems = await Item.find({
-      _id: { $in: [user.equippedWeapon, user.equippedArmor, user.equippedClothing, user.equippedVehicle].filter(Boolean) },
+      _id: { $in: [user.equippedEnhancement, user.equippedArmor, user.equippedClothing, user.equippedVehicle].filter(Boolean) },
       owner: user._id,
     }).lean();
     res.json({
@@ -237,13 +237,13 @@ router.get("/garage", requireAuth, async (req: AuthRequest, res) => {
 // GET /api/user/inventory — own items (all types)
 router.get("/inventory", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await User.findById(req.userId).select("_id equippedWeapon equippedArmor equippedClothing equippedVehicle");
+    const user = await User.findById(req.userId).select("_id equippedEnhancement equippedArmor equippedClothing equippedVehicle");
     if (!user) return res.status(404).json({ message: "User not found" });
     const items = await Item.find({ owner: user._id }).sort({ createdAt: -1 }).lean();
     res.json({
       items,
       equipped: {
-        weapon: user.equippedWeapon ?? null,
+        enhancement: user.equippedEnhancement ?? null,
         armor: user.equippedArmor ?? null,
         clothing: user.equippedClothing ?? null,
         vehicle: user.equippedVehicle ?? null,

@@ -270,7 +270,6 @@ async function tryMatch(challenger: QueueEntry): Promise<string | null> {
     status:       "active",
     currentTurn:  1,
     currentTurnDeadline: new Date(Date.now() + 15_000),
-    adrenalineCost: ADRENALINE_COST,
     rewardsGranted: false,
   });
 
@@ -295,7 +294,6 @@ async function fillWithAI(entry: QueueEntry): Promise<string> {
     status:       "active",
     currentTurn:  1,
     currentTurnDeadline: new Date(Date.now() + 15_000),
-    adrenalineCost: ADRENALINE_COST,
     rewardsGranted: false,
   });
 
@@ -318,7 +316,6 @@ async function matchPair(a: QueueEntry, b: QueueEntry): Promise<string> {
     status:          "active",
     currentTurn:     1,
     currentTurnDeadline: new Date(Date.now() + 15_000),
-    adrenalineCost:  ADRENALINE_COST,
     rewardsGranted:  false,
   });
   return match.matchId;

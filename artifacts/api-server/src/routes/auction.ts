@@ -87,7 +87,7 @@ router.post("/list", requireAuth, validateBody(auctionListSchema), async (req: A
     if (!item) return res.status(404).json({ message: "Item not found in your inventory" });
 
     const isEquipped =
-      user.equippedWeapon?.equals(item._id) ||
+      user.equippedEnhancement?.equals(item._id) ||
       user.equippedArmor?.equals(item._id) ||
       user.equippedClothing?.equals(item._id) ||
       user.equippedVehicle?.equals(item._id);

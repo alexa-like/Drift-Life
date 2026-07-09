@@ -18,7 +18,7 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
     applyRegen(user);
     await user.save();
     const equipped = await Item.find({
-      _id: { $in: [user.equippedWeapon, user.equippedArmor, user.equippedClothing, user.equippedVehicle].filter(Boolean) },
+      _id: { $in: [user.equippedEnhancement, user.equippedArmor, user.equippedClothing, user.equippedVehicle].filter(Boolean) },
     }).lean();
     const recentActivity = await FeedEvent.find({ actorId: user._id })
       .sort({ createdAt: -1 })
