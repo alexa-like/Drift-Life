@@ -11,6 +11,7 @@
 import { Router } from "express";
 import User from "../models/User";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { rollCityEncounter } from "./crimes";
 
 const router = Router();
 
@@ -163,11 +164,17 @@ router.post("/train", requireAuth, async (req: AuthRequest, res) => {
 
     await user.save();
 
+    // ── City encounter (3% chance, 2-hour cooldown) ───────────────────────────
+    let encounter: { message: string } | null = null;
+    encounter = await rollCityEncounter(user).catch(() => null);
+    if (encounter) await user.save();
+
     res.json({
       message:     `${cfg.label} complete! +${(cfg.gainPerRep * 100).toFixed(1)}% bonus`,
       newBonus:    (user as any)[cfg.stat],
       energyLeft:  user.energy,
       sessionsLeft: cfg.dailyLimit - (todayCount + 1),
+      ...(encounter ? { encounter } : {}),
     });
   } catch (err) {
     req.log.error({ err }, "training train error");

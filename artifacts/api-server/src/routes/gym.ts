@@ -9,6 +9,7 @@ import ActionMastery from "../models/ActionMastery";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, moodMultiplier } from "../models/User";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
+import { rollCityEncounter } from "./crimes";
 
 const router = Router();
 
@@ -156,6 +157,11 @@ router.post("/:gymId/train", requireAuth, async (req: AuthRequest, res) => {
 
     await gated.save();
 
+    // ── City encounter (3% chance, 2-hour cooldown) ───────────────────────────
+    let encounter: { message: string } | null = null;
+    encounter = await rollCityEncounter(gated).catch(() => null);
+    if (encounter) await gated.save();
+
     // Update mastery (gyms also have mastery for the minigame → reward system)
     const mastKey = `${gym.id}_${stat}`;
     let mast = await ActionMastery.findOne({ userId: req.userId, actionId: mastKey, actionType: "gym" });
@@ -193,6 +199,7 @@ router.post("/:gymId/train", requireAuth, async (req: AuthRequest, res) => {
       dc: gated.dc,
       masteryAttempts: mast.attempts,
       milestoneReward,
+      ...(encounter ? { encounter } : {}),
     });
   } catch (err: any) {
     req.log.error({ err }, "train error");
