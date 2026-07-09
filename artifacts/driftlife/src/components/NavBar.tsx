@@ -58,6 +58,7 @@ const NAV: { id: string; label: string; minStage?: number; group?: string; statu
   { id: "crimes",       label: "Crimes",   statusFilter: "normal|abroad" },
   { id: "travel",       label: "Travel",   statusFilter: "normal|abroad" },
   { id: "market",       label: "Market",   statusFilter: "normal|abroad" },
+  { id: "district-hub", label: "Hub",    statusFilter: "abroad" },
   // Economy & social (normal only)
   { id: "shop",         label: "Shop",     statusFilter: "normal" },
   { id: "friends",      label: "Friends",  statusFilter: "normal" },

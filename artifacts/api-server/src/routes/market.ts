@@ -183,15 +183,58 @@ router.post("/shop/buy", requireAuth, validateBody(marketShopBuySchema), async (
   }
 });
 
+const MARKET_LISTING_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+// Expires stale market listings — restores arena items/ammo to their mini-game
+// inventories, and simply unlists normal items back to their owner.
+// Called both lazily (on GET /listings) and via an hourly cron in index.ts.
+export async function expireMarketListings(): Promise<number> {
+  const cutoff = new Date(Date.now() - MARKET_LISTING_TTL_MS);
+  const stale = await Item.find({ marketListed: true, marketListedAt: { $lt: cutoff } }).lean();
+  if (stale.length === 0) return 0;
+
+  for (const item of stale) {
+    try {
+      const meta = item.arenaListingMeta;
+      if (meta?.kind === "arena" && meta.inventoryRef && meta.itemId) {
+        // Restore the weapon/armor stack to the player's arena inventory
+        const inv = await PlayerMiniGameInventory.findOne({ userId: item.owner });
+        if (inv) {
+          const arr = inv[meta.inventoryRef] as Array<{ itemId: string; durability: number }>;
+          const existing = arr.find((w) => w.itemId === meta.itemId);
+          if (existing) {
+            existing.durability = Math.max(existing.durability, meta.durability ?? 100);
+          } else {
+            arr.push({ itemId: meta.itemId, durability: meta.durability ?? 100 });
+          }
+          await inv.save();
+        }
+        await Item.deleteOne({ _id: item._id });
+      } else if (meta?.kind === "arena_ammo" && meta.ammoCategory && meta.rounds) {
+        await PlayerMiniGameInventory.updateOne(
+          { userId: item.owner },
+          { $inc: { [`ammo.${meta.ammoCategory}`]: meta.rounds } },
+          { upsert: false },
+        );
+        await Item.deleteOne({ _id: item._id });
+      } else {
+        // Normal item — just unlist it back to the owner
+        await Item.updateOne(
+          { _id: item._id },
+          { $set: { marketListed: false, marketPrice: null, marketListedAt: null } },
+        );
+      }
+    } catch {
+      // Skip this item on error, continue with the rest
+    }
+  }
+  return stale.length;
+}
+
 // GET /api/market/listings — auto-expires listings older than 30 days
 router.get("/listings", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    // Expire stale listings silently
-    await Item.updateMany(
-      { marketListed: true, marketListedAt: { $lt: thirtyDaysAgo } },
-      { $set: { marketListed: false, marketPrice: null, marketListedAt: null } }
-    );
+    await expireMarketListings();
     const items = await Item.find({ marketListed: true })
       .populate("owner", "username")
       .lean();
@@ -381,6 +424,12 @@ router.post("/listings/batch", requireAuth, async (req: AuthRequest, res) => {
             marketListed: true,
             marketPrice: price,
             marketListedAt: new Date(),
+            arenaListingMeta: {
+              kind: "arena",
+              inventoryRef,
+              itemId,
+              durability: stack.durability,
+            },
           });
 
           const fee = Math.floor(price * MARKET_FEE);
@@ -417,6 +466,11 @@ router.post("/listings/batch", requireAuth, async (req: AuthRequest, res) => {
             marketListed: true,
             marketPrice: price,
             marketListedAt: new Date(),
+            arenaListingMeta: {
+              kind: "arena_ammo",
+              ammoCategory,
+              rounds: roundsToList,
+            },
           });
 
           const fee = Math.floor(price * MARKET_FEE);

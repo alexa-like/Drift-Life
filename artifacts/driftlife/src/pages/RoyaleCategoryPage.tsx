@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useParams } from "wouter";
 
 type SpinType = "dc_spin" | "master_royale";
 
@@ -11,25 +10,30 @@ const TIER_COLORS: Record<string, string> = {
   legendary: "#f59e0b",
 };
 
-export default function RoyaleCategoryPage() {
-  const { category } = useParams<{ category: string }>();
+interface Props {
+  category: string;
+  onBack: () => void;
+  onUserUpdate?: () => void;
+}
+
+export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: Props) {
   const [spinType, setSpinType] = useState<SpinType>("dc_spin");
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [showResult, setShowResult] = useState(false);
   const [poolItems, setPoolItems] = useState<any[]>([]);
+  const [otherPoolItems, setOtherPoolItems] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [balances, setBalances] = useState<any>(null);
 
   const categoryLabel = category?.replace(/_/g, " ").replace(/\w/g, c => c.toUpperCase());
 
   useEffect(() => {
-    // Fetch pool items for display
     fetch("/api/royale/pools/" + category)
       .then(r => r.json())
       .then(data => {
-        const items = spinType === "dc_spin" ? data.dcSpin ?? [] : data.masterRoyale ?? [];
-        setPoolItems(items);
+        setPoolItems(spinType === "dc_spin" ? data.dcSpin ?? [] : data.masterRoyale ?? []);
+        setOtherPoolItems(spinType === "dc_spin" ? data.masterRoyale ?? [] : data.dcSpin ?? []);
       })
       .catch(() => {});
   }, [category, spinType]);
@@ -46,11 +50,11 @@ export default function RoyaleCategoryPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.message ?? "Spin failed"); setSpinning(false); return; }
-      // Simulate spin animation delay
       await new Promise(r => setTimeout(r, 2000));
       setResult(data.won);
       setBalances(data.updatedBalances);
       setShowResult(true);
+      onUserUpdate?.();
     } catch (e) {
       setError("Network error");
     } finally {
@@ -63,6 +67,11 @@ export default function RoyaleCategoryPage() {
 
   return (
     <div style={{ padding: "1rem", maxWidth: "700px", margin: "0 auto" }}>
+      <button
+        onClick={onBack}
+        style={{ background: "none", border: "none", color: "#00E0FF", cursor: "pointer", marginBottom: "1rem", fontFamily: "monospace" }}
+      >← BACK TO ROYALE HUB</button>
+
       <h1 style={{ color: "#00E0FF", fontFamily: "monospace", marginBottom: "0.5rem" }}>
         {categoryLabel}
       </h1>
@@ -117,7 +126,7 @@ export default function RoyaleCategoryPage() {
 
       {/* Pool items */}
       <h3 style={{ color: "#fff", marginBottom: "1rem" }}>ITEMS YOU CAN WIN</h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
         {poolItems.map((item: any, i: number) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.5rem", background: "#1a1a2e", borderRadius: "6px" }}>
             <div style={{ width: "36px", height: "36px", background: "#333", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem" }}>
@@ -132,6 +141,29 @@ export default function RoyaleCategoryPage() {
         ))}
         {poolItems.length === 0 && <div style={{ color: "#666" }}>Pool data loading...</div>}
       </div>
+
+      {/* Cross-pool items — locked/grayed out, only obtainable via the other spin type */}
+      {otherPoolItems.length > 0 && (
+        <>
+          <h3 style={{ color: "#666", marginBottom: "1rem" }}>
+            {spinType === "dc_spin" ? "★ MASTER ROYALE ONLY" : "DC SPIN ONLY"}
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {otherPoolItems.map((item: any, i: number) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.5rem", background: "#141420", borderRadius: "6px", opacity: 0.45 }}>
+                <div style={{ width: "36px", height: "36px", background: "#222", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem" }}>
+                  🔒
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: "#999", fontSize: "0.9rem" }}>{item.name}</div>
+                  <div style={{ color: TIER_COLORS[item.tier] ?? "#666", fontSize: "0.75rem", textTransform: "capitalize" }}>{item.tier}</div>
+                </div>
+                <div style={{ color: "#666", fontSize: "0.8rem" }}>{item.probability?.toFixed(1)}%</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Result modal */}
       {showResult && result && (

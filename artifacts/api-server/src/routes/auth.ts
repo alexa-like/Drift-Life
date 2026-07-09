@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import User, { generateTag, generateReferralCode, levelUp, activeBuffTotal } from "../models/User";
+import User, { generateTag, generateReferralCode, levelUp, activeBuffTotal, computeMaxHp } from "../models/User";
 import { signAccess, signRefresh, verifyRefresh } from "../lib/jwt";
 import { generateOtp, sendOtpEmail } from "../lib/mailer";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
@@ -9,6 +9,14 @@ import { applyRegen } from "../lib/regen";
 const router = Router();
 
 export function safeUser(user: InstanceType<typeof User>) {
+  // Defensive clamp: catches any legacy/edge-case over-cap health values that
+  // predate the maxHealth formula change, in addition to the pre-save hook.
+  const maxHp = computeMaxHp(user.level, user.prestige);
+  if (user.health > maxHp) {
+    user.health = maxHp;
+    user.save().catch(() => {});
+  }
+
   return {
     id: user._id,
     username: user.username,

@@ -1236,6 +1236,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
         await grantCombatRewards(match);
         await postMatchCleanup(match);
         match.rewardsGranted = true;
+        await match.save();
       }
     }
 
@@ -1285,11 +1286,14 @@ async function postMatchCleanup(match: any): Promise<void> {
         }
       }
 
+      const destroyed: { itemId: string; category: "primary" | "secondary" | "armor" }[] = [];
+
       // Degrade primary weapon durability (spec 3.8: -5 per match)
       if (primaryWeaponId) {
         const pw = inv.primaryWeapons.find((w: { itemId: string; durability: number }) => w.itemId === primaryWeaponId);
         if (pw) {
           pw.durability = Math.max(0, pw.durability - 5);
+          if (pw.durability === 0) destroyed.push({ itemId: primaryWeaponId, category: "primary" });
         }
       }
 
@@ -1298,6 +1302,7 @@ async function postMatchCleanup(match: any): Promise<void> {
         const sw = inv.secondaryWeapons.find((w: { itemId: string; durability: number }) => w.itemId === secondaryWeaponId);
         if (sw) {
           sw.durability = Math.max(0, sw.durability - 3);
+          if (sw.durability === 0) destroyed.push({ itemId: secondaryWeaponId, category: "secondary" });
         }
       }
 
@@ -1307,7 +1312,36 @@ async function postMatchCleanup(match: any): Promise<void> {
         const ba = inv.bodyArmors.find((w: { itemId: string; durability: number }) => w.itemId === bodyArmorId);
         if (ba) {
           ba.durability = Math.max(0, ba.durability - 4);
+          if (ba.durability === 0) destroyed.push({ itemId: bodyArmorId, category: "armor" });
         }
+      }
+
+      // Remove destroyed items (0 durability) from inventory and clear loadout refs
+      if (destroyed.length > 0) {
+        const destroyedPrimary = destroyed.filter(d => d.category === "primary").map(d => d.itemId);
+        const destroyedSecondary = destroyed.filter(d => d.category === "secondary").map(d => d.itemId);
+        const destroyedArmor = destroyed.filter(d => d.category === "armor").map(d => d.itemId);
+        if (destroyedPrimary.length) {
+          inv.primaryWeapons = inv.primaryWeapons.filter((w: { itemId: string }) => !destroyedPrimary.includes(w.itemId)) as any;
+        }
+        if (destroyedSecondary.length) {
+          inv.secondaryWeapons = inv.secondaryWeapons.filter((w: { itemId: string }) => !destroyedSecondary.includes(w.itemId)) as any;
+        }
+        if (destroyedArmor.length) {
+          inv.bodyArmors = inv.bodyArmors.filter((w: { itemId: string }) => !destroyedArmor.includes(w.itemId)) as any;
+        }
+
+        const loadoutUnset: Record<string, string> = {};
+        if (destroyedPrimary.length) loadoutUnset["primaryWeaponId"] = "";
+        if (destroyedSecondary.length) loadoutUnset["secondaryWeaponId"] = "";
+        if (destroyedArmor.length) loadoutUnset["bodyArmorId"] = "";
+        const setFields: Record<string, null> = {};
+        for (const key of Object.keys(loadoutUnset)) setFields[key] = null;
+        if (Object.keys(setFields).length > 0) {
+          await PlayerLoadout.updateOne({ userId }, { $set: setFields });
+        }
+
+        (match as any)[playerIsP1 ? "player1DestroyedItems" : "player2DestroyedItems"] = destroyed;
       }
 
       // Deduct consumables used this match (spec 3.7)
@@ -1472,6 +1506,7 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
     if (claimed) {
       await grantCombatRewards(match);
       await postMatchCleanup(match);
+      await match.save();
     }
   }
 }

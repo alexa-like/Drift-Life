@@ -1,5 +1,3 @@
-import { useLocation } from "wouter";
-
 const CATEGORIES = [
   { id: "pistols", label: "Pistols", icon: "🔫", color: "#ef4444" },
   { id: "smgs", label: "SMGs", icon: "💨", color: "#f97316" },
@@ -14,8 +12,11 @@ const CATEGORIES = [
   { id: "car_parts", label: "Car Parts", icon: "⚙️", color: "#f59e0b" },
 ];
 
-export default function RoyaleHubPage() {
-  const [, navigate] = useLocation();
+interface Props {
+  onSelectCategory: (categoryId: string) => void;
+}
+
+export default function RoyaleHubPage({ onSelectCategory }: Props) {
   return (
     <div style={{ padding: "1rem", maxWidth: "900px", margin: "0 auto" }}>
       <h1 style={{ color: "#00E0FF", fontFamily: "monospace", fontSize: "1.5rem", marginBottom: "1rem" }}>
@@ -28,7 +29,7 @@ export default function RoyaleHubPage() {
         {CATEGORIES.map(cat => (
           <div
             key={cat.id}
-            onClick={() => navigate("/royale/" + cat.id)}
+            onClick={() => onSelectCategory(cat.id)}
             style={{
               background: "#1a1a2e",
               border: "1px solid #333",

@@ -315,6 +315,36 @@ router.post("/buy-subscription-nc", requireAuth, async (req: AuthRequest, res) =
   }
 });
 
+// ── POST /api/store/keys ──────────────────────────────────────────────────────
+// Buy 3 Royale keys for 50 NC.
+router.post("/keys", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const COST_NC = 50;
+    const KEYS_GRANTED = 3;
+
+    const updated = await User.findOneAndUpdate(
+      { _id: req.userId, nc: { $gte: COST_NC } },
+      { $inc: { nc: -COST_NC, keys: KEYS_GRANTED } },
+      { new: true },
+    ).select("nc keys");
+
+    if (!updated) {
+      return res.status(400).json({ message: `Not enough NC. You need ${COST_NC} NC.`, notEnoughNc: true });
+    }
+
+    res.json({
+      keysGranted: KEYS_GRANTED,
+      ncSpent: COST_NC,
+      nc: (updated as any).nc,
+      keys: (updated as any).keys,
+      message: `Purchased ${KEYS_GRANTED} keys for ${COST_NC} NC`,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "store keys purchase error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // ── POST /api/store/gift-nc ───────────────────────────────────────────────────
 // Send NC to another player (10% fee, min 100 NC, max 10,000 NC per gift)
 router.post("/gift-nc", requireAuth, async (req: AuthRequest, res) => {

@@ -29,13 +29,15 @@ import { TradePage } from "./pages/TradePage";
 import { FriendsPage } from "./pages/FriendsPage";
 import TrainingCenterPage from "./pages/TrainingCenterPage";
 import MatchHistoryPage from "./pages/MatchHistoryPage";
-import RoyalePage from "./pages/RoyalePage";
+import RoyaleHubPage from "./pages/RoyaleHubPage";
+import RoyaleCategoryPage from "./pages/RoyaleCategoryPage";
 import GaragePage from "./pages/GaragePage";
 import ArenaHubPage from "./pages/ArenaHubPage";
 import ArenaCombatPage from "./pages/ArenaCombatPage";
 import { MissionsPage } from "./pages/MissionsPage";
 import LoadoutPage from "./pages/LoadoutPage";
 import ShopHubPage from "./pages/ShopHubPage";
+import { DistrictHubPage } from "./pages/DistrictHubPage";
 import NpcStorePage from "./pages/NpcStorePage";
 import RaceHubPage from "./pages/RaceHubPage";
 import RaceMatchPage from "./pages/RaceMatchPage";
@@ -118,6 +120,11 @@ function GameApp() {
   const [showFactionSelect, setShowFactionSelect] = useState(false);
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
   const [shopStoreId, setShopStoreId] = useState<string | null>(null);
+  const [royaleCategory, setRoyaleCategory] = useState<string | null>(null);
+  const navTo = useCallback((p: string) => {
+    setRoyaleCategory(null);
+    setPage(p);
+  }, [setPage]);
 
   // Show faction selection for users without a faction
   useEffect(() => {
@@ -226,11 +233,14 @@ function GameApp() {
       case "chatframes":    return <FrameStore {...pageProps} />;
       case "store":         return <StorePage user={user!} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "connections":  return <ConnectionsPage user={user!} />;
-      case "royale":        return <RoyalePage user={user!} addToast={addToast} onUserUpdate={refreshUser} />;
+      case "royale":        return royaleCategory
+                              ? <RoyaleCategoryPage category={royaleCategory} onBack={() => setRoyaleCategory(null)} onUserUpdate={refreshUser} />
+                              : <RoyaleHubPage onSelectCategory={(id) => setRoyaleCategory(id)} />;
       case "arena":         return <ArenaHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "arena-combat":  return <ArenaCombatPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "race-hub":      return <RaceHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "race-match":    return <RaceMatchPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
+      case "district-hub":  return <DistrictHubPage {...pageProps} />;
       case "match-history": return <MatchHistoryPage />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
@@ -247,7 +257,7 @@ function GameApp() {
         <NavBar
           user={user!}
           active={page}
-          onNav={setPage}
+          onNav={navTo}
           onLogout={handleLogout}
           unreadNotifs={unreadNotifs}
         />

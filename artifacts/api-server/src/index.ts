@@ -10,6 +10,8 @@ import { registerGuildCommands } from "./lib/discord";
 import User from "./models/User";
 import { allowedOrigins } from "./lib/cors";
 import { closeExpiredAuctions, scheduleBotAuctions } from "./routes/auction";
+import { expireMarketListings } from "./routes/market";
+import { postWeeklyRecap } from "./routes/leaderboard";
 
 const rawPort = process.env["PORT"] ?? "3000";
 const port = Number(rawPort);
@@ -250,6 +252,30 @@ async function start() {
 
     // Bot-operated auction house: periodically spins up new Epic/Legendary auctions.
     scheduleBotAuctions();
+
+    // ── Market listing expiry: run every hour ─────────────────────────────────
+    setInterval(() => {
+      expireMarketListings().catch((err) =>
+        logger.error({ err }, "market listing expiry interval error"),
+      );
+    }, 60 * 60 * 1000);
+    // Run once immediately on startup to catch listings that expired while server was down
+    expireMarketListings().catch((err) =>
+      logger.error({ err }, "market listing expiry startup error"),
+    );
+
+    // ── Weekly leaderboard recap: check hourly, posts once per Monday ─────────
+    // postWeeklyRecap() is idempotent (guarded by a persisted marker) so it's
+    // safe to check on every tick — it only actually posts once the new week
+    // starts and hasn't already been posted.
+    setInterval(() => {
+      postWeeklyRecap().catch((err) =>
+        logger.error({ err }, "weekly leaderboard recap interval error"),
+      );
+    }, 60 * 60 * 1000);
+    postWeeklyRecap().catch((err) =>
+      logger.error({ err }, "weekly leaderboard recap startup error"),
+    );
 
     // Register Telegram webhook once the server is live and accepting traffic.
     //

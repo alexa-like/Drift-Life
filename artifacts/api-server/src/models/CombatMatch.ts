@@ -105,6 +105,9 @@ export interface ICombatMatch extends Document {
   player2KnockedBack:          boolean;
   // Taunts
   taunts: ITauntRecord[];
+  // Items destroyed (0 durability) during this match
+  player1DestroyedItems: { itemId: string; category: "primary" | "secondary" | "armor" }[];
+  player2DestroyedItems: { itemId: string; category: "primary" | "secondary" | "armor" }[];
   // Injected by { timestamps: true }
   createdAt: Date;
   updatedAt: Date;
@@ -202,6 +205,22 @@ const CombatMatchSchema = new Schema<ICombatMatch>(
         sentAt:   { type: Date, default: Date.now },
       }],
       default: [],
+    },
+    player1DestroyedItems: {
+      type: [{
+        itemId:   { type: String, required: true },
+        category: { type: String, enum: ["primary", "secondary", "armor"], required: true },
+      }],
+      default: [],
+      _id: false,
+    },
+    player2DestroyedItems: {
+      type: [{
+        itemId:   { type: String, required: true },
+        category: { type: String, enum: ["primary", "secondary", "armor"], required: true },
+      }],
+      default: [],
+      _id: false,
     },
   },
   { timestamps: true },

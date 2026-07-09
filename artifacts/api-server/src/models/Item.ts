@@ -26,6 +26,14 @@ export interface IItem extends Document {
   ownerId: mongoose.Types.ObjectId | null;
   auctionId: mongoose.Types.ObjectId | null;
   createdAt: Date;
+  arenaListingMeta: {
+    kind: "arena" | "arena_ammo";
+    inventoryRef?: "primaryWeapons" | "secondaryWeapons" | "bodyArmors";
+    itemId?: string;
+    durability?: number;
+    ammoCategory?: string;
+    rounds?: number;
+  } | null;
 }
 
 const ItemSchema = new Schema<IItem>(
@@ -61,6 +69,7 @@ const ItemSchema = new Schema<IItem>(
     iconUrl: { type: String, default: null },
     ownerId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     auctionId: { type: Schema.Types.ObjectId, ref: "AuctionListing", default: null },
+    arenaListingMeta: { type: Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 );

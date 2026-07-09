@@ -1,6 +1,8 @@
 import { Router } from "express";
 import User from "../models/User";
+import ServerConfig from "../models/ServerConfig";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
+import { postToSystemFeed } from "../lib/systemFeed";
 
 const router = Router();
 
@@ -72,6 +74,53 @@ async function maybeResetWeekly() {
     { $or: [{ weeklyReset: { $lt: monday } }, { weeklyReset: null }] },
     { $set: { weeklyDc: 0, weeklyArenaWins: 0, weeklyRaceWins: 0, weeklyReset: monday } }
   );
+}
+
+const WEEKLY_RECAP_KEY = "leaderboard:lastWeeklyRecap";
+
+// Posts a top-3 recap for each weekly category to the system feed, then resets
+// weekly stats. Must run BEFORE maybeResetWeekly zeroes the fields it reads.
+// Idempotent per Monday — guarded by a persisted marker so re-running the
+// interval (or multiple server instances) never double-posts.
+export async function postWeeklyRecap(): Promise<boolean> {
+  const monday = getMondayMidnightUTC();
+  const marker = await ServerConfig.findOne({ key: WEEKLY_RECAP_KEY }).lean();
+  const lastRecap = marker ? new Date((marker.value as any).at) : null;
+  if (lastRecap && lastRecap.getTime() >= monday.getTime()) {
+    return false; // already posted for this week
+  }
+
+  const categories: Array<{ field: string; label: string; emoji: string; format: (v: number) => string }> = [
+    { field: "weeklyDc", label: "Top Earners", emoji: ":moneybag:", format: (v) => `${v.toLocaleString()} DC` },
+    { field: "weeklyArenaWins", label: "Arena Champions", emoji: ":crossed_swords:", format: (v) => `${v} wins` },
+    { field: "weeklyRaceWins", label: "Street Racing Kings", emoji: ":checkered_flag:", format: (v) => `${v} wins` },
+  ];
+
+  for (const cat of categories) {
+    const top3 = await User.find({ banned: false, [cat.field]: { $gt: 0 } })
+      .sort({ [cat.field]: -1 })
+      .limit(3)
+      .select(`username ${cat.field}`)
+      .lean();
+    if (top3.length === 0) continue;
+
+    const lines = top3.map((p, i) => {
+      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉";
+      return `${medal} @${p.username} — ${cat.format((p as any)[cat.field] ?? 0)}`;
+    });
+    await postToSystemFeed(
+      "leaderboard_recap",
+      `${cat.emoji} WEEKLY RECAP — ${cat.label}\n${lines.join("\n")}`,
+      top3.map((p) => p.username),
+    );
+  }
+
+  await ServerConfig.findOneAndUpdate(
+    { key: WEEKLY_RECAP_KEY },
+    { $set: { value: { at: new Date() } } },
+    { upsert: true },
+  );
+  return true;
 }
 
 // GET /api/leaderboard?category=...&limit=50
