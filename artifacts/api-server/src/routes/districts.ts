@@ -7,13 +7,12 @@ import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
 const router = Router();
 
 export const DISTRICTS = [
-  { id: "residential-north", name: "Residential North", faction: "neutral",     dangerLevel: 1, travelEnergyCost: 3,  minLevel: 1,  color: "#39d353", primaryActivity: "Starter jobs, low-risk crimes, safe zone",      description: "The city's oldest neighbourhood. Crumbling but liveable.",                       npcs: ["Street Punk", "Chief Ralston"] },
-  { id: "tech-quarter",      name: "Tech Quarter",      faction: "grid",         dangerLevel: 2, travelEnergyCost: 5,  minLevel: 5,  color: "#00d4ff", primaryActivity: "Hacking jobs, data crimes, Grid NPCs",          description: "Server farms and Grid operatives. Information is power.",                        npcs: ["Shadow Operative", "Ghost"] },
-  { id: "the-boulevard",     name: "The Boulevard",     faction: "neutral",      dangerLevel: 3, travelEnergyCost: 8,  minLevel: 5,  color: "#a855f7", primaryActivity: "Social hub, clubs, mid-tier jobs",             description: "Neon lights, clubs, and deals that look legitimate.",                            npcs: ["Gang Member", "Cleo"] },
-  { id: "industrial-east",   name: "Industrial East",   faction: "street",       dangerLevel: 4, travelEnergyCost: 8,  minLevel: 8,  color: "#ff6b35", primaryActivity: "Dock work, gang crimes, Street NPCs",          description: "Warehouses, docks, and the Street Syndicate's turf.",                            npcs: ["Street Thug", "Mama Nova"] },
-  { id: "port-district",     name: "Port District",     faction: "street",       dangerLevel: 4, travelEnergyCost: 8,  minLevel: 8,  color: "#ff6b35", primaryActivity: "Smuggling, black market, cargo jobs",          description: "The city's lifeline and its deepest wound. Everything illegal flows through here.", npcs: ["Dock Enforcer", "Marco"] },
-  { id: "downtown-core",     name: "Downtown Core",     faction: "suits",        dangerLevel: 5, travelEnergyCost: 12, minLevel: 15, color: "#f59e0b", primaryActivity: "Corporate jobs, high-level PvP, elite crimes", description: "The Suits own this place. Everything here is expensive, dangerous, or both.",      npcs: ["Security Guard", "Faction Boss", "Director Webb"] },
-  { id: "the-outskirts",     name: "The Outskirts",     faction: "uncontrolled", dangerLevel: 5, travelEnergyCost: 12, minLevel: 20, color: "#ff2d55", primaryActivity: "Rarest loot, boss NPCs, extreme rewards",     description: "Beyond the walls. No laws. No safety nets. Only predators.",                     npcs: ["Syndicate Boss", "Rogue AI Unit"] },
+  { id: "neon_strip", name: "Neon Strip",       faction: "neutral",      dangerLevel: 1, travelEnergyCost: 5,  minLevel: 5,  color: "#ff00cc", primaryActivity: "Entertainment district. Clubs, gambling dens, underground pharmacy.", description: "Neon lights, music, and deals that look legitimate. Easy pickings if you know where to look.", npcs: ["Club Promoter", "Gig Worker", "Underground Dealer"] },
+  { id: "docks",      name: "The Docks",        faction: "street",       dangerLevel: 2, travelEnergyCost: 8,  minLevel: 10, color: "#00aaff", primaryActivity: "Smugglers and import brokers. Things fall off ships here.",           description: "Things fall off ships here. Everyone looks the other way.",                     npcs: ["Sal the Broker", "Dock Enforcer", "Harbor Rat"] },
+  { id: "slums",      name: "The Slums",        faction: "street",       dangerLevel: 3, travelEnergyCost: 10, minLevel: 15, color: "#ff6b35", primaryActivity: "Poverty and desperation. Cheap goods, street crime, gang territory.", description: "Poverty breeds danger. The gangs run everything and nobody asks questions.",    npcs: ["Gang Captain", "Street Doc", "Fence"] },
+  { id: "corp_zone",  name: "Corporate Zone",   faction: "suits",        dangerLevel: 2, travelEnergyCost: 12, minLevel: 20, color: "#f59e0b", primaryActivity: "Glass towers and private security. Expensive, clean, dangerous in a different way.", description: "Glass towers and private security. Everything here costs more than you think.", npcs: ["Corporate Fixer", "Security Guard", "Data Broker"] },
+  { id: "industrial", name: "Industrial Sector",faction: "neutral",      dangerLevel: 4, travelEnergyCost: 15, minLevel: 25, color: "#888888", primaryActivity: "Factories and workshops. Black market parts, dirty jobs.",            description: "Factories and workshops. Black market parts and dirty jobs for those who ask.", npcs: ["Chop Shop Owner", "Arms Dealer", "Mechanic"] },
+  { id: "outskirts",  name: "The Outskirts",    faction: "uncontrolled", dangerLevel: 5, travelEnergyCost: 20, minLevel: 35, color: "#ff2d55", primaryActivity: "City's edge. Lawless. Best loot, worst odds.",                        description: "Beyond the walls. No laws. No safety nets. Only predators.",                   npcs: ["Syndicate Boss", "Rogue AI Unit", "Wasteland Raider"] },
 ];
 
 // GET /api/districts
@@ -63,7 +62,11 @@ router.post("/:id/travel", requireAuth, async (req: AuthRequest, res) => {
       },
       buildRegenPipeline({
         energyCost: district.travelEnergyCost,
-        extraSet:   { district: district.id },
+        extraSet:   {
+          district:        district.id,
+          status:          "abroad",
+          currentLocation: district.id,
+        },
       }),
       { new: true },
     );
@@ -78,7 +81,13 @@ router.post("/:id/travel", requireAuth, async (req: AuthRequest, res) => {
       message: `Traveled to ${district.name}`,
       district: district.id,
       energyCost: district.travelEnergyCost,
-      user: { energy: updated.energy, maxEnergy: updated.maxEnergy, district: updated.district },
+      user: {
+        energy:          updated.energy,
+        maxEnergy:       updated.maxEnergy,
+        district:        updated.district,
+        status:          updated.status,
+        currentLocation: updated.currentLocation,
+      },
     });
   } catch (err: any) {
     req.log.error({ err }, "travel error");

@@ -18,7 +18,7 @@ export const GYMS = [
   {
     id: "corner_boxing_gym",
     name: "Corner Boxing Gym",
-    district: "residential-north",
+    district: "neon_strip",
     costPerUse: 200,
     energyCostPerTrain: 3,
     minLevel: 1,
@@ -28,7 +28,7 @@ export const GYMS = [
   {
     id: "underground_fight_club",
     name: "Underground Fight Club",
-    district: "industrial-east",
+    district: "industrial",
     costPerUse: 800,
     energyCostPerTrain: 4,
     minLevel: 10,
@@ -38,7 +38,7 @@ export const GYMS = [
   {
     id: "elite_performance_center",
     name: "Elite Performance Center",
-    district: "downtown-core",
+    district: "corp_zone",
     costPerUse: 2_500,
     energyCostPerTrain: 5,
     minLevel: 25,
@@ -48,7 +48,7 @@ export const GYMS = [
   {
     id: "grid_academy",
     name: "Grid Academy",
-    district: "tech-quarter",
+    district: "corp_zone",
     costPerUse: 1_500,
     energyCostPerTrain: 3,
     minLevel: 15,
@@ -58,7 +58,7 @@ export const GYMS = [
   {
     id: "outskirts_dojo",
     name: "Outskirts Dojo",
-    district: "the-outskirts",
+    district: "outskirts",
     costPerUse: 1_200,
     energyCostPerTrain: 4,
     minLevel: 20,

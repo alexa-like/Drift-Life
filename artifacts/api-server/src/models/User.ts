@@ -244,7 +244,7 @@ const UserSchema = new Schema<IUser>(
     firewallLevel: { type: Number, default: 1 },
     followers: { type: Number, default: 0 },
     onboardingStage: { type: Number, default: 0 },
-    district: { type: String, default: "residential-north" },
+    district: { type: String, default: "downtown" },
     job: { type: String, default: null },
     rank: { type: String, default: "New in Town" },
     wantedLevel: { type: Number, default: 0, min: 0, max: 5 },

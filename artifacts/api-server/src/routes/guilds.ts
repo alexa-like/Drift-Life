@@ -317,11 +317,12 @@ router.post("/kick", requireAuth, validateBody(guildTargetSchema), async (req: A
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TURF_DISTRICTS = [
-  { id: "residential-north", name: "Residential North", tier: 1, raceCost: 2_000, defenderPower: 25, income: 500 },
-  { id: "industrial-east",   name: "Industrial East",   tier: 2, raceCost: 5_000, defenderPower: 40, income: 1_200 },
-  { id: "tech-quarter",      name: "Tech Quarter",      tier: 3, raceCost: 10_000, defenderPower: 55, income: 2_500 },
-  { id: "downtown-core",     name: "Downtown Core",     tier: 4, raceCost: 20_000, defenderPower: 70, income: 5_000 },
-  { id: "the-outskirts",     name: "The Outskirts",     tier: 2, raceCost: 6_000, defenderPower: 45, income: 1_500 },
+  { id: "neon_strip", name: "Neon Strip",        tier: 1, raceCost: 2_000,  defenderPower: 25, income: 500 },
+  { id: "docks",      name: "The Docks",         tier: 2, raceCost: 5_000,  defenderPower: 40, income: 1_200 },
+  { id: "slums",      name: "The Slums",         tier: 2, raceCost: 4_000,  defenderPower: 35, income: 900 },
+  { id: "corp_zone",  name: "Corporate Zone",    tier: 4, raceCost: 20_000, defenderPower: 70, income: 5_000 },
+  { id: "industrial", name: "Industrial Sector", tier: 3, raceCost: 10_000, defenderPower: 55, income: 2_500 },
+  { id: "outskirts",  name: "The Outskirts",     tier: 5, raceCost: 30_000, defenderPower: 85, income: 8_000 },
 ];
 
 // GET /api/guilds/turf — district control standings

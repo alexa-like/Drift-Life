@@ -14,13 +14,12 @@ const router = Router();
 const DISTRICT_MODIFIERS: Record<string, {
   crimePayoutMod: number; raceTypeBonus: string; itemPriceMod: number;
 }> = {
-  "residential-north": { crimePayoutMod: 0.8,  raceTypeBonus: "none",    itemPriceMod: 0.9 },
-  "industrial-east":   { crimePayoutMod: 1.0,  raceTypeBonus: "drag",    itemPriceMod: 1.0 },
-  "the-boulevard":     { crimePayoutMod: 0.9,  raceTypeBonus: "drift",   itemPriceMod: 1.1 },
-  "port-district":     { crimePayoutMod: 1.2,  raceTypeBonus: "none",    itemPriceMod: 1.0 },
-  "downtown-core":     { crimePayoutMod: 1.3,  raceTypeBonus: "circuit", itemPriceMod: 1.3 },
-  "tech-quarter":      { crimePayoutMod: 1.1,  raceTypeBonus: "none",    itemPriceMod: 1.2 },
-  "the-outskirts":     { crimePayoutMod: 1.5,  raceTypeBonus: "drag",    itemPriceMod: 0.8 },
+  "neon_strip": { crimePayoutMod: 0.9,  raceTypeBonus: "drift",   itemPriceMod: 1.0 },
+  "docks":      { crimePayoutMod: 1.2,  raceTypeBonus: "none",    itemPriceMod: 1.0 },
+  "slums":      { crimePayoutMod: 1.0,  raceTypeBonus: "drag",    itemPriceMod: 0.9 },
+  "corp_zone":  { crimePayoutMod: 1.1,  raceTypeBonus: "circuit", itemPriceMod: 1.3 },
+  "industrial": { crimePayoutMod: 1.3,  raceTypeBonus: "drag",    itemPriceMod: 1.0 },
+  "outskirts":  { crimePayoutMod: 1.5,  raceTypeBonus: "drag",    itemPriceMod: 0.8 },
 };
 
 // ── GET /api/world/state — current world state ───────────────────────────────
