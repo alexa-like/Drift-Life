@@ -1,179 +1,103 @@
-# DriftLife — Full Tier Audit Report
-Consolidated findings from 10 parallel sub-agent audits, one per tier in `update_tiers.md`. Each item below is backed by an actual codebase check (not the plan's claims).
+# DriftLife — Tier Audit Report (vs. update_tiers.md)
+
+Audited by 10 parallel read-only subagents, one per tier, cross-checking every numbered sub-section in `update_tiers.md` against the actual code in `artifacts/api-server` and `artifacts/driftlife`. Consolidated below into Done / Partially Done / Not Done.
 
 ---
 
-## ✅ DONE
+## ✅ Done
 
-**Tier 1 — Core Cleanup & Infrastructure**
-- User model fields: `prestige`, `prestigeXpBoost`, `keyShards`, `activeBuffs`, `keys`, `nc`, `dc`, `adrenaline`/`maxAdrenaline`, `nitro`/`maxNitro`, `currentLocation`, `travelingTo`, `travelArrivesAt`
-- Independent regen for energy/nerve/adrenaline/nitro (`User.ts` `applyRegen`)
-- Arena queue costs 1 Adrenaline, race queue costs Nitro
-- Service Token added to shop; Luxury Car fixed (travel reduction + charisma + description)
-- All weapon items repurposed to `slot: "enhancement"`; `Item` model enum updated
-- `maxHealth` removed from schema, replaced with a computed virtual
-- Travel time system (`POST /user/travel`, vehicle-based reduction, auto-arrival)
-- Armor/Combat Drug items removed from shop
-- "Adrenaline Shot" renamed to "Stim Shot"
+- **1.2** Normal-game armor items & combat drug removed from shop.
+- **1.3** Normal-game weapons repurposed to `enhancement` slot.
+- **1.4** Luxury Car fixed (travel time reduction + charisma bonus).
+- **1.5** Legendary Elixir (timed all-stats buff) implemented with cleanup on save.
+- **1.6** User model updated with prestige, keyShards, activeBuffs.
+- **1.7** Service Token added to shop (price differs from spec — see Partial notes... actually functional, just a number mismatch, not a bug).
+- **1.10** Item/slot/shop cleanup consistent, nothing blocking server start.
+- **2.1** MiniGameItem model updated with new category enum & fields.
+- **2.4** Ammo items seeded (30 items, 6 categories × 5 tiers) correctly.
+- **2.7** PlayerMiniGameInventory & PlayerLoadout schemas match spec; loadout route validates ownership/durability.
+- **2.8** Seeding runs via bulkWrite upserts on boot; LoadoutPage UI implements slots, quantity picker, ownership/durability checks.
+- **3.1** Loadout Management UI page complete.
+- **3.2** Combat system: turn-based fire/melee/consumable actions, strength bonus formula matches spec.
+- **3.4** Loadout validated before matchmaking (blocks queue on missing/destroyed primary).
+- **3.5** Match state tracking schema complete (armor HP, rounds fired, consumables used, effects).
+- **3.6–3.8** Post-match ammo/consumable/durability deductions implemented.
+- **3.9** Match rewards (XP, DC, key shards) granted correctly.
+- **3.10** Melee fallback on empty ammo implemented.
+- **3.11–3.12** Frontend combat UI and match result screen implemented.
+- **4.2** New Royale model structure (category, spinType, itemRef, dropWeight) matches spec.
+- **4.3** All 22 royale pools seeded with correct relative weight proportions.
+- **4.4** Spin logic: cost checks, atomic currency deduction, weighted random, full reward granting (weapons/armor/consumables/ammo/cars/parts), shard auto-convert.
+- **4.5** Key Shard system complete across daily login, arena, racing, and store purchase.
+- **4.6–4.7** Royale Hub and Category Spin frontend pages implemented.
+- **5.2** NPC Store FAQ system (copy + UI) implemented exactly as specified.
+- **5.3** Bulk market listing (batch endpoint) implemented for normal/arena/ammo items.
+- **5.4** Market commission (5% fee) and listing expiry/restoration implemented atomically.
+- **5.5** Market category tabs implemented in frontend.
+- **5.6** Auction system: bot house, atomic bidding, snipe-window extension implemented.
+- **6.1** Condition field (0–100) on cars and parts.
+- **6.2** Condition degradation after races (crash vs. normal) with key shard grant.
+- **6.3** Performance penalty table and 0-condition queue block implemented.
+- **6.5** Garage frontend condition display, status labels, service modal.
+- **7.1** HP formula computed on the fly (never persisted), health clamped on save.
+- **8.1** Arena Hub page (2-card layout, resource bars, neon styling) implemented.
+- **8.3** NPC Store storefronts (landing grid, individual pages, restock rules, buy flow, sold-out states) fully implemented.
+- **9.2** NavBar visibility matrix (status-based filtering) and persistent status banners implemented.
+- **9.4** District shops (inventory, rotation, purchase flow, location/status gating) implemented.
+- **9.5** District crimes (multipliers, location enforcement, district jail) implemented.
+- **9.8** Returning Home (vehicle-based cost formula) implemented.
+- **9.9** Status Banner (countdowns, action buttons, 30s polling) implemented.
+- **9.10** Travel Hub / District Hub frontend implemented.
+- **10.2** Player notifications integrated across arena, auction, trade, crimes.
+- **10.3** Daily login reward streak system implemented.
+- **10.9** NPC random city encounters (3% chance, cooldown) implemented.
+- **10.11** In-arena taunts with rate limiting implemented.
+- **10.12** Player-to-player trading (offers, counters, atomic swap) implemented.
+- **10.13** Black Market (level gate, 0% commission, anonymity, 5% seizure job) fully implemented.
+- **10.15** Achievement badges as profile cosmetics (pin/unpin, renders in profile + chat) fully implemented.
 
-**Tier 2 — Arena Item Seed System**
-- `MiniGameItem` model: category enum and new fields (weaponSlot, magazineSize, ammoCategory, accuracy, armorHp, maxDurability, stackable, maxStack) all correct
-- `PlayerMiniGameInventory` / `PlayerLoadout` schemas correctly structured
-- Durability distinction (template maxDurability vs. per-copy durability) correctly implemented, including in Royale grant logic
-- All weapon seeds (pistols, SMGs, ARs, shotguns, snipers, LMGs) present with correct accuracy/tier scaling
-- All 30 ammo items and all 5 body armor tiers seeded correctly
+## ⚠️ Partially Done
 
-**Tier 3 — Arena Combat Mechanics**
-- Loadout management UI with slots, durability bars, ammo summary
-- Loadout validation on queue join (blocks missing/broken primary weapon)
-- Turn resolution engine (`fire_primary`, `fire_secondary`, `use_consumable`, `melee`), strength bonus applied
-- Armor absorption and armor-HP tracking separate from player HP
-- Per-match durability degradation, ammo consumption, consumable consumption
-- Match reward grants (XP, DC, key shards, scaled by level/win)
-- Frontend combat UI (HP/armor bars, turn log, floating damage numbers)
+- **1.1** Old PvP combat removed, but leftover "defense" calculations remain in `arena.ts` (~lines 104–106) that may reference the deprecated stat — needs verification these aren't dead/contradictory code.
+- **1.8** Adrenaline/Nitro pools separated and deducted correctly, but the 12-minute regen tick logic in `lib/regen.ts` needs verification it actually applies to both new pools (not just old energy).
+- **1.9** Travel system sets `travelingTo`/`travelArrivesAt`, but there's no centralized "auto-complete travel" middleware — arrival is checked ad hoc in individual routes (e.g. `crimes.ts`), risking missed transitions in routes that don't check.
+- **2.2** Arena weapons seeded across all tiers/categories with correct accuracy %, but some legendary weapon "combo" specials (e.g. AK-47 legendary bleed+stun) are simplified to a single effect instead of the spec'd combination.
+- **2.3** Special effect data (bleed/stun/armor_pierce/knockback/double_tap) defined in seeds, but not all combat-logic triggers were verified as wired up (see 3.3).
+- **2.5** Body armor seeded, but Legendary `exo_armor` is missing spec-required "blocks one stun" and "reflects 5% damage" effect fields.
+- **2.6** Arena consumables seeded, but several deviate from spec: `mega_medkit`/`cyber_grenade` rarity wrong (Rare vs. spec'd Epic), `stim_shot` used instead of spec'd `adrenaline_shot`, heal amounts far below spec (e.g. 100 vs. 400).
+- **3.3** Most special effect handlers (bleed, stun, armor_pierce, knockback, shield, berserk) work, but **`double_tap` does not fire a second shot** — the effect is referenced in data/UI but has no execution logic in the turn resolver. This is a real gameplay bug, not just a data gap.
+- **4.1** New royale spin/category logic works, but legacy "general" royale type is not fully removed — `SPIN_COSTS` and `GET /items/:type` still accept it, so old dead code paths remain reachable.
+- **5.1** NPC stores (6 stores, restock rotation, rare-roll logic) mostly work, but `chrome_garage` restock is an empty fall-through (arena car parts never seeded), and two stores use hardcoded item-name pools instead of dynamic queries — new items added later won't show up.
+- **6.4** Car service backend **only supports DC payment** — the spec'd "Service Token" payment method is not implemented; the endpoint accepts a `method` param but never checks/deducts the token item. Frontend also only ever sends `{ method: "dc" }`, so the token item is currently unusable for its intended purpose.
+- **7.2** Prestige request/reward flow works end-to-end, but: (a) `prestigeXpBoost` is stored but never actually applied to any XP gain — the boost is currently inert; (b) `PrestigeBadge` isn't consistently shown in NavBar/Chat/Leaderboards (NavBar just shows a `✦{prestige}` string); (c) post-prestige `xpToNext` is hardcoded to `100` instead of the real level-1→2 threshold (`500`), which will desync early XP-bar display after prestiging.
+- **8.2** Item images wired into most pages, but some item IDs still fall back to animated SVGs instead of real PNGs; car image path convention in `GaragePage.tsx` wasn't fully confirmed to match the `/assets/cars/{carId}.png` pattern.
+- **8.4** Core nav links present, but the old standalone "Shop" link was supposed to be removed/merged per spec and is still there alongside the new store hub.
+- **9.1** Status fields and travel auto-arrival exist, but **hospital/jail auto-release is not implemented anywhere** (not in middleware, not in `applyRegen`) — a player whose `hospitalizedUntil`/`jailedUntil` has passed stays stuck in that status until some other action happens to refresh it.
+- **9.3** Districts and travel/level-gating work, but the entire "danger roll" system (mugging/hospitalization risk on arrival, per spec) is **completely missing** — no code triggers it, and `lastMuggedAt` is defined but never read or written.
+- **9.6** Hospital "pay to leave early" works, but there's no way to be hospitalized from actual gameplay (arena KO / danger rolls don't trigger it since those systems don't exist), and player-to-player "revive" is not implemented.
+- **9.7** Jail (self-bail) works, but player-to-player "bail for others" is not implemented.
+- **9.11** (checklist) confirms the four gaps above: danger rolls, revive, bail-for-others, auto-release middleware.
+- **10.1** System feed posts correctly, but the retention rule is inverted vs. spec: a 24-hour TTL index wipes ALL events, instead of keeping the spec'd 500 posts / 30 days + 8 weekly recaps. Weekly recap cron doesn't exist.
+- **10.1a** Custom emojis have model/CRUD routes, but there's no unified rendering pipeline (mentions + links + emojis together) across the frontend; animated emoji support is missing from `MentionText`.
+- **10.4** Inventory page exists, but bulk "quick sell all selected" is missing and sort options are more limited than spec (no durability/value sort).
+- **10.5** Crime cooldowns/history tracked, but the specific 5/10/20/45-minute tiering from the spec isn't strictly enforced — a more generic duration is used instead.
+- **10.7** Profile page exists, but the "recent activity" feed (last 8 public events) and racing/favorite-crime stat displays are missing.
+- **10.8** Leaderboards exist, but weekly reset (Monday 00:00 UTC) and the weekly-specific categories (Weekly DC/Arena/Races) are missing — only all-time boards work.
+- **10.10** Faction system has bank/perks, but district territory control and the weekly influence/payout system are not implemented; perk set is smaller than spec.
+- **10.14** Mentor matching/relationship endpoints work, but the XP incentive (mentor +5%, mentee +10%) is not applied anywhere in the leveling code — mentors get no actual benefit yet.
+- **10.16** Some new items seeded, but most spec'd "City Enhancement Items" (e.g. `signal_jammer`, `neural_optimizer`) were never added to the seed files.
+- **10.17** (checklist) confirms the tier-10 gaps above: feed retention, chat channels/reporting, profile activity feed, faction territory, weekly leaderboards, mentor XP bonus.
 
-**Tier 4 — Royale System Overhaul**
-- `RoyaleItem` model with `royaleCategory`, `spinType`, `itemRef`, `dropWeight`
-- All 22 pools (11 categories × 2 spin types) seeded with correct relative weighting
-- Weighted random spin logic, correct item granting to weapons/armor/ammo/consumables/race cars/parts
-- Key shard grants wired into login streak, arena, race, missions; auto-conversion to keys (20→1)
-- `RoyaleHubPage` (11 category cards) and `RoyaleCategoryPage` (DC Spin/Master Royale toggle, spin animation, win-probability list) both built
+## ❌ Not Done
 
-**Tier 5 — Market & Auction Overhaul**
-- All 6 NPC stores implemented with correct keepers/categories, 6-hour restock cycle, price ranges
-- Epic/Legendary items hard-blocked from NPC stores (`FORBIDDEN_TIERS` guard)
-- NPC store FAQ system (clickable question chips) on frontend
-- Auction system: `AuctionListing` model, bot-generated auctions (cron, 30–120 min, cap 5), bidding endpoint with outbid refunds, expiry cron (runs every minute)
-- Market category tabs (Weapons/Clothing/Vehicles/Consumables/Materials/Arena Gear/Cars & Parts)
-
-**Tier 6 — Racing Condition System**
-- Fully done end-to-end: condition field on player's car/parts, correct degradation ranges (crash vs. normal), unified part degradation, key shard grant on race completion, performance penalty table exactly matching spec, sidelined-at-0 blocking queue join, service endpoint (DC cost by tier + Service Token path), garage UI with color-coded condition bar and labels
-
-**Tier 7 — HP Scaling & Prestige**
-- `computeMaxHp` formula matches spec exactly and is a virtual (never stored)
-- Health clamped to max on save
-- Prestige endpoint: correct requirements (level 100 + 50 combat matches), correct resets, prestige badges/frames granted
-- `prestigeXpBoost` applied correctly in Crimes, Jobs, and Arena reward math
-- `PrestigeBadge` frontend component with correct tier coloring
-
-**Tier 8 — UI Polish, Images, Navigation**
-- `ItemImage` component wired into NPC store, Market, Loadout, Inventory, and Auction pages
-- Arena Hub redesigned as two-card mode select
-- NPC storefront pages fully built (art fallback, FAQ, stock grid, restock timer, buy flow)
-- Shop landing page with all 6 stores
-
-**Tier 9 — Districts, Player Status & NavBar Gating**
-- Status fields + auto-resolution middleware (hospitalized/jailed/traveling)
-- NavBar visibility matrix correctly gates pages by status
-- `StatusBanner` component with live countdowns and correct action buttons per status
-- All 7 districts defined with danger rolls, shops (including exclusive items), and crime tables matching spec exactly
-- Early-release/bail/revive endpoints all implemented atomically
-- Return-home endpoint with vehicle-based travel time
-
-**Tier 10 — System Feed, Notifications, Factions, Social & Economy**
-- `FeedEvent` model, `postToSystemFeed` helper, `GET /feed`, feed triggers wired for prestige, royale epic/legendary pulls, notable crimes
-- `GameEmoji` model with all 16 slugs + `GET /emojis`
-- Full notification system (model, helper, endpoints, bell + panel)
-- Daily login reward system (streak tracking, reward table, modal)
-- Leaderboards: all 9 tabs, weekly reset (Monday), player's-own-rank display
-- NPC encounters (3% roll, 2h cooldown, effect pool)
-- Mentor system (register/request/end, XP bonus applied)
-- Achievement badge pinning + display in chat/profile
-- Black market listing/seizure cron
-- Faction bank + perks infrastructure
-
----
-
-## ⚠️ PARTIALLY DONE
-*(what's missing/broken, concretely)*
-
-**Tier 1**
-- **Legendary Elixir buff**: pushes 4 separate stat buffs instead of the single `{buffType: "all_stats", value: 10}` entry the spec calls for — the dedicated `all_stats` handling code in `User.ts` is dead code, unreachable from this item.
-- **Expired buff cleanup**: `getEffectiveStats` filters expired buffs for reads only; it never actually removes them from the stored array/DB — buffs pile up forever.
-- **Old PvP combat**: `CombatMatch` model still contains legacy fields; a legacy `calcDamage` function remains in `arena.ts`; frontend still has "Attack" buttons in `PlayerInspectModal.tsx` and references in `OwnerPage.tsx`.
-- **Weapon "passive" stat application**: enhancement slot stats are still manually added/subtracted on equip/unequip (`inventory.ts`) rather than computed dynamically in `getEffectiveStats` as intended.
-
-**Tier 2**
-- Several arena consumables (smoke_grenade, adrenaline_shot etc.) mostly match spec but there's a stray duplicate item (`stim_shot` with `berserk` effect) not present in the spec's table — needs reconciling against the canonical list.
-- Body armor "blocks one stun" / "reflects 5% damage" special effects for higher tiers are not present in seed metadata (only a generic `absorb` chance is seeded) — unclear if hardcoded elsewhere in combat engine; needs verification.
-
-**Tier 3**
-- **Special effects don't fully match spec**: bleed doesn't stack/refresh correctly (overwrites instead of stacking); shield never expires after 2 turns (only depletes via damage); berserk's damage/accuracy bonuses (+30%) and damage reduction (−20%) are configured but not applied anywhere in `fireWeapon`/`applyDamage`.
-- **Result screen "destroyed items"** relies on full inventory state rather than a delta of what broke this specific match — always may show stale/incorrect destroyed-item info.
-- **Heal specials**: `mega_medkit`'s "removes bleed" behavior isn't mapped from item ID to the generic `clear_bleed` flag.
-- **Ammo tier multipliers**: loadout snapshot has no `ammoMultiplier` field — all shots use base weapon damage regardless of which ammo tier is equipped, meaning higher-tier ammo purchases currently do nothing in combat.
-
-**Tier 4**
-- **Legacy general royale not removed**: `/royale` route in `App.tsx` still points at the old `RoyalePage.tsx`, not the new `RoyaleHubPage`/`RoyaleCategoryPage` — the new pages exist but aren't wired into routing, so players never see them.
-- Backend `/royale/spin` still has legacy "general"/"shooting"/"racing" fallback branches that should be removed per spec.
-- "MASTER ONLY" / "DC ONLY" grayed-out cross-pool item display is missing from `RoyaleCategoryPage`.
-- Milestone/achievement key shard grants (5/10 shards) not clearly found — needs explicit implementation.
-
-**Tier 5**
-- **Bulk listing** doesn't preserve arena item durability as a proper numeric field — it's embedded in a description string rather than structured data.
-- **Purchase flow isn't atomic**: DC deduction and credit happen as separate `findOneAndUpdate`/`Promise.all` calls, not inside a MongoDB transaction — a mid-failure could lose or duplicate DC.
-- **Commission/netPayout** are computed on the fly rather than stored as fields on the listing.
-- **Auction bidding** uses optimistic concurrency instead of a formal transaction for refund+deduct+update — functionally okay but not to spec.
-- **Frontend bulk-listing UI** (checkbox multi-select + payout-preview sidebar) doesn't exist — `MarketPage.tsx` only supports buying, not the described listing flow.
-- Auction "you're winning/outbid" UI is a basic flag, not the persistent banner the spec describes.
-- Chrome Garage restock is effectively a stub — arena car parts haven't been seeded, so its listings are empty.
-
-**Tier 7**
-- Prestige UI is incomplete: `PrestigeBadge` component exists but is barely used anywhere else (NavBar shows raw `✦{prestige}` text instead); there is no "⚡ PRESTIGE" button/confirmation modal on the Profile page — the backend endpoint has no way to be triggered from the UI.
-- `prestigeXpBoost` is applied in Crimes/Jobs/Arena but missing from Racing and Missions reward calculations.
-
-**Tier 8**
-- Several referenced image assets don't exist on disk (`/assets/arena/shooting.png`, `/assets/arena/racing.png`, `/assets/npcs/{storeId}.png`) — pages fall back to emoji, which works but isn't the intended visual polish.
-- `RoyaleItemCard.tsx` doesn't use the shared `ItemImage` component — falls back to programmatic SVG/external art instead of real item PNGs.
-- NavBar still has both a legacy `store` link and the new `shop` link (old one should have been removed).
-
-**Tier 9**
-- Actual route naming/shape deviates from spec in places (e.g. `/api/districts/:id/travel` instead of `POST /user/travel` as body), functionally fine but inconsistent with the plan.
-- Danger-roll mitigation from equipped defense/armor items is not implemented — only the mugging cooldown reduces risk.
-- Corporate Zone's "can't access with contraband" / "criminal record raises prices" logic is entirely missing.
-- District-specific item effects (e.g. Throwaway Phone's 30% jail-time reduction) aren't wired into the crime-resolution formula.
-- Travel Hub page is a simple list, not the card/map layout with hero art the spec calls for; Hospital page is a full page rather than the described banner-triggered modal.
-
-**Tier 10**
-- Win-streak feed posts (arena/race milestones at 5/10/20/50) are **not implemented at all** in `arena.ts`/`race.ts` — the milestone-check logic simply doesn't exist yet.
-- New-auction-listed feed posts aren't triggered — auction creation logs internally but never calls `postToSystemFeed`.
-- District chat auto-join/leave on abroad status relies on client-side filtering only, not enforced server-side.
-- Emoji shortcodes resolve to static Unicode emoji instead of the specified animated WebM/GIF/Lottie assets — the "alive" chat feel described in the spec isn't there.
-- Inventory page has per-item quick sell/list but no bulk-select-and-sell-all as specced.
-- Trading has a model and basic routes but no real profile-embedded trade UI or full notification flow.
+- **10.6** Chat System Polish — district-specific channels (auto join/leave based on `abroad` status), chat reporting, and per-user muting are all missing. Current chat is effectively unchanged from the pre-spec version.
 
 ---
 
-## ❌ NOT DONE
-
-**Tier 1**
-- Login/`/me` response does not clamp existing over-limit `health` values to the new computed max — only new *regen gains* are capped, so a player already above cap from before the change stays there indefinitely.
-
-**Tier 3**
-- **Durability-based item destruction is not implemented**: when durability hits 0, the code zeroes it out but never removes the weapon/armor from the player's inventory or adds it to a "destroyed items" list — broken items just sit in inventory at 0 durability forever, contradicting the entire "items get destroyed" design goal of this tier.
-
-**Tier 4**
-- `POST /store/keys` (buy 3 keys for 50 NC) does not exist anywhere in the codebase.
-- Legacy royale frontend page is still the one actually wired to `/royale` — the new hub/category pages built for this tier are effectively unreachable by players.
-
-**Tier 5**
-- **No dedicated hourly expiry cron job** for player market listings (48-hour expiry with return-to-seller) — there's only an ad hoc "silent expiry" check embedded in the listings GET route, not the described scheduled job.
-
-**Tier 9**
-- **District Hub page does not exist** — the spec's unified page (lore + shop + crimes + danger reminder, shown when abroad) is not built; functionality is fragmented across separate existing pages instead.
-
-**Tier 10**
-- **Weekly leaderboard recap cron/post is not implemented** — no job builds or posts the `[🌐 CITYWIDE — WEEKLY RECAP]` message every Monday, despite leaderboard data itself being tracked correctly.
-- **Arena Taunts feature is entirely missing** — no `taunts` field on the match model, no `POST /arena/match/:id/taunt` endpoint, no UI for it.
-
----
-
-## Summary
-The build is substantially complete — most backend data models, seeds, and core game loops (arena combat, racing, royale, market, districts, social systems) exist and largely work. The most consequential gaps are:
-1. **Item destruction on 0 durability never actually happens** (Tier 3) — a core economy mechanic is silently broken.
-2. **The new Royale UI is built but not wired into routing** — players still see the old page (Tier 4).
-3. **No weekly recap or arena/race win-streak feed posts** — the "living world" feel of Tier 10 is missing its most visible piece.
-4. **No transactional atomicity on DC transfers** in market purchases and auction bids (Tier 5) — a real risk for currency duplication/loss bugs under concurrent load.
-5. **Prestige has no frontend entry point** — a fully-built backend feature nobody can trigger from the UI (Tier 7).
-
-I'd recommend tackling items 1, 2, and 5 first since they're quick, high-impact fixes (a few hours each), followed by the atomicity fixes in Tier 5 before this goes anywhere near real players with real currency.
+### Notable functional bugs worth prioritizing
+1. **`double_tap` special effect never fires a second shot** (3.3) — visible in UI/data but has no effect in combat.
+2. **Hospital/jail auto-release missing** (9.1) — players can get permanently stuck in a status past its expiry.
+3. **Danger roll system entirely missing** (9.3) — a whole spec'd risk mechanic for districts doesn't exist.
+4. **System feed TTL wipes everything after 24h** (10.1) — contradicts the spec's 500-post/30-day retention; currently destructive to the intended feature.
+5. **Service Token payment path for car servicing is unusable** (6.4) — item exists in the shop but nothing in the code path can spend it.
+6. **Prestige XP boost is inert** (7.2) — the whole point of prestiging (permanent XP boost) currently has no effect.
