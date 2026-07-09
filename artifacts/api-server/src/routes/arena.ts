@@ -382,7 +382,7 @@ async function tryMatch(challenger: QueueEntry): Promise<string | null> {
     player2CurrentArmorHp: opponent.loadout.armorHp,
     status:       "active",
     currentTurn:  1,
-    currentTurnDeadline: new Date(Date.now() + 15_000),
+    currentTurnDeadline: new Date(Date.now() + 60_000),
     rewardsGranted: false,
   });
 
@@ -408,7 +408,7 @@ async function fillWithAI(entry: QueueEntry): Promise<string> {
     player2CurrentArmorHp: aiLoadout.armorHp,
     status:       "active",
     currentTurn:  1,
-    currentTurnDeadline: new Date(Date.now() + 15_000),
+    currentTurnDeadline: new Date(Date.now() + 60_000),
     rewardsGranted: false,
   });
 
@@ -431,7 +431,7 @@ async function matchPair(a: QueueEntry, b: QueueEntry): Promise<string> {
     player2CurrentArmorHp: b.loadout.armorHp,
     status:          "active",
     currentTurn:     1,
-    currentTurnDeadline: new Date(Date.now() + 15_000),
+    currentTurnDeadline: new Date(Date.now() + 60_000),
     rewardsGranted:  false,
   });
   return match.matchId;
@@ -869,7 +869,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
       match.player1HP = p1HPAfter;
       match.player2HP = p2HPAfter;
       match.currentTurn += 1;
-      match.currentTurnDeadline = new Date(Date.now() + 15_000);
+      match.currentTurnDeadline = new Date(Date.now() + 60_000);
       (match as any).player1ActiveEffects = p1Effects;
       (match as any).player2ActiveEffects = p2Effects;
       match.status = "complete";
@@ -1209,7 +1209,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
     match.player1HP = p1HPAfter;
     match.player2HP = p2HPAfter;
     match.currentTurn += 1;
-    match.currentTurnDeadline = new Date(Date.now() + 15_000);
+    match.currentTurnDeadline = new Date(Date.now() + 60_000);
     (match as any).player1ActiveEffects = p1Effects;
     (match as any).player2ActiveEffects = p2Effects;
 
@@ -1480,7 +1480,7 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
   match.player1HP = p1HPAfter;
   match.player2HP = p2HPAfter;
   match.currentTurn += 1;
-  match.currentTurnDeadline = new Date(Date.now() + 15_000);
+  match.currentTurnDeadline = new Date(Date.now() + 60_000);
   (match as any).player1ActiveEffects = efx.p1Effects;
   (match as any).player2ActiveEffects = efx.p2Effects;
 
