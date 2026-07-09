@@ -48,7 +48,7 @@ router.post("/:id/equip", requireAuth, async (req: AuthRequest, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     // Unequip current item in that slot
-    const slotField = item.slot === "weapon" ? "equippedWeapon"
+    const slotField = item.slot === "enhancement" ? "equippedEnhancement"
       : item.slot === "armor" ? "equippedArmor"
       : item.slot === "clothing" ? "equippedClothing"
       : "equippedVehicle";
@@ -100,7 +100,7 @@ router.post("/:id/unequip", requireAuth, async (req: AuthRequest, res) => {
     item.equipped = false;
     await item.save();
 
-    const slotField = item.slot === "weapon" ? "equippedWeapon"
+    const slotField = item.slot === "enhancement" ? "equippedEnhancement"
       : item.slot === "armor" ? "equippedArmor"
       : item.slot === "clothing" ? "equippedClothing"
       : "equippedVehicle";
@@ -160,6 +160,32 @@ router.post("/:id/use", requireAuth, async (req: AuthRequest, res) => {
       user.hospitalizedUntil = null;
       user.health = user.maxHealth;
       effectMessage = "Hospitalization cleared. Full health restored.";
+    }
+    if (effect.includes("all_stats_timed:")) {
+      const m = effect.match(/all_stats_timed:(\d+):(\d+(?:\.\d+)?)/);
+      if (m) {
+        const amt = parseInt(m[1]);
+        const hours = parseFloat(m[2]);
+        const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+        for (const buffType of ["strength", "charisma", "intelligence", "streetCred"]) {
+          user.activeBuffs.push({ buffType, value: amt, expiresAt });
+        }
+        effectMessage += `+${amt} to all stats for ${hours}h. `;
+      }
+    }
+    if (effect.includes("adrenaline:")) {
+      const amt = parseInt(effect.match(/adrenaline:(\d+)/)?.[1] || "0");
+      user.adrenaline = Math.min(user.maxAdrenaline, user.adrenaline + amt);
+      effectMessage += `+${amt} Adrenaline. `;
+    }
+    if (effect.includes("nitro:")) {
+      const amt = parseInt(effect.match(/nitro:(\d+)/)?.[1] || "0");
+      user.nitro = Math.min(user.maxNitro, user.nitro + amt);
+      effectMessage += `+${amt} Nitro. `;
+    }
+    if (effect.includes("energy_full:")) {
+      user.energy = user.maxEnergy;
+      effectMessage += `Energy fully restored. `;
     }
 
     item.quantity -= 1;

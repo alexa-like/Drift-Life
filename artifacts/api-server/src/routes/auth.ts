@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import User, { generateTag, generateReferralCode, levelUp } from "../models/User";
+import User, { generateTag, generateReferralCode, levelUp, activeBuffTotal } from "../models/User";
 import { signAccess, signRefresh, verifyRefresh } from "../lib/jwt";
 import { generateOtp, sendOtpEmail } from "../lib/mailer";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
@@ -22,20 +22,31 @@ export function safeUser(user: InstanceType<typeof User>) {
     xp: user.xp,
     xpToNext: user.xpToNext,
     prestige: user.prestige,
+    prestigeXpBoost: user.prestigeXpBoost ?? 0,
     skillPoints: user.skillPoints,
     dc: user.dc,
     nc: user.nc,
+    keys: user.keys ?? 0,
+    keyShards: user.keyShards ?? 0,
 
     health: user.health,
     maxHealth: user.maxHealth,
     energy: user.energy,
     maxEnergy: user.maxEnergy,
+    adrenaline: user.adrenaline ?? 0,
+    maxAdrenaline: user.maxAdrenaline ?? 5,
+    nitro: user.nitro ?? 0,
+    maxNitro: user.maxNitro ?? 5,
     nerve: user.nerve,
     maxNerve: user.maxNerve,
-    strength: user.strength,
-    charisma: user.charisma,
-    intelligence: user.intelligence,
-    streetCred: user.streetCred,
+    activeBuffs: user.activeBuffs ?? [],
+    travelingTo: user.travelingTo ?? null,
+    travelArrivesAt: user.travelArrivesAt ?? null,
+    strength: user.strength + activeBuffTotal(user, "strength"),
+    charisma: user.charisma + activeBuffTotal(user, "charisma"),
+    intelligence: user.intelligence + activeBuffTotal(user, "intelligence"),
+    streetCred: user.streetCred + activeBuffTotal(user, "streetCred"),
+    baseStrength: user.strength,
     district: user.district,
     job: user.job,
     rank: user.rank,

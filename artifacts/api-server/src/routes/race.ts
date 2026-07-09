@@ -34,7 +34,7 @@ const AI_NAMES = [
 ];
 
 // ── Energy costs ──────────────────────────────────────────────────────────────
-const ENERGY_COST: Record<string, number> = { "2player": 15, "4player": 25 };
+const NITRO_COST: Record<string, number> = { "2player": 1, "4player": 1 };
 
 // ── In-memory queues ──────────────────────────────────────────────────────────
 interface RaceQueueEntry {
@@ -92,24 +92,24 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
       res.status(400).json({ message: "Invalid mode" }); return;
     }
 
-    // Check already queued (before spending energy)
+    // Check already queued (before spending nitro)
     if (queue2p.has(req.userId!) || queue4p.has(req.userId!)) {
       res.status(400).json({ message: "Already in queue" }); return;
     }
 
-    const cost = ENERGY_COST[mode];
+    const cost = NITRO_COST[mode];
 
-    // Atomic energy deduction — prevents concurrent double-spend
+    // Atomic nitro deduction — prevents concurrent double-spend
     const user = await User.findOneAndUpdate(
-      { _id: req.userId, energy: { $gte: cost } },
-      { $inc: { energy: -cost } },
-      { new: true, select: "username level energy maxEnergy" },
+      { _id: req.userId, nitro: { $gte: cost } },
+      { $inc: { nitro: -cost } },
+      { new: true, select: "username level nitro maxNitro" },
     );
     if (!user) {
-      // Either user not found or insufficient energy — check which
+      // Either user not found or insufficient nitro — check which
       const exists = await User.exists({ _id: req.userId });
       if (!exists) { res.status(404).json({ message: "User not found" }); return; }
-      res.status(400).json({ message: `Not enough energy — need ${cost}` }); return;
+      res.status(400).json({ message: `Not enough Nitro — need ${cost}` }); return;
     }
 
     const q = mode === "2player" ? queue2p : queue4p;
@@ -145,8 +145,8 @@ router.post("/queue/leave", requireAuth, async (req: AuthRequest, res) => {
     if (!inQ) { res.status(400).json({ message: "Not in queue" }); return; }
     const mode = queue2p.has(req.userId!) ? "2player" : "4player";
     (mode === "2player" ? queue2p : queue4p).delete(req.userId!);
-    await User.updateOne({ _id: req.userId }, { $inc: { energy: ENERGY_COST[mode] } });
-    res.json({ message: "Left queue — energy refunded" });
+    await User.updateOne({ _id: req.userId }, { $inc: { nitro: NITRO_COST[mode] } });
+    res.json({ message: "Left queue — Nitro refunded" });
   } catch (err) {
     req.log.error({ err }, "race queue leave error");
     res.status(500).json({ message: "Internal server error" });
@@ -221,7 +221,7 @@ async function tryFillRace(mode: "2player" | "4player"): Promise<string | null> 
     players,
     status:    "active",
     trackSeed: Math.floor(Math.random() * 1_000_000),
-    energyCost: ENERGY_COST[mode],
+    energyCost: NITRO_COST[mode],
     startedAt:  new Date(),
     queueExpiry: new Date(Date.now() + 60_000),
     rewardsGranted: false,
@@ -351,7 +351,7 @@ setInterval(async () => {
         players:        [...humanPlayers, ...aiPlayers],
         status:         "active",
         trackSeed:      Math.floor(Math.random() * 1_000_000),
-        energyCost:     ENERGY_COST[mode],
+        energyCost:     NITRO_COST[mode],
         startedAt:      new Date(),
         queueExpiry:    new Date(Date.now() + 60_000),
         rewardsGranted: false,

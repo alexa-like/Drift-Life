@@ -17,7 +17,7 @@ export interface IItem extends Document {
   basePrice: number;
   quantity: number;
   equipped: boolean;
-  slot: "weapon" | "armor" | "clothing" | "vehicle" | null;
+  slot: "enhancement" | "armor" | "clothing" | "vehicle" | null;
   marketListed: boolean;
   marketPrice: number | null;
   marketListedAt: Date | null;
@@ -54,7 +54,7 @@ const ItemSchema = new Schema<IItem>(
     basePrice: { type: Number, default: 0 },
     quantity: { type: Number, default: 1, min: 0 },
     equipped: { type: Boolean, default: false },
-    slot: { type: String, enum: ["weapon", "armor", "clothing", "vehicle", null], default: null },
+    slot: { type: String, enum: ["enhancement", "armor", "clothing", "vehicle", null], default: null },
     marketListed: { type: Boolean, default: false },
     marketPrice: { type: Number, default: null },
     marketListedAt: { type: Date, default: null },

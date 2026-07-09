@@ -53,6 +53,49 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+const DISTRICTS = ["residential-north", "the-boulevard", "industrial-east", "tech-quarter"];
+const BASE_TRAVEL_MS = 5 * 60 * 1000; // 5 minutes base travel time
+
+// POST /api/user/travel — start traveling to a new district; vehicle reduces travel time
+router.post("/travel", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { destination } = req.body as { destination?: string };
+    if (!destination || !DISTRICTS.includes(destination)) {
+      return res.status(400).json({ message: `Invalid destination. Choose one of: ${DISTRICTS.join(", ")}` });
+    }
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    applyRegen(user);
+
+    if (user.travelingTo) {
+      return res.status(400).json({ message: `Already traveling to ${user.travelingTo}` });
+    }
+    if (user.district === destination) {
+      return res.status(400).json({ message: "You are already there" });
+    }
+
+    let reductionPct = 0;
+    if (user.equippedVehicle) {
+      const vehicle = await Item.findById(user.equippedVehicle).lean();
+      if (vehicle) reductionPct = vehicle.travelEnergyReduction || 0;
+    }
+    const travelMs = Math.round(BASE_TRAVEL_MS * (1 - reductionPct / 100));
+
+    user.travelingTo = destination;
+    user.travelArrivesAt = new Date(Date.now() + travelMs);
+    await user.save();
+
+    res.json({
+      message: `Traveling to ${destination} — arriving in ${Math.ceil(travelMs / 1000)}s`,
+      travelingTo: user.travelingTo,
+      travelArrivesAt: user.travelArrivesAt,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "travel error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // POST /api/user/change-password
 router.post("/change-password", requireAuth, async (req: AuthRequest, res) => {
   try {

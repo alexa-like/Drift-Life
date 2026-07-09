@@ -42,7 +42,6 @@ interface Props {
 export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }: Props) {
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [attacking, setAttacking] = useState(false);
 
   useEffect(() => {
     if (!targetId) return;
@@ -59,20 +58,6 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
   const fc = profile?.faction ? FACTION_COLOR[profile.faction] || "#64748b" : "#64748b";
   const xpPct = profile ? Math.min(100, Math.round((profile.xp / profile.xpToNext) * 100)) : 0;
   const isOwn = profile?.id === currentUser.id;
-
-  async function attackPlayer() {
-    if (!profile) return;
-    setAttacking(true);
-    try {
-      const r = await api.post<any>(`/combat/pvp/${profile.id}`);
-      addToast(r.narrative || (r.won ? "You won the fight!" : "You lost the fight."), r.won ? "success" : "error");
-      onClose();
-    } catch (e: any) {
-      addToast(e.message, "error");
-    } finally {
-      setAttacking(false);
-    }
-  }
 
   return (
     <div
@@ -201,21 +186,6 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                   ))}
                 </div>
 
-                {/* Actions */}
-                {!isOwn && (
-                  <div className="flex gap-2 flex-wrap">
-                    {currentUser.level >= 10 && (
-                      <button
-                        onClick={attackPlayer}
-                        disabled={attacking}
-                        className="px-3 py-1.5 font-mono text-xs rounded font-bold transition-all"
-                        style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}
-                      >
-                        {attacking ? "Attacking..." : "Attack"}
-                      </button>
-                    )}
-                  </div>
-                )}
                 {isOwn && (
                   <div className="font-mono text-xs text-center" style={{ color: "#475569" }}>
                     This is your profile

@@ -22,9 +22,9 @@ export const SKILL_CATALOG = {
     nodes: [
       { id: "iron_fist",        name: "Iron Fist",        effect: "Attack power +10%",             cost: 1, apex: false },
       { id: "thick_skin",       name: "Thick Skin",       effect: "Defense +10%",                  cost: 1, apex: false },
-      { id: "street_brawler",   name: "Street Brawler",   effect: "PvP win grants +50 bonus DC",  cost: 2, apex: false },
-      { id: "relentless",       name: "Relentless",       effect: "Daily PvP attack cap +5",       cost: 2, apex: false },
-      { id: "the_undisputed",   name: "The Undisputed",   effect: "5% one-hit KO chance in PvP",  cost: 3, apex: true  },
+      { id: "street_brawler",   name: "Street Brawler",   effect: "Arena win grants +50 bonus DC", cost: 2, apex: false },
+      { id: "relentless",       name: "Relentless",       effect: "Adrenaline regen +1 per 30 min", cost: 2, apex: false },
+      { id: "the_undisputed",   name: "The Undisputed",   effect: "5% one-hit KO chance in Arena", cost: 3, apex: true  },
     ],
   },
   ghost: {

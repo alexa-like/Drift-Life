@@ -16,6 +16,7 @@ export interface IUser extends Document {
   xp: number;
   xpToNext: number;
   prestige: number;
+  prestigeXpBoost: number;   // e.g. 10 means +10% XP
   skillPoints: number;
   unlockedSkills: string[];
   skillTree: string | null;
@@ -30,16 +31,25 @@ export interface IUser extends Document {
   bankBalance: number;
   merit: number;
   health: number;
-  maxHealth: number;
+  maxHealth: number;   // computed at runtime via computeMaxHp() — NOT a stored field, see virtual below
   energy: number;
   maxEnergy: number;
+  adrenaline: number;      // Tier 1.8 — fighting pool, costs 1 to queue for Arena
+  maxAdrenaline: number;
+  nitro: number;           // Tier 1.8 — racing pool, costs 1 to queue for a Race
+  maxNitro: number;
   nerve: number;     // legacy — kept for backward compat
   maxNerve: number;
+  activeBuffs: Array<{ buffType: string; value: number; expiresAt: Date }>;
+  travelingTo: string | null;      // destination district slug, null if not traveling
+  travelArrivesAt: Date | null;    // null if not traveling
   heat: number;      // Section 1 — rises with crime, decays passively
   stress: number;    // Section 1 — rises with losses/fails, decays via items
   mood: number;      // 0-100; 100=calm, feeds gym gain multiplier
   energyRegenAt: Date;
   nerveRegenAt: Date;
+  adrenalineRegenAt: Date;
+  nitroRegenAt: Date;
   heatDecayAt: Date;
   stressDecayAt: Date;
   strength: number;
@@ -92,6 +102,7 @@ export interface IUser extends Document {
   devMode: boolean;
   battlePassPremium: boolean;
   equippedWeapon: mongoose.Types.ObjectId | null;
+  equippedEnhancement: mongoose.Types.ObjectId | null;
   equippedArmor: mongoose.Types.ObjectId | null;
   equippedClothing: mongoose.Types.ObjectId | null;
   equippedVehicle: mongoose.Types.ObjectId | null;
@@ -169,6 +180,7 @@ const UserSchema = new Schema<IUser>(
     xp: { type: Number, default: 0 },
     xpToNext: { type: Number, default: 500 },
     prestige: { type: Number, default: 0 },
+    prestigeXpBoost: { type: Number, default: 0 },
     skillPoints: { type: Number, default: 0 },
     unlockedSkills: [{ type: String }],
     skillTree: { type: String, default: null },
@@ -183,16 +195,27 @@ const UserSchema = new Schema<IUser>(
     bankBalance: { type: Number, default: 0 },
     merit: { type: Number, default: 0 },
     health: { type: Number, default: 100 },
-    maxHealth: { type: Number, default: 100 },
     energy: { type: Number, default: 200 },
     maxEnergy: { type: Number, default: 200 },
+    adrenaline: { type: Number, default: 5 },
+    maxAdrenaline: { type: Number, default: 5 },
+    nitro: { type: Number, default: 5 },
+    maxNitro: { type: Number, default: 5 },
     nerve: { type: Number, default: 50 },
     maxNerve: { type: Number, default: 50 },
+    activeBuffs: {
+      type: [{ buffType: String, value: Number, expiresAt: Date }],
+      default: () => [],
+    },
+    travelingTo: { type: String, default: null },
+    travelArrivesAt: { type: Date, default: null },
     heat: { type: Number, default: 0, min: 0, max: 100 },
     stress: { type: Number, default: 0, min: 0, max: 100 },
     mood: { type: Number, default: 100, min: 0, max: 100 },
     energyRegenAt: { type: Date, default: Date.now },
     nerveRegenAt: { type: Date, default: Date.now },
+    adrenalineRegenAt: { type: Date, default: Date.now },
+    nitroRegenAt: { type: Date, default: Date.now },
     heatDecayAt: { type: Date, default: Date.now },
     stressDecayAt: { type: Date, default: Date.now },
     strength: { type: Number, default: 10 },
@@ -243,6 +266,7 @@ const UserSchema = new Schema<IUser>(
     devMode: { type: Boolean, default: false },
     battlePassPremium: { type: Boolean, default: false },
     equippedWeapon: { type: Schema.Types.ObjectId, ref: "Item", default: null },
+    equippedEnhancement: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedArmor: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedClothing: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedVehicle: { type: Schema.Types.ObjectId, ref: "Item", default: null },
@@ -378,6 +402,31 @@ export function applyRegen(user: IUser): void {
   // Mood: inversely tied to stress. Recompute lazily.
   user.mood = Math.max(0, 100 - user.stress);
 
+  // Adrenaline: +1 per 30 min (Arena queue fuel)
+  if (!user.adrenalineRegenAt) user.adrenalineRegenAt = new Date(now);
+  const adrenalineMinutes = (now - user.adrenalineRegenAt.getTime()) / 60000;
+  const adrenalineGain = Math.floor(adrenalineMinutes / 30);
+  if (adrenalineGain > 0 && user.adrenaline < user.maxAdrenaline) {
+    user.adrenaline = Math.min(user.maxAdrenaline, user.adrenaline + adrenalineGain);
+    user.adrenalineRegenAt = new Date(now);
+  }
+
+  // Nitro: +1 per 30 min (Race queue fuel)
+  if (!user.nitroRegenAt) user.nitroRegenAt = new Date(now);
+  const nitroMinutes = (now - user.nitroRegenAt.getTime()) / 60000;
+  const nitroGain = Math.floor(nitroMinutes / 30);
+  if (nitroGain > 0 && user.nitro < user.maxNitro) {
+    user.nitro = Math.min(user.maxNitro, user.nitro + nitroGain);
+    user.nitroRegenAt = new Date(now);
+  }
+
+  // Travel arrival auto-completion
+  if (user.travelingTo && user.travelArrivesAt && user.travelArrivesAt.getTime() <= now) {
+    user.district = user.travelingTo;
+    user.travelingTo = null;
+    user.travelArrivesAt = null;
+  }
+
   // Wanted level decay (1 star per 30 min inactivity)
   if (user.wantedLevel > 0) {
     const wantedMinutes = (now - user.wantedDecayAt.getTime()) / 60000;
@@ -389,13 +438,17 @@ export function applyRegen(user: IUser): void {
   }
 }
 
+/** maxHealth is computed at runtime — never stored — so it always reflects current level/prestige. */
+export function computeMaxHp(level: number, prestige: number = 0): number {
+  return Math.floor(100 + level * 5 + prestige * 25);
+}
+
 export function levelUp(user: IUser): boolean {
   let leveled = false;
   while (user.xp >= user.xpToNext) {
     user.xp -= user.xpToNext;
     user.level += 1;
     user.xpToNext = xpForLevel(user.level);
-    user.maxHealth = Math.floor(100 + user.level * 5);
     user.maxEnergy = derivedMaxEnergy(user.level);
     user.maxNerve = Math.min(100, Math.floor(50 + user.level * 0.3));
     if (user.level >= 10 && (user.level - 10) % 5 === 0) user.skillPoints += 1;
@@ -439,6 +492,10 @@ export function moodMultiplier(user: IUser): number {
 export const WALLET_CAP = 100_000_000;
 export const BANK_CAP   = 1_000_000_000;
 
+UserSchema.virtual("maxHealth").get(function (this: IUser) {
+  return computeMaxHp(this.level, this.prestige);
+});
+
 UserSchema.pre("save", function () {
   if (this.dc > WALLET_CAP) this.dc = WALLET_CAP;
   if (this.bankBalance > BANK_CAP) this.bankBalance = BANK_CAP;
@@ -449,7 +506,23 @@ UserSchema.pre("save", function () {
   if (this.stress > 100) this.stress = 100;
   if (this.mood < 0) this.mood = 0;
   if (this.mood > 100) this.mood = 100;
+  // Prune expired timed buffs
+  if (this.activeBuffs && this.activeBuffs.length) {
+    const now = new Date();
+    this.activeBuffs = this.activeBuffs.filter(b => b.expiresAt > now);
+  }
+  // Clamp health to the current (computed) max — matters after a level-down/prestige reset
+  const maxHp = computeMaxHp(this.level, this.prestige);
+  if (this.health > maxHp) this.health = maxHp;
 });
+
+/** Sum of a given buffType's value across all currently-active (non-expired) buffs. */
+export function activeBuffTotal(user: IUser, buffType: string): number {
+  const now = new Date();
+  return (user.activeBuffs || [])
+    .filter(b => b.buffType === buffType && b.expiresAt > now)
+    .reduce((sum, b) => sum + b.value, 0);
+}
 
 export function generateTag(username: string): string {
   const num = Math.floor(1000 + Math.random() * 8999);

@@ -210,6 +210,12 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
         <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
           <EnergyDisplay energy={user.energy} maxEnergy={user.maxEnergy} energyRegenAt={(user as any).energyRegenAt} />
         </span>
+        <span className="font-mono flex-shrink-0" style={{ color: "#ff2d55", fontWeight: "bold", fontSize: 11 }}>
+          🥊{user.adrenaline}/{user.maxAdrenaline}
+        </span>
+        <span className="font-mono flex-shrink-0" style={{ color: "#00d4ff", fontWeight: "bold", fontSize: 11 }}>
+          🏁{user.nitro}/{user.maxNitro}
+        </span>
         {(user.keys ?? 0) > 0 && (
           <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
             🗝️ <span style={{ color: "#f59e0b", fontWeight: "bold", fontSize: 11 }}>{user.keys}</span>

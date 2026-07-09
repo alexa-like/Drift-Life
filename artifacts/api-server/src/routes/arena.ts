@@ -62,7 +62,7 @@ interface LoadoutSnapshot {
 }
 
 const combatQueue = new Map<string, QueueEntry>();
-const ENERGY_COST = 10;
+const ADRENALINE_COST = 1;
 
 // ── Score formula ─────────────────────────────────────────────────────────────
 function skillScore(level: number, wins: number, totalFights: number, gearTier: number): number {
@@ -161,7 +161,7 @@ async function generateAILoadout(playerLevel: number): Promise<LoadoutSnapshot> 
 // ── POST /api/arena/queue/join ────────────────────────────────────────────────
 router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await User.findById(req.userId).select("username level wins totalFights energy maxEnergy combatWinStreak combatAccuracyBonus");
+    const user = await User.findById(req.userId).select("username level wins totalFights adrenaline maxAdrenaline combatWinStreak combatAccuracyBonus");
     if (!user) { res.status(404).json({ message: "User not found" }); return; }
 
     if (combatQueue.has(req.userId!)) {
@@ -176,12 +176,12 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    // Deduct energy
-    if (user.energy < ENERGY_COST) {
-      res.status(400).json({ message: `Not enough energy — need ${ENERGY_COST}` });
+    // Deduct adrenaline
+    if (user.adrenaline < ADRENALINE_COST) {
+      res.status(400).json({ message: `Not enough Adrenaline — need ${ADRENALINE_COST}` });
       return;
     }
-    user.energy -= ENERGY_COST;
+    user.adrenaline -= ADRENALINE_COST;
     await user.save();
 
     const loadout = await resolveLoadoutStats(req.userId!, user.level, (user as any).combatAccuracyBonus ?? 0);
@@ -222,7 +222,7 @@ router.post("/queue/leave", requireAuth, async (req: AuthRequest, res) => {
     // Refund energy — capped at maxEnergy using aggregation pipeline update
     await User.updateOne(
       { _id: req.userId },
-      [{ $set: { energy: { $min: ["$maxEnergy", { $add: ["$energy", ENERGY_COST] }] } } }],
+      [{ $set: { adrenaline: { $min: ["$maxAdrenaline", { $add: ["$adrenaline", ADRENALINE_COST] }] } } }],
     );
     res.json({ message: "Left queue — energy refunded" });
   } catch (err) {
@@ -270,7 +270,7 @@ async function tryMatch(challenger: QueueEntry): Promise<string | null> {
     status:       "active",
     currentTurn:  1,
     currentTurnDeadline: new Date(Date.now() + 15_000),
-    energyCost:   ENERGY_COST,
+    adrenalineCost: ADRENALINE_COST,
     rewardsGranted: false,
   });
 
@@ -295,7 +295,7 @@ async function fillWithAI(entry: QueueEntry): Promise<string> {
     status:       "active",
     currentTurn:  1,
     currentTurnDeadline: new Date(Date.now() + 15_000),
-    energyCost:   ENERGY_COST,
+    adrenalineCost: ADRENALINE_COST,
     rewardsGranted: false,
   });
 
@@ -318,7 +318,7 @@ async function matchPair(a: QueueEntry, b: QueueEntry): Promise<string> {
     status:          "active",
     currentTurn:     1,
     currentTurnDeadline: new Date(Date.now() + 15_000),
-    energyCost:      ENERGY_COST,
+    adrenalineCost:  ADRENALINE_COST,
     rewardsGranted:  false,
   });
   return match.matchId;

@@ -338,10 +338,10 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
         {/* Quick actions */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { id: "crimes", label: "Commit Crime", variant: "danger"  as const },
-            { id: "jobs",   label: "Work a Job",   variant: "success" as const },
-            { id: "combat", label: "Attack",        variant: "warning" as const },
-            { id: "market", label: "Market",        variant: "primary" as const },
+            { id: "crimes",       label: "Commit Crime", variant: "danger"  as const },
+            { id: "jobs",         label: "Work a Job",   variant: "success" as const },
+            { id: "arena-combat", label: "Arena",        variant: "warning" as const },
+            { id: "market",       label: "Market",       variant: "primary" as const },
           ].map(a => (
             <CyberButton key={a.id} variant={a.variant} size="sm" className="w-full uppercase" onClick={() => onNav(a.id)}>
               {a.label}
