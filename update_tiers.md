@@ -1830,4 +1830,440 @@ Service Token is sold at District Pharma for 5,000 DC regardless of car tier.
 
 ---
 
-*End of update_tiers.md — All 8 tiers fully specified with no gaps. Build tier by tier. Complete and verify each tier before starting the next.*
+---
+
+## TIER 9 — DISTRICTS, PLAYER STATUS & NAVBAR GATING
+
+**Goal: Make the city feel real. Traveling to a district has consequences, rewards, and risks. Player state drives what the NavBar shows and what actions are allowed. Hospitalization and jail are meaningful setbacks, not just flavor.**
+
+---
+
+### 9.1 — Player Status System
+
+Every player has a `status` field that drives NavBar visibility and action gating across the entire game. This is the single source of truth for "what can this player do right now."
+
+**Add to User model:**
+```typescript
+status: {
+  type: String,
+  enum: ["normal", "traveling", "abroad", "hospitalized", "jailed"],
+  default: "normal"
+}
+// currentLocation and travelingTo/travelArrivesAt already added in Tier 1.9
+hospitalizedUntil:  { type: Date, default: null }   // null = not hospitalized
+jailedUntil:        { type: Date, default: null }    // null = not jailed
+lastMuggedAt:       { type: Date, default: null }    // cooldown to prevent spam mugging
+```
+
+**Status resolution order (auto-check on every authenticated API request):**
+```typescript
+// Run in auth middleware AFTER verifying JWT, BEFORE route handler
+const now = new Date();
+let statusChanged = false;
+
+// Auto-release hospital
+if (user.status === "hospitalized" && user.hospitalizedUntil && user.hospitalizedUntil <= now) {
+  user.status = "normal";
+  user.hospitalizedUntil = null;
+  statusChanged = true;
+}
+
+// Auto-release jail
+if (user.status === "jailed" && user.jailedUntil && user.jailedUntil <= now) {
+  user.status = "normal";
+  user.jailedUntil = null;
+  statusChanged = true;
+}
+
+// Auto-arrive from travel
+if (user.status === "traveling" && user.travelArrivesAt && user.travelArrivesAt <= now) {
+  user.status = "abroad";
+  user.currentLocation = user.travelingTo;
+  user.travelingTo = null;
+  user.travelArrivesAt = null;
+  statusChanged = true;
+}
+
+if (statusChanged) await user.save();
+```
+
+Every `/me` response includes `status`, `currentLocation`, `travelArrivesAt`, `hospitalizedUntil`, `jailedUntil` so the frontend always has fresh state.
+
+---
+
+### 9.2 — NavBar Visibility Matrix
+
+The frontend reads `user.status` from the `/me` response and shows or hides NavBar entries accordingly. This is purely a frontend concern — the backend also enforces it with status checks on every endpoint.
+
+| NavBar Item | normal | traveling ✈️ | abroad 🌍 | hospitalized 🏥 | jailed 🔒 |
+|---|---|---|---|---|---|
+| **City** (home district hub) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Gym** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Crimes** | ✅ | ❌ | ✅ (district crimes) | ❌ | ❌ |
+| **Jobs** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Arena** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Racing** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Market** | ✅ | 👁️ view/buy only | ✅ (district shop) | 👁️ view/buy only | ❌ |
+| **Auction** | ✅ | 👁️ view/bid only | 👁️ view/bid only | 👁️ view/bid only | ❌ |
+| **Royale** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Faction** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Leaderboard** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Chat** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Messages** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Profile** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **District Hub** | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Travel** | ✅ | ❌ (in flight) | ✅ (return home) | ❌ | ❌ |
+
+**Implementation — frontend NavBar component:**
+Read `user.status` from auth context. For each nav item, apply the matrix. Do not render hidden items at all (no greyed-out entries) — the player should not see what they can't use. Exception: show a small status banner at the top ("✈️ Traveling to The Docks — arrives in 4m 12s" / "🏥 Hospitalized — released in 18m" / "🔒 Jailed — released in 6m") so the player knows why their nav is limited and when it ends.
+
+**Implementation — backend middleware:**
+```typescript
+// Helper used in every protected route handler
+function requireStatus(user, ...allowedStatuses) {
+  if (!allowedStatuses.includes(user.status)) {
+    throw { status: 403, message: `Action unavailable while ${user.status}` };
+  }
+}
+
+// Example usage
+router.post("/crimes/commit", requireAuth, async (req, res) => {
+  requireStatus(req.user, "normal", "abroad");
+  // ...
+});
+
+router.post("/gym/train", requireAuth, async (req, res) => {
+  requireStatus(req.user, "normal");
+  // ...
+});
+```
+
+---
+
+### 9.3 — Districts
+
+DriftLife is a single cyberpunk city divided into **7 districts**. Downtown is the home base — every player starts there and returns there after travel. The other 6 districts can be visited; each has a danger level, a minimum player level to enter, unique shops, and district-specific crime tables.
+
+| # | District | Slug | Min Level | Danger | Flavor |
+|---|---|---|---|---|---|
+| 1 | **Downtown** | `downtown` | 1 | None (home) | The central hub. Neon towers, all basic services, always safe. |
+| 2 | **Neon Strip** | `neon_strip` | 5 | Low | Entertainment district. Clubs, gambling dens, underground pharmacy. |
+| 3 | **The Docks** | `docks` | 10 | Medium | Smugglers and import brokers. Things fall off ships here. |
+| 4 | **The Slums** | `slums` | 15 | High | Poverty and desperation. Cheap goods, street crime, gang territory. |
+| 5 | **Corporate Zone** | `corp_zone` | 20 | Medium | Glass towers and private security. Expensive, clean, dangerous in a different way. |
+| 6 | **Industrial Sector** | `industrial` | 25 | High | Factories and workshops. Black market parts, dirty jobs. |
+| 7 | **The Outskirts** | `outskirts` | 35 | Very High | City's edge. Lawless. Best loot, worst odds. |
+
+**Danger level effects — mugging and hospitalization risk on arrival:**
+When a player arrives (transitions from `traveling` → `abroad`), a danger roll fires once:
+
+```typescript
+// Run when status flips to "abroad" in middleware
+const DISTRICT_DANGER = {
+  neon_strip:  { mugChance: 0.05, hospitalChance: 0.02, mugLossPct: [0.05, 0.10] },
+  docks:       { mugChance: 0.10, hospitalChance: 0.05, mugLossPct: [0.08, 0.15] },
+  slums:       { mugChance: 0.20, hospitalChance: 0.10, mugLossPct: [0.10, 0.20] },
+  corp_zone:   { mugChance: 0.08, hospitalChance: 0.06, mugLossPct: [0.10, 0.18] },
+  industrial:  { mugChance: 0.18, hospitalChance: 0.12, mugLossPct: [0.12, 0.22] },
+  outskirts:   { mugChance: 0.30, hospitalChance: 0.20, mugLossPct: [0.15, 0.30] },
+};
+
+// Mitigation: player's defenseBonus from equipped items reduces both chances
+// Every 10 points of defenseBonus = -5% from each chance, capped at -50% reduction
+
+// Roll mugging
+if (Math.random() < effectiveMugChance) {
+  const lossPct = mugLossPct[0] + Math.random() * (mugLossPct[1] - mugLossPct[0]);
+  const cashLost = Math.floor(user.cash * lossPct);
+  user.cash -= cashLost;
+  // Emit event: "You arrived in [District] and were mugged for $X,XXX DC"
+}
+
+// Roll hospitalization (independent of mugging)
+if (Math.random() < effectiveHospitalChance) {
+  const durationMin = { neon_strip: 5, docks: 10, slums: 15, corp_zone: 12, industrial: 20, outskirts: 30 }[district];
+  user.hospitalizedUntil = new Date(Date.now() + durationMin * 60 * 1000);
+  user.status = "hospitalized";  // Override the "abroad" we just set
+  user.currentLocation = district;  // Still arrived, just in hospital there
+  // Emit event: "You were jumped on arrival in [District] and hospitalized for X minutes"
+}
+```
+
+**Mugging cooldown:** `lastMuggedAt` — if mugged in the last 24h in any district, subsequent mugging chances are halved. Encourages players to plan trips and not spam-travel.
+
+**Level lock:** If player is under the minimum level for a district, the travel endpoint returns 403: "You don't have the rep to survive [District] yet. Come back at level X."
+
+---
+
+### 9.4 — District Shops (What You Can Do While Abroad)
+
+Each district has its own shop with items not available Downtown. This is the main reason to travel — exclusive goods. District shops restock every 8 hours (independent of Downtown NPC stores which restock every 6 hours).
+
+**Neon Strip — Underground Pharmacy**
+The strip runs 24/7. Doc Reyes sells from a booth behind the neon signs.
+
+| Item | Price | Effect |
+|---|---|---|
+| Synthetic Adrenaline | 1,200 DC | +3 Adrenaline instantly |
+| Black Market Stim | 2,500 DC | +5 Adrenaline (full refill) |
+| Designer Nitro | 1,200 DC | +3 Nitro instantly |
+| Euphoria Pill | 800 DC | +15% XP gain for next crime |
+| Inhibitor Patch | 600 DC | Prevents hospitalization from next danger roll (1 use, on-player) |
+
+**The Docks — Smuggler's Manifest (Sal the Broker)**
+Rotating stock — not all items available every restock. Each restock picks 4 items from the pool below:
+
+| Item | Base Price | Rarity | Notes |
+|---|---|---|---|
+| Dockside Pistol | 3,000 DC | Uncommon | Functional arena weapon (requires arena loadout to use) |
+| Cargo Armor Plates | 4,500 DC | Uncommon | Arena body armor |
+| Contraband Stim | 1,800 DC | Common | +3 Adrenaline |
+| Imported Nitro Can | 1,800 DC | Common | +3 Nitro |
+| Grey Market Parts | 2,000 DC | Uncommon | Car part for Garage repair |
+| Dock Pass | 500 DC | Common | One-time item — reduces travel time to Docks by 80% on next trip |
+
+**The Slums — Scrap Market (Reya's Stall)**
+Cheap, low-quality. Volume goods.
+
+| Item | Price | Effect |
+|---|---|---|
+| Street Stim | 400 DC | +1 Adrenaline |
+| Scrap Nitro | 400 DC | +1 Nitro |
+| Junkyard Part | 800 DC | Car part (low quality — restores 5% car condition only) |
+| Dirty Energy Drink | 300 DC | +2 Energy (has 10% chance of hospitalizing for 3 min — labeled with warning) |
+| Throwaway Phone | 1,000 DC | Untraceable — next crime failure has 30% less jail time |
+
+**Corporate Zone — Apex Imports (Miriam Chen, Corp Buyer)**
+Expensive. Premium items. Security checks — cannot access if carrying contraband (none flagged currently, but criminal record affects price: +5% per past crime this week, up to +25%).
+
+| Item | Price | Effect |
+|---|---|---|
+| Apex Med Suite | 6,000 DC | Instantly leave hospital (full early release, DC-based) |
+| Executive Stim | 4,000 DC | +5 Adrenaline + +5% XP for next 2 arena matches |
+| Premium Nitro | 4,000 DC | +5 Nitro + +5% XP for next 2 races |
+| Security Implant | 8,000 DC | Permanent −10% mug chance when equipped (uses enhancement slot) |
+| Corp Data Chip | 3,000 DC | Consumable — grants 1 Corp espionage job attempt (special high-reward job, abroad only) |
+
+**Industrial Sector — The Workshop (Vik Mends, Mechanic)**
+Parts and weapons. He doesn't ask questions.
+
+| Item | Price | Effect |
+|---|---|---|
+| Reinforced Barrel (Rare) | 12,000 DC | Arena weapon attachment (boosts damage) |
+| Titanium Frame (Rare) | 14,000 DC | Arena body armor reinforcement |
+| Industrial Fuel Cell | 2,500 DC | +5 Nitro + vehicle travel time −50% for next trip |
+| Combat Injector | 2,000 DC | +4 Adrenaline |
+| Salvage Kit | 3,000 DC | Repairs arena weapon/armor durability +20 points |
+
+**The Outskirts — Black Veil (Anonymous, shifts every restock)**
+The keeper changes. Payment in DC, no receipts, no names.
+
+| Item | Price | Rarity | Notes |
+|---|---|---|---|
+| Ghost Pistol (Rare) | 18,000 DC | Rare | Top-tier arena pistol |
+| Exo Chest Fragment (Rare) | 20,000 DC | Rare | High-tier arena armor |
+| Overload Stim | 6,000 DC | Rare | +5 Adrenaline + stun immunity for first round of next match |
+| Outskirts Nitro | 5,000 DC | Rare | +5 Nitro + −1 min from next travel |
+| Void Key Shard ×5 | 8,000 DC | Rare | Bonus key shards — shortcut toward Master Royale |
+
+**ABSOLUTE RULE:** No Epic or Legendary items appear in ANY district shop. Rare items appear only in The Docks (rotation), Industrial, and Outskirts. Never in Neon Strip or Slums. Corp Zone Rare items are services/consumables only.
+
+---
+
+### 9.5 — District Crimes
+
+While abroad (`status === "abroad"`), the Crimes page shows **district crimes** instead of the home crime list. These are location-flavored variants with different risk/reward profiles scaled to the district danger level.
+
+| District | Crime Name | Energy Cost | DC Reward | Jail Chance | Min Level |
+|---|---|---|---|---|---|
+| Neon Strip | Pickpocket Tourist | 1 | 300–600 | 5% | 5 |
+| Neon Strip | Club Card Skim | 2 | 500–900 | 8% | 8 |
+| The Docks | Cargo Diversion | 2 | 600–1,100 | 10% | 10 |
+| The Docks | Broker Run | 3 | 900–1,600 | 12% | 12 |
+| The Slums | Street Hustle | 1 | 200–400 | 8% | 15 |
+| The Slums | Gang Collection | 3 | 800–1,400 | 18% | 18 |
+| Corporate Zone | Corp Espionage | 4 | 2,000–3,500 | 15% | 20 |
+| Corporate Zone | Insider Trade | 3 | 1,200–2,000 | 12% | 22 |
+| Industrial | Chop Shop Run | 3 | 1,000–1,800 | 20% | 25 |
+| Industrial | Arms Divert | 4 | 1,500–2,500 | 22% | 28 |
+| Outskirts | Territory Raid | 4 | 2,000–3,500 | 25% | 35 |
+| Outskirts | Syndicate Hit | 5 | 3,000–5,000 | 30% | 40 |
+
+**Jail while abroad:** If a player is jailed during a district crime, they are jailed in that district. `currentLocation` stays set to the district. They cannot travel home until jail time expires. This adds real stakes — a bad roll in the Outskirts jails you far from home.
+
+**District crimes use the same crime failure/success logic as home crimes.** The nerve/timing mechanic if present applies. The difference is just the crime table (name, cost, reward, jail chance) and the location requirement.
+
+---
+
+### 9.6 — Hospitalized State
+
+When hospitalized, `user.status = "hospitalized"` and `user.hospitalizedUntil` is set.
+
+**How you get hospitalized:**
+1. Danger roll on district arrival (see 9.3)
+2. Arena combat — if HP drops to 0 in an arena match, hospitalized for a duration based on damage taken
+3. Dirty Energy Drink (Slums item) — 10% chance
+
+**Hospital duration by source:**
+
+| Source | Duration |
+|---|---|
+| Neon Strip danger roll | 5–10 min |
+| Docks danger roll | 10–20 min |
+| Slums danger roll | 15–30 min |
+| Corp Zone danger roll | 12–25 min |
+| Industrial danger roll | 20–40 min |
+| Outskirts danger roll | 30–60 min |
+| Arena combat KO (low damage) | 5–15 min |
+| Arena combat KO (high damage) | 15–45 min |
+| Dirty Energy Drink | 3–5 min |
+
+**Early release options:**
+- **Apex Med Suite** (Corp Zone item) — instant release, no timer
+- **Pay DC to leave early** — costs `floor(minutesRemaining × 50)` DC. Button on Hospital page. Atomic — deducts DC and clears hospital status in single update.
+- **Revive by another player** — other players can visit your profile and spend 200 DC to reduce your hospital time by 50%. They get +10 XP for doing it. Max 2 revives per hospital stay.
+
+**What you can do while hospitalized:**
+- ✅ Chat
+- ✅ Messages
+- ✅ View profile (your own and others)
+- ✅ Leaderboard
+- ✅ Market — view listings and buy (delivery when you're out)
+- ✅ Auction — view and bid
+- ✅ Pay to leave early (Hospital page always accessible)
+- ❌ Everything else
+
+**Hospital page** (always visible in status banner → click it):
+Shows: "You were hospitalized in [District]. Released in X min Y sec." + two action buttons: "Pay [X DC] to Leave Now" and "Back to game" (which just dismisses the modal — they're still hospitalized).
+
+---
+
+### 9.7 — Jailed State
+
+When jailed, `user.status = "jailed"` and `user.jailedUntil` is set.
+
+**How you get jailed:**
+1. Crime failure (home or district crimes)
+2. Caught cheating in a race (anti-cheat system from Tier 5)
+
+**Jail duration:**
+- Home crimes: existing logic (based on crime tier)
+- District crimes: same formula, but multiplied by district danger factor
+  - Neon Strip: ×1.0 (same as home)
+  - Docks: ×1.2
+  - Slums: ×1.3
+  - Corp Zone: ×1.1 (corporate security is efficient — processes you fast)
+  - Industrial: ×1.4
+  - Outskirts: ×1.6
+
+**Early release options:**
+- **Pay bail:** costs `floor(minutesRemaining × 80)` DC. Button on Jail page. Atomic update.
+- **Bail by another player:** another player can pay your bail cost on your behalf (they pay DC from their wallet, you go free). Button on the jailed player's profile: "Post Bail (X DC)". Atomic.
+- **Throwaway Phone item** (Slums shop): reduces all subsequent jail durations by 30% for this crime session only — must be in inventory BEFORE crime is committed.
+
+**What you can do while jailed:**
+- ✅ Chat
+- ✅ Messages
+- ✅ View profile
+- ✅ Leaderboard
+- ✅ Pay bail (Jail page)
+- ❌ Everything else (including market — you're in a cell)
+
+**Jail page** (always visible in status banner → click it):
+Shows: "You are jailed in [District/Downtown]. Released in X min Y sec." + "Pay Bail [X DC]" button. No market access unlike hospital — you are in a cell, not a waiting room.
+
+---
+
+### 9.8 — Returning Home
+
+While abroad (`status === "abroad"`), the Travel page shows a single option: **"Return to Downtown"**. Travel time home uses the same vehicle-based formula (Section 1.9) but always routes to `downtown`.
+
+While traveling home, `status = "traveling"` again. NavBar restricts the same way. On arrival, status returns to `"normal"` and `currentLocation = "downtown"`.
+
+**Note:** If the player was hospitalized in a foreign district and pays to leave early (or waits it out), they are then `abroad` in that district — they still need to choose to travel home. Being released from hospital does not teleport them home.
+
+---
+
+### 9.9 — Status Banner (Frontend, Always Visible)
+
+A persistent banner appears at the top of the app (below the NavBar) whenever the player is NOT in `normal` status. It replaces the energy/adrenaline/nitro HUD for that slot but keeps the rest.
+
+**Traveling:**
+```
+✈️  Traveling to [District Name]  —  Arrives in 4m 32s  [Cancel] (costs nothing, returns home, adds same travel time back)
+```
+
+**Abroad:**
+```
+🌍  You are in [District Name]  —  [Return to Downtown]
+```
+
+**Hospitalized:**
+```
+🏥  Hospitalized in [District Name]  —  Released in 18m 05s  [Pay 900 DC to leave now]
+```
+
+**Jailed:**
+```
+🔒  Jailed in [District Name]  —  Released in 6m 42s  [Pay Bail — 536 DC]
+```
+
+The timer counts down in real time (JS interval, re-fetches status from `/me` every 30s to auto-advance state). When the timer hits 0, the banner refreshes automatically and NavBar re-expands.
+
+---
+
+### 9.10 — Travel Hub Page (Frontend)
+
+A dedicated **Travel page** replaces the old travel mechanic (if any existed). Accessible from NavBar when `status === "normal"` or `status === "abroad"`.
+
+**Layout:**
+- Hero: city skyline illustration with 7 district cards laid out like a map
+- Each card shows:
+  - District name + slug
+  - Danger rating (colored badge: Safe / Low / Medium / High / Very High)
+  - Min level requirement (greyed and locked if player is below it)
+  - Estimated travel time based on current equipped vehicle
+  - "TRAVEL" button (or "LOCKED — Level X Required")
+  - Brief flavor description of what's there (one sentence)
+- Below the card grid: player's current equipped vehicle name + "Travel Time Reduction: X%"
+
+**Abroad state — same page, different view:**
+When `status === "abroad"`, the Travel page shows the **Return Home** card only (one large card with the countdown estimate and a "Return to Downtown" button). District cards are hidden — cannot district-hop directly, must go home first.
+
+**District Hub (while abroad):**
+When `status === "abroad"`, a **District Hub** NavBar entry appears. This page shows:
+- District name, banner, and lore text (3–4 sentences of cyberpunk flavor)
+- The district shop with inventory and buy buttons
+- The district crime list (buttons to commit each crime)
+- A "Danger Level" reminder card showing current mug/hospital risk
+
+---
+
+### 9.11 — Implementation Checklist
+
+**Backend:**
+- [ ] Add `status`, `hospitalizedUntil`, `jailedUntil`, `lastMuggedAt` to User model
+- [ ] Auth middleware: auto-resolve status on every request (see 9.1 logic)
+- [ ] `POST /user/travel` — validate level, validate status is `normal` or `abroad`+`downtown`, set `traveling` state
+- [ ] `GET /district/:slug/shop` — return district shop inventory, enforce `status === "abroad"` + `currentLocation === slug`
+- [ ] `POST /district/:slug/shop/buy` — purchase item, enforce same location check
+- [ ] `GET /district/:slug/crimes` — return district crime table
+- [ ] `POST /district/:slug/crimes/commit` — commit crime, enforce location, handle jail/success
+- [ ] Danger roll fires in middleware when `traveling` → `abroad` transition occurs
+- [ ] `POST /hospital/leave` — pay DC, clear hospital status atomically
+- [ ] `POST /jail/bail` — pay DC bail, clear jail status atomically
+- [ ] `POST /player/:id/revive` — pay 200 DC, reduce target's hospital time by 50%
+- [ ] `POST /player/:id/bail` — pay target's bail DC from own wallet, clear their jail
+
+**Frontend:**
+- [ ] Status banner component (always rendered, content switches by status)
+- [ ] NavBar visibility logic reads `user.status` from auth context
+- [ ] Travel Hub page with district cards
+- [ ] District Hub page (renders when `status === "abroad"`)
+- [ ] Hospital page (accessible via banner)
+- [ ] Jail page (accessible via banner)
+- [ ] Real-time countdown timer component (reusable — used in banner and both status pages)
+
+---
+
+*End of update_tiers.md — All 9 tiers fully specified with no gaps. Build tier by tier. Complete and verify each tier before starting the next.*
