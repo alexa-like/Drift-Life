@@ -140,6 +140,7 @@ router.get("/district/:districtId", requireAuth, async (req: AuthRequest, res) =
       title: m.senderTitle,
       chatFrame: (m as any).senderChatFrame || null,
       level: (m as any).senderLevel || 1,
+      pinnedBadges: (m as any).senderPinnedBadges ?? [],
       content: m.content,
       at: m.createdAt,
       districtId: m.districtId,
@@ -166,7 +167,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned district equippedChatFrame level subscriptionTier subscriptionExpiresAt");
+      .select("username faction equippedTitle mutedUntil banned district equippedChatFrame level subscriptionTier subscriptionExpiresAt pinnedBadges");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
@@ -175,6 +176,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
 
     const activeTierDistrict = getActiveTier(user as any);
     const dId = String(districtId);
+    const districtBadges: string[] = (user as any).pinnedBadges ?? [];
     const message = await ChatMessage.create({
       channel: "district",
       districtId: dId,
@@ -185,6 +187,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
       senderTitle: user.equippedTitle,
       senderChatFrame: (user as any).equippedChatFrame || null,
       senderLevel: user.level,
+      senderPinnedBadges: districtBadges,
       content,
     }) as any;
 
@@ -199,6 +202,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
         chatFrame: (user as any).equippedChatFrame || null,
         level: user.level,
         subscriptionTier: activeTierDistrict ? (user as any).subscriptionTier : null,
+        pinnedBadges: districtBadges,
         content,
         at: message.createdAt,
         districtId: dId,
@@ -236,6 +240,7 @@ router.get("/faction", requireAuth, async (req: AuthRequest, res) => {
       title: m.senderTitle,
       chatFrame: (m as any).senderChatFrame || null,
       level: (m as any).senderLevel || 1,
+      pinnedBadges: (m as any).senderPinnedBadges ?? [],
       content: m.content,
       at: m.createdAt,
     })));
@@ -260,7 +265,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(`faction:${String(req.userId)}`, now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level subscriptionTier subscriptionExpiresAt");
+      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level subscriptionTier subscriptionExpiresAt pinnedBadges");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (!user.faction) {
@@ -272,6 +277,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
 
     const activeTierFaction = getActiveTier(user as any);
     const channel = `faction:${user.faction}` as `faction:${string}`;
+    const factionBadges: string[] = (user as any).pinnedBadges ?? [];
     const message = await ChatMessage.create({
       channel,
       districtId: null,
@@ -282,6 +288,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
       senderTitle: user.equippedTitle,
       senderChatFrame: (user as any).equippedChatFrame || null,
       senderLevel: user.level,
+      senderPinnedBadges: factionBadges,
       content,
     });
 
@@ -296,6 +303,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
         chatFrame: (user as any).equippedChatFrame || null,
         level: user.level,
         subscriptionTier: activeTierFaction ? (user as any).subscriptionTier : null,
+        pinnedBadges: factionBadges,
         content,
         at: message.createdAt,
       });

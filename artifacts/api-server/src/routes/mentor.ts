@@ -102,23 +102,25 @@ router.post("/request", requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: "You already have a mentor." });
     }
 
-    // Find an available mentor (registered, has room for more mentees)
-    const mentor = await User.findOne({
-      isMentor: true,
-      _id: { $ne: user._id },
-      $expr: { $lt: [{ $size: { $ifNull: ["$menteeIds", []] } }, MAX_MENTEES] },
-    }).sort({ level: -1 }).select("_id username menteeIds");
+    // Atomically find and claim a slot in one mentor's menteeIds array.
+    // The $push + $size $lt condition prevents overfilling beyond MAX_MENTEES.
+    const mentor = await User.findOneAndUpdate(
+      {
+        isMentor: true,
+        _id: { $ne: user._id },
+        $expr: { $lt: [{ $size: { $ifNull: ["$menteeIds", []] } }, MAX_MENTEES] },
+      },
+      { $push: { menteeIds: user._id } },
+      { new: true, sort: { level: -1 }, select: "_id username" },
+    );
 
     if (!mentor) {
       return res.status(404).json({ message: "No available mentors at the moment. Check back later!" });
     }
 
-    // Link the relationship
+    // Link mentee → mentor (separate doc, acceptable two-phase write)
     (user as any).mentorId = mentor._id;
-    if (!(mentor as any).menteeIds) (mentor as any).menteeIds = [];
-    (mentor as any).menteeIds.push(user._id);
-
-    await Promise.all([user.save(), mentor.save()]);
+    await user.save();
 
     // Notify mentor
     Notification.create({
