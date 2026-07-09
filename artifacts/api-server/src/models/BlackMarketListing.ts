@@ -11,8 +11,7 @@ export interface IBlackMarketListing extends Document {
   charismaBonus: number;
   intelligenceBonus: number;
   streetCredBonus: number;
-  defenseBonus: number;
-  travelEnergyReduction: number;
+  travelTimeReduction: number;
   effect: string | null;
   description: string;
   basePrice: number;
@@ -38,8 +37,7 @@ const BlackMarketListingSchema = new Schema<IBlackMarketListing>(
     charismaBonus:         { type: Number, default: 0 },
     intelligenceBonus:     { type: Number, default: 0 },
     streetCredBonus:       { type: Number, default: 0 },
-    defenseBonus:          { type: Number, default: 0 },
-    travelEnergyReduction: { type: Number, default: 0 },
+    travelTimeReduction:   { type: Number, default: 0 },
     effect:                { type: String, default: null },
     description:           { type: String, default: "" },
     basePrice:             { type: Number, default: 0 },

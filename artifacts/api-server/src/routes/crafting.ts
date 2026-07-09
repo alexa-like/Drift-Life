@@ -66,7 +66,7 @@ export const RECIPES: CraftingRecipe[] = [
     id: "tactical_vest",
     name: "Forge Tactical Vest",
     outputName: "Tactical Vest",
-    outputType: "armor",
+    outputType: "clothing",
     outputQuantity: 1,
     durationMinutes: 60,
     craftingXpRequired: 500,
@@ -75,7 +75,7 @@ export const RECIPES: CraftingRecipe[] = [
       { name: "Fabric", quantity: 3, type: "material" },
     ],
     dcCost: 2_500,
-    description: "Solid protection. Adds +15 defense.",
+    description: "Solid protection. Adds +8 charisma.",
   },
   {
     id: "street_blade",
@@ -96,7 +96,7 @@ export const RECIPES: CraftingRecipe[] = [
     id: "nano_suit",
     name: "Construct Nano Suit",
     outputName: "Nano Suit",
-    outputType: "armor",
+    outputType: "clothing",
     outputQuantity: 1,
     durationMinutes: 480,
     craftingXpRequired: 5000,
@@ -106,7 +106,7 @@ export const RECIPES: CraftingRecipe[] = [
       { name: "Electronics", quantity: 5, type: "material" },
     ],
     dcCost: 500_000,
-    description: "Legendary adaptive armor. Maximum protection.",
+    description: "Legendary adaptive suit. Projects high status.",
   },
 ];
 
@@ -238,9 +238,9 @@ router.post("/:id/collect", requireAuth, async (req: AuthRequest, res) => {
     await job.save();
 
     const ITEM_STATS: Record<string, Record<string, number>> = {
-      "Tactical Vest": { defenseBonus: 15 },
+      "Tactical Vest": { charismaBonus: 8 },
       "Street Blade": { strengthBonus: 12 },
-      "Nano Suit": { defenseBonus: 50 },
+      "Nano Suit": { charismaBonus: 15 },
       "Energy Drink": {},
       "Repair Kit": {},
       "First Aid Kit": {},

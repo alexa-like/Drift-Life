@@ -252,7 +252,6 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
                             {item.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR+{item.strengthBonus}</span>}
                             {item.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA+{item.charismaBonus}</span>}
                             {item.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT+{item.intelligenceBonus}</span>}
-                            {item.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF+{item.defenseBonus}</span>}
                             {item.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP+{item.streetCredBonus}</span>}
                             {item.effect && <span style={{ color: "#a855f7" }}>{item.effect}</span>}
                             {(item.type === "consumable" || item.type === "material") && item.quantity > 1 && <span style={{ color: "#64748b" }}>×{item.quantity}</span>}

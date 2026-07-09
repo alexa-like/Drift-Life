@@ -138,7 +138,8 @@ router.post("/:gymId/train", requireAuth, async (req: AuthRequest, res) => {
 
     const gymMult = gym.multipliers[stat];
     const moodMult = moodMultiplier(gated);
-    const currentStat = (gated as any)[stat] as number;
+    const effectiveStats = (gated as any).getEffectiveStats();
+    const currentStat = (effectiveStats as any)[stat] as number;
     const rawGain = computeGain(gym.energyCostPerTrain, gymMult, moodMult, currentStat);
     const statGain = Math.max(0.01, rawGain);
 

@@ -82,7 +82,6 @@ async function grantDailyItem(userId: string, rarity: "common" | "uncommon" | "r
         charismaBonus: 0,
         intelligenceBonus: 0,
         streetCredBonus: 0,
-        defenseBonus: 0,
         basePrice: 0,
       },
     },

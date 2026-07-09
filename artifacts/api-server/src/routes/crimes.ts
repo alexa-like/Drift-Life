@@ -427,7 +427,8 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
 
     // Success formula (Section 2):
     // success_chance = base_chance[tier] + (mastery_score*0.4) + (relevant_stat/10) - (stress*0.1)
-    const statValue = (gated as any)[run.relevantStat] ?? 0;
+    const effectiveStats = (gated as any).getEffectiveStats();
+    const statValue = (effectiveStats as any)[run.relevantStat] ?? 0;
     const stressPen = stressPenalty(gated);
     const rawSuccess = run.baseSuccess
       + (currentMastery * 0.004)   // mastery up to +0.4 at 100

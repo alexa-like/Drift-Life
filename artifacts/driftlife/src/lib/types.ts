@@ -188,20 +188,19 @@ export interface District {
 export interface Item {
   id: string;
   name: string;
-  type: "weapon" | "armor" | "clothing" | "vehicle" | "consumable" | "material" | "badge" | "card" | "misc";
+  type: "weapon" | "clothing" | "vehicle" | "consumable" | "material" | "badge" | "card" | "misc";
   rarity: "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythic" | "event";
   strengthBonus: number;
   charismaBonus: number;
   intelligenceBonus: number;
   streetCredBonus: number;
-  defenseBonus: number;
-  travelEnergyReduction: number;
+  travelTimeReduction: number;
   effect: string | null;
   description: string;
   basePrice: number;
   quantity: number;
   equipped: boolean;
-  slot: "weapon" | "armor" | "clothing" | "vehicle" | null;
+  slot: "enhancement" | "clothing" | "vehicle" | null;
   marketListed: boolean;
   imageUrl?: string | null;
 }

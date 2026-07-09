@@ -107,7 +107,6 @@ export interface IUser extends Document {
   battlePassPremium: boolean;
   equippedWeapon: mongoose.Types.ObjectId | null;
   equippedEnhancement: mongoose.Types.ObjectId | null;
-  equippedArmor: mongoose.Types.ObjectId | null;
   equippedClothing: mongoose.Types.ObjectId | null;
   equippedVehicle: mongoose.Types.ObjectId | null;
   equippedTitle: string | null;
@@ -182,6 +181,14 @@ export interface IUser extends Document {
   revivesReceived: number;
   createdAt: Date;
   updatedAt: Date;
+  getEffectiveStats(): EffectiveStats;
+}
+
+export interface EffectiveStats {
+  strength: number;
+  charisma: number;
+  intelligence: number;
+  streetCred: number;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -289,7 +296,6 @@ const UserSchema = new Schema<IUser>(
     battlePassPremium: { type: Boolean, default: false },
     equippedWeapon: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedEnhancement: { type: Schema.Types.ObjectId, ref: "Item", default: null },
-    equippedArmor: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedClothing: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedVehicle: { type: Schema.Types.ObjectId, ref: "Item", default: null },
     equippedTitle: { type: String, default: "New in Town" },
@@ -384,6 +390,39 @@ const UserSchema = new Schema<IUser>(
   },
   { timestamps: true }
 );
+
+UserSchema.methods.getEffectiveStats = function(this: IUser): EffectiveStats {
+  const stats: EffectiveStats = {
+    strength: this.strength,
+    charisma: this.charisma,
+    intelligence: this.intelligence,
+    streetCred: this.streetCred,
+  };
+
+  const now = new Date();
+  if (this.activeBuffs && Array.isArray(this.activeBuffs)) {
+    for (const buff of this.activeBuffs) {
+      if (buff.expiresAt > now) {
+        if (buff.buffType === "all_stats") {
+          stats.strength += buff.value;
+          stats.charisma += buff.value;
+          stats.intelligence += buff.value;
+          stats.streetCred += buff.value;
+        } else if (buff.buffType === "strength") {
+          stats.strength += buff.value;
+        } else if (buff.buffType === "charisma") {
+          stats.charisma += buff.value;
+        } else if (buff.buffType === "intelligence") {
+          stats.intelligence += buff.value;
+        } else if (buff.buffType === "streetCred") {
+          stats.streetCred += buff.value;
+        }
+      }
+    }
+  }
+
+  return stats;
+};
 
 export function xpForLevel(level: number): number {
   if (level <= 10) return Math.round(500 + (level - 1) * (1500 / 9));

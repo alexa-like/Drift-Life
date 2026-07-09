@@ -280,7 +280,7 @@ export async function seedRoyalePools(): Promise<void> {
     { name: "Small Medkit", itemRef: "small_medkit", tier: "common", dropWeight: 40, itemType: "consumable", royaleCategory: "consumables", spinType: "dc_spin" },
     { name: "Smoke Grenade", itemRef: "smoke_grenade", tier: "common", dropWeight: 40, itemType: "consumable", royaleCategory: "consumables", spinType: "dc_spin" },
     { name: "Frag Grenade", itemRef: "frag_grenade", tier: "uncommon", dropWeight: 25, itemType: "consumable", royaleCategory: "consumables", spinType: "dc_spin" },
-    { name: "Adrenaline Shot", itemRef: "adrenaline_shot", tier: "uncommon", dropWeight: 25, itemType: "consumable", royaleCategory: "consumables", spinType: "dc_spin" },
+    { name: "Stim Shot", itemRef: "stim_shot", tier: "uncommon", dropWeight: 25, itemType: "consumable", royaleCategory: "consumables", spinType: "dc_spin" },
     { name: "Stimpack", itemRef: "stimpack", tier: "rare", dropWeight: 8, itemType: "consumable", royaleCategory: "consumables", spinType: "dc_spin" },
     { name: "Large Medkit", itemRef: "large_medkit", tier: "rare", dropWeight: 30, itemType: "consumable", royaleCategory: "consumables", spinType: "master_royale" },
     { name: "Mega Medkit", itemRef: "mega_medkit", tier: "epic", dropWeight: 15, itemType: "consumable", royaleCategory: "consumables", spinType: "master_royale" },

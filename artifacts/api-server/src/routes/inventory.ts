@@ -18,8 +18,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       charismaBonus: i.charismaBonus,
       intelligenceBonus: i.intelligenceBonus,
       streetCredBonus: i.streetCredBonus,
-      defenseBonus: i.defenseBonus,
-      travelEnergyReduction: i.travelEnergyReduction,
+      travelTimeReduction: i.travelTimeReduction,
       effect: i.effect,
       description: i.description,
       basePrice: i.basePrice,
@@ -49,7 +48,6 @@ router.post("/:id/equip", requireAuth, async (req: AuthRequest, res) => {
 
     // Unequip current item in that slot
     const slotField = item.slot === "enhancement" ? "equippedEnhancement"
-      : item.slot === "armor" ? "equippedArmor"
       : item.slot === "clothing" ? "equippedClothing"
       : "equippedVehicle";
 
@@ -101,7 +99,6 @@ router.post("/:id/unequip", requireAuth, async (req: AuthRequest, res) => {
     await item.save();
 
     const slotField = item.slot === "enhancement" ? "equippedEnhancement"
-      : item.slot === "armor" ? "equippedArmor"
       : item.slot === "clothing" ? "equippedClothing"
       : "equippedVehicle";
     (user as any)[slotField] = null;

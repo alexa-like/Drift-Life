@@ -14,13 +14,13 @@ import { StatCounter } from "../components/StatCounter";
 interface ShopItem {
   id: string; name: string; type: string; rarity: string; slot: string | null;
   strengthBonus: number; charismaBonus: number; intelligenceBonus: number;
-  streetCredBonus: number; defenseBonus: number; basePrice: number; price: number;
+  streetCredBonus: number; basePrice: number; price: number;
   description: string; effect?: string | null; imageUrl?: string | null;
 }
 
 interface Listing {
   id: string; name: string; type: string; rarity: string;
-  strengthBonus: number; defenseBonus: number; description: string;
+  strengthBonus: number; description: string;
   price: number; seller: string; imageUrl?: string | null;
 }
 
@@ -63,9 +63,8 @@ function ItemBonuses({ item }: { item: ShopItem | Listing }) {
       {s.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR+{s.strengthBonus}</span>}
       {(s as ShopItem).charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA+{(s as ShopItem).charismaBonus}</span>}
       {(s as ShopItem).intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT+{(s as ShopItem).intelligenceBonus}</span>}
-      {s.defenseBonus > 0 && <span style={{ color: "#39d353" }}>DEF+{s.defenseBonus}</span>}
-      {(s as ShopItem).streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP+{(s as ShopItem).streetCredBonus}</span>}
-      {(s as ShopItem).effect && <span style={{ color: "#a855f7" }}>{(s as ShopItem).effect}</span>}
+      {(item as ShopItem).streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP+{(item as ShopItem).streetCredBonus}</span>}
+      {(item as ShopItem).effect && <span style={{ color: "#a855f7" }}>{(item as ShopItem).effect}</span>}
     </div>
   );
 }
