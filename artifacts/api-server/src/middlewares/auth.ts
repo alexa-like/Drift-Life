@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccess, JwtPayload } from "../lib/jwt";
 import User from "../models/User";
+import { performDangerRoll } from "../lib/dangerRoll";
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -31,13 +32,48 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   // not be able to continue acting. Fail CLOSED on DB error: a transient Mongo hiccup
   // must never let a banned (or unverifiable) user continue acting.
   User.findById(payload.userId)
-    .select("banned lastActiveAt")
-    .lean()
-    .then((user) => {
+    .select("banned lastActiveAt status hospitalizedUntil jailedUntil jailUntil travelArrivesAt travelingTo currentLocation")
+    .then(async (user) => {
       if (!user || (user as any).banned) {
         res.status(401).json({ message: "Account suspended" });
         return;
       }
+
+      // ── Auto-status resolution ────────────────────────────────────────────
+      const now = new Date();
+      let changed = false;
+
+      if (user.status === 'hospitalized' && user.hospitalizedUntil && user.hospitalizedUntil <= now) {
+        user.status = 'normal';
+        user.hospitalizedUntil = null;
+        changed = true;
+      }
+
+      if (user.status === 'jailed') {
+        const jailedUntil = user.jailedUntil ?? user.jailUntil;
+        if (jailedUntil && jailedUntil <= now) {
+          user.status = 'normal';
+          user.jailedUntil = null;
+          user.jailUntil = null;
+          changed = true;
+        }
+      }
+
+      if (user.status === 'traveling' && user.travelArrivesAt && user.travelArrivesAt <= now) {
+        user.status = 'abroad';
+        user.currentLocation = user.travelingTo ?? user.currentLocation;
+        user.district = user.currentLocation;
+        user.travelingTo = null;
+        user.travelArrivesAt = null;
+        changed = true;
+        // Fire danger roll asynchronously (don't block the request)
+        performDangerRoll(user as any).catch(() => {});
+      }
+
+      if (changed) {
+        user.save().catch(() => {});
+      }
+
       const lastActive: Date | undefined = (user as any).lastActiveAt;
       if (!lastActive || Date.now() - lastActive.getTime() > 60_000) {
         User.updateOne({ _id: payload.userId }, { lastActiveAt: new Date() }).catch(() => {});

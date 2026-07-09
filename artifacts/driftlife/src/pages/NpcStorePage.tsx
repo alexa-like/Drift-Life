@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
-import { useParams } from "wouter";
 
 const TIER_COLORS: Record<string, string> = { common:"#9ca3af", uncommon:"#22c55e", rare:"#3b82f6", epic:"#a855f7", legendary:"#f59e0b" };
 
 interface Listing { itemId: string; itemName: string; itemTier: string; price: number; quantity: number; itemType: string; }
 interface StoreData { storeId: string; storeName: string; keeper: string; tagline: string; faqs: { q: string; a: string }[]; listings: Listing[]; restocksAt: string; }
 
-export default function NpcStorePage() {
-  const { storeId } = useParams<{ storeId: string }>();
+interface Props {
+  storeId: string;
+  onBack: () => void;
+}
+
+export default function NpcStorePage({ storeId, onBack }: Props) {
   const [store, setStore] = useState<StoreData | null>(null);
   const [loading, setLoading] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -16,6 +19,7 @@ export default function NpcStorePage() {
   const [timeLeft, setTimeLeft] = useState("");
 
   useEffect(() => {
+    setLoading(true);
     fetch("/api/npc-stores/" + storeId, { credentials: "include" })
       .then(r => r.json())
       .then(data => { setStore(data); setLoading(false); })
@@ -60,6 +64,9 @@ export default function NpcStorePage() {
 
   return (
     <div style={{ padding: "1rem", maxWidth: "700px", margin: "0 auto" }}>
+      <button onClick={onBack} style={{ marginBottom: "1rem", padding: "0.3rem 0.8rem", background: "#1e293b", border: "1px solid #334155", color: "#94a3b8", borderRadius: "4px", cursor: "pointer", fontFamily: "monospace", fontSize: "0.8rem" }}>
+        ← Back to Shops
+      </button>
       <h1 style={{ color: "#00E0FF", fontFamily: "monospace" }}>{store.storeName}</h1>
       <div style={{ color: "#aaa", marginBottom: "0.25rem" }}>{store.keeper}</div>
       <div style={{ color: "#666", fontStyle: "italic", marginBottom: "1.5rem" }}>"{store.tagline}"</div>

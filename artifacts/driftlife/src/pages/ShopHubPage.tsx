@@ -1,4 +1,6 @@
-import { useLocation } from "wouter";
+interface Props {
+  onSelectStore: (storeId: string) => void;
+}
 
 const STORES = [
   { id: "iron_wolf", name: "Iron Wolf Armory", keeper: 'Marcus "Iron" Cole', emoji: "🔫", color: "#ef4444", tagline: "Enhancement gear, no bullshit." },
@@ -9,8 +11,7 @@ const STORES = [
   { id: "chrome_garage", name: "Chrome Garage", keeper: 'Jay "Torque"', emoji: "⚙️", color: "#f59e0b", tagline: "Parts that win races." },
 ];
 
-export default function ShopHubPage() {
-  const [, navigate] = useLocation();
+export default function ShopHubPage({ onSelectStore }: Props) {
   return (
     <div style={{ padding: "1rem", maxWidth: "900px", margin: "0 auto" }}>
       <h1 style={{ color: "#00E0FF", fontFamily: "monospace", marginBottom: "0.5rem" }}>CITY SHOPS</h1>
@@ -18,7 +19,7 @@ export default function ShopHubPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px,1fr))", gap: "1rem" }}>
         {STORES.map(store => (
           <div key={store.id} style={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: "10px", padding: "1.5rem", cursor: "pointer" }}
-            onClick={() => navigate("/shop/" + store.id)}
+            onClick={() => onSelectStore(store.id)}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = store.color; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#333"; }}>
             <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{store.emoji}</div>

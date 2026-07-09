@@ -42,6 +42,10 @@ export function safeUser(user: InstanceType<typeof User>) {
     activeBuffs: user.activeBuffs ?? [],
     travelingTo: user.travelingTo ?? null,
     travelArrivesAt: user.travelArrivesAt ?? null,
+    status: (user as any).status ?? 'normal',
+    currentLocation: (user as any).currentLocation ?? 'downtown',
+    jailedUntil: (user as any).jailedUntil ?? null,
+    lastMuggedAt: (user as any).lastMuggedAt ?? null,
     strength: user.strength + activeBuffTotal(user, "strength"),
     charisma: user.charisma + activeBuffTotal(user, "charisma"),
     intelligence: user.intelligence + activeBuffTotal(user, "intelligence"),
@@ -257,6 +261,59 @@ router.post("/resend-otp", async (req, res) => {
   }
 });
 
+// ── Login Reward helpers ──────────────────────────────────────────────────────
+const LOGIN_REWARD_TABLE: Record<number, { dc?: number; keyShards?: number; items?: string[]; key?: number }> = {
+  1: { keyShards: 3 },
+  2: { dc: 500 },
+  3: { keyShards: 3, items: ["street_medkit"] },
+  4: { dc: 800 },
+  5: { keyShards: 3, items: ["adrenaline_vial"] },
+  6: { dc: 1000, items: ["nitro_can"] },
+  7: { dc: 1500, items: ["_random_stim"] },
+  14: { dc: 3000, keyShards: 3 },
+  30: { dc: 5000, key: 1 },
+};
+
+function getStreakDay(streak: number): number {
+  if (streak === 14) return 14;
+  if (streak === 30) return 30;
+  return ((streak - 1) % 7) + 1;
+}
+
+function grantLoginReward(user: any): { dc: number; keyShards: number; keys: number; items: string[]; converted: boolean } {
+  const day = getStreakDay(user.loginStreak);
+  const reward = LOGIN_REWARD_TABLE[day] ?? LOGIN_REWARD_TABLE[((day - 1) % 7) + 1] ?? {};
+  let dc = reward.dc ?? 0;
+  let keyShards = reward.keyShards ?? 0;
+  let keys = reward.key ?? 0;
+  const items: string[] = [];
+
+  if (reward.items) {
+    for (const it of reward.items) {
+      if (it === "_random_stim") {
+        const opts = ["stim_shot", "combat_stim", "fuel_pack"];
+        items.push(opts[Math.floor(Math.random() * opts.length)]);
+      } else {
+        items.push(it);
+      }
+    }
+  }
+
+  user.dc = Math.min(100_000_000, (user.dc ?? 0) + dc);
+  user.keyShards = (user.keyShards ?? 0) + keyShards;
+  user.keys = (user.keys ?? 0) + keys;
+
+  // Auto-convert shards >= 20 → +1 key
+  let converted = false;
+  while (user.keyShards >= 20) {
+    user.keyShards -= 20;
+    user.keys += 1;
+    converted = true;
+  }
+
+  return { dc, keyShards, keys, items, converted };
+}
+
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
   try {
@@ -271,9 +328,33 @@ router.post("/login", async (req, res) => {
     if (!user.isEmailVerified) return res.status(403).json({ message: "Email not verified", needsVerification: true, email: user.email });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ message: "Invalid credentials" });
+
+    // Daily login streak + reward
+    const today = new Date().toDateString();
+    const lastDate = (user as any).lastLoginDate ? new Date((user as any).lastLoginDate).toDateString() : null;
+    let loginReward: ReturnType<typeof grantLoginReward> | null = null;
+
+    if (lastDate !== today) {
+      const yesterday = new Date(Date.now() - 86_400_000).toDateString();
+      (user as any).loginStreak = (lastDate === yesterday) ? ((user as any).loginStreak ?? 0) + 1 : 1;
+      (user as any).lastLoginDate = new Date();
+      loginReward = grantLoginReward(user);
+      await user.save();
+    }
+
     await User.updateOne({ _id: user._id }, { $set: { lastLogin: new Date() } });
     const payload = { userId: String(user._id), username: user.username, role: user.role };
-    res.json({ accessToken: signAccess(payload), refreshToken: signRefresh(payload), user: safeUser(user) });
+    res.json({
+      accessToken: signAccess(payload),
+      refreshToken: signRefresh(payload),
+      user: safeUser(user),
+      loginReward: loginReward ? {
+        ...loginReward,
+        streak: (user as any).loginStreak,
+        streakDay: getStreakDay((user as any).loginStreak),
+        nextDayPreview: LOGIN_REWARD_TABLE[getStreakDay(((user as any).loginStreak % 30) + 1)] ?? LOGIN_REWARD_TABLE[((((user as any).loginStreak) % 7)) + 1] ?? {},
+      } : null,
+    });
   } catch (err: any) {
     req.log.error({ err }, "login error");
     res.status(500).json({ message: "Internal server error" });

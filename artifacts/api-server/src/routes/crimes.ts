@@ -29,6 +29,41 @@ import { pursuitResolveSchema, crimesLaunderSchema } from "../lib/schemas";
 
 const router = Router();
 
+// ── District Crime Catalog ──────────────────────────────────────────────────
+export const DISTRICT_CRIMES: Record<string, Array<{
+  id: string; name: string; energyCost: number;
+  dcMin: number; dcMax: number; jailChance: number; minLevel: number;
+}>> = {
+  neon_strip: [
+    { id: "pickpocket_tourist", name: "Pickpocket Tourist",  energyCost: 1, dcMin: 300,  dcMax: 600,  jailChance: 0.05, minLevel: 5  },
+    { id: "club_card_skim",     name: "Club Card Skim",      energyCost: 2, dcMin: 500,  dcMax: 900,  jailChance: 0.08, minLevel: 8  },
+  ],
+  docks: [
+    { id: "cargo_diversion",    name: "Cargo Diversion",     energyCost: 2, dcMin: 600,  dcMax: 1100, jailChance: 0.10, minLevel: 10 },
+    { id: "broker_run",         name: "Broker Run",          energyCost: 3, dcMin: 900,  dcMax: 1600, jailChance: 0.12, minLevel: 12 },
+  ],
+  slums: [
+    { id: "street_hustle",      name: "Street Hustle",       energyCost: 1, dcMin: 200,  dcMax: 400,  jailChance: 0.08, minLevel: 15 },
+    { id: "gang_collection",    name: "Gang Collection",     energyCost: 3, dcMin: 800,  dcMax: 1400, jailChance: 0.18, minLevel: 18 },
+  ],
+  corp_zone: [
+    { id: "corp_espionage",     name: "Corp Espionage",      energyCost: 4, dcMin: 2000, dcMax: 3500, jailChance: 0.15, minLevel: 20 },
+    { id: "insider_trade",      name: "Insider Trade",       energyCost: 3, dcMin: 1200, dcMax: 2000, jailChance: 0.12, minLevel: 22 },
+  ],
+  industrial: [
+    { id: "chop_shop_run",      name: "Chop Shop Run",       energyCost: 3, dcMin: 1000, dcMax: 1800, jailChance: 0.20, minLevel: 25 },
+    { id: "arms_divert",        name: "Arms Diversion",      energyCost: 4, dcMin: 1500, dcMax: 2500, jailChance: 0.22, minLevel: 28 },
+  ],
+  outskirts: [
+    { id: "territory_raid",     name: "Territory Raid",      energyCost: 4, dcMin: 2000, dcMax: 3500, jailChance: 0.25, minLevel: 35 },
+    { id: "syndicate_hit",      name: "Syndicate Hit",       energyCost: 5, dcMin: 3000, dcMax: 5000, jailChance: 0.30, minLevel: 40 },
+  ],
+};
+
+const DISTRICT_JAIL_MULTIPLIERS: Record<string, number> = {
+  neon_strip: 1.0, docks: 1.2, slums: 1.3, corp_zone: 1.1, industrial: 1.4, outskirts: 1.6,
+};
+
 // ── Run catalog ─────────────────────────────────────────────────────────────
 // tier: 1-5; relevantStat drives formula; heatGain = tier * 4
 const RUNS = [
@@ -155,17 +190,108 @@ function findRun(id: string) {
   return RUNS.find(r => r.id === id) ?? RUNS.find(r => r.id === LEGACY_IDS[id]);
 }
 
+function cooldownDuration(energyCost: number): number {
+  if (energyCost <= 1) return 5 * 60 * 1000;
+  if (energyCost <= 2) return 10 * 60 * 1000;
+  if (energyCost <= 3) return 20 * 60 * 1000;
+  return 45 * 60 * 1000;
+}
+
 // ── GET /api/crimes — list all runs ────────────────────────────────────────
-router.get("/", requireAuth, (_req, res) => {
-  res.json(RUNS.map(r => ({
-    id: r.id, name: r.name, tier: r.tier, flavour: r.flavour, energyCost: r.energyCost,
-    minLevel: r.minLevel, baseSuccess: r.baseSuccess, dcRange: [r.dcMin, r.dcMax],
-    xp: r.xp, heatGain: r.tier * 4, wantedIncrease: r.wantedIncrease,
-    hospitalRisk: r.hospitalRisk, description: r.description, riskLevel: r.riskLevel,
-    relevantStat: r.relevantStat,
-    // legacy fields for old UI
-    nerveCost: r.energyCost,
-  })));
+router.get("/", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("crimeCooldowns").lean();
+    const cooldowns = (user as any)?.crimeCooldowns ?? {};
+    const now = Date.now();
+
+    res.json(RUNS.map(r => {
+      const rawCd = cooldowns instanceof Map ? cooldowns.get(r.id) : cooldowns[r.id];
+      const cdEnd = rawCd ? new Date(rawCd).getTime() : 0;
+      const cooldownEnds = cdEnd > now ? new Date(cdEnd).toISOString() : null;
+      return {
+        id: r.id, name: r.name, tier: r.tier, flavour: r.flavour, energyCost: r.energyCost,
+        minLevel: r.minLevel, baseSuccess: r.baseSuccess, dcRange: [r.dcMin, r.dcMax],
+        xp: r.xp, heatGain: r.tier * 4, wantedIncrease: r.wantedIncrease,
+        hospitalRisk: r.hospitalRisk, description: r.description, riskLevel: r.riskLevel,
+        relevantStat: r.relevantStat,
+        cooldownEnds,
+        // legacy fields for old UI
+        nerveCost: r.energyCost,
+      };
+    }));
+  } catch (err: any) {
+    req.log.error({ err }, "get crimes error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── GET /api/crimes/district — list crimes for player's current district ───
+router.get("/district", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("status currentLocation level").lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if ((user as any).status !== 'abroad') {
+      return res.status(400).json({ message: "You must be abroad to access district crimes" });
+    }
+    const location = (user as any).currentLocation as string;
+    const crimes = DISTRICT_CRIMES[location] ?? [];
+    res.json(crimes.map(c => ({ ...c, available: user.level >= c.minLevel })));
+  } catch (err: any) {
+    req.log.error({ err }, "get district crimes error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/crimes/district/:crimeId/commit — commit a district crime ────
+router.post("/district/:crimeId/commit", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { crimeId } = req.params;
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    applyRegen(user);
+
+    if (user.status !== 'abroad') return res.status(400).json({ message: "You must be abroad to commit district crimes" });
+    if (isHospitalized(user)) return res.status(400).json({ message: "You are hospitalized" });
+    if (isJailed(user)) return res.status(400).json({ message: "You are in jail" });
+
+    const districtCrimes = DISTRICT_CRIMES[user.currentLocation] ?? [];
+    const crime = districtCrimes.find(c => c.id === crimeId);
+    if (!crime) return res.status(404).json({ message: "Crime not found in this district" });
+    if (user.level < crime.minLevel) return res.status(400).json({ message: `Requires level ${crime.minLevel}` });
+    if (user.energy < crime.energyCost) return res.status(400).json({ message: `Not enough energy (need ${crime.energyCost})` });
+
+    user.energy -= crime.energyCost;
+    user.totalCrimes += 1;
+
+    const success = Math.random() > crime.jailChance;
+    let dcGained = 0;
+    let jailed = false;
+    let narrative = "";
+
+    if (success) {
+      dcGained = Math.floor(crime.dcMin + Math.random() * (crime.dcMax - crime.dcMin));
+      user.dc = Math.min(100_000_000, user.dc + dcGained);
+      user.successfulCrimes += 1;
+      narrative = `${crime.name} successful. +${dcGained} DC.`;
+    } else {
+      // Jailed in this district
+      const jailMult = DISTRICT_JAIL_MULTIPLIERS[user.currentLocation] ?? 1.0;
+      const jailDuration = Math.floor(15 * 60 * 1000 * jailMult);
+      user.jailedUntil = new Date(Date.now() + jailDuration);
+      user.jailUntil = user.jailedUntil;
+      user.jailDuration = jailDuration;
+      user.status = 'jailed';
+      jailed = true;
+      narrative = `Caught! Jailed in ${user.currentLocation} for ${Math.ceil(jailDuration / 60000)} minutes.`;
+    }
+
+    await user.save();
+    res.json({ success, narrative, dcGained, jailed, jailUntil: user.jailedUntil,
+      user: { dc: user.dc, energy: user.energy, status: user.status } });
+  } catch (err: any) {
+    req.log.error({ err }, "district crime commit error");
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
 // ── GET /api/crimes/mastery — player's mastery per run ─────────────────────
@@ -214,6 +340,13 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     if (isJailed(user)) return res.status(400).json({ message: "You are in jail" });
     if (user.level < run.minLevel) return res.status(400).json({ message: `Requires level ${run.minLevel}` });
     if (user.energy < run.energyCost) return res.status(400).json({ message: `Not enough energy (need ${run.energyCost})` });
+
+    // Crime cooldown check
+    const cdMap = (user as any).crimeCooldowns as Map<string, Date> | undefined;
+    const existingCd = cdMap?.get(run.id);
+    if (existingCd && existingCd.getTime() > Date.now()) {
+      return res.status(429).json({ error: "Crime on cooldown", cooldownEnds: existingCd });
+    }
 
     // Subscriber extra crime slots raise the hourly cap
     const subTier = getActiveTier(user as any);
@@ -345,6 +478,17 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     // Mood update (inversely proportional to stress)
     gated.mood = Math.max(0, 100 - gated.stress);
     gated.lastCrimeDate = new Date();
+
+    // Set crime cooldown
+    const cdDuration = cooldownDuration(run.energyCost);
+    const cdMap2 = (gated as any).crimeCooldowns as Map<string, Date>;
+    if (!cdMap2) {
+      (gated as any).crimeCooldowns = new Map([[run.id, new Date(Date.now() + cdDuration)]]);
+    } else {
+      cdMap2.set(run.id, new Date(Date.now() + cdDuration));
+    }
+    (gated as any).markModified?.("crimeCooldowns");
+
     await gated.save();
 
     // Apply DC + XP + season points atomically

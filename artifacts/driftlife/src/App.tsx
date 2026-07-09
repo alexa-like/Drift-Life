@@ -34,6 +34,9 @@ import GaragePage from "./pages/GaragePage";
 import ArenaHubPage from "./pages/ArenaHubPage";
 import ArenaCombatPage from "./pages/ArenaCombatPage";
 import { MissionsPage } from "./pages/MissionsPage";
+import LoadoutPage from "./pages/LoadoutPage";
+import ShopHubPage from "./pages/ShopHubPage";
+import NpcStorePage from "./pages/NpcStorePage";
 import RaceHubPage from "./pages/RaceHubPage";
 import RaceMatchPage from "./pages/RaceMatchPage";
 import CityPage from "./pages/CityPage";
@@ -114,6 +117,7 @@ function GameApp() {
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [showFactionSelect, setShowFactionSelect] = useState(false);
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
+  const [shopStoreId, setShopStoreId] = useState<string | null>(null);
 
   // Show faction selection for users without a faction
   useEffect(() => {
@@ -204,6 +208,10 @@ function GameApp() {
       case "skills":        return <SkillsPage user={user!} addToast={addToast} />;
       case "guilds":        return <GuildsPage user={user!} addToast={addToast} />;
       case "auction":       return <AuctionPage user={user!} addToast={addToast} />;
+      case "loadout":       return <LoadoutPage user={user!} addToast={addToast} />;
+      case "shop":          return shopStoreId
+                              ? <NpcStorePage key={shopStoreId} storeId={shopStoreId} onBack={() => { setShopStoreId(null); }} />
+                              : <ShopHubPage onSelectStore={(id) => setShopStoreId(id)} />;
       case "properties":    return <PropertiesPage {...pageProps} />;
       case "crafting":      return <CraftingPage {...pageProps} />;
       case "trade":         return <TradePage user={user!} addToast={addToast} />;

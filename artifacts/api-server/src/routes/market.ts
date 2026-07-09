@@ -2,6 +2,7 @@ import { Router } from "express";
 import User from "../models/User";
 import Item from "../models/Item";
 import PriceOverride from "../models/PriceOverride";
+import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { validateBody } from "../middlewares/validate";
 import { marketShopBuySchema, marketListingCreateSchema } from "../lib/schemas";
@@ -302,6 +303,139 @@ router.post("/listings/:id/buy", requireAuth, async (req: AuthRequest, res) => {
     res.json({ message: `Purchased ${item.name} for ${price.toLocaleString()} DC`, dc: buyer.dc });
   } catch (err: any) {
     req.log.error({ err }, "buy listing error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/market/listings/batch — list multiple items atomically (partial success)
+router.post("/listings/batch", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { listings: items } = req.body as {
+      listings: Array<{
+        itemId: string;
+        itemType: "normal" | "arena" | "arena_ammo";
+        inventoryRef?: "primaryWeapons" | "secondaryWeapons" | "bodyArmors";
+        ammoCategory?: "pistol_rounds" | "smg_rounds" | "rifle_rounds" | "shotgun_shells" | "sniper_rounds" | "lmg_rounds";
+        roundsToList?: number;
+        price: number;
+      }>;
+    };
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "listings array required" });
+    }
+
+    let listed = 0;
+    let failed = 0;
+    let expectedPayout = 0;
+
+    for (const entry of items) {
+      try {
+        const { itemId, itemType, inventoryRef, ammoCategory, roundsToList, price } = entry;
+
+        // 1. Validate price
+        if (!price || price <= 0) { failed++; continue; }
+
+        if (itemType === "normal") {
+          // 2. Verify item is in user inventory
+          const item = await Item.findOne({ _id: itemId, owner: req.userId });
+          if (!item) { failed++; continue; }
+          if (item.equipped) { failed++; continue; }
+          if (item.marketListed) { failed++; continue; }
+
+          item.marketListed = true;
+          item.marketPrice = price;
+          item.marketListedAt = new Date();
+          await item.save();
+
+          const fee = Math.floor(price * MARKET_FEE);
+          expectedPayout += price - fee;
+          listed++;
+
+        } else if (itemType === "arena") {
+          // 3. Verify item in PlayerMiniGameInventory with durability > 0
+          if (!inventoryRef) { failed++; continue; }
+          const inv = await PlayerMiniGameInventory.findOne({ userId: req.userId });
+          if (!inv) { failed++; continue; }
+
+          const stack = (inv[inventoryRef] as Array<{ itemId: string; durability: number }>)
+            .find((w) => w.itemId === itemId);
+          if (!stack || stack.durability <= 0) { failed++; continue; }
+
+          // Remove from arena inventory atomically
+          await PlayerMiniGameInventory.updateOne(
+            { userId: req.userId },
+            { $pull: { [inventoryRef]: { itemId } } },
+          );
+
+          // Create a normal Item record that is market-listed
+          await Item.create({
+            owner: req.userId,
+            name: itemId,
+            type: "misc",
+            rarity: "common",
+            strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0,
+            streetCredBonus: 0, defenseBonus: 0, travelEnergyReduction: 0,
+            basePrice: price,
+            description: `Arena item: ${itemId} (durability ${stack.durability})`,
+            quantity: 1,
+            blackMarket: false,
+            marketListed: true,
+            marketPrice: price,
+            marketListedAt: new Date(),
+          });
+
+          const fee = Math.floor(price * MARKET_FEE);
+          expectedPayout += price - fee;
+          listed++;
+
+        } else if (itemType === "arena_ammo") {
+          // 4. Verify roundsToList <= ammo[ammoCategory]
+          if (!ammoCategory || !roundsToList || roundsToList <= 0) { failed++; continue; }
+          const inv = await PlayerMiniGameInventory.findOne({ userId: req.userId });
+          if (!inv) { failed++; continue; }
+
+          const available = inv.ammo[ammoCategory] ?? 0;
+          if (roundsToList > available) { failed++; continue; }
+
+          // Deduct ammo atomically
+          await PlayerMiniGameInventory.updateOne(
+            { userId: req.userId },
+            { $inc: { [`ammo.${ammoCategory}`]: -roundsToList } },
+          );
+
+          // Create a market-listed Item representing the ammo
+          await Item.create({
+            owner: req.userId,
+            name: `${ammoCategory.replace(/_/g, " ")} x${roundsToList}`,
+            type: "consumable",
+            rarity: "common",
+            strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0,
+            streetCredBonus: 0, defenseBonus: 0, travelEnergyReduction: 0,
+            basePrice: price,
+            description: `${roundsToList} rounds of ${ammoCategory.replace(/_/g, " ")}`,
+            quantity: roundsToList,
+            blackMarket: false,
+            marketListed: true,
+            marketPrice: price,
+            marketListedAt: new Date(),
+          });
+
+          const fee = Math.floor(price * MARKET_FEE);
+          expectedPayout += price - fee;
+          listed++;
+
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    res.json({ listed, failed, expectedPayout });
+  } catch (err: any) {
+    req.log.error({ err }, "batch listing error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

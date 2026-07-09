@@ -3,14 +3,91 @@ import AuctionListing from "../models/AuctionListing";
 import Item from "../models/Item";
 import User from "../models/User";
 import Notification from "../models/Notification";
+import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { validateBody } from "../middlewares/validate";
 import { auctionListSchema, auctionBidSchema } from "../lib/schemas";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
 const SELLER_FEE = 0.05;
 const SNIPE_WINDOW_MS = 5 * 60 * 1000;
+
+// ── Auction Auto-Close ────────────────────────────────────────────────────────
+export async function closeExpiredAuctions(): Promise<void> {
+  try {
+    const now = new Date();
+    const expired = await AuctionListing.find({
+      status: "active",
+      endsAt: { $lte: now },
+    });
+
+    for (const listing of expired) {
+      try {
+        if (listing.currentBidderId) {
+          // Has a winner — transfer item and mark sold
+          const feeAmount = Math.floor(listing.currentBid * SELLER_FEE);
+          const sellerProfit = listing.currentBid - feeAmount;
+
+          listing.status = "sold";
+          await listing.save();
+
+          // Credit the seller
+          await User.findByIdAndUpdate(listing.sellerId, { $inc: { dc: sellerProfit } });
+
+          // Transfer item to winner — try normal inventory first, fall back to arena
+          const item = await Item.findById(listing.itemId);
+          if (item) {
+            const itemType = item.type;
+            if (itemType === "misc" && item.description?.startsWith("Arena item:")) {
+              // Arena gear — push back into PlayerMiniGameInventory primaryWeapons
+              await PlayerMiniGameInventory.findOneAndUpdate(
+                { userId: listing.currentBidderId },
+                {
+                  $push: { primaryWeapons: { itemId: item.name, durability: 100 } },
+                  $setOnInsert: { userId: listing.currentBidderId },
+                },
+                { upsert: true },
+              );
+              await Item.findByIdAndDelete(item._id);
+            } else {
+              // Normal item — transfer ownership
+              await Item.findByIdAndUpdate(listing.itemId, {
+                owner: listing.currentBidderId,
+                auctionId: null,
+              });
+            }
+          }
+
+          // Notify the winner
+          await Notification.create({
+            userId: listing.currentBidderId,
+            type: "system",
+            message: `You won the auction for "${listing.itemSnapshot.name}" with a bid of ${listing.currentBid.toLocaleString()} DC!`,
+          });
+
+          // Notify the seller
+          await Notification.create({
+            userId: listing.sellerId,
+            type: "system",
+            message: `Your auction for "${listing.itemSnapshot.name}" ended. You received ${sellerProfit.toLocaleString()} DC (fee: ${feeAmount.toLocaleString()} DC).`,
+          });
+        } else {
+          // No bids — mark expired
+          listing.status = "expired";
+          await listing.save();
+          // Return item to seller
+          await Item.findByIdAndUpdate(listing.itemId, { auctionId: null });
+        }
+      } catch (err) {
+        logger.error({ err, listingId: listing._id }, "closeExpiredAuctions: error processing listing");
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "closeExpiredAuctions: query error");
+  }
+}
 
 // GET /api/auction — list active auctions
 router.get("/", requireAuth, async (req: AuthRequest, res) => {

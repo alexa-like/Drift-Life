@@ -53,7 +53,17 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-const DISTRICTS = ["residential-north", "the-boulevard", "industrial-east", "tech-quarter"];
+// All valid travel destinations and their min levels
+const DISTRICT_MIN_LEVELS: Record<string, number> = {
+  downtown:    1,
+  neon_strip:  5,
+  docks:       10,
+  slums:       15,
+  corp_zone:   20,
+  industrial:  25,
+  outskirts:   35,
+};
+const DISTRICTS = Object.keys(DISTRICT_MIN_LEVELS);
 const BASE_TRAVEL_MS = 5 * 60 * 1000; // 5 minutes base travel time
 
 // POST /api/user/travel — start traveling to a new district; vehicle reduces travel time
@@ -67,10 +77,20 @@ router.post("/travel", requireAuth, async (req: AuthRequest, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     applyRegen(user);
 
+    // Level gate
+    const minLevel = DISTRICT_MIN_LEVELS[destination] ?? 1;
+    if (user.level < minLevel) {
+      return res.status(403).json({ message: `Requires level ${minLevel} to travel to ${destination}`, minLevel });
+    }
+
+    if (user.status === 'hospitalized') return res.status(400).json({ message: "You are hospitalized" });
+    if (user.status === 'jailed') return res.status(400).json({ message: "You are in jail" });
+
     if (user.travelingTo) {
       return res.status(400).json({ message: `Already traveling to ${user.travelingTo}` });
     }
-    if (user.district === destination) {
+    const currentLoc = user.currentLocation ?? 'downtown';
+    if (currentLoc === destination) {
       return res.status(400).json({ message: "You are already there" });
     }
 
@@ -83,15 +103,85 @@ router.post("/travel", requireAuth, async (req: AuthRequest, res) => {
 
     user.travelingTo = destination;
     user.travelArrivesAt = new Date(Date.now() + travelMs);
+    user.status = 'traveling';
     await user.save();
 
     res.json({
       message: `Traveling to ${destination} — arriving in ${Math.ceil(travelMs / 1000)}s`,
       travelingTo: user.travelingTo,
       travelArrivesAt: user.travelArrivesAt,
+      status: user.status,
     });
   } catch (err: any) {
     req.log.error({ err }, "travel error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/user/travel/cancel — cancel an in-progress travel
+router.post("/travel/cancel", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.status !== 'traveling') return res.status(400).json({ message: "Not currently traveling" });
+    user.travelingTo = null;
+    user.travelArrivesAt = null;
+    user.status = user.currentLocation === 'downtown' ? 'normal' : 'abroad';
+    await user.save();
+    res.json({ message: "Travel cancelled", status: user.status });
+  } catch (err: any) {
+    req.log.error({ err }, "travel cancel error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/user/hospital/pay-release — pay DC to leave hospital early
+router.post("/hospital/pay-release", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.hospitalizedUntil || user.hospitalizedUntil <= new Date()) {
+      return res.status(400).json({ message: "You are not hospitalized" });
+    }
+    const minutesRemaining = Math.ceil((user.hospitalizedUntil.getTime() - Date.now()) / 60000);
+    const cost = Math.floor(minutesRemaining * 50);
+    if (user.dc < cost) {
+      return res.status(400).json({ message: `Requires ${cost} DC to release early`, cost });
+    }
+    user.dc -= cost;
+    user.hospitalizedUntil = null;
+    user.status = (user.currentLocation && user.currentLocation !== 'downtown') ? 'abroad' : 'normal';
+    await user.save();
+    res.json({ message: `Released from hospital. Cost: ${cost} DC`, cost, status: user.status, dc: user.dc });
+  } catch (err: any) {
+    req.log.error({ err }, "hospital pay-release error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/user/jail/pay-bail — pay DC to post bail
+router.post("/jail/pay-bail", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const jailedUntil = user.jailedUntil ?? user.jailUntil;
+    if (!jailedUntil || jailedUntil <= new Date()) {
+      return res.status(400).json({ message: "You are not in jail" });
+    }
+    const minutesRemaining = Math.ceil((jailedUntil.getTime() - Date.now()) / 60000);
+    const cost = Math.floor(minutesRemaining * 80);
+    if (user.dc < cost) {
+      return res.status(400).json({ message: `Requires ${cost} DC for bail`, cost });
+    }
+    user.dc -= cost;
+    user.jailedUntil = null;
+    user.jailUntil = null;
+    user.jailDuration = 0;
+    user.status = (user.currentLocation && user.currentLocation !== 'downtown') ? 'abroad' : 'normal';
+    await user.save();
+    res.json({ message: `Bail posted. Cost: ${cost} DC`, cost, status: user.status, dc: user.dc });
+  } catch (err: any) {
+    req.log.error({ err }, "jail pay-bail error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

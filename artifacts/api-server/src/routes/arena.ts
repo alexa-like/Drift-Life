@@ -925,92 +925,130 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
       const defenderArmorChance = isP1 ? (match.player2Loadout.armorEffectChance ?? 0) : (match.player1Loadout.armorEffectChance ?? 0);
 
       const isPrimary = effectiveAction === "fire_primary" || effectiveAction === "reload" || effectiveAction === "special";
-      const weaponItemId = isPrimary
-        ? (attackerLoadout.primaryWeaponId ?? attackerLoadout.weapon)
-        : (attackerLoadout.secondaryWeaponId ?? null);
 
-      const weaponDef = weaponItemId ? await MiniGameItem.findOne({ itemId: weaponItemId }).lean() : null;
-      const weaponName = (weaponDef as any)?.name ?? (isPrimary ? "Primary Weapon" : "Secondary Weapon");
-
-      const damageMin: number = (attackerLoadout as any).damageMin ?? (weaponDef as any)?.stats?.damageMin ?? 10;
-      const damageMax: number = (attackerLoadout as any).damageMax ?? (weaponDef as any)?.stats?.damageMax ?? 20;
-      const weaponAccuracy: number = (attackerLoadout as any).weaponAccuracy ?? (weaponDef as any)?.stats?.accuracy ?? 75;
-      const specialEffect: string | null = (attackerLoadout as any).specialEffect ?? (weaponDef as any)?.stats?.specialEffect ?? null;
-      const specialChance: number = (attackerLoadout as any).specialChance ?? (weaponDef as any)?.stats?.specialChance ?? 0;
-      const strengthBonus: number = (attackerLoadout as any).strengthBonus ?? 0;
-
-      let multiplier = 1;
-      if (effectiveAction === "special") multiplier = 1.5;
-      if (effectiveAction === "reload")  multiplier = 0.6;
-
-      const result = fireWeapon(
-        attackerName, defenderName, weaponName,
-        damageMin, damageMax, weaponAccuracy,
-        specialEffect, specialChance, strengthBonus,
-        defenderArmorHp, defenderArmorEffect, defenderArmorChance,
-        multiplier,
-      );
-
-      if (isP1) {
-        p2HPAfter  = Math.max(0, p2HPAfter - result.damage);
-        p2ArmorHp  = result.newArmorHp;
-        if (result.damage > 0) player2Effect = "hit";
-        if (result.triggeredEffect === "stun") {
-          (match as any).player2StunNextTurn = true;
-        } else if (result.triggeredEffect === "knockback") {
-          (match as any).player2KnockedBack = true;
-        } else if (result.triggeredEffect && EFFECT_CONFIG[result.triggeredEffect]) {
-          p2Effects = addEffect(p2Effects, result.triggeredEffect);
+      // ── Ammo check: if out of ammo for fire_primary/fire_secondary, fall back to melee ──
+      let ammoFallbackToMelee = false;
+      if ((effectiveAction === "fire_primary" || effectiveAction === "fire_secondary") && !match.isPlayer2AI) {
+        const checkWeaponId = isPrimary
+          ? (attackerLoadout.primaryWeaponId ?? attackerLoadout.weapon)
+          : (attackerLoadout.secondaryWeaponId ?? null);
+        if (checkWeaponId) {
+          const checkWeaponDef = await MiniGameItem.findOne({ itemId: checkWeaponId }).select("ammoCategory").lean();
+          const checkAmmoCategory = (checkWeaponDef as any)?.ammoCategory ?? null;
+          if (checkAmmoCategory) {
+            const attackerUserId = isP1 ? match.player1Id?.toString() : match.player2Id?.toString();
+            if (attackerUserId) {
+              const attackerInv = await PlayerMiniGameInventory.findOne({ userId: attackerUserId }).lean();
+              const ammoCount = attackerInv ? ((attackerInv.ammo as any)?.[checkAmmoCategory] ?? 0) : 0;
+              if (ammoCount <= 0) {
+                ammoFallbackToMelee = true;
+                const userDocMelee = await User.findById(attackerUserId).select("strength").lean();
+                const strengthMelee = (userDocMelee as any)?.strength ?? 10;
+                const meleeDmgFallback = Math.floor(Math.random() * 7) + 8 + Math.floor(strengthMelee * 0.05);
+                if (isP1) {
+                  p2HPAfter = Math.max(0, p2HPAfter - meleeDmgFallback);
+                  player2Effect = "hit";
+                } else {
+                  p1HPAfter = Math.max(0, p1HPAfter - meleeDmgFallback);
+                  player1Effect = "hit";
+                }
+                narrative = `Out of ammo -- melee attack! ${attackerName} smashes ${defenderName} for ${meleeDmgFallback} damage`;
+                (match as any).player1CurrentArmorHp = p1ArmorHp;
+                (match as any).player2CurrentArmorHp = p2ArmorHp;
+              }
+            }
+          }
         }
-        // Double tap: second shot
-        if (result.extraAttack) {
-          const r2 = fireWeapon(
-            attackerName, defenderName, weaponName,
-            damageMin, damageMax, weaponAccuracy,
-            null, 0, strengthBonus,
-            p2ArmorHp, defenderArmorEffect, defenderArmorChance,
-          );
-          p2HPAfter = Math.max(0, p2HPAfter - r2.damage);
-          p2ArmorHp = r2.newArmorHp;
-          narrative = result.narrative + ` | Second shot: ${r2.narrative}`;
-        }
-        // Track rounds fired
-        if (isPrimary) (match as any).player1RoundsFiredPrimary = ((match as any).player1RoundsFiredPrimary ?? 0) + 1;
-        else           (match as any).player1RoundsFiredSecondary = ((match as any).player1RoundsFiredSecondary ?? 0) + 1;
-      } else {
-        p1HPAfter  = Math.max(0, p1HPAfter - result.damage);
-        p1ArmorHp  = result.newArmorHp;
-        if (result.damage > 0) player1Effect = "hit";
-        if (result.triggeredEffect === "stun") {
-          (match as any).player1StunNextTurn = true;
-        } else if (result.triggeredEffect === "knockback") {
-          (match as any).player1KnockedBack = true;
-        } else if (result.triggeredEffect && EFFECT_CONFIG[result.triggeredEffect]) {
-          p1Effects = addEffect(p1Effects, result.triggeredEffect);
-        }
-        if (result.extraAttack) {
-          const r2 = fireWeapon(
-            attackerName, defenderName, weaponName,
-            damageMin, damageMax, weaponAccuracy,
-            null, 0, strengthBonus,
-            p1ArmorHp, defenderArmorEffect, defenderArmorChance,
-          );
-          p1HPAfter = Math.max(0, p1HPAfter - r2.damage);
-          p1ArmorHp = r2.newArmorHp;
-          narrative = result.narrative + ` | Second shot: ${r2.narrative}`;
-        }
-        if (isPrimary) (match as any).player2RoundsFiredPrimary = ((match as any).player2RoundsFiredPrimary ?? 0) + 1;
-        else           (match as any).player2RoundsFiredSecondary = ((match as any).player2RoundsFiredSecondary ?? 0) + 1;
       }
 
-      if (!result.extraAttack) narrative = result.narrative;
-      if (effectiveAction === "reload")  narrative = `${attackerName} reloads and fires — ${narrative.toLowerCase()}`;
-      if (effectiveAction === "special") narrative = `${attackerName} unleashes a special attack — ${narrative.toLowerCase()}`;
+      if (!ammoFallbackToMelee) {
+        const weaponItemId = isPrimary
+          ? (attackerLoadout.primaryWeaponId ?? attackerLoadout.weapon)
+          : (attackerLoadout.secondaryWeaponId ?? null);
 
-      // Update live armor HP in match
-      (match as any).player1CurrentArmorHp = isP1 ? p1ArmorHp : p1ArmorHp;
-      (match as any).player2CurrentArmorHp = isP1 ? p2ArmorHp : p2ArmorHp;
-    }
+        const weaponDef = weaponItemId ? await MiniGameItem.findOne({ itemId: weaponItemId }).lean() : null;
+        const weaponName = (weaponDef as any)?.name ?? (isPrimary ? "Primary Weapon" : "Secondary Weapon");
+
+        const damageMin: number = (attackerLoadout as any).damageMin ?? (weaponDef as any)?.stats?.damageMin ?? 10;
+        const damageMax: number = (attackerLoadout as any).damageMax ?? (weaponDef as any)?.stats?.damageMax ?? 20;
+        const weaponAccuracy: number = (attackerLoadout as any).weaponAccuracy ?? (weaponDef as any)?.stats?.accuracy ?? 75;
+        const specialEffect: string | null = (attackerLoadout as any).specialEffect ?? (weaponDef as any)?.stats?.specialEffect ?? null;
+        const specialChance: number = (attackerLoadout as any).specialChance ?? (weaponDef as any)?.stats?.specialChance ?? 0;
+        const strengthBonus: number = (attackerLoadout as any).strengthBonus ?? 0;
+
+        let multiplier = 1;
+        if (effectiveAction === "special") multiplier = 1.5;
+        if (effectiveAction === "reload")  multiplier = 0.6;
+
+        const result = fireWeapon(
+          attackerName, defenderName, weaponName,
+          damageMin, damageMax, weaponAccuracy,
+          specialEffect, specialChance, strengthBonus,
+          defenderArmorHp, defenderArmorEffect, defenderArmorChance,
+          multiplier,
+        );
+
+        if (isP1) {
+          p2HPAfter  = Math.max(0, p2HPAfter - result.damage);
+          p2ArmorHp  = result.newArmorHp;
+          if (result.damage > 0) player2Effect = "hit";
+          if (result.triggeredEffect === "stun") {
+            (match as any).player2StunNextTurn = true;
+          } else if (result.triggeredEffect === "knockback") {
+            (match as any).player2KnockedBack = true;
+          } else if (result.triggeredEffect && EFFECT_CONFIG[result.triggeredEffect]) {
+            p2Effects = addEffect(p2Effects, result.triggeredEffect);
+          }
+          // Double tap: second shot
+          if (result.extraAttack) {
+            const r2 = fireWeapon(
+              attackerName, defenderName, weaponName,
+              damageMin, damageMax, weaponAccuracy,
+              null, 0, strengthBonus,
+              p2ArmorHp, defenderArmorEffect, defenderArmorChance,
+            );
+            p2HPAfter = Math.max(0, p2HPAfter - r2.damage);
+            p2ArmorHp = r2.newArmorHp;
+            narrative = result.narrative + ` | Second shot: ${r2.narrative}`;
+          }
+          // Track rounds fired
+          if (isPrimary) (match as any).player1RoundsFiredPrimary = ((match as any).player1RoundsFiredPrimary ?? 0) + 1;
+          else           (match as any).player1RoundsFiredSecondary = ((match as any).player1RoundsFiredSecondary ?? 0) + 1;
+        } else {
+          p1HPAfter  = Math.max(0, p1HPAfter - result.damage);
+          p1ArmorHp  = result.newArmorHp;
+          if (result.damage > 0) player1Effect = "hit";
+          if (result.triggeredEffect === "stun") {
+            (match as any).player1StunNextTurn = true;
+          } else if (result.triggeredEffect === "knockback") {
+            (match as any).player1KnockedBack = true;
+          } else if (result.triggeredEffect && EFFECT_CONFIG[result.triggeredEffect]) {
+            p1Effects = addEffect(p1Effects, result.triggeredEffect);
+          }
+          if (result.extraAttack) {
+            const r2 = fireWeapon(
+              attackerName, defenderName, weaponName,
+              damageMin, damageMax, weaponAccuracy,
+              null, 0, strengthBonus,
+              p1ArmorHp, defenderArmorEffect, defenderArmorChance,
+            );
+            p1HPAfter = Math.max(0, p1HPAfter - r2.damage);
+            p1ArmorHp = r2.newArmorHp;
+            narrative = result.narrative + ` | Second shot: ${r2.narrative}`;
+          }
+          if (isPrimary) (match as any).player2RoundsFiredPrimary = ((match as any).player2RoundsFiredPrimary ?? 0) + 1;
+          else           (match as any).player2RoundsFiredSecondary = ((match as any).player2RoundsFiredSecondary ?? 0) + 1;
+        }
+
+        if (!result.extraAttack) narrative = result.narrative;
+        if (effectiveAction === "reload")  narrative = `${attackerName} reloads and fires — ${narrative.toLowerCase()}`;
+        if (effectiveAction === "special") narrative = `${attackerName} unleashes a special attack — ${narrative.toLowerCase()}`;
+
+        // Update live armor HP in match
+        (match as any).player1CurrentArmorHp = p1ArmorHp;
+        (match as any).player2CurrentArmorHp = p2ArmorHp;
+      }
+    } // end else fire_primary/fire_secondary/reload/special
 
     // ── AI counter-action (if vs AI) ─────────────────────────────────────────
     let aiNarrative = "";

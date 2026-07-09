@@ -30,6 +30,7 @@ interface Match {
   player1Id: string; player2Id: string | null; isPlayer2AI: boolean; aiName: string | null;
   player1Loadout: LoadoutSnap; player2Loadout: LoadoutSnap;
   player1HP: number; player2HP: number;
+  player1CurrentArmorHp?: number; player2CurrentArmorHp?: number;
   player1ConsumablesUsed: string[]; player2ConsumablesUsed: string[];
   player1ActiveEffects: ActiveEffect[]; player2ActiveEffects: ActiveEffect[];
   currentTurn: number; currentTurnDeadline: string;
@@ -107,6 +108,31 @@ function HPBar({ current, max, color }: { current: number; max: number; color: s
           width: `${pct}%`,
           transition: "width 0.6s cubic-bezier(0.4,0,0.2,1)",
           boxShadow: `0 0 8px ${barColor}60`,
+        }} />
+      </div>
+    </div>
+  );
+}
+
+function ArmorBar({ current, max }: { current: number; max: number }) {
+  if (current === 0 && max === 0) return null;
+  const pct = Math.max(0, Math.min(100, max > 0 ? (current / max) * 100 : 0));
+  const barColor = pct > 50 ? "#60a5fa" : pct > 20 ? "#94a3b8" : "#475569";
+  return (
+    <div style={{ marginTop: 4 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+        <span style={{ fontFamily: "monospace", fontSize: 9, color: "#64748b" }}>🛡 ARMOR</span>
+        <span style={{ fontFamily: "monospace", fontSize: 10, color: barColor, fontWeight: "bold" }}>
+          {current} <span style={{ color: "#334155" }}>/ {max}</span>
+        </span>
+      </div>
+      <div style={{ background: "#0f172a", borderRadius: 3, height: 5, overflow: "hidden", border: "1px solid #1e293b" }}>
+        <div style={{
+          background: `linear-gradient(90deg, ${barColor}99, ${barColor})`,
+          height: "100%", borderRadius: 3,
+          width: `${pct}%`,
+          transition: "width 0.6s cubic-bezier(0.4,0,0.2,1)",
+          boxShadow: `0 0 6px ${barColor}50`,
         }} />
       </div>
     </div>
@@ -567,6 +593,10 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
     const oppHP   = isP1 ? match.player2HP : match.player1HP;
     const myMax   = isP1 ? match.player1Loadout.hp : match.player2Loadout.hp;
     const oppMax  = isP1 ? match.player2Loadout.hp : match.player1Loadout.hp;
+    const myArmorCur  = isP1 ? (match.player1CurrentArmorHp ?? match.player1Loadout.armorHp ?? 0) : (match.player2CurrentArmorHp ?? match.player2Loadout.armorHp ?? 0);
+    const myArmorMax  = isP1 ? (match.player1Loadout.armorHp ?? 0) : (match.player2Loadout.armorHp ?? 0);
+    const oppArmorCur = isP1 ? (match.player2CurrentArmorHp ?? match.player2Loadout.armorHp ?? 0) : (match.player1CurrentArmorHp ?? match.player1Loadout.armorHp ?? 0);
+    const oppArmorMax = isP1 ? (match.player2Loadout.armorHp ?? 0) : (match.player1Loadout.armorHp ?? 0);
     const oppName = match.isPlayer2AI ? (match.aiName ?? "AI") : "Opponent";
 
     const leftAnim  = isP1 ? p1Anim : p2Anim;
@@ -615,6 +645,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
             />
             <div style={{ marginTop: 10 }}>
               <HPBar current={myHP} max={myMax} color="#00d4ff" />
+              {myArmorMax > 0 && <ArmorBar current={myArmorCur} max={myArmorMax} />}
               <ActiveEffectBadges effects={isP1 ? (match.player1ActiveEffects ?? []) : (match.player2ActiveEffects ?? [])} />
               <div style={{ display: "flex", gap: 12, marginTop: 6, justifyContent: "center" }}>
                 <span style={{ fontFamily: "monospace", fontSize: 9, color: "#475569" }}>
@@ -648,6 +679,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
             />
             <div style={{ marginTop: 10 }}>
               <HPBar current={oppHP} max={oppMax} color="#ff6b35" />
+              {oppArmorMax > 0 && <ArmorBar current={oppArmorCur} max={oppArmorMax} />}
               <ActiveEffectBadges effects={isP1 ? (match.player2ActiveEffects ?? []) : (match.player1ActiveEffects ?? [])} />
               <div style={{ display: "flex", gap: 12, marginTop: 6, justifyContent: "center" }}>
                 <span style={{ fontFamily: "monospace", fontSize: 9, color: "#475569" }}>

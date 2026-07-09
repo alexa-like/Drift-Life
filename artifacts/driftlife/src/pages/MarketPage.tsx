@@ -37,6 +37,25 @@ const RARITY_COLORS: Record<string, string> = {
 type Tab = "shop" | "listings" | "auction" | "trade";
 const TAB_LABELS: Record<Tab, string> = { shop: "Corp Shop", listings: "P2P Market", auction: "Auction", trade: "Trades" };
 
+type CategoryFilter = "all" | "weapons" | "clothing" | "vehicles" | "consumables" | "materials" | "arena" | "cars";
+const CATEGORY_LABELS: Record<CategoryFilter, string> = {
+  all: "All", weapons: "Weapons", clothing: "Clothing", vehicles: "Vehicles",
+  consumables: "Consumables", materials: "Materials", arena: "Arena Gear", cars: "Cars & Parts",
+};
+
+function matchesCategory(listing: Listing, cat: CategoryFilter): boolean {
+  if (cat === "all") return true;
+  const t = listing.type?.toLowerCase() ?? "";
+  if (cat === "weapons") return t === "weapon";
+  if (cat === "clothing") return t === "clothing";
+  if (cat === "vehicles") return t === "vehicle";
+  if (cat === "consumables") return t === "consumable";
+  if (cat === "materials") return t === "material";
+  if (cat === "arena") return t === "arena" || t === "arena_ammo";
+  if (cat === "cars") return t === "car" || t === "car_part";
+  return true;
+}
+
 function ItemBonuses({ item }: { item: ShopItem | Listing }) {
   const s = item as ShopItem;
   return (
@@ -56,6 +75,7 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
   useEffect(() => {
     api.get<ShopItem[]>("/market/shop").then(setShopItems).catch(() => {});
@@ -146,52 +166,76 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
 
       {/* P2P Listings */}
       {tab === "listings" && (
-        <div className="grid gap-3">
-          {listings.length === 0 ? (
-            <div className="text-center py-12 text-xs font-mono" style={{ color: "#475569" }}>
-              No listings. Sell items from your inventory.
-            </div>
-          ) : (
-            listings.map((listing, idx) => {
-              const rc = RARITY_COLORS[listing.rarity] ?? "#94a3b8";
-              const canAfford = user.dc >= listing.price;
-              return (
-                <motion.div key={listing.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}>
-                  <AnimatedCard accent={rc} noPad>
-                    <div style={{ height: 2, background: `linear-gradient(90deg, ${rc}, transparent)`, borderRadius: "8px 8px 0 0", boxShadow: `0 0 6px ${rc}50` }} />
-                    <div className="p-3">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
-                          style={{ width: 56, height: 56, background: `${rc}08`, border: `1px solid ${rc}25` }}>
-                          <ItemImage itemId={listing.name.toLowerCase().replace(/ /g, "-")} imageUrl={listing.imageUrl} size={44} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                            <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{listing.name}</span>
-                            <span className="text-xs font-mono px-1.5 rounded" style={{ color: rc, background: `${rc}14`, border: `1px solid ${rc}25` }}>{listing.rarity}</span>
+        <div className="flex flex-col gap-3">
+          {/* Category filter chips */}
+          <div className="flex gap-1.5 flex-wrap">
+            {(Object.keys(CATEGORY_LABELS) as CategoryFilter[]).map(cat => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className="text-xs font-mono px-2.5 py-1 rounded transition-all"
+                style={{
+                  background: activeCategory === cat ? "#00d4ff20" : "transparent",
+                  border: `1px solid ${activeCategory === cat ? "#00d4ff" : "#1e293b"}`,
+                  color: activeCategory === cat ? "#00d4ff" : "#64748b",
+                  cursor: "pointer",
+                }}
+              >
+                {CATEGORY_LABELS[cat]}
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-3">
+            {(() => {
+              const filtered = listings.filter(l => matchesCategory(l, activeCategory));
+              if (filtered.length === 0) {
+                return (
+                  <div className="text-center py-12 text-xs font-mono" style={{ color: "#475569" }}>
+                    No listings. Sell items from your inventory.
+                  </div>
+                );
+              }
+              return filtered.map((listing, idx) => {
+                const rc = RARITY_COLORS[listing.rarity] ?? "#94a3b8";
+                const canAfford = user.dc >= listing.price;
+                return (
+                  <motion.div key={listing.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}>
+                    <AnimatedCard accent={rc} noPad>
+                      <div style={{ height: 2, background: `linear-gradient(90deg, ${rc}, transparent)`, borderRadius: "8px 8px 0 0", boxShadow: `0 0 6px ${rc}50` }} />
+                      <div className="p-3">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
+                            style={{ width: 56, height: 56, background: `${rc}08`, border: `1px solid ${rc}25` }}>
+                            <ItemImage itemId={listing.name.toLowerCase().replace(/ /g, "-")} imageUrl={listing.imageUrl} size={44} />
                           </div>
-                          <p className="text-xs font-mono" style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{listing.description}</p>
-                          <span className="text-xs font-mono" style={{ color: "#475569" }}>via {listing.seller}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                              <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{listing.name}</span>
+                              <span className="text-xs font-mono px-1.5 rounded" style={{ color: rc, background: `${rc}14`, border: `1px solid ${rc}25` }}>{listing.rarity}</span>
+                            </div>
+                            <p className="text-xs font-mono" style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{listing.description}</p>
+                            <span className="text-xs font-mono" style={{ color: "#475569" }}>via {listing.seller}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 pt-2" style={{ borderTop: `1px solid ${rc}15` }}>
+                          <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>{formatDC(listing.price)} DC</span>
+                          <CyberButton
+                            variant="warning"
+                            size="sm"
+                            loading={buying === listing.id}
+                            disabled={buying === listing.id || !canAfford}
+                            onClick={() => buyListing(listing.id)}
+                          >
+                            {!canAfford ? "No funds" : "Buy"}
+                          </CyberButton>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between gap-3 pt-2" style={{ borderTop: `1px solid ${rc}15` }}>
-                        <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>{formatDC(listing.price)} DC</span>
-                        <CyberButton
-                          variant="warning"
-                          size="sm"
-                          loading={buying === listing.id}
-                          disabled={buying === listing.id || !canAfford}
-                          onClick={() => buyListing(listing.id)}
-                        >
-                          {!canAfford ? "No funds" : "Buy"}
-                        </CyberButton>
-                      </div>
-                    </div>
-                  </AnimatedCard>
-                </motion.div>
-              );
-            })
-          )}
+                    </AnimatedCard>
+                  </motion.div>
+                );
+              });
+            })()}
+          </div>
         </div>
       )}
 

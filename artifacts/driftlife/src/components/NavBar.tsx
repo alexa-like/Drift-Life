@@ -48,7 +48,9 @@ const NAV: { id: string; label: string; minStage?: number; group?: string }[] = 
   { id: "guilds",       label: "Crew",     group: "wc", minStage: 2 },
   // Economy & social
   { id: "arena",        label: "Arena" },
-
+  { id: "loadout",      label: "Loadout" },
+  { id: "auction",      label: "Auction" },
+  { id: "shop",         label: "Shop" },
   { id: "market",       label: "Market" },
   { id: "friends",      label: "Friends" },
   { id: "bank",         label: "Bank" },

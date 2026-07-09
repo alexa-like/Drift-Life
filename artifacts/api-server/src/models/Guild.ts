@@ -19,6 +19,9 @@ export interface IGuild extends Document {
   weeklyTurfPoints: number;
   controlledDistricts: string[];
   lastTurfResetAt: Date | null;
+  // ── System 4: Faction Bank ───────────────────────────────────────────────
+  bankBalance: number;
+  activePerks: Array<{ perkId: string; expiresAt: Date }>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +44,14 @@ const GuildSchema = new Schema<IGuild>(
     weeklyTurfPoints: { type: Number, default: 0 },
     controlledDistricts: [{ type: String }],
     lastTurfResetAt: { type: Date, default: null },
+    bankBalance: { type: Number, default: 0 },
+    activePerks: {
+      type: [{
+        perkId: { type: String, required: true },
+        expiresAt: { type: Date, required: true },
+      }],
+      default: [],
+    },
   },
   { timestamps: true }
 );

@@ -74,9 +74,13 @@ export interface IUser extends Document {
   losses: number;
   reputation: number;
   attacksToday: number;
+  status: 'normal' | 'traveling' | 'abroad' | 'hospitalized' | 'jailed';
+  currentLocation: string;   // district slug — 'downtown' when at home
   hospitalizedUntil: Date | null;
+  jailedUntil: Date | null;   // canonical field (jailUntil kept for compat)
   jailUntil: Date | null;
   jailDuration: number;   // original sentence in ms (for bail calculation)
+  lastMuggedAt: Date | null;
   pursuiteActive: boolean; // true while a pursuit minigame is pending
   alterEgoName: string | null;
   alterEgoHeat: number;
@@ -162,6 +166,16 @@ export interface IUser extends Document {
   telegramLinkCode: string | null;     // one-time 6-char link code
   telegramLinkCodeExpiry: Date | null;
   gameTheme: string;                   // active UI theme id
+  // ── System 1: Daily Login Reward & Streak ───────────────────────────────
+  loginStreak: number;
+  lastLoginDate: Date | null;
+  // ── System 2: Crime Cooldowns ────────────────────────────────────────────
+  crimeCooldowns: Map<string, Date>;
+  // ── System 3: Weekly leaderboard fields ──────────────────────────────────
+  weeklyDc: number;
+  weeklyArenaWins: number;
+  weeklyRaceWins: number;
+  weeklyReset: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -240,9 +254,13 @@ const UserSchema = new Schema<IUser>(
     losses: { type: Number, default: 0 },
     reputation: { type: Number, default: 0 },
     attacksToday: { type: Number, default: 0 },
+    status: { type: String, enum: ['normal', 'traveling', 'abroad', 'hospitalized', 'jailed'], default: 'normal' },
+    currentLocation: { type: String, default: 'downtown' },
     hospitalizedUntil: { type: Date, default: null },
+    jailedUntil: { type: Date, default: null },
     jailUntil: { type: Date, default: null },
     jailDuration: { type: Number, default: 0 },
+    lastMuggedAt: { type: Date, default: null },
     pursuiteActive: { type: Boolean, default: false },
     alterEgoName: { type: String, default: null },
     alterEgoHeat: { type: Number, default: 0 },
@@ -337,6 +355,16 @@ const UserSchema = new Schema<IUser>(
     trainingSessionsToday: { type: Schema.Types.Mixed, default: {} },
     trainingResetAt:       { type: Date, default: null },
     gameTheme: { type: String, default: "default" },
+    // ── System 1: Daily Login Reward & Streak ─────────────────────────────
+    loginStreak: { type: Number, default: 0 },
+    lastLoginDate: { type: Date, default: null },
+    // ── System 2: Crime Cooldowns ─────────────────────────────────────────
+    crimeCooldowns: { type: Map, of: Date, default: {} },
+    // ── System 3: Weekly leaderboard fields ──────────────────────────────
+    weeklyDc: { type: Number, default: 0 },
+    weeklyArenaWins: { type: Number, default: 0 },
+    weeklyRaceWins: { type: Number, default: 0 },
+    weeklyReset: { type: Date, default: null },
     implants: {
       type: [{
         id: { type: String, required: true },
@@ -420,7 +448,7 @@ export function applyRegen(user: IUser): void {
     user.nitroRegenAt = new Date(now);
   }
 
-  // Travel arrival auto-completion
+  // Travel arrival auto-completion (legacy district field)
   if (user.travelingTo && user.travelArrivesAt && user.travelArrivesAt.getTime() <= now) {
     user.district = user.travelingTo;
     user.travelingTo = null;
@@ -476,7 +504,9 @@ export function isHospitalized(user: IUser): boolean {
 }
 
 export function isJailed(user: IUser): boolean {
-  return user.jailUntil !== null && user.jailUntil > new Date();
+  // Support both jailUntil (legacy) and jailedUntil (new)
+  const until = user.jailedUntil ?? user.jailUntil;
+  return until !== null && until > new Date();
 }
 
 /** Stress penalty: above 70 stress applies -10% success chance */

@@ -9,6 +9,7 @@ import { registerWebhook, setMyCommands } from "./lib/telegram";
 import { registerGuildCommands } from "./lib/discord";
 import User from "./models/User";
 import { allowedOrigins } from "./lib/cors";
+import { closeExpiredAuctions } from "./routes/auction";
 
 const rawPort = process.env["PORT"] ?? "3000";
 const port = Number(rawPort);
@@ -235,6 +236,17 @@ async function start() {
   httpServer.listen(port, () => {
     logger.info({ port }, "Server listening");
     startKeepAlive();
+
+    // ── Auction auto-close: run every 5 minutes ───────────────────────────────
+    setInterval(() => {
+      closeExpiredAuctions().catch((err) =>
+        logger.error({ err }, "auction auto-close interval error"),
+      );
+    }, 5 * 60 * 1000);
+    // Run once immediately on startup to catch any auctions that expired while server was down
+    closeExpiredAuctions().catch((err) =>
+      logger.error({ err }, "auction auto-close startup error"),
+    );
 
     // Register Telegram webhook once the server is live and accepting traffic.
     //
