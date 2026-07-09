@@ -648,7 +648,7 @@ async function grantRaceRewards(match: any) {
     // ─────────────────────────────────────────────────────────────────────────
 
     const dcEarned    = Math.floor(base.dc * dcMult);
-    const xpEarned    = Math.floor(base.xp * xpMult);
+    const xpEarned    = Math.floor(base.xp * xpMult * (1 + (u.prestigeXpBoost ?? 0) / 100));
     const shardsEarned = fullRewards ? base.keyShards : 0;
     // 1st place: 10% chance of a bonus Key (Racing Royale spin token)
     const bonusKey = placement === 1 && fullRewards && Math.random() < 0.1 ? 1 : 0;

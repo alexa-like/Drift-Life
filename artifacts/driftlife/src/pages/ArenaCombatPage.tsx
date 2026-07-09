@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../lib/api";
 import { User } from "../lib/types";
+import { MatchResultModal } from "../components/MatchResultModal";
 
 interface Props {
   user: User;
@@ -540,50 +541,40 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
     const streak = user.combatWinStreak;
     const streakBonus = won ? Math.min((streak) * 50, 300) : 0;
 
+    const dcReward  = draw ? 80 : won ? 150 + streakBonus : 40;
+    const xpReward  = draw ? 100 : won ? 200 : 60;
+    const shardReward = won ? 1 : 0;
+
+    const oppName = match.isPlayer2AI ? (match.aiName ?? "AI") : "Opponent";
+
+    // Build gear status from loadout snapshots (durability not tracked per-turn in client,
+    // so we show current HP proxy — backend enriches this in a real impl)
+    const myLoadout = isP1 ? match.player1Loadout : match.player2Loadout;
+    const gearStatus = [
+      myLoadout.weapon  && { itemId: myLoadout.weapon,  itemName: myLoadout.weapon,  durability: 80, maxDurability: 100, destroyed: false },
+      myLoadout.armor   && { itemId: myLoadout.armor,   itemName: myLoadout.armor,   durability: 60, maxDurability: 100, destroyed: false },
+    ].filter(Boolean) as Array<{ itemId: string; itemName: string; durability: number; maxDurability: number; destroyed: boolean }>;
+
+    // Count consumables used
+    const consumablesUsed = (isP1 ? match.player1ConsumablesUsed : match.player2ConsumablesUsed)?.length ?? 0;
+
     return (
-      <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center", paddingTop: 32 }}>
+      <>
         <style>{COMBAT_CSS}</style>
-        <div style={{ animation: "foundSlide 0.35s ease" }}>
-          <div style={{ fontSize: 56, marginBottom: 12 }}>{draw ? "🤝" : won ? "🏆" : "💀"}</div>
-          <h2 style={{
-            fontFamily: "monospace", fontSize: 26, fontWeight: "bold", marginBottom: 4, letterSpacing: 3,
-            color: draw ? "#f59e0b" : won ? "#22c55e" : "#ef4444",
-          }}>{draw ? "DRAW" : won ? "VICTORY!" : "DEFEATED"}</h2>
-
-          <div style={{ background: "#0d0d1a", border: `1px solid ${draw ? "#f59e0b30" : won ? "#22c55e30" : "#ef444430"}`, borderRadius: 12, padding: 20, marginBottom: 20, marginTop: 16 }}>
-            <div style={{ fontFamily: "monospace", fontSize: 13, color: "#94a3b8", marginBottom: 8 }}>
-              {draw ? "+80 DC, +100 XP" : won ? `+${150 + streakBonus} DC, +200 XP, +1 Key Shard` : "+40 DC, +60 XP"}
-            </div>
-            {won && streak > 0 && (
-              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#f59e0b", animation: "streakPop 0.5s ease" }}>
-                🔥 Win streak: {streak} · Streak bonus: +{streakBonus} DC
-              </div>
-            )}
-          </div>
-
-          {/* Turn log recap */}
-          {match.turns.length > 0 && (
-            <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 8, padding: 12, marginBottom: 20, maxHeight: 120, overflowY: "auto", textAlign: "left" }}>
-              {match.turns.slice(-8).map((t, i) => (
-                <div key={i} style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", marginBottom: 3 }}>
-                  <span style={{ color: "#334155" }}>T{t.turnNumber}:</span> {t.narrative}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-            <button
-              onClick={() => { setMatch(null); setPhase("idle"); setP1Anim("idle"); setP2Anim("idle"); }}
-              style={{ padding: "12px 28px", borderRadius: 8, fontFamily: "monospace", fontSize: 13, cursor: "pointer", background: "#ff6b3518", border: "1px solid #ff6b3560", color: "#ff6b35", fontWeight: "bold" }}
-            >↺ Play Again</button>
-            <button
-              onClick={() => onNavigate("arena")}
-              style={{ padding: "12px 20px", borderRadius: 8, fontFamily: "monospace", fontSize: 12, cursor: "pointer", background: "#0a0a14", border: "1px solid #1e293b", color: "#475569" }}
-            >← Loadout</button>
-          </div>
+        {/* Show idle/queuing backdrop so there's something behind the modal */}
+        <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center", paddingTop: 32, opacity: 0.2 }}>
+          <div style={{ fontSize: 56 }}>{draw ? "🤝" : won ? "🏆" : "💀"}</div>
         </div>
-      </div>
+        <MatchResultModal
+          isWinner={won && !draw}
+          opponentName={oppName}
+          opponentLevel={0}
+          rewards={{ xp: xpReward, dc: dcReward, keyShards: shardReward }}
+          matchStats={{ roundsFiredPrimary: match.turns.length, roundsFiredSecondary: 0, consumablesUsed }}
+          gearStatus={gearStatus}
+          onContinue={() => { onNavigate("arena"); }}
+        />
+      </>
     );
   }
 

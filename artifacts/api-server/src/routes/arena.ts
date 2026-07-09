@@ -17,6 +17,7 @@ import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { fireMissionEvent } from "../lib/missionEvents";
 import { checkAchievements } from "./achievements";
+import { emitFeedEvent } from "../lib/feedEvents";
 
 const router = Router();
 
@@ -1329,7 +1330,7 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
       );
       p1HPAfter = Math.max(0, p1HPAfter - aiR.damage);
       p1ArmorHp = aiR.newArmorHp;
-      if (aiR.damage > 0) player1Effect = aiR.isCrit ? "crit" : "hit";
+      if (aiR.damage > 0) player1Effect = "hit";
       narrativeParts.push(aiR.narrative);
     } else if (aiAction === "defend") {
       narrativeParts.push(`${match.aiName} braces for impact`);
@@ -1401,7 +1402,15 @@ async function grantCombatRewards(match: any) {
   const FULL_CAP = 30;
   const HALF_CAP = 50;
 
-  async function grant(userId: string | null, isWinner: boolean) {
+  // Resolve opponent levels for reward formula
+  const p1Level = match.player1Loadout?.hp != null
+    ? (await User.findById(match.player1Id).select("level").lean() as any)?.level ?? 1
+    : 1;
+  const p2Level = match.isPlayer2AI
+    ? Math.max(1, Math.floor(p1Level * (0.8 + Math.random() * 0.4)))
+    : (await User.findById(match.player2Id).select("level").lean() as any)?.level ?? 1;
+
+  async function grant(userId: string | null, isWinner: boolean, opponentLevel: number) {
     if (!userId) return;
     const u = await User.findById(userId);
     if (!u) return;
@@ -1424,22 +1433,44 @@ async function grantCombatRewards(match: any) {
 
     if (isDraw) {
       dcEarned = Math.floor(80 * dcMult);
-      xpEarned = Math.floor(100 * xpMult);
+      const baseXpDraw = 100;
+      const finalXpDraw = Math.floor(baseXpDraw * (1 + (u.prestigeXpBoost ?? 0) / 100));
+      xpEarned = Math.floor(finalXpDraw * xpMult);
       u.dc += dcEarned; u.xp += xpEarned;
     } else if (isWinner) {
-      const streakBonus = Math.min(((u.combatWinStreak ?? 0) + 1) * 50, 300);
-      dcEarned     = Math.floor((150 + streakBonus) * dcMult);
-      xpEarned     = Math.floor(200 * xpMult);
+      const baseXp = 150 + Math.floor(opponentLevel * 2);
+      const finalXp = Math.floor(baseXp * (1 + (u.prestigeXpBoost ?? 0) / 100));
+      xpEarned = Math.floor(finalXp * xpMult);
+      dcEarned = Math.floor((200 + Math.floor(opponentLevel * 3)) * dcMult);
       shardsEarned = fullRewards ? 1 : 0;
       u.dc += dcEarned;
       u.xp += xpEarned;
       u.combatWinStreak = (u.combatWinStreak ?? 0) + 1;
-      if (shardsEarned) u.keyShards += 1;
+      if (shardsEarned) {
+        u.keyShards = (u.keyShards ?? 0) + 1;
+        // Auto-convert shards to keys
+        while ((u.keyShards ?? 0) >= 20) {
+          u.keyShards -= 20;
+          u.keys = (u.keys ?? 0) + 1;
+        }
+      }
       u.wins += 1;
     } else {
-      dcEarned = Math.floor(40 * dcMult);
-      xpEarned = Math.floor(60 * xpMult);
-      u.dc += dcEarned; u.xp += xpEarned;
+      const baseXp = 50 + Math.floor(opponentLevel * 0.5);
+      const finalXp = Math.floor(baseXp * (1 + (u.prestigeXpBoost ?? 0) / 100));
+      xpEarned = Math.floor(finalXp * xpMult);
+      dcEarned = Math.floor(50 * dcMult);
+      shardsEarned = fullRewards ? 1 : 0;
+      u.dc += dcEarned;
+      u.xp += xpEarned;
+      if (shardsEarned) {
+        u.keyShards = (u.keyShards ?? 0) + 1;
+        // Auto-convert shards to keys
+        while ((u.keyShards ?? 0) >= 20) {
+          u.keyShards -= 20;
+          u.keys = (u.keys ?? 0) + 1;
+        }
+      }
       u.combatWinStreak = 0;
       u.losses += 1;
     }
@@ -1451,6 +1482,28 @@ async function grantCombatRewards(match: any) {
       }
     }
     await u.save();
+
+    // ── Win-streak milestone feed posts ──────────────────────────────────────
+    if (isWinner) {
+      const milestones = [5, 10, 20, 50];
+      const streak = u.combatWinStreak ?? 0;
+      if (milestones.includes(streak)) {
+        const messages: Record<number, string> = {
+          5:  `Wow, Hero @${u.username} has a 5 win streak in the Arena! :swordclash:`,
+          10: `@${u.username} is unstoppable — 10 win streak in the Arena! The city takes notice. :neonskull:`,
+          20: `Legends only: @${u.username} just hit a 20 win streak in the Arena. Nobody can touch them. :goldtrophy:`,
+          50: `@${u.username} is a god. 50 win streak in the Arena. The city bows. :goldtrophy:`,
+        };
+        emitFeedEvent({
+          type: "system",
+          actor: "System",
+          actorId: undefined,
+          message: messages[streak],
+          dc: 0,
+          xp: 0,
+        }).catch(() => {});
+      }
+    }
 
     if (isWinner) {
       const weekStart = getWeekStart();
@@ -1477,7 +1530,7 @@ async function grantCombatRewards(match: any) {
       ? `Draw — +${dcEarned} DC, +${xpEarned} XP${capNote}`
       : isWinner
         ? `Victory! +${dcEarned} DC, +${xpEarned} XP${shardsEarned ? ", +1 Key Shard" : ""}${capNote}`
-        : `Defeat — +${dcEarned} DC, +${xpEarned} XP${capNote}`;
+        : `Defeat — +${dcEarned} DC, +${xpEarned} XP${shardsEarned ? ", +1 Key Shard" : ""}${capNote}`;
     await Notification.create({
       userId,
       type: "system",
@@ -1490,9 +1543,9 @@ async function grantCombatRewards(match: any) {
   const p1Won = match.winnerId?.toString() === match.player1Id?.toString();
   const p2Won = match.winnerId?.toString() === match.player2Id?.toString();
 
-  await grant(match.player1Id?.toString() ?? null, p1Won);
+  await grant(match.player1Id?.toString() ?? null, p1Won, p2Level);
   if (!match.isPlayer2AI) {
-    await grant(match.player2Id?.toString() ?? null, p2Won);
+    await grant(match.player2Id?.toString() ?? null, p2Won, p1Level);
   }
 }
 
@@ -1504,5 +1557,72 @@ function getWeekStart(): Date {
   d.setUTCHours(0, 0, 0, 0);
   return d;
 }
+
+// ── Valid taunts ───────────────────────────────────────────────────────────────
+const VALID_TAUNTS: Record<string, string> = {
+  t1: "You fight like a stock firmware.",
+  t2: "Is that all your augments can do?",
+  t3: "I've seen better aim from a blind drone.",
+  t4: "Your armor is decorative at this point.",
+  t5: "GG. Almost.",
+  t6: "I can do this all day. Can you?",
+  t7: "Run diagnostics. You're losing.",
+  t8: "👁️",
+};
+
+// ── POST /api/arena/match/:id/taunt ───────────────────────────────────────────
+router.post("/match/:id/taunt", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { tauntId } = req.body as { tauntId?: string };
+    if (!tauntId || !VALID_TAUNTS[tauntId]) {
+      res.status(400).json({ message: "Invalid tauntId" });
+      return;
+    }
+
+    const match = await CombatMatch.findOne({ matchId: req.params["id"] });
+    if (!match) {
+      res.status(404).json({ message: "Match not found" });
+      return;
+    }
+
+    if (!["active", "in_progress"].includes(match.status)) {
+      res.status(400).json({ message: "Match is not active" });
+      return;
+    }
+
+    const isP1 = match.player1Id?.toString() === req.userId;
+    const isP2 = !match.isPlayer2AI && match.player2Id?.toString() === req.userId;
+    if (!isP1 && !isP2) {
+      res.status(403).json({ message: "You are not a participant in this match" });
+      return;
+    }
+
+    // Rate limit: 1 taunt per round per player
+    const currentRound = match.currentTurn;
+    const taunts = (match as any).taunts ?? [];
+    const alreadyTaunted = taunts.some(
+      (t: { senderId: string; round: number }) =>
+        t.senderId === req.userId && t.round === currentRound,
+    );
+    if (alreadyTaunted) {
+      res.status(429).json({ message: "You already taunted this round" });
+      return;
+    }
+
+    taunts.push({
+      senderId: req.userId!,
+      tauntId,
+      round: currentRound,
+      sentAt: new Date(),
+    });
+    (match as any).taunts = taunts;
+    await match.save();
+
+    res.json({ success: true, taunt: VALID_TAUNTS[tauntId] });
+  } catch (err) {
+    req.log.error({ err }, "arena taunt error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 export default router;

@@ -176,6 +176,10 @@ export interface IUser extends Document {
   weeklyArenaWins: number;
   weeklyRaceWins: number;
   weeklyReset: Date | null;
+  combatMatchesCompleted: number;
+  lastEncounterAt: Date | null;
+  // ── Revive system ─────────────────────────────────────────────────────────
+  revivesReceived: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -365,6 +369,9 @@ const UserSchema = new Schema<IUser>(
     weeklyArenaWins: { type: Number, default: 0 },
     weeklyRaceWins: { type: Number, default: 0 },
     weeklyReset: { type: Date, default: null },
+    combatMatchesCompleted: { type: Number, default: 0 },
+    lastEncounterAt: { type: Date, default: null },
+    revivesReceived: { type: Number, default: 0 },
     implants: {
       type: [{
         id: { type: String, required: true },
@@ -468,7 +475,11 @@ export function applyRegen(user: IUser): void {
 
 /** maxHealth is computed at runtime — never stored — so it always reflects current level/prestige. */
 export function computeMaxHp(level: number, prestige: number = 0): number {
-  return Math.floor(100 + level * 5 + prestige * 25);
+  const baseHp = 100;
+  const levelHp = level * 15;
+  const quadraticHp = Math.floor(level * level * 0.2);
+  const prestigeBonus = prestige * 200;
+  return baseHp + levelHp + quadraticHp + prestigeBonus;
 }
 
 export function levelUp(user: IUser): boolean {

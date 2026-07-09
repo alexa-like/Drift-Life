@@ -1,11 +1,13 @@
 import { Router } from "express";
 import sanitizeHtml from "sanitize-html";
-import User, { computeMaxHp } from "../models/User";
+import User, { computeMaxHp, levelUp } from "../models/User";
 import Item from "../models/Item";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen } from "../lib/regen";
 import { safeUser } from "./auth";
 import bcrypt from "bcryptjs";
+import { postToSystemFeed } from "../lib/systemFeed";
+import Notification from "../models/Notification";
 
 function stripHtml(raw: unknown): string {
   return sanitizeHtml(String(raw ?? ""), { allowedTags: [], allowedAttributes: {} });
@@ -403,9 +405,9 @@ router.post("/prestige", requireAuth, async (req: AuthRequest, res) => {
     if (user.level < 100) {
       res.status(400).json({ message: "You must reach level 100 to prestige." }); return;
     }
-    const totalMatches = (user.wins ?? 0) + (user.losses ?? 0);
-    if (totalMatches < 50) {
-      res.status(400).json({ message: "You need at least 50 arena matches (" + totalMatches + "/50)." }); return;
+    const combatMatchesDone = user.combatMatchesCompleted ?? 0;
+    if (combatMatchesDone < 50) {
+      res.status(400).json({ message: "You need to complete at least 50 arena matches to prestige" }); return;
     }
 
     const newPrestige = (user.prestige ?? 0) + 1;
@@ -425,6 +427,15 @@ router.post("/prestige", requireAuth, async (req: AuthRequest, res) => {
 
     await user.save();
 
+    const prestigeMessages: Record<number, string> = {
+      1: `@${user.username} reached Prestige 1! The city takes notice.`,
+      2: `@${user.username} reached Prestige 2! Rising fast.`,
+      3: `@${user.username} reached Prestige 3! A legend walks among us.`,
+      4: `@${user.username} reached Prestige 4! Elite tier.`,
+    };
+    const prestigeMsg = prestigeMessages[newPrestige] ?? `@${user.username} reached Prestige ${newPrestige}! The city is in awe.`;
+    await postToSystemFeed("prestige", prestigeMsg, [user.username]);
+
     res.json({
       message: "Prestige " + newPrestige + " achieved! Welcome back to level 1.",
       prestige: newPrestige,
@@ -438,6 +449,113 @@ router.post("/prestige", requireAuth, async (req: AuthRequest, res) => {
     });
   } catch (err: any) {
     res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/user/player/:id/revive
+router.post("/player/:id/revive", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (req.params.id === req.userId) {
+      return res.status(400).json({ message: "You cannot revive yourself" });
+    }
+    const [requester, target] = await Promise.all([
+      User.findById(req.userId),
+      User.findById(req.params.id),
+    ]);
+    if (!requester) return res.status(404).json({ message: "User not found" });
+    if (!target) return res.status(404).json({ message: "Target player not found" });
+
+    if (target.status !== "hospitalized" || !target.hospitalizedUntil || target.hospitalizedUntil <= new Date()) {
+      return res.status(400).json({ message: "Target player is not hospitalized" });
+    }
+
+    const remaining = target.hospitalizedUntil.getTime() - Date.now();
+    if (remaining < 30_000) {
+      return res.status(400).json({ message: "This player barely needs help" });
+    }
+
+    const REVIVE_COST = 200;
+    if (requester.dc < REVIVE_COST) {
+      return res.status(400).json({ message: `Insufficient DC — need ${REVIVE_COST} DC to revive` });
+    }
+
+    const revivesReceived = (target as any).revivesReceived ?? 0;
+    if (revivesReceived >= 2) {
+      return res.status(400).json({ message: "This player has already received the maximum revives for this hospital stay" });
+    }
+
+    requester.dc -= REVIVE_COST;
+    requester.xp += 10;
+    levelUp(requester);
+    await requester.save();
+
+    target.hospitalizedUntil = new Date(Date.now() + Math.floor(remaining * 0.5));
+    (target as any).revivesReceived = revivesReceived + 1;
+    await target.save();
+
+    await Notification.create({
+      userId: target._id,
+      type: "system",
+      message: `@${requester.username} revived you — your hospital time has been cut in half!`,
+      read: false,
+    });
+
+    return res.json({ message: "Revive applied", newReleaseTime: target.hospitalizedUntil });
+  } catch (err: any) {
+    req.log.error({ err }, "revive error");
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/user/player/:id/bail
+router.post("/player/:id/bail", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (req.params.id === req.userId) {
+      return res.status(400).json({ message: "You cannot bail yourself" });
+    }
+    const [requester, target] = await Promise.all([
+      User.findById(req.userId),
+      User.findById(req.params.id),
+    ]);
+    if (!requester) return res.status(404).json({ message: "User not found" });
+    if (!target) return res.status(404).json({ message: "Target player not found" });
+
+    if (target.status !== "jailed") {
+      return res.status(400).json({ message: "Target player is not jailed" });
+    }
+
+    const jailedUntil = target.jailedUntil ?? target.jailUntil;
+    if (!jailedUntil || jailedUntil <= new Date()) {
+      return res.status(400).json({ message: "Target player is not jailed" });
+    }
+
+    const minutesRemaining = (jailedUntil.getTime() - Date.now()) / 60000;
+    const cost = Math.floor(minutesRemaining * 80);
+
+    if (requester.dc < cost) {
+      return res.status(400).json({ message: `Insufficient DC — bail costs ${cost} DC`, cost });
+    }
+
+    requester.dc -= cost;
+    await requester.save();
+
+    target.status = "normal";
+    target.jailedUntil = null;
+    target.jailUntil = null;
+    target.jailDuration = 0;
+    await target.save();
+
+    await Notification.create({
+      userId: target._id,
+      type: "system",
+      message: `@${requester.username} paid your bail of ${cost} DC. You are free.`,
+      read: false,
+    });
+
+    return res.json({ message: "Bail paid", cost });
+  } catch (err: any) {
+    req.log.error({ err }, "bail error");
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import User from "../models/User";
+import { rollCityEncounter } from "./crimes";
 
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp } from "../lib/regen";
@@ -78,7 +79,8 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
     let dcMultiplier  = user.faction === "suits" ? 1.10 : 1;
     const subTier = (await import("../lib/subscription")).getActiveTier(user as any);
     const dcGained      = Math.floor((job.dcMin + Math.random() * (job.dcMax - job.dcMin)) * dcMultiplier);
-    const xpGained      = Math.floor(job.xpPerJob * (subTier?.jobXpMult ?? 1));
+    const baseXpGained  = Math.floor(job.xpPerJob * (subTier?.jobXpMult ?? 1));
+    const xpGained      = Math.floor(baseXpGained * (1 + (user.prestigeXpBoost ?? 0) / 100));
     const cooldownUntil = new Date(Date.now() + job.cooldownMin * 60 * 1000);
 
     // FULLY ATOMIC: regen computed server-side via pipeline; $expr condition
@@ -138,6 +140,10 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
     if (leveled || miniGameTriggered) await rewarded.save();
     checkAchievements(String(req.userId)).catch(() => {});
 
+    // ── City encounter ────────────────────────────────────────────────────────
+    const encounter = await rollCityEncounter(rewarded).catch(() => null);
+    if (encounter) await rewarded.save();
+
     // job completions are private — no feed post
 
     res.json({
@@ -146,6 +152,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
       miniGameTriggered, miniGameType: miniGameTriggered ? job.miniGame : null,
       miniGameToken,
       cooldownUntil,
+      ...(encounter ? { encounter } : {}),
       user: { dc: rewarded.dc, energy: rewarded.energy, maxEnergy: rewarded.maxEnergy, xp: rewarded.xp, xpToNext: rewarded.xpToNext, level: rewarded.level },
     });
   } catch (err: any) {

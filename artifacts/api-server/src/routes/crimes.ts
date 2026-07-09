@@ -5,6 +5,7 @@
  */
 import { Router } from "express";
 import User from "../models/User";
+import CrimeLog from "../models/CrimeLog";
 import { getActiveTier } from "../lib/subscription";
 // In-memory hourly run counter
 const _runCounters = new Map<string, { count: number; resetAt: number }>();
@@ -23,11 +24,45 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp, stressPenalty } from "../models/User";
 import { checkAchievements } from "./achievements";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
+import { postToSystemFeed } from "../lib/systemFeed";
 import { getWorldState, worldRunModifiers } from "../models/WorldState";
 import { validateBody } from "../middlewares/validate";
 import { pursuitResolveSchema, crimesLaunderSchema } from "../lib/schemas";
 
 const router = Router();
+
+// ── City Encounter System ────────────────────────────────────────────────────
+const ENCOUNTERS = [
+  { id: "wallet",      weight: 15, fn: async (user: any) => { const dc = 150 + Math.floor(Math.random()*250); user.dc += dc; return { message: `You spotted a wallet in the gutter. You pocket ${dc} DC.` }; } },
+  { id: "free_energy", weight: 10, fn: async (user: any) => { user.energy = Math.min(user.maxEnergy ?? 10, user.energy + 2); return { message: "A vendor hands you a sample can. +2 Energy." }; } },
+  { id: "adrenaline",  weight: 8,  fn: async (user: any) => { user.adrenaline = Math.min(user.maxAdrenaline ?? 5, user.adrenaline + 1); return { message: "You find an unmarked vial. +1 Adrenaline." }; } },
+  { id: "nitro",       weight: 8,  fn: async (user: any) => { user.nitro = Math.min(user.maxNitro ?? 5, user.nitro + 1); return { message: "An unattended canister catches your eye. +1 Nitro." }; } },
+  { id: "key_shard",   weight: 6,  fn: async (user: any) => { user.keyShards = (user.keyShards ?? 0) + 1; return { message: "Something glints in the drain. A shard — circuit-etched, still warm. +1 Key Shard." }; } },
+  { id: "pickpocket",  weight: 8,  fn: async (user: any) => { if (Math.random() < 0.5) { const lost = 100 + Math.floor(Math.random()*200); user.dc = Math.max(0, user.dc - lost); return { message: `You check your pockets. Someone got there first. Lost ${lost} DC.` }; } return null; } },
+  { id: "nothing",     weight: 45, fn: async (_user: any) => null },
+];
+
+async function rollCityEncounter(user: any): Promise<{ message: string } | null> {
+  const now = new Date();
+  const twoHoursAgo = new Date(now.getTime() - 2 * 3600 * 1000);
+  if (user.lastEncounterAt && user.lastEncounterAt > twoHoursAgo) return null;
+  if (Math.random() > 0.03) return null;
+
+  const totalWeight = ENCOUNTERS.reduce((s, e) => s + e.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const enc of ENCOUNTERS) {
+    roll -= enc.weight;
+    if (roll <= 0) {
+      const result = await enc.fn(user);
+      if (result) {
+        user.lastEncounterAt = now;
+        return result;
+      }
+      return null;
+    }
+  }
+  return null;
+}
 
 // ── District Crime Catalog ──────────────────────────────────────────────────
 export const DISTRICT_CRIMES: Record<string, Array<{
@@ -423,7 +458,8 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
         (run.dcMin + Math.random() * (run.dcMax - run.dcMin)) * worldMods.payoutMult * crimeRewardMult
       );
       const isFirstToday = !gated.lastCrimeDate || gated.lastCrimeDate.toDateString() !== new Date().toDateString();
-      xpGained = run.xp * (isFirstToday ? 2 : 1);
+      const baseXp = run.xp * (isFirstToday ? 2 : 1);
+      xpGained = Math.floor(baseXp * (1 + (gated.prestigeXpBoost ?? 0) / 100));
       gated.dirtyDc += dcGained;
       gated.successfulCrimes += 1;
       gated.heat = Math.min(100, gated.heat + heatGain);
@@ -514,6 +550,43 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     checkAchievements(String(req.userId)).catch(() => {});
     _incrementCrimeRuns(String(req.userId)); // track hourly rate limit
 
+    // System feed for high-tier successful runs
+    if (success && (run.dcMin >= 2000 || ["syndicate_hit", "territory_raid", "corp_espionage"].includes(run.id))) {
+      postToSystemFeed(
+        "crimes",
+        `@${rewarded.username} pulled off a ${run.name}! Earned ${dcGained.toLocaleString()} DC.`,
+        [rewarded.username],
+      ).catch(() => {});
+    }
+
+    // ── CrimeLog: record this attempt ─────────────────────────────────────────
+    const crimeOutcome = success ? "success" : (jailed ? "jailed" : "success");
+    CrimeLog.create({
+      userId: rewarded._id,
+      crimeId: run.id,
+      crimeName: run.name,
+      district: "downtown",
+      outcome: crimeOutcome,
+      dcEarned: dcGained,
+      xpEarned: xpGained,
+      jailDuration,
+    }).then(async () => {
+      const count = await CrimeLog.countDocuments({ userId: rewarded._id });
+      if (count > 100) {
+        const oldest = await CrimeLog.findOne({ userId: rewarded._id }, {}, { sort: { createdAt: 1 } });
+        if (oldest) await CrimeLog.deleteOne({ _id: oldest._id });
+      }
+    }).catch(() => {});
+
+    // ── City encounter (success only) ─────────────────────────────────────────
+    let encounter: { message: string } | null = null;
+    if (success) {
+      encounter = await rollCityEncounter(rewarded).catch(() => null);
+      if (encounter) {
+        await rewarded.save();
+      }
+    }
+
     res.json({
       success, narrative, dcGained, dirtyDcGained: dcGained, xpGained,
       hospitalized, jailed, jailUntil, leveled,
@@ -521,6 +594,7 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
       heatGained: success ? heatGain : 0,
       mastery: masteryDoc.mastery,
       pursuitWarning: rewarded.heat >= 70 && rewarded.heat < 80,
+      ...(encounter ? { encounter } : {}),
       user: {
         dc: rewarded.dc, energy: rewarded.energy, maxEnergy: rewarded.maxEnergy,
         heat: rewarded.heat, stress: rewarded.stress, xp: rewarded.xp,
@@ -713,5 +787,19 @@ router.post("/launder", requireAuth, validateBody(crimesLaunderSchema), async (r
   }
 });
 
-export { RUNS };
+// ── GET /api/crimes/history — last 15 crime logs for authenticated user ───────
+router.get("/history", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const logs = await CrimeLog.find({ userId: req.userId })
+      .sort({ createdAt: -1 })
+      .limit(15)
+      .lean();
+    res.json(logs);
+  } catch (err: any) {
+    req.log.error({ err }, "crime history error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+export { RUNS, rollCityEncounter };
 export default router;

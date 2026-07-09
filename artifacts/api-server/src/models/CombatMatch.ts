@@ -62,6 +62,13 @@ export interface ActiveEffect {
   value:     number;  // dmg per turn (DoT) or hp per turn (regen); 0 for stun
 }
 
+export interface ITauntRecord {
+  senderId: string;
+  tauntId:  string;
+  round:    number;
+  sentAt:   Date;
+}
+
 export interface ICombatMatch extends Document {
   matchId:              string;   // uuid
   player1Id:            mongoose.Types.ObjectId;
@@ -96,6 +103,8 @@ export interface ICombatMatch extends Document {
   player2StunNextTurn:         boolean;
   player1KnockedBack:          boolean;
   player2KnockedBack:          boolean;
+  // Taunts
+  taunts: ITauntRecord[];
   // Injected by { timestamps: true }
   createdAt: Date;
   updatedAt: Date;
@@ -185,6 +194,15 @@ const CombatMatchSchema = new Schema<ICombatMatch>(
     player2StunNextTurn:         { type: Boolean, default: false },
     player1KnockedBack:          { type: Boolean, default: false },
     player2KnockedBack:          { type: Boolean, default: false },
+    taunts: {
+      type: [{
+        senderId: { type: String, required: true },
+        tauntId:  { type: String, required: true },
+        round:    { type: Number, required: true },
+        sentAt:   { type: Date, default: Date.now },
+      }],
+      default: [],
+    },
   },
   { timestamps: true },
 );

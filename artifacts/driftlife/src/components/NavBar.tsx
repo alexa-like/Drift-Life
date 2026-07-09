@@ -29,8 +29,9 @@ const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b
 
 // Wire Cartel onboarding-gated nav items
 // minStage: minimum onboardingStage required to see this item
-const NAV: { id: string; label: string; minStage?: number; group?: string }[] = [
-  // Always visible
+// statusFilter: which statuses can see this item ("all" | "normal" | "normal|abroad" | etc.)
+const NAV: { id: string; label: string; minStage?: number; group?: string; statusFilter?: string }[] = [
+  // Always visible (all statuses)
   { id: "feed",         label: "Feed" },
   { id: "chat",         label: "Chat" },
   { id: "profile",      label: "Profile" },
@@ -38,32 +39,34 @@ const NAV: { id: string; label: string; minStage?: number; group?: string }[] = 
   { id: "store",        label: "Store" },
   { id: "connections",  label: "Connect" },
   { id: "leaderboard",  label: "Board" },
-  // Wire Cartel — core loop (onboarding gated)
-  { id: "city",         label: "City",     group: "wc" },         // stage 0 — hub for street/district/careers
-  { id: "training",     label: "Training",  group: "wc" },
-  { id: "jobs",         label: "Jobs",     group: "wc" },
-  { id: "garage",       label: "Garage",   group: "wc", minStage: 1 },
-  { id: "net",          label: "Net",      group: "wc", minStage: 3 },
-  { id: "cyber",        label: "Cyber",    group: "wc", minStage: 3 },
-  { id: "guilds",       label: "Crew",     group: "wc", minStage: 2 },
-  // Economy & social
-  { id: "arena",        label: "Arena" },
-  { id: "loadout",      label: "Loadout" },
   { id: "auction",      label: "Auction" },
-  { id: "shop",         label: "Shop" },
-  { id: "market",       label: "Market" },
-  { id: "friends",      label: "Friends" },
-  { id: "bank",         label: "Bank" },
-  { id: "properties",   label: "Estate" },
-  { id: "crafting",     label: "Craft" },
-  { id: "skills",       label: "Skills" },
+  // Wire Cartel — core loop (onboarding gated, normal only)
+  { id: "city",         label: "City",     group: "wc",  statusFilter: "normal" },
+  { id: "training",     label: "Training", group: "wc",  statusFilter: "normal" },
+  { id: "jobs",         label: "Jobs",     group: "wc",  statusFilter: "normal" },
+  { id: "garage",       label: "Garage",   group: "wc",  minStage: 1, statusFilter: "normal" },
+  { id: "net",          label: "Net",      group: "wc",  minStage: 3, statusFilter: "normal" },
+  { id: "cyber",        label: "Cyber",    group: "wc",  minStage: 3, statusFilter: "normal" },
+  { id: "guilds",       label: "Crew",     group: "wc",  minStage: 2, statusFilter: "normal" },
+  // Normal-only arena / combat
+  { id: "arena",        label: "Arena",    statusFilter: "normal" },
+  { id: "loadout",      label: "Loadout",  statusFilter: "normal" },
+  { id: "race-hub",     label: "Race",     statusFilter: "normal" },
+  { id: "royale",       label: "Royale",   statusFilter: "normal" },
+  { id: "missions",     label: "Missions", statusFilter: "normal" },
+  // Normal or abroad
+  { id: "crimes",       label: "Crimes",   statusFilter: "normal|abroad" },
+  { id: "travel",       label: "Travel",   statusFilter: "normal|abroad" },
+  { id: "market",       label: "Market",   statusFilter: "normal|abroad" },
+  // Economy & social (normal only)
+  { id: "shop",         label: "Shop",     statusFilter: "normal" },
+  { id: "friends",      label: "Friends",  statusFilter: "normal" },
+  { id: "bank",         label: "Bank",     statusFilter: "normal" },
+  { id: "properties",   label: "Estate",   statusFilter: "normal" },
+  { id: "crafting",     label: "Craft",    statusFilter: "normal" },
+  { id: "skills",       label: "Skills",   statusFilter: "normal" },
   { id: "achievements", label: "Achiev" },
-  { id: "missions",     label: "Missions" },
   { id: "daily",        label: "Daily" },
-  // ── Mini-game hub (Tier 2+) ──────────────────────────────────────────────
-  { id: "royale",       label: "Royale" },
-  // ── Racing System (Tier 5) ──────────────────────────────────────────────
-  { id: "race-hub",     label: "Race" },
 ];
 
 function RollingNumber({ value, color }: { value: number; color: string }) {
@@ -241,13 +244,22 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
           DRIFT
         </button>
 
-        {/* Nav links — filtered by onboardingStage */}
+        {/* Nav links — filtered by onboardingStage + user status */}
         {NAV.filter(item => {
           const minStage = item.minStage ?? 0;
           const stage = user.onboardingStage ?? 0;
-          // Items with minStage 99 are hidden (legacy, redirected)
           if (minStage === 99) return false;
-          return stage >= minStage;
+          if (stage < minStage) return false;
+
+          // Status-based visibility
+          const status = (user as any).status as string | undefined;
+          const isNormal    = !status || status === "normal";
+          const isAbroad    = status === "abroad";
+          const sf = item.statusFilter;
+          if (!sf) return true; // no filter = always visible
+          if (sf === "normal")         return isNormal;
+          if (sf === "normal|abroad")  return isNormal || isAbroad;
+          return true;
         }).map(item => (
           <button
             key={item.id}

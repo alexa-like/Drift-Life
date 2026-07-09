@@ -479,6 +479,45 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ── CHANNELS ─────────────────────────────────────────────────────────────────
+
+// GET /api/chat/channels — returns the user's available chat channels
+// Includes district channel if user is currently abroad
+router.get("/channels", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId)
+      .select("faction status currentLocation")
+      .lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const channels: Array<{ id: string; type: string; label: string }> = [
+      { id: "global", type: "global", label: "Global" },
+    ];
+
+    if ((user as any).faction) {
+      channels.push({
+        id: `faction:${(user as any).faction}`,
+        type: "faction",
+        label: `Faction — ${(user as any).faction}`,
+      });
+    }
+
+    if ((user as any).status === "abroad" && (user as any).currentLocation) {
+      const districtId = (user as any).currentLocation as string;
+      channels.push({
+        id: `district:${districtId}`,
+        type: "district",
+        label: `District — ${districtId.replace(/_/g, " ")}`,
+      });
+    }
+
+    res.json({ channels });
+  } catch (err: any) {
+    req.log.error({ err }, "get chat channels error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // ── MODERATION ────────────────────────────────────────────────────────────────
 
 // DELETE /api/chat/:messageId — delete any message (staff only)

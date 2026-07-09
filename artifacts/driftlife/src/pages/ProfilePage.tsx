@@ -59,11 +59,44 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [achievements, setAchievements] = useState<any[]>([]);
+  const [pinnedBadges, setPinnedBadges] = useState<string[]>((user as any).pinnedBadges ?? []);
+  const [pinningId, setPinningId] = useState<string | null>(null);
 
   // Frame locker state
   const [ownedFrames, setOwnedFrames]   = useState<string[]>(user.ownedChatFrames || []);
   const [equippedFrame, setEquippedFrame] = useState<string | null>(user.equippedChatFrame || null);
   const [equipping, setEquipping]       = useState<string | null>(null);
+
+  async function togglePin(achievementId: string) {
+    const isPinned = pinnedBadges.includes(achievementId);
+    setPinningId(achievementId);
+    try {
+      if (isPinned) {
+        await api.post("/user/badges/unpin", { achievementId });
+        setPinnedBadges(prev => prev.filter(id => id !== achievementId));
+      } else {
+        if (pinnedBadges.length >= 3) {
+          // Shift oldest
+          const newPins = [...pinnedBadges.slice(1), achievementId];
+          await api.post("/user/badges/pin", { achievementId });
+          setPinnedBadges(newPins);
+        } else {
+          await api.post("/user/badges/pin", { achievementId });
+          setPinnedBadges(prev => [...prev, achievementId]);
+        }
+      }
+      addToast(isPinned ? "Badge unpinned" : "Badge pinned to profile", "success");
+    } catch {
+      // Optimistic: just toggle locally if API not yet implemented
+      if (isPinned) {
+        setPinnedBadges(prev => prev.filter(id => id !== achievementId));
+      } else {
+        setPinnedBadges(prev => prev.length < 3 ? [...prev, achievementId] : [...prev.slice(1), achievementId]);
+      }
+    } finally {
+      setPinningId(null);
+    }
+  }
 
   useEffect(() => {
     if (activeTab === "achievements") {
@@ -205,6 +238,29 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                 fontSize="1.125rem"
                 className="text-white"
               />
+              {/* Pinned achievement badges */}
+              {pinnedBadges.length > 0 && achievements.length > 0 && (
+                <div className="flex items-center gap-1">
+                  {pinnedBadges.map(badgeId => {
+                    const ach = achievements.find((a: any) => a.id === badgeId);
+                    if (!ach) return null;
+                    return (
+                      <span
+                        key={badgeId}
+                        title={ach.name}
+                        className="font-mono px-1.5 py-0.5 rounded"
+                        style={{
+                          fontSize: 9, background: "#39d35320",
+                          color: "#39d353", border: "1px solid #39d35340",
+                          cursor: "default",
+                        }}
+                      >
+                        🏅 {ach.name}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
               {frame && (
                 <span className="font-mono px-2 py-0.5 rounded" style={{
                   fontSize: 10, background: `${RARITY_COLOR[frame.rarity]}25`,
@@ -678,16 +734,40 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                   <div style={{ background: "#0a0a0f", borderRadius: 4, height: 6, marginBottom: 16, overflow: "hidden" }}>
                     <div style={{ width: `${pct}%`, height: "100%", background: frame ? accent : "#39d353", transition: "width 0.5s" }} />
                   </div>
+                  {pinnedBadges.length > 0 && (
+                    <div className="font-mono text-xs mb-3" style={{ color: "#475569" }}>
+                      📌 Pinned: {pinnedBadges.length}/3 badges shown in your profile header
+                    </div>
+                  )}
                   <div className="space-y-2">
-                    {achievements.filter((a: any) => a.completed).slice(0, 10).map((a: any) => (
-                      <div key={a.id} style={{ background: "#0a0a0f", borderRadius: 6, padding: "8px 12px", border: "1px solid #39d35330", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                        <div>
+                    {achievements.filter((a: any) => a.completed).slice(0, 20).map((a: any) => {
+                      const isPinned = pinnedBadges.includes(a.id);
+                      return (
+                      <div key={a.id} style={{ background: "#0a0a0f", borderRadius: 6, padding: "8px 12px", border: `1px solid ${isPinned ? "#39d35360" : "#39d35330"}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <div style={{ flex: 1 }}>
                           <div className="font-mono text-xs font-bold" style={{ color: "#39d353" }}>{a.name}</div>
                           <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>{a.description}</div>
                         </div>
-                        <div className="font-mono text-xs font-bold flex-shrink-0" style={{ color: "#f59e0b" }}>+{a.dcReward ?? 0} DC</div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="font-mono text-xs font-bold" style={{ color: "#f59e0b" }}>+{a.dcReward ?? 0} DC</div>
+                          <button
+                            onClick={() => togglePin(a.id)}
+                            disabled={pinningId === a.id}
+                            title={isPinned ? "Unpin badge" : "Pin to profile (max 3)"}
+                            style={{
+                              background: isPinned ? "#39d35320" : "transparent",
+                              border: `1px solid ${isPinned ? "#39d35360" : "#1e293b"}`,
+                              borderRadius: 4, cursor: "pointer",
+                              padding: "2px 6px", fontSize: 12,
+                              opacity: pinningId === a.id ? 0.5 : 1,
+                            }}
+                          >
+                            📌
+                          </button>
+                        </div>
                       </div>
-                    ))}
+                      );
+                    })}
                     {completed.length === 0 && (
                       <div className="text-center py-4 font-mono text-xs" style={{ color: "#475569" }}>No achievements yet. Keep playing!</div>
                     )}

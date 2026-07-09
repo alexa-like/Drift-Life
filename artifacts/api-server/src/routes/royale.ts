@@ -15,6 +15,7 @@ import MiniGameItem from "../models/MiniGameItem";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { fireMissionEvent } from "../lib/missionEvents";
 import { checkAchievements } from "./achievements";
+import { postToSystemFeed } from "../lib/systemFeed";
 
 const router = Router();
 
@@ -454,12 +455,21 @@ router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
       }
 
       // Auto key-shard conversion
-      const updatedUser = await User.findById(req.userId).select("keyShards keys dc nc");
+      const updatedUser = await User.findById(req.userId).select("keyShards keys dc nc username");
       if (updatedUser && updatedUser.keyShards >= 20) {
         const keysToAdd = Math.floor(updatedUser.keyShards / 20);
         await User.findByIdAndUpdate(req.userId, {
           $inc: { keyShards: -(keysToAdd * 20), keys: keysToAdd }
         });
+      }
+
+      // System feed post for epic/legendary wins from master_royale only
+      if (spinType === "master_royale" && (won.tier === "epic" || won.tier === "legendary") && updatedUser) {
+        await postToSystemFeed(
+          "royale",
+          `@${updatedUser.username} pulled a ${won.tier === "legendary" ? "Legendary" : "Rare Epic"} ${won.name} from the ${category} Master Royale! :jackpot:`,
+          [updatedUser.username],
+        );
       }
 
       const finalUser = await User.findById(req.userId).select("dc nc keys keyShards");
@@ -630,6 +640,20 @@ router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
           imageCard: "",
           reward: { type: "nc", amount: ncBonus },
         });
+      }
+    }
+
+    // System feed post for epic/legendary wins from master_royale (old-style spin)
+    // Old-style spin uses royaleType+currency — treat key-currency as master_royale equivalent
+    if (currency === "key") {
+      for (const w of wonItems) {
+        if (w.tier === "epic" || w.tier === "legendary") {
+          await postToSystemFeed(
+            "royale",
+            `@${deducted.username} pulled a ${w.tier === "legendary" ? "Legendary" : "Rare Epic"} ${w.name} from the ${royaleType} Master Royale! :jackpot:`,
+            [deducted.username],
+          );
+        }
       }
     }
 
