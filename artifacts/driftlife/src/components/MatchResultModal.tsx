@@ -1,4 +1,5 @@
 import React from "react";
+import { ItemImage } from "./ItemImage";
 
 const RESULT_CSS = `
 @keyframes victoryPulse {
@@ -166,7 +167,7 @@ export function MatchResultModal({
                   background: "#ef444415", border: "1px solid #ef444440",
                   borderRadius: 6, padding: "8px 10px", marginBottom: 6,
                 }}>
-                  <span style={{ fontSize: 16 }}>⚠️</span>
+                  <ItemImage itemId={g.itemId} size={28} />
                   <div style={{ flex: 1 }}>
                     <span style={{ fontFamily: "monospace", fontSize: 11, color: "#ef4444", fontWeight: "bold" }}>
                       DESTROYED THIS MATCH: {g.itemName}
@@ -184,6 +185,7 @@ export function MatchResultModal({
                   <div key={g.itemId} style={{
                     display: "flex", alignItems: "center", gap: 10, marginBottom: 6,
                   }}>
+                    <ItemImage itemId={g.itemId} size={24} />
                     <span style={{ fontFamily: "monospace", fontSize: 11, color: "#94a3b8", flex: 1 }}>{g.itemName}</span>
                     <div style={{ width: 60, background: "#1e293b", borderRadius: 3, height: 5 }}>
                       <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3 }} />

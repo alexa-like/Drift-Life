@@ -116,6 +116,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
       gated._id,
       [{ $set: {
         dc:           { $min: [{ $add: ["$dc",           dcGained] },    100_000_000] },
+        weeklyDc:     { $add: [{ $ifNull: ["$weeklyDc", 0] }, dcGained] },
         xp:           { $add: ["$xp",           xpGained] },
         seasonPoints: { $add: ["$seasonPoints", jobSeasonPts] },
       } }],

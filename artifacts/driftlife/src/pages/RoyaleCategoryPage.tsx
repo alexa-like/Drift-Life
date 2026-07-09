@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ItemImage } from "../components/ItemImage";
 
 type SpinType = "dc_spin" | "master_royale";
 
@@ -129,8 +130,8 @@ export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: P
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
         {poolItems.map((item: any, i: number) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.5rem", background: "#1a1a2e", borderRadius: "6px" }}>
-            <div style={{ width: "36px", height: "36px", background: "#333", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem" }}>
-              {item.tier === "legendary" ? "★" : item.tier === "epic" ? "◆" : "•"}
+            <div style={{ width: "36px", height: "36px", borderRadius: "4px", overflow: "hidden", flexShrink: 0 }}>
+              <ItemImage itemId={item.itemId} size={36} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ color: "#fff", fontSize: "0.9rem" }}>{item.name}</div>
@@ -151,8 +152,9 @@ export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: P
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {otherPoolItems.map((item: any, i: number) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.5rem", background: "#141420", borderRadius: "6px", opacity: 0.45 }}>
-                <div style={{ width: "36px", height: "36px", background: "#222", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem" }}>
-                  🔒
+                <div style={{ width: "36px", height: "36px", borderRadius: "4px", overflow: "hidden", flexShrink: 0, position: "relative" }}>
+                  <ItemImage itemId={item.itemId} size={36} />
+                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#00000088", fontSize: "1rem" }}>🔒</div>
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ color: "#999", fontSize: "0.9rem" }}>{item.name}</div>
@@ -171,8 +173,8 @@ export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: P
           position: "fixed", inset: 0, background: "#000a", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
         }}>
           <div style={{ background: "#1a1a2e", border: "2px solid " + (TIER_COLORS[result.tier] ?? "#333"), borderRadius: "12px", padding: "2rem", textAlign: "center", maxWidth: "360px" }}>
-            <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>
-              {result.tier === "legendary" ? "★" : result.tier === "epic" ? "◆" : "🎁"}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "0.5rem" }}>
+              <ItemImage itemId={result.itemId} size={72} />
             </div>
             <div style={{ color: TIER_COLORS[result.tier] ?? "#fff", fontWeight: "bold", fontSize: "1.2rem", textTransform: "uppercase", marginBottom: "0.25rem" }}>
               {result.tier}

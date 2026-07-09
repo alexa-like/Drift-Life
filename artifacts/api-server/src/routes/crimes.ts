@@ -307,6 +307,7 @@ router.post("/district/:crimeId/commit", requireAuth, async (req: AuthRequest, r
     if (success) {
       dcGained = Math.floor(crime.dcMin + Math.random() * (crime.dcMax - crime.dcMin));
       user.dc = Math.min(100_000_000, user.dc + dcGained);
+      user.weeklyDc = (user.weeklyDc ?? 0) + dcGained;
       user.successfulCrimes += 1;
       narrative = `${crime.name} successful. +${dcGained} DC.`;
     } else {

@@ -285,6 +285,7 @@ export interface LeaderboardEntry {
   crimes: number;
   reputation: number;
   district: string;
+  prestige?: number;
   metric?: string;
 }
 

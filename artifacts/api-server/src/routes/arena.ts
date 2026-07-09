@@ -1562,7 +1562,7 @@ async function grantCombatRewards(match: any) {
       const baseXpDraw = 100;
       const finalXpDraw = Math.floor(baseXpDraw * (1 + (u.prestigeXpBoost ?? 0) / 100));
       xpEarned = Math.floor(finalXpDraw * xpMult);
-      u.dc += dcEarned; u.xp += xpEarned;
+      u.dc += dcEarned; u.weeklyDc = (u.weeklyDc ?? 0) + dcEarned; u.xp += xpEarned;
     } else if (isWinner) {
       const baseXp = 150 + Math.floor(opponentLevel * 2);
       const finalXp = Math.floor(baseXp * (1 + (u.prestigeXpBoost ?? 0) / 100));
@@ -1570,6 +1570,7 @@ async function grantCombatRewards(match: any) {
       dcEarned = Math.floor((200 + Math.floor(opponentLevel * 3)) * dcMult);
       shardsEarned = fullRewards ? 1 : 0;
       u.dc += dcEarned;
+      u.weeklyDc = (u.weeklyDc ?? 0) + dcEarned;
       u.xp += xpEarned;
       u.combatWinStreak = (u.combatWinStreak ?? 0) + 1;
       if (shardsEarned) {
@@ -1588,6 +1589,7 @@ async function grantCombatRewards(match: any) {
       dcEarned = Math.floor(50 * dcMult);
       shardsEarned = fullRewards ? 1 : 0;
       u.dc += dcEarned;
+      u.weeklyDc = (u.weeklyDc ?? 0) + dcEarned;
       u.xp += xpEarned;
       if (shardsEarned) {
         u.keyShards = (u.keyShards ?? 0) + 1;

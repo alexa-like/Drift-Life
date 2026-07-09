@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { formatDC } from "../lib/format";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { CyberButton } from "../components/CyberButton";
+import { PrestigeBadge } from "../components/PrestigeBadge";
 
 type SortType = "level" | "dc" | "wins" | "crimes";
 type BoardTab = "city" | "minigame";
@@ -392,6 +393,7 @@ export function LeaderboardPage() {
                           <span className="font-mono font-bold" style={{ fontSize: i === 0 ? 16 : 14, color: medalColor, textShadow: `0 0 8px ${medalColor}60` }}>
                             {entry.username}
                           </span>
+                          {entry.prestige ? <PrestigeBadge prestige={entry.prestige} size="sm" /> : null}
                           {entry.faction && <span style={{ color: fc, fontSize: 11 }}>{entry.faction.toUpperCase()}</span>}
                         </div>
                         <div className="font-mono" style={{ color: "#475569", fontSize: 10 }}>
@@ -446,6 +448,7 @@ export function LeaderboardPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{entry.username}</span>
+                        {entry.prestige ? <PrestigeBadge prestige={entry.prestige} size="sm" /> : null}
                         {entry.faction && <span style={{ color: fc, fontSize: 10 }}>{entry.faction.toUpperCase()}</span>}
                         {entry.rankTitle && <span className="font-mono" style={{ color: "#475569", fontSize: 10 }}>[{entry.rankTitle}]</span>}
                       </div>
