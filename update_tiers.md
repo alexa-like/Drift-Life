@@ -2266,4 +2266,768 @@ When `status === "abroad"`, a **District Hub** NavBar entry appears. This page s
 
 ---
 
-*End of update_tiers.md — All 9 tiers fully specified with no gaps. Build tier by tier. Complete and verify each tier before starting the next.*
+---
+
+## TIER 10 — SYSTEM FEED, NOTIFICATIONS, FACTIONS, SOCIAL & ECONOMY DEPTH
+
+**Goal: Make the world feel alive. The System Feed broadcasts city-wide events automatically. Notifications tell players what matters to them personally. Factions have real purpose. Inventory, profiles, and leaderboards have real depth. New items and economy loops fill the gaps.**
+
+---
+
+### 10.1 — System Feed
+
+The System Feed is a public, city-wide activity board. It is NOT a notification panel and NOT a social media wall. Players do not post to it. There are no player self-posts. The system posts automatically based on game events. Think of it as a cyberpunk news ticker for the city — the streets always know what's happening.
+
+**Feed lives at:** `/feed` — accessible to all logged-in players regardless of status (even hospitalized/jailed). Always in the NavBar.
+
+**Visual design:** Dark terminal-style card list. Each post has:
+- A system avatar (city crest icon, not a player avatar)
+- A tag badge showing which district the event originated from (or `🌐 CITYWIDE` for global events)
+- The message with `@username` highlighted in neon color (clickable — links to that player's profile)
+- A timestamp ("2 minutes ago", "yesterday", etc.)
+
+**Posts are read-only.** Players cannot reply, react, like, or comment on feed posts. It is a broadcast channel, not a forum.
+
+**Feed types and their triggers:**
+
+#### District Events (auto-posted when they happen)
+```
+[THE DOCKS] @PlayerName arrived in The Docks and was mugged for 1,200 DC.
+[THE SLUMS] @PlayerName was hospitalized in The Slums. Duration: 24 minutes.
+[OUTSKIRTS] @PlayerName committed a Territory Raid in The Outskirts.
+[CORP ZONE] @PlayerName was jailed in Corporate Zone. Time: 18 minutes.
+[NEON STRIP] @PlayerName arrived safely in Neon Strip.
+```
+Only post arrivals for districts with danger level Medium or higher. Downtown arrivals are silent (too common, no drama).
+
+#### Arena Events (auto-posted on match completion)
+```
+[⚔️ ARENA] @PlayerName defeated @OpponentName in the Shooting Arena. Match lasted 4 rounds.
+[⚔️ ARENA] @PlayerName's Reinforced AK-47 was destroyed in combat.
+[⚔️ ARENA] @PlayerName achieved a 10-win streak in the Arena!
+```
+Post every match result. Post item destruction only for Rare+ items (Common/Uncommon destruction is noise). Post win streaks at 5, 10, 20, 50.
+
+#### Race Events (auto-posted on race completion)
+```
+[🏁 RACING] @PlayerName won a race with a margin of 0.3 seconds.
+[🏁 RACING] @PlayerName crashed during a race. Car condition: 32%.
+[🏁 RACING] @PlayerName's car reached 0% condition and was sidelined.
+```
+
+#### Crime Events (auto-posted on notable crimes only)
+```
+[🔫 CRIMES] @PlayerName pulled off a Syndicate Hit in The Outskirts — earned 4,800 DC.
+[🔫 CRIMES] @PlayerName was caught committing Corporate Espionage in Corp Zone.
+```
+Do NOT post every crime — only the highest-tier crimes per district (the top 2 crime types from the district crime table in 9.5). Home crimes: only post the highest-tier home crimes (e.g. "Bank Heist" tier). This keeps the feed signal-to-noise high.
+
+#### Market & Auction Events (auto-posted on sale/auction end)
+```
+[💰 MARKET] A Legendary Ghost Sniper sold at auction for 285,000 DC. Winner: @PlayerName.
+[💰 MARKET] @PlayerName listed a Rare Reinforced Barrel on the market for 15,000 DC.
+```
+Post ALL auction completions (Epic and Legendary only — these are rare and exciting). Post market listings only for Rare+ items (no Common/Uncommon spam).
+
+#### Royale Events (auto-posted on big wins)
+```
+[🎰 ROYALE] @PlayerName pulled a Legendary Void Sniper from the Outskirts Master Royale!
+[🎰 ROYALE] @PlayerName scored a Rare Exo-Armor from the Body Armor Master Royale.
+```
+Post only Epic and Legendary pulls. Common/Uncommon/Rare from DC Spin = silent.
+
+#### Prestige Events (auto-posted immediately)
+```
+[🏆 PRESTIGE] @PlayerName reached Prestige 1! The city takes notice.
+[🏆 PRESTIGE] @PlayerName reached Prestige 3! A legend walks among us.
+```
+Post every prestige milestone.
+
+#### Weekly Leaderboard Post (auto-posted every Monday at 00:00 UTC)
+```
+[🌐 CITYWIDE — WEEKLY RECAP]
+
+🏆 Top Earners (DC gained this week):
+1. @PlayerName — 4,820,000 DC
+2. @PlayerName2 — 3,110,000 DC
+3. @PlayerName3 — 2,940,000 DC
+
+⚔️ Top Arena Fighters:
+1. @PlayerName — 47 wins (W/L: 47/12)
+2. @PlayerName2 — 38 wins
+3. @PlayerName3 — 34 wins
+
+🏁 Top Racers:
+1. @PlayerName — 29 wins
+2. @PlayerName2 — 22 wins
+3. @PlayerName3 — 19 wins
+
+🔫 Top Criminals:
+1. @PlayerName — 312 successful crimes
+2. @PlayerName2 — 287 successful crimes
+3. @PlayerName3 — 241 successful crimes
+
+Congratulations to all. The city is watching.
+```
+This single weekly post tags all 12 top players with their `@username` (clickable to profile). It is pinned at the top of the feed for 24 hours after posting before falling into the normal chronological order.
+
+#### Future: Game Update Posts (manual trigger, system-authored)
+A special admin-only endpoint `POST /system/feed` allows the owner/admin to post a system announcement. These look identical to other system posts but have a `[📡 SYSTEM UPDATE]` badge. Content is free-text set in the request body. This is not automated yet — it is manually triggered by an admin when ready. The infrastructure must be in place from day one.
+
+**Backend — System Feed model:**
+```typescript
+// SystemFeedPost schema
+{
+  category: String,          // "district" | "arena" | "race" | "crime" | "market" | "royale" | "prestige" | "leaderboard" | "system"
+  district: String,          // null for global posts
+  message: String,           // rendered text with @username placeholders
+  mentionedUsers: [{ userId, username }],  // for @ linking
+  pinned: Boolean,           // true only for weekly recap, 24hr
+  createdAt: Date
+}
+```
+
+**Backend — Feed API:**
+- `GET /feed?page=1&limit=30` — paginated, newest first, pinned posts always at top
+- `POST /system/feed` — owner/admin only, manual system announcement
+
+**Feed post helper (internal, not an API):**
+```typescript
+// lib/systemFeed.ts
+export async function postToFeed(category, message, mentionedUsers = [], district = null) {
+  await SystemFeedPost.create({ category, district, message, mentionedUsers, pinned: false });
+}
+```
+Call this helper from every relevant route handler at the moment the event occurs (match end, crime resolution, auction close, etc.).
+
+**Feed retention:** Keep last 500 posts. A scheduled cleanup job deletes posts older than 30 days if total count > 500. Weekly recap posts are exempt from the 30-day rule — keep the last 8 weekly recaps (2 months).
+
+---
+
+### 10.2 — Player Notifications (Personal, Separate from Feed)
+
+The Feed is public and broadcast. Notifications are private and personal. A player's notification panel shows only things that happened TO them or ABOUT them — not city-wide events.
+
+**Notification bell icon in NavBar** — shows unread count badge (red dot when > 0).
+
+**Notification types:**
+
+| Event | Message |
+|---|---|
+| Item sold on market | "Your Rare Titanium Frame sold for 14,500 DC (after 5% commission: 13,775 DC)" |
+| Outbid on auction | "@PlayerName outbid you on Ghost Pistol. Your 45,000 DC was refunded." |
+| Auction won | "You won the Ghost Pistol auction for 52,000 DC." |
+| Arena match found | "A match was found! Your opponent is ready." |
+| Arena match result | "You defeated @PlayerName. +220 XP, +250 DC, +1 Key Shard." |
+| Hospitalized (external) | "You were hospitalized in The Slums. Released in 22 minutes." |
+| Mugged | "You were mugged arriving in The Docks. Lost 1,400 DC." |
+| Bailed out | "@PlayerName paid your bail of 640 DC. You are free." |
+| Revived | "@PlayerName revived you. Hospital time reduced by 50%." |
+| Daily login reward | "Day 7 streak! You received 1,500 DC + 1 Street Medkit." |
+| Prestige unlocked | "You can now prestige! Visit your profile to begin." |
+| Item destroyed | "Your Common Street Vest was destroyed in a match." |
+
+**Backend — Notification model:**
+```typescript
+{
+  userId: ObjectId,
+  type: String,
+  message: String,
+  read: Boolean,   // default false
+  createdAt: Date
+}
+```
+
+**Notification API:**
+- `GET /notifications?limit=30` — returns unread first, then read, newest first
+- `POST /notifications/read-all` — marks all as read
+- `POST /notifications/:id/read` — marks one as read
+
+**Notification helper (internal):**
+```typescript
+// lib/notify.ts
+export async function notify(userId, type, message) {
+  await Notification.create({ userId, type, message, read: false });
+}
+```
+Call from relevant route handlers alongside `postToFeed`. They are separate concerns — an arena match result posts to the public feed AND sends a private notification to both players.
+
+**Retention:** Keep last 100 notifications per player. Delete oldest when over limit.
+
+---
+
+### 10.3 — Daily Login Reward (Streak System)
+
+**Add to User model:**
+```typescript
+loginStreak:     { type: Number, default: 0 }
+lastLoginDate:   { type: Date, default: null }   // date only, not datetime
+```
+
+**Logic (runs on login or on first authenticated request of the day):**
+```typescript
+const today = new Date().toDateString();
+const lastDate = user.lastLoginDate?.toDateString();
+
+if (lastDate !== today) {
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  user.loginStreak = (lastDate === yesterday) ? user.loginStreak + 1 : 1;
+  user.lastLoginDate = new Date();
+  await grantLoginReward(user);
+  await user.save();
+}
+```
+
+**Reward table:**
+
+| Streak Day | Reward |
+|---|---|
+| Day 1 | +3 Key Shards |
+| Day 2 | +500 DC |
+| Day 3 | +3 Key Shards + 1 Street Medkit |
+| Day 4 | +800 DC |
+| Day 5 | +3 Key Shards + 1 Adrenaline Vial |
+| Day 6 | +1,000 DC + 1 Nitro Can |
+| Day 7 | +1,500 DC + 1 Rare consumable (random: Stim Shot / Combat Stim / Fuel Pack) |
+| Day 14 | +3,000 DC + 3 Key Shards |
+| Day 30 | +1 Key (full, bypasses shards) + 5,000 DC |
+
+After day 30, the cycle resets to Day 1 (streak counter keeps climbing but rewards loop from Day 1 again). Missing a day resets streak to 1.
+
+**Frontend:** A login reward modal pops on the first load of the day showing what was granted, the streak number, and a preview of the next day's reward.
+
+---
+
+### 10.4 — Player Inventory Page (Full Spec)
+
+A dedicated `/inventory` page accessible from NavBar and profile.
+
+**Layout:**
+- Filter tabs: All | City Items | Arena Weapons | Arena Armor | Arena Consumables | Ammo | Consumables | Cars
+- Each item card shows:
+  - Item name + rarity badge (color coded: grey/green/blue/purple/gold)
+  - Item image (ItemImage component — PNG first, fallback to icon)
+  - Durability bar (for arena items only — green → yellow → red → destroyed)
+  - Current equip status badge ("EQUIPPED" if in active slot)
+  - Quantity badge for stackable items (ammo, consumables)
+- Action buttons on each card:
+  - **Equip** (if equippable and slot available)
+  - **Unequip** (if equipped)
+  - **Quick Sell** (converts to 60% of base shop price instantly — no listing, no commission, instant DC. Confirmation modal with amount shown before confirm.)
+  - **List on Market** (opens the market listing flow inline)
+- Bulk actions: select multiple → Quick Sell All Selected
+
+**Sorting:** By rarity (highest first by default), by name, by durability, by value.
+
+**Arena items at 0 durability** show a "DESTROYED" badge and cannot be equipped or sold — they are display-only until the player manually clicks "Discard" to remove them from inventory.
+
+---
+
+### 10.5 — Crime Cooldowns & History
+
+**Crime cooldown:** Each crime has an individual cooldown timer. After committing a crime, that crime is locked for a set duration shown as a countdown on the button.
+
+| Crime Tier | Cooldown |
+|---|---|
+| Street-level (low reward) | 5 min |
+| Mid-tier | 10 min |
+| High-tier | 20 min |
+| Top-tier (Syndicate Hit, Bank Job) | 45 min |
+
+District crimes use the same tier-based cooldown as their equivalent home crime tier.
+
+**Add to User model:**
+```typescript
+crimeCooldowns: {
+  type: Map,
+  of: Date,   // crimeId → cooldownExpiresAt
+  default: {}
+}
+```
+
+**Crime History panel** (on the Crimes page, below the crime list — collapsible):
+Shows last 15 crime attempts in reverse chronological order:
+
+```
+✅ Syndicate Hit — +4,200 DC (+12 XP) — 3 min ago
+❌ Territory Raid — CAUGHT — Jailed 14 min — 22 min ago
+✅ Street Hustle — +310 DC (+3 XP) — 35 min ago
+```
+
+This data is computed from the existing crime log (if one exists) or a new `CrimeLog` model:
+```typescript
+{
+  userId: ObjectId,
+  crimeId: String,
+  district: String,
+  outcome: "success" | "jailed",
+  dcEarned: Number,
+  xpEarned: Number,
+  jailDuration: Number,   // minutes, 0 on success
+  createdAt: Date
+}
+```
+Keep last 100 entries per player. Used for history display and potentially for crime stats on profiles.
+
+---
+
+### 10.6 — Chat System Polish
+
+**District Channels:**
+When a player is abroad (`status === "abroad"`), they are automatically joined to a `#district-[slug]` chat channel (e.g. `#district-docks`). They can still see and post to Global chat. When they return home, they leave the district channel.
+
+Chat channel list (always visible as tabs on the Chat page):
+- `#global` — always joined, never left
+- `#faction-[slug]` — joined if player is in a faction
+- `#district-[slug]` — joined only while abroad in that district
+
+**Global chat toggle:** A mute button on the Global tab silences global chat notifications without leaving the channel. Channel tabs show unread dot when muted and new messages arrive.
+
+**Chat message reporting:** Right-click (or long-press mobile) any message → "Report message". Sends the message ID and reporter's userId to a `ChatReport` model for staff review. No visible feedback beyond "Report submitted." Staff can view reports in admin panel.
+
+**Chat muting:** Players can mute other players. Muted player's messages are hidden from the muting player's view only. Not a ban — the muted player is unaware. Stored as an array on the User model: `mutedUsers: [ObjectId]`.
+
+---
+
+### 10.7 — Player Profile Page — Full Depth
+
+The profile page should tell the story of a player at a glance.
+
+**Sections:**
+
+**Header:**
+- Username + prestige badge (animated if prestige ≥ 1)
+- Active frame (from frame system)
+- Faction name + rank badge
+- Status indicator ("In Downtown" / "Traveling" / "Abroad in Docks" / "Hospitalized" / "Jailed")
+- Up to 3 achievement badges displayed (player-selected from earned achievements)
+
+**Stats block:**
+- Level + XP bar to next level
+- DC balance (shown only on own profile)
+- Prestige level
+- Total play time (calculated from account creation — rough estimate)
+
+**Combat record:**
+- Arena: W / L / Win Rate %
+- Best win streak
+- Arena matches played total
+
+**Racing record:**
+- Race wins / losses / Win Rate %
+- Fastest race time (personal best)
+
+**Crime record:**
+- Total successful crimes
+- Total times jailed
+- Favorite crime (most committed)
+- Crime success rate %
+
+**District log (last 5 districts visited):**
+```
+The Outskirts — 2 hours ago
+The Docks — yesterday
+Neon Strip — 3 days ago
+```
+
+**Recent activity (last 8 public events — pulled from SystemFeed where mentionedUsers includes this player):**
+```
+⚔️ Defeated @OpponentName in the Arena — 1h ago
+🏁 Won a race — 3h ago
+🌍 Arrived in The Slums — 5h ago
+🔫 Committed Territory Raid in Outskirts — 6h ago
+```
+
+**Achievements panel:** Scrollable list of earned achievements with icons. Locked achievements shown as greyed-out silhouettes with "???" name until earned.
+
+---
+
+### 10.8 — Leaderboard Categories
+
+Replace the single leaderboard with tabbed categories. Each tab shows top 50 players.
+
+| Tab | Metric | Resets |
+|---|---|---|
+| 💰 Wealth | Current DC balance | Never |
+| 📈 Level | Current level | Never |
+| ⚔️ Arena | All-time arena wins | Never |
+| 🏁 Racing | All-time race wins | Never |
+| 🔫 Crimes | All-time successful crimes | Never |
+| 📅 Weekly DC | DC earned this week | Monday 00:00 UTC |
+| 📅 Weekly Arena | Arena wins this week | Monday 00:00 UTC |
+| 📅 Weekly Races | Race wins this week | Monday 00:00 UTC |
+| 🏆 Prestige | Prestige level | Never |
+
+Weekly leaderboards reset every Monday. Historical weekly winners are NOT stored (the weekly recap in the System Feed acts as the permanent record).
+
+Player's own rank shown at the bottom of each leaderboard tab even if they are outside top 50: "You are ranked #412 in this category."
+
+---
+
+### 10.9 — NPC Random City Encounters
+
+Once per login session (tracked by a session flag, not a DB field — just set on the auth token or in-memory per request), when the player performs any city action (crime, gym, job, travel), there is a small chance of a city encounter firing. Probability: **3% per action**, max **1 encounter per 2 hours** per player (use a `lastEncounterAt` Date field on User).
+
+**Add to User model:**
+```typescript
+lastEncounterAt: { type: Date, default: null }
+```
+
+**Encounter pool (pick one at random when triggered):**
+
+| Encounter | Effect | Message |
+|---|---|---|
+| Found a wallet | +150–400 DC | "You spotted a wallet in the gutter. Nobody's watching. You pocket 280 DC." |
+| Stranger's gift | +1 random Common consumable | "A hooded figure presses a package into your hands and disappears into the crowd." |
+| Syndicate shake | −200–500 DC OR 15min hospital if declined | "A syndicate enforcer steps in your path. 'Toll.' Pay 350 DC or walk into a wall." |
+| Free energy | +2 Energy | "A vendor hands you a sample can. It tastes like battery acid. You feel great." |
+| Adrenaline find | +1 Adrenaline | "You find an unmarked vial tucked under a bench. Your pulse quickens." |
+| Nitro find | +1 Nitro | "A garage door hangs open. An unattended canister catches your eye." |
+| Key Shard find | +1 Key Shard | "Something glints in the drain. A shard — circuit-etched, still warm." |
+| Pickpocket attempt | −100–300 DC (50% chance, based on streetCredBonus) | "Something felt off. You check your pockets. Someone got there first." |
+| Nothing | — | *(silent — no event)* |
+
+Encounters post to the System Feed only for the most dramatic ones (Syndicate shake, if player chose to fight back and was hospitalized). Personal encounters (found wallet, gifts) are private notifications only — not in the public feed.
+
+---
+
+### 10.10 — Faction System (Full Depth)
+
+Factions are referenced throughout but were never fully specced. This section completes them.
+
+**Faction basics (what may already exist — confirm before editing):**
+- Faction name, tag, description, owner
+- Members with roles (Owner, Officer, Member)
+- Faction chat channel
+
+**What factions need that doesn't exist yet:**
+
+**Faction Bank:**
+```typescript
+// Add to Faction model
+bankBalance: { type: Number, default: 0 }
+```
+- Members can deposit DC into the faction bank
+- Only Owner and Officers can withdraw
+- Transactions logged: `FactionBankLog` model (who, amount, deposit/withdraw, timestamp)
+- `POST /faction/bank/deposit` — deducts from player, adds to faction bank
+- `POST /faction/bank/withdraw` — Officer+ only, adds to player, deducts from bank
+
+**Faction Perks (passive bonuses to all members while active):**
+Perks are purchased by the faction (from the faction bank) and apply globally to all members.
+
+| Perk | Effect | Cost (faction bank) |
+|---|---|---|
+| Street Network | +5% crime success rate for all members | 50,000 DC |
+| Combat Training | +5% arena XP for all members | 50,000 DC |
+| Turf Logistics | −10% travel time for all members | 75,000 DC |
+| Black Market Access | Members see 2 extra items in Docks rotation | 100,000 DC |
+| Energy Racket | +1 max Energy for all members (permanent while perk active) | 150,000 DC |
+
+Perks last 7 days. After expiry they must be repurchased. Perk state stored on the Faction model as `activePerks: [{ perkId, expiresAt }]`.
+
+**Faction Territory (District Control):**
+Each non-Downtown district can be "claimed" by a faction. Claiming gives the faction a weekly DC payout from that district's activity (a percentage of all crimes/market activity in that district flows into the faction bank).
+
+Control mechanic: Factions "raid" a district by committing a top-tier crime there (e.g. Territory Raid or Syndicate Hit). Successful raids by faction members accumulate "influence points" in that district. At weekly reset, the faction with the most influence points in a district claims it.
+
+Benefits of controlling a district:
+- Members get −10% danger roll in that district
+- 2% of all DC earned by any player in that district flows to the controlling faction bank (capped at 10,000 DC/week per district)
+- Controlling faction name shown on that district card on the Travel Hub
+
+**District control displayed on Travel Hub** — each district card shows "Controlled by: [Faction Tag]" or "Contested" if top 2 factions are within 10% influence of each other.
+
+---
+
+### 10.11 — In-Arena Taunts
+
+During a live arena match (while waiting for the next turn or after round resolution), a player can send a taunt to their opponent. Taunts are preset — no free text.
+
+**Taunt list (cyberpunk-themed):**
+
+| ID | Taunt |
+|---|---|
+| `t1` | "You fight like a stock firmware." |
+| `t2` | "Is that all your augments can do?" |
+| `t3` | "I've seen better aim from a blind drone." |
+| `t4` | "Your armor is decorative at this point." |
+| `t5` | "GG. Almost." |
+| `t6` | "I can do this all day. Can you?" |
+| `t7` | "Run diagnostics. You're losing." |
+| `t8` | "👁️" *(just the eye — maximum disrespect)* |
+
+**Mechanic:** One taunt per round. Taunts have zero gameplay effect — purely cosmetic. They appear in the match chat/log panel between rounds. Opponent sees it in real time. Both players see a log of all taunts sent this match in the match result screen.
+
+**Backend:** `POST /arena/match/:id/taunt` — body `{ tauntId }`. Validates taunt ID is in the allowed list. Stores on the match document: `taunts: [{ senderId, tauntId, round, sentAt }]`. Rate-limited to 1 per round per player.
+
+---
+
+### 10.12 — Trading System (Player-to-Player Direct Trade)
+
+Players can offer a direct trade: items + DC offered in exchange for items + DC requested. No commission, anonymous sellers not supported (both parties must accept).
+
+**Trade flow:**
+1. Player A visits Player B's profile → "Offer Trade"
+2. Trade offer modal: Player A selects items from their inventory + optional DC amount to send. Player A can also request specific items from Player B's known inventory (publicly visible item types, not full details).
+3. Offer sent → Player B receives a notification: "@PlayerA wants to trade. View offer."
+4. Player B opens the trade: sees what A is offering and what A is requesting. B can accept, decline, or counter (modifying the offer terms).
+5. On acceptance: atomic swap — items and DC transfer simultaneously. If either party's inventory changed between offer and acceptance (item was sold/used), trade fails cleanly with an error to both parties.
+6. Trade completed → both parties notified, SystemFeed post only if Rare+ items involved.
+
+**Trade expiry:** Offers expire after 24 hours if not accepted/declined.
+
+**Backend models:**
+```typescript
+// TradeOffer schema
+{
+  fromUserId: ObjectId,
+  toUserId: ObjectId,
+  offerItems: [{ inventoryItemId, quantity }],  // what A sends
+  offerDc: Number,
+  requestItems: [{ itemTemplateId, quantity }],  // what A wants (non-binding reference)
+  requestDc: Number,
+  status: "pending" | "accepted" | "declined" | "expired" | "countered",
+  counterOffer: { ... },   // recursive structure for counter
+  expiresAt: Date,
+  createdAt: Date
+}
+```
+
+**Endpoints:**
+- `POST /trade/offer` — create offer
+- `GET /trade/offers` — list incoming and outgoing offers
+- `POST /trade/:id/accept` — atomic swap
+- `POST /trade/:id/decline`
+- `POST /trade/:id/counter` — modifies terms, status → "countered", notification to original sender
+
+---
+
+### 10.13 — Black Market (Hidden Market Tab)
+
+A hidden market tab, unlocked at level 20+. Players do not see it in the NavBar until they reach level 20. After unlocking, it appears as "◼ Black Market" in a subtle style distinct from the main Market.
+
+**Rules:**
+- No 5% commission (seller keeps 100%)
+- Seller is anonymous — listings show "Anonymous Seller" not the player's name
+- 48hr expiry same as normal market
+- Risk: each listing has a **5% chance per 6 hours of being "seized"** — the item is deleted and the seller receives nothing. This is the cost of anonymity. Shown clearly as a warning before listing.
+- Buyer is also anonymous — seller never knows who bought it
+- No Epic/Legendary rule still applies to listings (they can be listed here by players, but the system will not auto-promote them — they just exist)
+
+**Seizure mechanic backend:**
+```typescript
+// Scheduled job every 6 hours
+// For each active BlackMarketListing:
+const seized = Math.random() < 0.05;
+if (seized) {
+  // Delete item from player's inventory (already "listed" so it's in escrow)
+  await BlackMarketListing.findByIdAndDelete(listing._id);
+  await notify(listing.sellerId, "black_market_seized", "A Black Market listing was seized by enforcers.");
+  await postToFeed("market", "[◼ BLACK MARKET] Enforcers seized a listing. Someone is not having a good night.");
+  // Note: feed post mentions no names (true anonymity)
+}
+```
+
+**Why list here vs normal market?**
+- No commission (saves 5% on high-value items — significant on 200k+ sales)
+- Full anonymity (useful if selling to avoid faction enemies knowing your inventory)
+- Risk: seizure chance
+
+---
+
+### 10.14 — Mentor System
+
+Players level 1–15 can request a mentor. Players level 30+ can register as a mentor. Maximum 3 active mentees per mentor.
+
+**Mentor matching:** Player opens profile → "Find a Mentor". System matches them with an available mentor (30+ level, <3 mentees, online in last 48h). If no match, player is queued and notified when one becomes available.
+
+**Mentor incentive:** When a mentee levels up, the mentor receives **+5% of the XP the mentee earned** as a bonus on top of their own XP. This is passive — requires no action from the mentor.
+
+**Mentee incentive:** First 10 levels while having a mentor grant +10% XP. Encourages new players to stay engaged.
+
+**Mentor relationship ends when:** Mentee reaches level 20, or either party manually ends it from their profile.
+
+**Backend:**
+```typescript
+// Add to User model
+mentorId:  { type: ObjectId, ref: "User", default: null }
+menteeIds: [{ type: ObjectId, ref: "User" }]   // max 3
+isMentor:  { type: Boolean, default: false }    // opted in to mentor pool
+```
+
+**Endpoints:**
+- `POST /mentor/register` — opt in to mentor pool
+- `POST /mentor/request` — mentee requests a mentor (system assigns)
+- `POST /mentor/end/:userId` — either party ends the relationship
+
+---
+
+### 10.15 — Achievement Badges as Profile Cosmetics
+
+Each achievement, when earned, grants a **badge** that the player can display on their profile. Players can select up to **3 badges** to show publicly. These badges also appear as tiny icons next to the player's name in Global Chat.
+
+**Badge display in chat:**
+```
+[🔫][⚔️][🏁] @PlayerName: gg wp
+```
+The 3 icons are the player's chosen badges. Other players can hover/tap to see the achievement name.
+
+**Badge selection:** On the Achievements page, each earned achievement shows a "Pin to Profile" toggle. Only 3 can be pinned at once — pinning a 4th unpins the oldest.
+
+**Add to User model:**
+```typescript
+pinnedBadges: [{ type: String, maxlength: 3 }]  // achievement IDs, max 3
+```
+
+Achievement badge icons are defined in the achievement seed data — each achievement has an `icon` field (emoji or PNG slug).
+
+---
+
+### 10.16 — New Items (Full List)
+
+All items below must be added to their relevant seed files or shop inventory during implementation.
+
+**City Enhancement Items (normal game, enhancement slot unless noted):**
+
+| Item Name | itemId | Slot | Effect | Rarity | Source |
+|---|---|---|---|---|---|
+| Signal Jammer | `signal_jammer` | enhancement | −20% jail chance on all crimes | Uncommon | Combat Zone Supply NPC |
+| Neural Optimizer | `neural_optimizer` | enhancement | +5% XP from all sources | Rare | Corp Zone abroad |
+| Adrenaline Implant | `adrenaline_implant` | enhancement | +1 max Adrenaline permanently | Rare | Industrial abroad / Master Royale |
+| Turbo Chip | `turbo_chip` | enhancement | +1 max Nitro permanently | Rare | Chrome Garage NPC / Master Royale |
+| Burner Wallet | `burner_wallet` | enhancement | Mugging cap: max 5% cash lost regardless of district | Rare | Docks abroad (rotation) |
+| District Pass | `district_pass_[slug]` | consumable | −80% travel time for next trip to specific district | Uncommon | Each district shop (their own pass) |
+| Security Implant | `security_implant` | enhancement | −10% mug chance in all districts | Rare | Corp Zone abroad |
+| Syndicate Medallion | `syndicate_medallion` | enhancement | −50% jail time for next crime anywhere | Rare | Outskirts abroad |
+| Corp VIP Card | `corp_vip_card` | consumable | Removes crime record pricing penalty in Corp Zone (1 use) | Uncommon | Corp Zone abroad |
+| Dockside Manifest | `dockside_manifest` | consumable | Reveals Sal's current stock before you travel (shown in travel card) | Uncommon | Docks abroad |
+
+**Arena Items (missing from current seed):**
+
+| Item Name | itemId | Type | Effect | Rarity |
+|---|---|---|---|---|
+| Riot Shield | `riot_shield` | secondary | Replaces secondary weapon slot. Blocks 30% of one hit per round. No ammo needed. | Uncommon |
+| Flashbang | `flashbang` | arena consumable | Target misses their next attack turn completely | Rare |
+| Armor Repair Kit | `armor_repair_kit` | arena consumable | Restore 20 armor HP mid-match | Uncommon |
+| Hollow Point Rounds | `hollow_point_[category]` | ammo | +20% damage, −1 shot per magazine (available for all 6 ammo categories) | Uncommon |
+| Street Medkit | `street_medkit` | arena consumable | +15 HP. Costs 1 Adrenaline from queue pool instead of taking a loadout slot. (Unique mechanic — not a loadout item, carried separately.) | Common |
+
+**District-Exclusive Items (cross-reference with 9.4):**
+
+| Item | District | Effect |
+|---|---|---|
+| Street Medkit | Slums | Listed above |
+| Inhibitor Patch | Neon Strip | Prevents hospitalization from next danger roll (consumed on arrival) |
+| Dock Pass | Docks | −80% travel time to Docks on next trip |
+| Corp Data Chip | Corp Zone | Unlocks 1 attempt at Corp Espionage crime (abroad only, requires chip) |
+| Industrial Fuel Cell | Industrial | +5 Nitro + vehicle travel time −50% for next trip |
+| Salvage Kit | Industrial | Repairs arena weapon/armor durability +20 points |
+| Void Key Shard ×5 | Outskirts | Bulk 5 shards — shortcut toward Master Royale key |
+| Overload Stim | Outskirts | +5 Adrenaline + stun immunity for first round of next arena match |
+
+---
+
+### 10.17 — Implementation Checklist (Tier 10)
+
+**System Feed:**
+- [ ] `SystemFeedPost` model
+- [ ] `GET /feed` endpoint (paginated, pinned first)
+- [ ] `POST /system/feed` endpoint (admin/owner only)
+- [ ] `lib/systemFeed.ts` helper (`postToFeed`)
+- [ ] Call `postToFeed` in: arena match end, race end, high-tier crime, district arrival with outcome, auction close, royale Epic/Legendary pull, prestige event
+- [ ] Weekly leaderboard cron job (Monday 00:00 UTC) builds and posts recap
+- [ ] Feed page frontend (terminal-style, paginated, @ links, pinned recap at top)
+
+**Notifications:**
+- [ ] `Notification` model
+- [ ] `lib/notify.ts` helper
+- [ ] `GET /notifications` + `POST /notifications/read-all` endpoints
+- [ ] Notification bell in NavBar with unread badge
+- [ ] Notification panel dropdown/page
+
+**Daily Login Reward:**
+- [ ] `loginStreak`, `lastLoginDate` on User model
+- [ ] Login reward check in auth middleware or `/me` handler
+- [ ] `grantLoginReward` function with reward table
+- [ ] Frontend login reward modal
+
+**Inventory Page:**
+- [ ] `/inventory` page with filter tabs, item cards, quick sell, list on market
+- [ ] Bulk select + quick sell all selected
+- [ ] Destroyed item display + discard action
+
+**Crime Cooldowns:**
+- [ ] `crimeCooldowns` Map on User model
+- [ ] Crime commit handler sets cooldown per crime tier
+- [ ] `CrimeLog` model
+- [ ] Crime history panel on Crimes page
+
+**Chat Polish:**
+- [ ] District channel auto-join on abroad status
+- [ ] Channel tabs on Chat page (global / faction / district)
+- [ ] `ChatReport` model + right-click report action
+- [ ] `mutedUsers` on User model + hide muted messages client-side
+
+**Profile Page:**
+- [ ] Combat record, racing record, crime record stats from logs
+- [ ] District visit log (last 5, from travel events)
+- [ ] Recent activity pulled from SystemFeed
+- [ ] Achievement panel with locked silhouettes
+- [ ] Pinned badges display + status indicator
+
+**Leaderboards:**
+- [ ] 9 leaderboard tabs
+- [ ] Weekly metrics tracked on User model: `weeklyDcEarned`, `weeklyArenaWins`, `weeklyRaceWins` (reset Monday)
+- [ ] Player's own rank shown below top 50
+
+**NPC Encounters:**
+- [ ] `lastEncounterAt` on User model
+- [ ] Encounter roll in city action middleware
+- [ ] Encounter pool + effect handlers
+- [ ] Private notify for personal encounters; Feed post for dramatic ones
+
+**Faction Depth:**
+- [ ] `bankBalance` + `FactionBankLog` model
+- [ ] Faction bank deposit/withdraw endpoints
+- [ ] Faction perks model + purchase endpoint + application in relevant handlers
+- [ ] Faction influence tracking per district
+- [ ] District control displayed on Travel Hub
+
+**Arena Taunts:**
+- [ ] `taunts` array on match model
+- [ ] `POST /arena/match/:id/taunt` endpoint (rate-limited per round)
+- [ ] Taunt display in match panel and result screen
+
+**Trading:**
+- [ ] `TradeOffer` model
+- [ ] Create / accept / decline / counter endpoints
+- [ ] Atomic swap on accept
+- [ ] Trade UI on player profile + notification flow
+
+**Black Market:**
+- [ ] `BlackMarketListing` model
+- [ ] List / buy / seizure endpoints
+- [ ] Seizure cron job (every 6 hours, 5% per listing)
+- [ ] NavBar entry unlocked at level 20
+- [ ] Anonymous listing UI
+
+**Mentor System:**
+- [ ] `mentorId`, `menteeIds`, `isMentor` on User model
+- [ ] Register / request / end endpoints
+- [ ] XP bonus applied in levelUp handler
+
+**Achievement Badges:**
+- [ ] `pinnedBadges` on User model
+- [ ] Pin/unpin toggle on Achievements page
+- [ ] Badge icons in chat messages (next to username)
+- [ ] Badge display on profile header
+
+**New Items:**
+- [ ] All 10 city enhancement items added to seed / shop inventories
+- [ ] All 5 arena items added to arena item seed
+- [ ] All 8 district-exclusive items cross-checked against district shop specs in 9.4
+
+---
+
+*End of update_tiers.md — All 10 tiers fully specified with no gaps. Build tier by tier. Complete and verify each tier before starting the next.*
