@@ -38,6 +38,7 @@ import { MissionsPage } from "./pages/MissionsPage";
 import LoadoutPage from "./pages/LoadoutPage";
 import ShopHubPage from "./pages/ShopHubPage";
 import { DistrictHubPage } from "./pages/DistrictHubPage";
+import { TravelPage } from "./pages/TravelPage";
 import NpcStorePage from "./pages/NpcStorePage";
 import RaceHubPage from "./pages/RaceHubPage";
 import RaceMatchPage from "./pages/RaceMatchPage";
@@ -240,6 +241,7 @@ function GameApp() {
       case "arena-combat":  return <ArenaCombatPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "race-hub":      return <RaceHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "race-match":    return <RaceMatchPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
+      case "travel":        return <TravelPage user={user!} refreshUser={refreshUser} addToast={addToast} onNavigate={setPage} />;
       case "district-hub":  return <DistrictHubPage {...pageProps} />;
       case "match-history": return <MatchHistoryPage />;
       case "owner":
