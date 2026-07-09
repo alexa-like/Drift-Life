@@ -178,6 +178,12 @@ export interface IUser extends Document {
   lastEncounterAt: Date | null;
   // ── Revive system ─────────────────────────────────────────────────────────
   revivesReceived: number;
+  // ── 10.14 Mentor system ──────────────────────────────────────────────────
+  isMentor?: boolean;
+  mentorId?: string | null;
+  menteeIds?: string[];
+  // ── 10.15 Pinned achievement badges ─────────────────────────────────────
+  pinnedBadges?: string[];
   createdAt: Date;
   updatedAt: Date;
   getEffectiveStats(): EffectiveStats;
@@ -385,6 +391,12 @@ const UserSchema = new Schema<IUser>(
       }],
       default: [],
     },
+    // ── 10.14 Mentor system ────────────────────────────────────────────────
+    isMentor:   { type: Boolean, default: false },
+    mentorId:   { type: Schema.Types.ObjectId, ref: "User", default: null },
+    menteeIds:  [{ type: Schema.Types.ObjectId, ref: "User" }],
+    // ── 10.15 Pinned achievement badges (max 3) ────────────────────────────
+    pinnedBadges: [{ type: String }],
   },
   { timestamps: true }
 );

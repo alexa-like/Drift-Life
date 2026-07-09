@@ -112,6 +112,12 @@ export interface User {
   spinTokens: number;
   // ── Arena / Combat (Tier 4) ────────────────────────────────────────────────
   combatWinStreak: number;
+  // ── 10.14 Mentor system ────────────────────────────────────────────────────
+  isMentor?: boolean;
+  mentorId?: string | null;
+  menteeCount?: number;
+  // ── 10.15 Pinned badges ────────────────────────────────────────────────────
+  pinnedBadges?: string[];
 }
 
 export interface FeedEvent {
@@ -241,6 +247,8 @@ export interface ChatMessage {
   districtId?: string;
   chatFrame?: string | null;
   subscriptionTier?: "street_runner" | "neon_syndicate" | "apex_sovereign" | null;
+  // ── 10.15 Pinned achievement badges ──────────────────────────────────────
+  pinnedBadges?: string[];
 }
 
 export interface Conversation {

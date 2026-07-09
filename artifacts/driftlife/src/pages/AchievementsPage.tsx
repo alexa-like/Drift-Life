@@ -9,6 +9,11 @@ interface Props {
   addToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
 }
 
+const CATEGORY_ICONS: Record<string, string> = {
+  arena: "⚔️", crime: "🔫", wealth: "💰", social: "💬",
+  exploration: "🗺️", collection: "🎰", racing: "🚗",
+};
+
 const CATEGORY_LABELS: Record<string, string> = {
   combat: "Combat",
   crime: "Crime",
@@ -41,6 +46,8 @@ export function AchievementsPage({ user, refreshUser, addToast }: Props) {
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState<string>("all");
   const [checking, setChecking] = useState(false);
+  const [pinnedBadges, setPinnedBadges] = useState<string[]>(user.pinnedBadges ?? []);
+  const [pinningId, setPinningId] = useState<string | null>(null);
 
   useEffect(() => {
     api.get<Achievement[]>("/achievements")
@@ -60,6 +67,30 @@ export function AchievementsPage({ user, refreshUser, addToast }: Props) {
       addToast("Failed to check achievements", "error");
     } finally {
       setChecking(false);
+    }
+  }
+
+  async function togglePin(achievementId: string) {
+    const isPinned = pinnedBadges.includes(achievementId);
+    setPinningId(achievementId);
+    try {
+      if (isPinned) {
+        await api.post<any>("/user/badges/unpin", { achievementId });
+        setPinnedBadges(prev => prev.filter(id => id !== achievementId));
+        addToast("Badge unpinned", "info");
+      } else {
+        if (pinnedBadges.length >= 3) {
+          addToast("Max 3 badges pinned. Unpin one first.", "warning");
+          return;
+        }
+        await api.post<any>("/user/badges/pin", { achievementId });
+        setPinnedBadges(prev => [...prev, achievementId]);
+        addToast("Badge pinned to profile!", "success");
+      }
+    } catch (e: any) {
+      addToast(e?.message || "Failed to update badge", "error");
+    } finally {
+      setPinningId(null);
     }
   }
 
@@ -143,20 +174,43 @@ export function AchievementsPage({ user, refreshUser, addToast }: Props) {
                 {a.completed && (
                   <div style={{
                     position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-                    fontSize: 11, fontFamily: "monospace", fontWeight: "bold",
-                    color: "#39d353", border: "1px solid #39d353", padding: "2px 6px",
-                    borderRadius: 4, letterSpacing: "0.1em",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                   }}>
-                    CLAIMED
+                    <div style={{
+                      fontSize: 10, fontFamily: "monospace", fontWeight: "bold",
+                      color: "#39d353", border: "1px solid #39d353", padding: "2px 6px",
+                      borderRadius: 4, letterSpacing: "0.1em",
+                    }}>
+                      CLAIMED
+                    </div>
+                    <button
+                      onClick={() => togglePin(a.id)}
+                      disabled={pinningId === a.id}
+                      title={pinnedBadges.includes(a.id) ? "Unpin badge from profile" : "Pin badge to profile (max 3)"}
+                      style={{
+                        background: pinnedBadges.includes(a.id) ? "#39d35325" : "transparent",
+                        border: `1px solid ${pinnedBadges.includes(a.id) ? "#39d35370" : "#334155"}`,
+                        borderRadius: 4, cursor: pinningId === a.id ? "wait" : "pointer",
+                        padding: "2px 6px", fontSize: 11, color: pinnedBadges.includes(a.id) ? "#39d353" : "#64748b",
+                        fontFamily: "monospace",
+                        opacity: pinningId === a.id ? 0.5 : 1,
+                      }}
+                    >
+                      {pinnedBadges.includes(a.id) ? "📌 Pinned" : "📌 Pin"}
+                    </button>
                   </div>
                 )}
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginRight: a.completed ? 72 : 0 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginRight: a.completed ? 90 : 0 }}>
                   <div style={{
                     width: 32, height: 32, borderRadius: 6, flexShrink: 0,
                     background: color + "20", border: `1px solid ${color}40`,
                     display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 16,
                   }}>
-                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: a.completed ? color : "#1e1e2e" }} />
+                    {a.completed
+                      ? (CATEGORY_ICONS[a.category] || "🏅")
+                      : <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#1e1e2e" }} />
+                    }
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>

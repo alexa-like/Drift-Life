@@ -101,6 +101,12 @@ export function safeUser(user: InstanceType<typeof User>) {
     telegramLinked: !!(user as any).telegramId,
     telegramUsername: (user as any).telegramUsername ?? null,
     gameTheme: (user as any).gameTheme ?? "default",
+    // ── 10.14 Mentor system ─────────────────────────────────────────────────
+    isMentor:  (user as any).isMentor  ?? false,
+    mentorId:  (user as any).mentorId  ? String((user as any).mentorId) : null,
+    menteeCount: ((user as any).menteeIds ?? []).length,
+    // ── 10.15 Pinned badges ─────────────────────────────────────────────────
+    pinnedBadges: (user as any).pinnedBadges ?? [],
   };
 }
 

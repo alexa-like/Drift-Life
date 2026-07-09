@@ -6,8 +6,13 @@ import { useSocket } from "../context/SocketContext";
 import { CyberButton } from "../components/CyberButton";
 import { ChatFrameRenderer } from "../components/ChatFrameRenderer";
 import { MentionInput } from "../components/MentionInput";
-import { MentionText } from "../components/MentionText";
+import { MentionText, GAME_EMOJIS } from "../components/MentionText";
 import { SubscriberNameBadge } from "../components/SubscriberNameBadge";
+
+/** Format an achievement ID like "first_blood" → "First Blood" */
+function fmtAchievementId(id: string): string {
+  return id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
 
 function handleLocNav(loc: string) {
   (window as any).__setPage?.(loc);
@@ -60,7 +65,7 @@ function MessageBubble({ message, isOwn, onUsernameClick }: {
 
   return (
     <div className="flex flex-col mb-2" style={{ alignItems: isOwn ? "flex-end" : "flex-start" }}>
-      <div className="flex items-center gap-1.5 mb-0.5">
+      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
         {message.title && (
           <span className="font-mono" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
         )}
@@ -70,6 +75,28 @@ function MessageBubble({ message, isOwn, onUsernameClick }: {
           fontSize={12}
           onClick={() => message.userId && onUsernameClick?.(message.userId)}
         />
+        {/* Pinned achievement badges */}
+        {message.pinnedBadges && message.pinnedBadges.length > 0 && (
+          <span className="flex items-center gap-0.5">
+            {message.pinnedBadges.slice(0, 3).map(badgeId => (
+              <span
+                key={badgeId}
+                title={fmtAchievementId(badgeId)}
+                style={{
+                  fontSize: 10, cursor: "default",
+                  background: "#39d35315",
+                  border: "1px solid #39d35335",
+                  borderRadius: 3,
+                  padding: "0 3px",
+                  color: "#39d353",
+                  fontFamily: "monospace",
+                }}
+              >
+                🏅
+              </span>
+            ))}
+          </span>
+        )}
         <span className="font-mono" style={{ fontSize: 9, color: "#334155" }}>
           {new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </span>
@@ -100,9 +127,13 @@ interface Props {
   onInspectPlayer?: (userId: string) => void;
 }
 
+const EMOJI_ORDER = Object.entries(GAME_EMOJIS);
+
 function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void; placeholder?: string }) {
   const [text, setText] = useState("");
+  const [showPicker, setShowPicker] = useState(false);
   const lastSent = useRef(0);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   function submit() {
     const trimmed = text.trim();
@@ -112,16 +143,95 @@ function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void;
     lastSent.current = now;
     onSend(trimmed);
     setText("");
+    setShowPicker(false);
   }
 
+  function insertEmoji(slug: string) {
+    setText(prev => `${prev}:${slug}: `);
+    setShowPicker(false);
+  }
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    if (!showPicker) return;
+    function handler(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showPicker]);
+
   return (
-    <div className="flex gap-2 pt-2.5">
+    <div className="flex gap-2 pt-2.5" style={{ position: "relative" }}>
+      {/* Emoji picker popover */}
+      {showPicker && (
+        <div
+          ref={pickerRef}
+          style={{
+            position: "absolute",
+            bottom: "calc(100% + 4px)",
+            left: 0,
+            background: "#111118",
+            border: "1px solid #1e293b",
+            borderRadius: 8,
+            padding: 8,
+            zIndex: 50,
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 4,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+          }}
+        >
+          {EMOJI_ORDER.map(([slug, def]) => (
+            <button
+              key={slug}
+              title={def.displayName}
+              onClick={() => insertEmoji(slug)}
+              style={{
+                background: "transparent",
+                border: "1px solid transparent",
+                borderRadius: 4,
+                padding: "4px 6px",
+                cursor: "pointer",
+                fontSize: 18,
+                lineHeight: 1,
+                transition: "background 0.1s",
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#1e293b"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#334155"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}
+            >
+              {def.emoji}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Emoji toggle button */}
+      <button
+        onClick={() => setShowPicker(p => !p)}
+        title="Insert game emoji"
+        style={{
+          background: showPicker ? "#1e293b" : "transparent",
+          border: `1px solid ${showPicker ? "#334155" : "#1e293b"}`,
+          borderRadius: 6,
+          padding: "0 8px",
+          cursor: "pointer",
+          fontSize: 16,
+          color: "#64748b",
+          flexShrink: 0,
+        }}
+      >
+        😀
+      </button>
+
       <div className="flex-1">
         <MentionInput
           value={text}
           onChange={setText}
           onSubmit={submit}
-          placeholder={placeholder || "Message... (@player /location)"}
+          placeholder={placeholder || "Message... (@player /location :emoji:)"}
           maxLength={256}
           style={{ background: "#111118" }}
         />

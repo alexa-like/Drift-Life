@@ -59,6 +59,10 @@ import matchHistoryRouter from "./match-history";
 // ── Platform Verification & Linking ───────────────────────────────────────────
 import platformRouter from "./platform";
 import discordRouter from "./discord";
+// ── Game Emojis (Tier 10.1a) ──────────────────────────────────────────────────
+import emojisRouter from "./emojis";
+// ── Mentor System (Tier 10.14) ─────────────────────────────────────────────────
+import mentorRouter from "./mentor";
 
 const router: IRouter = Router();
 
@@ -119,6 +123,10 @@ router.use("/match-history", matchHistoryRouter);
 // ── Platform Verification & Linking ───────────────────────────────────────────
 router.use("/platform", platformRouter);
 router.use("/discord", discordRouter);
+// ── Game Emojis (Tier 10.1a) ──────────────────────────────────────────────────
+router.use("/emojis", emojisRouter);
+// ── Mentor System (Tier 10.14) ─────────────────────────────────────────────────
+router.use("/mentor", mentorRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

@@ -47,6 +47,7 @@ router.get("/global", requireAuth, async (req: AuthRequest, res) => {
       title: m.senderTitle,
       chatFrame: (m as any).senderChatFrame || null,
       level: (m as any).senderLevel || 1,
+      pinnedBadges: (m as any).senderPinnedBadges ?? [],
       content: m.content,
       at: m.createdAt,
     })));
@@ -71,7 +72,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level subscriptionTier subscriptionExpiresAt");
+      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level subscriptionTier subscriptionExpiresAt pinnedBadges");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
@@ -79,6 +80,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
     }
 
     const activeTierGlobal = getActiveTier(user as any);
+    const senderBadges: string[] = (user as any).pinnedBadges ?? [];
 
     const message = await ChatMessage.create({
       channel: "global",
@@ -90,6 +92,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
       senderTitle: user.equippedTitle,
       senderChatFrame: (user as any).equippedChatFrame || null,
       senderLevel: user.level,
+      senderPinnedBadges: senderBadges,
       content,
     });
 
@@ -104,6 +107,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
         chatFrame: (user as any).equippedChatFrame || null,
         level: user.level,
         subscriptionTier: activeTierGlobal ? (user as any).subscriptionTier : null,
+        pinnedBadges: senderBadges,
         content,
         at: message.createdAt,
       });

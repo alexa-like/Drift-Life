@@ -2,6 +2,7 @@ import { Router } from "express";
 import sanitizeHtml from "sanitize-html";
 import User, { computeMaxHp, levelUp } from "../models/User";
 import Item from "../models/Item";
+import UserAchievement from "../models/Achievement";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen } from "../lib/regen";
 import { safeUser } from "./auth";
@@ -601,6 +602,62 @@ router.get("/:username", requireAuth, async (req: AuthRequest, res) => {
     });
   } catch (err: any) {
     req.log.error({ err }, "get user error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── 10.15 Achievement Badge Pinning ──────────────────────────────────────────
+
+// POST /api/user/badges/pin — pin a completed achievement badge to profile (max 3)
+router.post("/badges/pin", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { achievementId } = req.body;
+    if (!achievementId || typeof achievementId !== "string") {
+      return res.status(400).json({ message: "achievementId required" });
+    }
+
+    const [user, ua] = await Promise.all([
+      User.findById(req.userId),
+      UserAchievement.findOne({ userId: req.userId, achievementId, completed: true }).lean(),
+    ]);
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!ua) return res.status(403).json({ message: "Achievement not yet completed" });
+
+    const pinned: string[] = (user as any).pinnedBadges ?? [];
+    if (!pinned.includes(achievementId)) {
+      if (pinned.length >= 3) pinned.shift(); // remove oldest to make room
+      pinned.push(achievementId);
+      (user as any).pinnedBadges = pinned;
+      await user.save();
+    }
+
+    res.json({ pinnedBadges: (user as any).pinnedBadges });
+  } catch (err: any) {
+    req.log.error({ err }, "badge pin error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/user/badges/unpin — remove a pinned badge
+router.post("/badges/unpin", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { achievementId } = req.body;
+    if (!achievementId || typeof achievementId !== "string") {
+      return res.status(400).json({ message: "achievementId required" });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    (user as any).pinnedBadges = ((user as any).pinnedBadges ?? []).filter(
+      (id: string) => id !== achievementId,
+    );
+    await user.save();
+
+    res.json({ pinnedBadges: (user as any).pinnedBadges });
+  } catch (err: any) {
+    req.log.error({ err }, "badge unpin error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
