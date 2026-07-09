@@ -28,6 +28,7 @@ import { postToSystemFeed } from "../lib/systemFeed";
 import { getWorldState, worldRunModifiers } from "../models/WorldState";
 import { validateBody } from "../middlewares/validate";
 import { pursuitResolveSchema, crimesLaunderSchema } from "../lib/schemas";
+import Item from "../models/Item";
 
 const router = Router();
 
@@ -311,13 +312,21 @@ router.post("/district/:crimeId/commit", requireAuth, async (req: AuthRequest, r
     } else {
       // Jailed in this district
       const jailMult = DISTRICT_JAIL_MULTIPLIERS[user.currentLocation] ?? 1.0;
-      const jailDuration = Math.floor(15 * 60 * 1000 * jailMult);
+      let jailDuration = Math.floor(15 * 60 * 1000 * jailMult);
+      // Throwaway Phone: consume one to reduce jail time by 30%
+      const phone = await Item.findOne({ owner: user._id, name: "Throwaway Phone", quantity: { $gt: 0 } });
+      if (phone) {
+        jailDuration = Math.floor(jailDuration * 0.70);
+        phone.quantity = (phone.quantity ?? 1) - 1;
+        if (phone.quantity <= 0) await phone.deleteOne();
+        else await phone.save();
+      }
       user.jailedUntil = new Date(Date.now() + jailDuration);
       user.jailUntil = user.jailedUntil;
       user.jailDuration = jailDuration;
       user.status = 'jailed';
       jailed = true;
-      narrative = `Caught! Jailed in ${user.currentLocation} for ${Math.ceil(jailDuration / 60000)} minutes.`;
+      narrative = `Caught! Jailed in ${user.currentLocation} for ${Math.ceil(jailDuration / 60000)} minutes.${phone ? " (Throwaway Phone used — 30% less time)" : ""}`;
     }
 
     await user.save();
@@ -499,6 +508,14 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
           // Wanted level scales jail time: each wanted star adds 30% more time
           const wantedMult = 1 + (gated.wantedLevel ?? 0) * 0.3;
           jailDuration = Math.floor((10 + run.tier * 10) * 60 * 1000 * wantedMult);
+          // Throwaway Phone: consume one to reduce jail time by 30%
+          const phone = await Item.findOne({ owner: gated._id, name: "Throwaway Phone", quantity: { $gt: 0 } });
+          if (phone) {
+            jailDuration = Math.floor(jailDuration * 0.70);
+            phone.quantity = (phone.quantity ?? 1) - 1;
+            if (phone.quantity <= 0) await phone.deleteOne();
+            else await phone.save();
+          }
           jailUntil = new Date(Date.now() + jailDuration);
           gated.jailUntil = jailUntil;
           gated.jailDuration = jailDuration;
@@ -506,7 +523,7 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
           gated.heat = 0;
           gated.heatDecayAt = new Date();
           const wantedStr = gated.wantedLevel >= 4 ? " MOST WANTED — extended sentence." : gated.wantedLevel >= 2 ? " Prior record noted — sentence extended." : "";
-          narrative = `Cuffs on. You're in a holding cell.${wantedStr} Bail's open.`;
+          narrative = `Cuffs on. You're in a holding cell.${wantedStr} Bail's open.${phone ? " (Throwaway Phone used — 30% less time)" : ""}`;
           gated.stress = Math.min(100, gated.stress + 10);
         }
       }

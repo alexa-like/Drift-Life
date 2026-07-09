@@ -247,7 +247,7 @@ export async function seedArenaItems(): Promise<void> {
     { itemId: "smoke_grenade",   name: "Smoke Grenade",  category: "consumable", tier: "common",    stackable: true, maxStack: 10, stats: { specialEffect: "blind" } },
     { itemId: "frag_grenade",    name: "Frag Grenade",   category: "consumable", tier: "uncommon",  stackable: true, maxStack: 5,  stats: { specialEffect: "damage",       damageMin: 50,  damageMax: 80  } },
     { itemId: "cyber_grenade",   name: "Cyber Grenade",  category: "consumable", tier: "epic",      stackable: true, maxStack: 3,  stats: { specialEffect: "damage_stun",  damageMin: 120, damageMax: 180 } },
-    { itemId: "adrenaline_shot", name: "Adrenaline Shot",category: "consumable", tier: "uncommon",  stackable: true, maxStack: 5,  stats: { specialEffect: "accuracy_boost" } },
+
     { itemId: "stimpack",        name: "Stimpack",       category: "consumable", tier: "rare",      stackable: true, maxStack: 3,  stats: { specialEffect: "damage_boost" } },
     { itemId: "nano_shield",     name: "Nano Shield",    category: "consumable", tier: "epic",      stackable: true, maxStack: 3,  stats: { shieldAmount: 100, specialEffect: "shield" } },
     { itemId: "stim_shot",       name: "Stim Shot",      category: "consumable", tier: "uncommon",  stackable: true, maxStack: 5,  stats: { specialEffect: "berserk" } },
