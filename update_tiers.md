@@ -134,7 +134,160 @@ description: "A mechanic's chit. Restores your race car's condition to 100% inst
 
 This item is used in Tier 6 for the car servicing system.
 
-### 1.8 — Verify Server Starts Clean
+### 1.8 — Separate Energy Pools (Adrenaline + Nitro)
+
+The game currently has one `energy` pool used for everything. This changes. Three separate pools now exist:
+
+| Pool | Name | Used For | Regen Rate | Max |
+|---|---|---|---|---|
+| Energy | Energy ⚡ | Crimes, gym, jobs, city activities | 1 per 5 min | 10 |
+| Fighting pool | Adrenaline 💉 | Entering shooting arena matches | 1 per 12 min | 5 |
+| Racing pool | Nitro 🔥 | Entering races | 1 per 12 min | 5 |
+
+**User model — add these fields (only if missing):**
+```typescript
+adrenaline:    { type: Number, default: 5 }
+maxAdrenaline: { type: Number, default: 5 }
+nitro:         { type: Number, default: 5 }
+maxNitro:      { type: Number, default: 5 }
+```
+
+Energy/maxEnergy already exist — do not touch them.
+
+**Regen system (`lib/regen.ts`):**
+The existing regen handler already ticks `energy`. Extend it to also tick `adrenaline` and `nitro` independently:
+```typescript
+// In the regen tick function — run on schedule or on login
+if (user.adrenaline < user.maxAdrenaline) {
+  const minutesSinceLastTick = /* existing time calc */;
+  const adrenalineGain = Math.floor(minutesSinceLastTick / 12);
+  user.adrenaline = Math.min(user.maxAdrenaline, user.adrenaline + adrenalineGain);
+}
+if (user.nitro < user.maxNitro) {
+  const nitroGain = Math.floor(minutesSinceLastTick / 12);
+  user.nitro = Math.min(user.maxNitro, user.nitro + nitroGain);
+}
+```
+
+**Arena queue cost change:**
+In `POST /arena/queue/join` (Tier 3): costs **1 Adrenaline**, NOT regular Energy.
+Check: `if (user.adrenaline < 1) return 400 "Not enough Adrenaline"`. Deduct atomically on join.
+
+**Race queue cost change:**
+Wherever race entry is handled: costs **1 Nitro**, NOT regular Energy.
+Check: `if (user.nitro < 1) return 400 "Not enough Nitro"`. Deduct atomically on join.
+
+**Rename conflict:** The arena in-match consumable previously called "Adrenaline Shot" (boosts accuracy during a fight) must be renamed to **"Stim Shot"** in the seed data and throughout the codebase. "Adrenaline" is now reserved for the queue resource. Update the itemId from `adrenaline_shot` to `stim_shot` and the name accordingly.
+
+**New booster items — add to NPC store seed (Tier 5):**
+
+| Item | itemId | Effect | Sold At | Price |
+|---|---|---|---|---|
+| Adrenaline Vial | `adrenaline_vial` | +2 Adrenaline (instant) | Combat Zone Supply | 800 DC |
+| Combat Stim | `combat_stim` | +5 Adrenaline (instant, full refill) | Combat Zone Supply | 1,800 DC |
+| Nitro Can | `nitro_can` | +2 Nitro (instant) | Chrome Garage | 800 DC |
+| Fuel Pack | `fuel_pack` | +5 Nitro (instant, full refill) | Chrome Garage | 1,800 DC |
+
+These are normal game consumable items (not arena consumables). They go in the player's regular inventory and are used from there, not from the arena loadout.
+
+**Frontend — HUD/header display:**
+Show all three bars wherever the player's resources are displayed:
+```
+⚡ Energy:     7/10  ████████░░
+💉 Adrenaline: 3/5   ██████░░░░
+🔥 Nitro:      5/5   ██████████
+```
+Also show each bar contextually: Adrenaline bar prominently on the Arena hub page, Nitro bar on the Racing hub page.
+
+### 1.9 — Travel Time System (Replace Energy Cost with Time)
+
+**Remove energy cost from travel entirely.** Players no longer spend Energy to travel between city districts/locations. Instead, travel takes real time, and the vehicle the player has equipped in their city vehicle slot determines how fast they arrive.
+
+**Why this change:** Energy is now reserved for crimes, gym, and jobs. Travel was an energy sink that punished players for moving around. With cars visually determining travel speed, the vehicle system has real purpose beyond a passive stat bonus.
+
+**How travel works now:**
+
+1. Player clicks "Travel to [District/Location]"
+2. If they are already traveling somewhere: show current destination + arrival time, block new travel until arrived
+3. A `travelArrivesAt` timestamp is set on the User document
+4. Player cannot perform location-specific actions (crimes in that district, certain jobs, etc.) until `travelArrivesAt` has passed
+5. The frontend shows a countdown: "Arriving in 4m 32s..."
+6. On arrival: automatic — no action needed. The player is now in the new location.
+
+**Add to User model:**
+```typescript
+currentLocation:   { type: String, default: "downtown" }   // current district slug
+travelingTo:       { type: String, default: null }          // destination slug, null if not traveling
+travelArrivesAt:   { type: Date, default: null }            // null if not traveling
+```
+
+**Base travel time (no vehicle equipped):** 10 minutes between any two locations.
+
+**Vehicle equipped reduces travel time.** The vehicle stat was previously "% travel energy reduction" — repurpose it as **"% travel time reduction"**. The mechanic is the same concept (better car = less cost), just the resource changes from energy to time.
+
+**Travel time by vehicle rarity (city vehicles only — not race cars, which are arena-only):**
+
+| Vehicle | Slot | Travel Time Reduction | 10 min → |
+|---|---|---|---|
+| No vehicle | — | 0% | 10 min |
+| Common vehicle | enhancement/vehicle | −20% | 8 min |
+| Uncommon vehicle | enhancement/vehicle | −35% | 6.5 min |
+| Sports Car (Rare) | enhancement/vehicle | −60% | 4 min |
+| Luxury Car (Rare) | enhancement/vehicle | −40% | 6 min |
+| Epic vehicle | enhancement/vehicle | −70% | 3 min |
+| Legendary vehicle | enhancement/vehicle | −80% | 2 min |
+
+Note: Sports Car has faster travel than Luxury Car. Luxury Car gives +12 Charisma (prestige value) but is slower — this is the trade-off. Racing cars (Garage cars) are NOT used for city travel — they are arena-only items.
+
+**Update Luxury Car and Sports Car item descriptions** to say "% travel time reduction" instead of "% travel energy cost reduction."
+
+**Backend — travel endpoint:**
+```typescript
+// POST /user/travel
+// Body: { destination: "westside" }
+
+// Validate: not already traveling
+if (user.travelingTo !== null && user.travelArrivesAt > new Date()) {
+  return 400, "Already traveling — arrive at destination first"
+}
+
+// Get equipped vehicle
+const equippedVehicle = getEquippedVehicle(user); // from inventory
+const reductionPct = equippedVehicle?.travelTimeReduction ?? 0;  // 0–80
+
+// Calculate travel time
+const baseTravelMs = 10 * 60 * 1000;  // 10 minutes in ms
+const travelMs = Math.floor(baseTravelMs * (1 - reductionPct / 100));
+
+// Set travel state
+user.travelingTo = destination;
+user.travelArrivesAt = new Date(Date.now() + travelMs);
+await user.save();
+
+return { travelingTo: destination, arrivesAt: user.travelArrivesAt, travelTimeMs: travelMs }
+```
+
+**Backend — arrival check:**
+On any action that requires a specific location, check:
+```typescript
+// Auto-complete travel if arrived
+if (user.travelingTo && user.travelArrivesAt <= new Date()) {
+  user.currentLocation = user.travelingTo;
+  user.travelingTo = null;
+  user.travelArrivesAt = null;
+  await user.save();
+}
+// Then check location requirement
+```
+
+**Frontend travel display:**
+- City map or location list shows player's current location
+- Locations they are not at: show "TRAVEL (4m 0s)" button with estimated time
+- If player is currently traveling: show a travel progress bar with countdown and destination
+- On arrival: auto-update the UI and show "Arrived at [Location]!" notification
+- Items that can reduce travel time (Nitro Can etc.) are NOT relevant here — Nitro is racing only. Travel time is purely determined by equipped vehicle. No consumable shortcut.
+
+### 1.10 — Verify Server Starts Clean
 
 - Run `pnpm --filter @workspace/api-server run dev` — confirm no errors
 - Hit `/market/shop` — confirm deleted armor items and Combat Drug are gone
