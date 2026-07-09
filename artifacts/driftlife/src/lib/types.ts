@@ -252,6 +252,21 @@ export interface ChatMessage {
   pinnedBadges?: string[];
 }
 
+export interface ChatReport {
+  _id: string;
+  messageId: string;
+  messageContent: string;
+  messageChannel: string;
+  reportedUserId: string;
+  reportedUsername: string;
+  reporterId: string;
+  reporterUsername: string;
+  reason: string | null;
+  status: "pending" | "reviewed" | "dismissed";
+  reviewedBy: string | null;
+  createdAt: string;
+}
+
 export interface Conversation {
   userId: string;
   username: string;

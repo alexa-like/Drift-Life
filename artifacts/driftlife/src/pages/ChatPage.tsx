@@ -18,13 +18,75 @@ function handleLocNav(loc: string) {
   (window as any).__setPage?.(loc);
 }
 
-function MessageBubble({ message, isOwn, onUsernameClick }: {
+/** Small context menu shown on right-click / long-press of a message bubble. */
+function MessageContextMenu({ x, y, onReport, onMute, onClose }: {
+  x: number; y: number;
+  onReport: () => void;
+  onMute: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("scroll", onClose, true);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("scroll", onClose, true);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: "fixed",
+        left: Math.min(x, window.innerWidth - 180),
+        top: Math.min(y, window.innerHeight - 90),
+        background: "#111118",
+        border: "1px solid #1e293b",
+        borderRadius: 8,
+        padding: 4,
+        zIndex: 200,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+        minWidth: 160,
+      }}
+    >
+      <button
+        onClick={onReport}
+        className="font-mono text-xs w-full text-left"
+        style={{ display: "block", padding: "8px 10px", background: "none", border: "none", color: "#e2e8f0", cursor: "pointer", borderRadius: 4 }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#1e293b"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+      >
+        🚩 Report message
+      </button>
+      <button
+        onClick={onMute}
+        className="font-mono text-xs w-full text-left"
+        style={{ display: "block", padding: "8px 10px", background: "none", border: "none", color: "#ff2d55", cursor: "pointer", borderRadius: 4 }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#1e293b"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+      >
+        🔇 Mute player
+      </button>
+    </div>
+  );
+}
+
+function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
   message: ChatMessage;
   isOwn: boolean;
   onUsernameClick?: (id: string) => void;
+  onReport?: (messageId: string) => void;
+  onMute?: (userId: string, username: string) => void;
 }) {
   const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
   const fc = message.faction ? FACTION_COLOR[message.faction] || "#94a3b8" : "#94a3b8";
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function handleMentionUser(username: string) {
     if (!onUsernameClick) return;
@@ -35,36 +97,80 @@ function MessageBubble({ message, isOwn, onUsernameClick }: {
     } catch { /* ignore */ }
   }
 
+  function openMenuAt(x: number, y: number) {
+    if (isOwn || !onReport) return; // can't report/mute yourself
+    setMenuPos({ x, y });
+  }
+
+  function handleContextMenu(e: React.MouseEvent) {
+    if (isOwn || !onReport) return;
+    e.preventDefault();
+    openMenuAt(e.clientX, e.clientY);
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    if (isOwn || !onReport) return;
+    const touch = e.touches[0];
+    longPressTimer.current = setTimeout(() => openMenuAt(touch.clientX, touch.clientY), 500);
+  }
+
+  function clearLongPress() {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  }
+
+  const menu = menuPos && (
+    <MessageContextMenu
+      x={menuPos.x}
+      y={menuPos.y}
+      onClose={() => setMenuPos(null)}
+      onReport={() => { setMenuPos(null); onReport?.(message.id); }}
+      onMute={() => { setMenuPos(null); message.userId && onMute?.(message.userId, message.username); }}
+    />
+  );
+
   if (message.chatFrame) {
     return (
       <div
         className="flex flex-col mb-2"
         style={{ alignItems: isOwn ? "flex-end" : "flex-start" }}
-        onClick={() => message.userId && onUsernameClick?.(message.userId)}
+        onContextMenu={handleContextMenu}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={clearLongPress}
+        onTouchMove={clearLongPress}
       >
-        <ChatFrameRenderer
-          frameId={message.chatFrame}
-          username={message.username}
-          level={message.level}
-          timestamp={message.at}
-          isOwn={isOwn}
-          subscriptionTier={message.subscriptionTier}
-        >
-          {message.title && (
-            <span className="font-mono mr-1" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
-          )}
-          <MentionText
-            text={message.content}
-            onUserClick={handleMentionUser}
-            onLocationClick={handleLocNav}
-          />
-        </ChatFrameRenderer>
+        <div onClick={() => message.userId && onUsernameClick?.(message.userId)}>
+          <ChatFrameRenderer
+            frameId={message.chatFrame}
+            username={message.username}
+            level={message.level}
+            timestamp={message.at}
+            isOwn={isOwn}
+            subscriptionTier={message.subscriptionTier}
+          >
+            {message.title && (
+              <span className="font-mono mr-1" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
+            )}
+            <MentionText
+              text={message.content}
+              onUserClick={handleMentionUser}
+              onLocationClick={handleLocNav}
+            />
+          </ChatFrameRenderer>
+        </div>
+        {menu}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col mb-2" style={{ alignItems: isOwn ? "flex-end" : "flex-start" }}>
+    <div
+      className="flex flex-col mb-2"
+      style={{ alignItems: isOwn ? "flex-end" : "flex-start" }}
+      onContextMenu={handleContextMenu}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={clearLongPress}
+      onTouchMove={clearLongPress}
+    >
       <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
         {message.title && (
           <span className="font-mono" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
@@ -117,6 +223,7 @@ function MessageBubble({ message, isOwn, onUsernameClick }: {
           onLocationClick={handleLocNav}
         />
       </div>
+      {menu}
     </div>
   );
 }
@@ -243,7 +350,16 @@ function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void;
   );
 }
 
-function GlobalTab({ user, onInspect }: { user: User; onInspect?: (id: string) => void }) {
+interface ModProps {
+  onInspect?: (id: string) => void;
+  onReport: (messageId: string) => void;
+  onMute: (userId: string, username: string) => void;
+  isMuted: (userId: string) => boolean;
+}
+
+function GlobalTab({ user, onInspect, onReport, onMute, isMuted, muted, onToggleMute }: {
+  user: User;
+} & ModProps & { muted: boolean; onToggleMute: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading,  setLoading]  = useState(true);
   const { socket } = useSocket();
@@ -270,12 +386,28 @@ function GlobalTab({ user, onInspect }: { user: User; onInspect?: (id: string) =
     try { await api.post<any>("/chat/global", { content }); } catch { /* ignore */ }
   }
 
+  const visible = messages.filter(m => !isMuted(m.userId));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="font-mono text-xs" style={{ color: "#475569" }}>Global Chat</span>
+        <button
+          onClick={onToggleMute}
+          title={muted ? "Unmute global chat notifications" : "Mute global chat notifications"}
+          className="font-mono text-xs"
+          style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: muted ? "#ff2d55" : "#475569",
+          }}
+        >
+          {muted ? "🔕 Muted" : "🔔 Notify"}
+        </button>
+      </div>
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
         {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
-        {messages.map(m => (
-          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
+        {visible.map(m => (
+          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} onReport={onReport} onMute={onMute} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -284,12 +416,12 @@ function GlobalTab({ user, onInspect }: { user: User; onInspect?: (id: string) =
   );
 }
 
-function DistrictTab({ user, onInspect }: { user: User; onInspect?: (id: string) => void }) {
+function DistrictTab({ user, onInspect, onReport, onMute, isMuted }: { user: User } & ModProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading,  setLoading]  = useState(true);
   const { socket } = useSocket();
   const bottomRef  = useRef<HTMLDivElement>(null);
-  const district   = user.district;
+  const district   = user.currentLocation || user.district;
 
   useEffect(() => {
     api.get<ChatMessage[]>(`/chat/district/${district}`)
@@ -314,15 +446,18 @@ function DistrictTab({ user, onInspect }: { user: User; onInspect?: (id: string)
     try { await api.post<any>(`/chat/district/${district}`, { content }); } catch { /* ignore */ }
   }
 
+  const visible = messages.filter(m => !isMuted(m.userId));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div className="font-mono text-xs mb-2" style={{ color: "#475569" }}>
         District: <span style={{ color: "#00d4ff" }}>{district}</span>
+        <span style={{ color: "#334155", marginLeft: 8 }}>— visible while abroad</span>
       </div>
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
         {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
-        {messages.map(m => (
-          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
+        {visible.map(m => (
+          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} onReport={onReport} onMute={onMute} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -331,7 +466,7 @@ function DistrictTab({ user, onInspect }: { user: User; onInspect?: (id: string)
   );
 }
 
-function FactionTab({ user, onInspect }: { user: User; onInspect?: (id: string) => void }) {
+function FactionTab({ user, onInspect, onReport, onMute, isMuted }: { user: User } & ModProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
@@ -361,6 +496,7 @@ function FactionTab({ user, onInspect }: { user: User; onInspect?: (id: string) 
 
   const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
   const fc = user.faction ? FACTION_COLOR[user.faction] ?? "#00d4ff" : "#00d4ff";
+  const visible = messages.filter(m => !isMuted(m.userId));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -371,8 +507,8 @@ function FactionTab({ user, onInspect }: { user: User; onInspect?: (id: string) 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
         {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
         {error   && <div className="font-mono text-xs text-center py-5" style={{ color: "#ff2d55" }}>{error}</div>}
-        {messages.map(m => (
-          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
+        {visible.map(m => (
+          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} onReport={onReport} onMute={onMute} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -552,15 +688,70 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
   );
 }
 
+const GLOBAL_MUTE_KEY = "driftlife:globalChatMuted";
+
 export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
   const [tab, setTab] = useState<"global" | "district" | "faction" | "messages">("global");
+  const [mutedUserIds, setMutedUserIds] = useState<string[]>(user.mutedUsers ?? []);
+  const [globalMuted, setGlobalMuted] = useState<boolean>(() => {
+    try { return localStorage.getItem(GLOBAL_MUTE_KEY) === "1"; } catch { return false; }
+  });
+
+  // Re-sync from the server-provided user object (e.g. after a fresh /me refetch)
+  // so mutes made elsewhere or restored across sessions stay accurate.
+  useEffect(() => {
+    setMutedUserIds(user.mutedUsers ?? []);
+  }, [user.mutedUsers]);
+
+  const isAbroad = user.status === "abroad";
+  const district = user.currentLocation || user.district;
 
   const tabs = [
     { id: "global"   as const, label: "Global"   },
-    { id: "district" as const, label: user.district.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ") },
+    ...(isAbroad ? [{ id: "district" as const, label: district.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ") }] : []),
     ...(user.faction ? [{ id: "faction"  as const, label: user.faction.charAt(0).toUpperCase() + user.faction.slice(1) }] : []),
     { id: "messages" as const, label: "DMs"      },
   ];
+
+  // If the player returns home while the district tab is active, fall back to Global.
+  useEffect(() => {
+    if (tab === "district" && !isAbroad) setTab("global");
+  }, [tab, isAbroad]);
+
+  function isMuted(userId: string) {
+    return mutedUserIds.includes(userId);
+  }
+
+  async function handleMute(userId: string, username: string) {
+    if (isMuted(userId)) return;
+    setMutedUserIds(prev => [...prev, userId]);
+    try {
+      await api.post<any>(`/chat/mute/${userId}`, {});
+      addToast(`Muted ${username}. Their messages are now hidden from your view.`, "info");
+    } catch {
+      setMutedUserIds(prev => prev.filter(id => id !== userId));
+      addToast("Failed to mute player", "error");
+    }
+  }
+
+  async function handleReport(messageId: string) {
+    try {
+      await api.post<any>("/chat/report", { messageId });
+      addToast("Report submitted.", "success");
+    } catch {
+      addToast("Failed to submit report", "error");
+    }
+  }
+
+  function toggleGlobalMute() {
+    setGlobalMuted(prev => {
+      const next = !prev;
+      try { localStorage.setItem(GLOBAL_MUTE_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  }
+
+  const modProps = { onInspect: onInspectPlayer, onReport: handleReport, onMute: handleMute, isMuted };
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", height: "calc(100vh - 120px)", display: "flex", flexDirection: "column" }}>
@@ -581,9 +772,9 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
       </div>
 
       <div style={{ flex: 1, overflow: "hidden" }}>
-        {tab === "global"   && <GlobalTab   user={user} onInspect={onInspectPlayer} />}
-        {tab === "district" && <DistrictTab user={user} onInspect={onInspectPlayer} />}
-        {tab === "faction"  && <FactionTab  user={user} onInspect={onInspectPlayer} />}
+        {tab === "global"   && <GlobalTab   user={user} {...modProps} muted={globalMuted} onToggleMute={toggleGlobalMute} />}
+        {tab === "district" && isAbroad && <DistrictTab user={user} {...modProps} />}
+        {tab === "faction"  && <FactionTab  user={user} {...modProps} />}
         {tab === "messages" && <MessagesTab user={user} onInspect={onInspectPlayer} />}
       </div>
     </div>

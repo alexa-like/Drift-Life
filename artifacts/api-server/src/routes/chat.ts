@@ -2,6 +2,7 @@ import { Router } from "express";
 import sanitizeHtml from "sanitize-html";
 import User from "../models/User";
 import ChatMessage, { dmKey } from "../models/ChatMessage";
+import ChatReport from "../models/ChatReport";
 import { requireAuth, requireOwner, AuthRequest } from "../middlewares/auth";
 import mongoose from "mongoose";
 import { notifyMentions } from "../lib/mentions";
@@ -35,7 +36,13 @@ function sanitizeContent(raw: unknown): string {
 // GET /api/chat/global — last 50 global messages
 router.get("/global", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const messages = await ChatMessage.find({ channel: "global", deleted: false })
+    const me = await User.findById(req.userId).select("mutedUsers").lean();
+    const muted = ((me as any)?.mutedUsers ?? []).map(String);
+    const messages = await ChatMessage.find({
+      channel: "global",
+      deleted: false,
+      ...(muted.length ? { senderId: { $nin: muted } } : {}),
+    })
       .sort({ createdAt: -1 })
       .limit(HISTORY_LIMIT)
       .lean();
@@ -128,7 +135,14 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
 router.get("/district/:districtId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { districtId } = req.params;
-    const messages = await ChatMessage.find({ channel: "district", districtId, deleted: false })
+    const me = await User.findById(req.userId).select("mutedUsers").lean();
+    const muted = ((me as any)?.mutedUsers ?? []).map(String);
+    const messages = await ChatMessage.find({
+      channel: "district",
+      districtId,
+      deleted: false,
+      ...(muted.length ? { senderId: { $nin: muted } } : {}),
+    })
       .sort({ createdAt: -1 })
       .limit(HISTORY_LIMIT)
       .lean();
@@ -223,12 +237,17 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
 // GET /api/chat/faction — last 50 messages in the player's faction channel
 router.get("/faction", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await User.findById(req.userId).select("faction").lean();
+    const user = await User.findById(req.userId).select("faction mutedUsers").lean();
     if (!user) return res.status(404).json({ message: "User not found" });
     if (!user.faction || user.faction === null) {
       return res.status(400).json({ message: "You must belong to a faction to use faction chat" });
     }
-    const messages = await ChatMessage.find({ channel: `faction:${user.faction}`, deleted: false })
+    const muted = ((user as any).mutedUsers ?? []).map(String);
+    const messages = await ChatMessage.find({
+      channel: `faction:${user.faction}`,
+      deleted: false,
+      ...(muted.length ? { senderId: { $nin: muted } } : {}),
+    })
       .sort({ createdAt: -1 })
       .limit(HISTORY_LIMIT)
       .lean();
@@ -526,6 +545,77 @@ router.get("/channels", requireAuth, async (req: AuthRequest, res) => {
     res.json({ channels });
   } catch (err: any) {
     req.log.error({ err }, "get chat channels error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── PLAYER MUTING (client-side hide only, not a ban) ──────────────────────────
+
+// POST /api/chat/mute/:userId — hide another player's messages from your own view
+router.post("/mute/:userId", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const targetId = String(req.params.userId);
+    if (targetId === String(req.userId)) return res.status(400).json({ message: "Cannot mute yourself" });
+    if (!mongoose.isValidObjectId(targetId)) return res.status(400).json({ message: "Invalid userId" });
+
+    const target = await User.findById(targetId).select("_id").lean();
+    if (!target) return res.status(404).json({ message: "User not found" });
+
+    await User.findByIdAndUpdate(req.userId, { $addToSet: { mutedUsers: targetId } });
+    res.json({ message: "Player muted", mutedUserId: targetId });
+  } catch (err: any) {
+    req.log.error({ err }, "mute player error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// DELETE /api/chat/mute/:userId — unmute a player
+router.delete("/mute/:userId", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const targetId = String(req.params.userId);
+    await User.findByIdAndUpdate(req.userId, { $pull: { mutedUsers: targetId } });
+    res.json({ message: "Player unmuted", mutedUserId: targetId });
+  } catch (err: any) {
+    req.log.error({ err }, "unmute player error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── MESSAGE REPORTING ─────────────────────────────────────────────────────────
+
+// POST /api/chat/report — report a chat message for staff review
+router.post("/report", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const messageId = String(req.body.messageId || "");
+    const reason = req.body.reason ? sanitizeContent(req.body.reason).slice(0, 256) : null;
+    if (!mongoose.isValidObjectId(messageId)) return res.status(400).json({ message: "Invalid messageId" });
+
+    const msg = await ChatMessage.findById(messageId).lean();
+    if (!msg) return res.status(404).json({ message: "Message not found" });
+    if (String(msg.senderId) === String(req.userId)) {
+      return res.status(400).json({ message: "Cannot report your own message" });
+    }
+
+    const [reporter, reported] = await Promise.all([
+      User.findById(req.userId).select("username").lean(),
+      User.findById(msg.senderId).select("username").lean(),
+    ]);
+    if (!reporter) return res.status(404).json({ message: "User not found" });
+
+    await ChatReport.create({
+      messageId: msg._id,
+      messageContent: msg.content,
+      messageChannel: msg.channel,
+      reportedUserId: msg.senderId,
+      reportedUsername: (reported as any)?.username || msg.senderName,
+      reporterId: reporter._id,
+      reporterUsername: (reporter as any).username,
+      reason,
+    });
+
+    res.json({ message: "Report submitted" });
+  } catch (err: any) {
+    req.log.error({ err }, "report message error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

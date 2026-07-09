@@ -6,6 +6,7 @@ import { levelUp, xpForLevel } from "../models/User";
 import { SHOP_ITEMS, PRICE_OVERRIDES } from "./market";
 import ServerConfig from "../models/ServerConfig";
 import AdminAuditLog, { logAdminAction } from "../models/AdminAuditLog";
+import ChatReport from "../models/ChatReport";
 
 const router = Router();
 router.use(requireStaff as any);
@@ -726,6 +727,56 @@ router.post("/special-event", requireOwner as any, async (req: AuthRequest, res)
     res.json({ message: `Special event "${type}" activated for ${hours}h`, active: true, type, expiresAt });
   } catch (err: any) {
     req.log.error({ err }, "special-event error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── CHAT REPORTS ───────────────────────────────────────────────────────────────
+
+// GET /api/owner/chat-reports — list chat reports for staff review
+router.get("/chat-reports", async (req: AuthRequest, res) => {
+  try {
+    const status = (req.query.status as string) || "pending";
+    const filter: Record<string, unknown> = {};
+    if (status !== "all") filter.status = status;
+
+    const reports = await ChatReport.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+    res.json(reports);
+  } catch (err: any) {
+    req.log.error({ err }, "get chat reports error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /api/owner/chat-reports/:id — mark a report reviewed/dismissed
+router.patch("/chat-reports/:id", async (req: AuthRequest, res) => {
+  try {
+    const { status } = req.body as { status?: string };
+    if (!status || !["reviewed", "dismissed"].includes(status)) {
+      return res.status(400).json({ message: "status must be 'reviewed' or 'dismissed'" });
+    }
+    const report = await ChatReport.findByIdAndUpdate(
+      req.params.id,
+      { status, reviewedBy: req.username || "unknown" },
+      { new: true }
+    );
+    if (!report) return res.status(404).json({ message: "Report not found" });
+
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "chat-report-review",
+      targetId: String(report.reportedUserId),
+      targetUsername: report.reportedUsername,
+      details: { status, messageId: String(report.messageId) },
+    });
+
+    res.json({ message: "Report updated", report });
+  } catch (err: any) {
+    req.log.error({ err }, "update chat report error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
