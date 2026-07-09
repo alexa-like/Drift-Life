@@ -454,6 +454,48 @@ router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
         }
       }
 
+      // Grant car or car part (for race_cars / car_parts category pools)
+      // itemRef is null for these; rewards are carried in won.reward.carId / .carPartId
+      if (!itemDef) {
+        const carId = (won.reward as any)?.carId as string | undefined;
+        const carPartId = (won.reward as any)?.carPartId as string | undefined;
+
+        if (carId) {
+          await PlayerGarage.updateOne(
+            { userId: req.userId },
+            {
+              $push: {
+                cars: {
+                  carId,
+                  equippedParts: { engine: null, tires: null, nitro: null, bodyKit: null, spoiler: null },
+                  customization: { paint: "#1a1a2e", underglow: "#00d4ff", decals: "none", rims: "standard" },
+                  acquiredAt: new Date(),
+                },
+              },
+            },
+            { upsert: true },
+          );
+        } else if (carPartId) {
+          const garage = await PlayerGarage.findOne({ userId: req.userId });
+          if (garage) {
+            const existingPart = garage.parts.find((p: any) => p.partId === carPartId);
+            if (existingPart) {
+              existingPart.quantity += 1;
+            } else {
+              garage.parts.push({ partId: carPartId, quantity: 1 });
+            }
+            await garage.save();
+          } else {
+            await PlayerGarage.create({
+              userId: req.userId,
+              cars: [],
+              parts: [{ partId: carPartId, quantity: 1 }],
+              activeCar: null,
+            });
+          }
+        }
+      }
+
       // Auto key-shard conversion
       const updatedUser = await User.findById(req.userId).select("keyShards keys dc nc username");
       if (updatedUser && updatedUser.keyShards >= 20) {

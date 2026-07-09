@@ -1,13 +1,25 @@
 /**
- * Seed — royale wheel drop tables for all three royales.
- * 50 items per royale × 3 royales = 150 total.
- * Run once at startup if RoyaleItem collection is empty.
+ * Seed — royale wheel drop tables for all three legacy royales PLUS the 22
+ * new category × spinType pools (11 categories × 2 spin types).
+ *
+ * Legacy pools:  seeded once when RoyaleItem collection is completely empty.
+ * Category pools: seeded once when no items with royaleCategory are present.
  */
 import RoyaleItem from "../models/RoyaleItem";
 import { logger } from "../lib/logger";
 
-// Drop weights by tier (higher = more likely)
+// ── Legacy drop weights ───────────────────────────────────────────────────────
 const W = { common: 600, uncommon: 250, rare: 100, epic: 40, legendary: 10 };
+
+// ── Category pool drop weights (spec) ────────────────────────────────────────
+const CW = {
+  common:    100,
+  uncommon:  40,
+  rare_dc:   8,    // dc_spin rare
+  rare_mr:   30,   // master_royale rare
+  epic:      3,
+  legendary: 1,
+};
 
 const GENERAL_ROYALE_ITEMS = [
   // ── COMMON (10) ────────────────────────────────────────────────────────────
@@ -71,8 +83,6 @@ const GENERAL_ROYALE_ITEMS = [
   { name: "30 Key Shards",          tier: "legendary", itemType: "currency_shards",    reward: { keyShards: 30 },       dropWeight: W.legendary },
 ];
 
-// Shooting and Racing royale items reference the seeded MiniGameItem / RaceCar itemIds
-// and grant them via the reward.miniGameItemId / reward.carId fields.
 const SHOOTING_ROYALE_ITEMS = [
   // Common
   { name: "Pistol",          tier: "common",    itemType: "weapon",     reward: { miniGameItemId: "pistol_common" },        dropWeight: W.common },
@@ -141,7 +151,6 @@ const RACING_ROYALE_ITEMS = [
   { name: "Basic Spoiler",     tier: "common",    itemType: "car_part", reward: { carPartId: "basic_spoiler_common" },dropWeight: W.common },
   { name: "Standard Brakes",   tier: "common",    itemType: "car_part", reward: { carPartId: "std_brakes_common" },dropWeight: W.common },
   { name: "Oil Can",           tier: "common",    itemType: "car_part", reward: { carPartId: "oil_can_common" },   dropWeight: W.common },
-  // use some currency slots for common racing
   { name: "+100 DC (Race)",    tier: "common",    itemType: "currency_dc", reward: { dc: 100 },                   dropWeight: W.common },
   { name: "2 Key Shards",      tier: "common",    itemType: "currency_shards", reward: { keyShards: 2 },          dropWeight: W.common },
   // Uncommon
@@ -190,35 +199,324 @@ const RACING_ROYALE_ITEMS = [
   { name: "8 Keys",            tier: "legendary", itemType: "currency_keys", reward: { keys: 8 },                 dropWeight: W.legendary },
 ];
 
+// ── New-style category pools — 11 categories × 2 spin types = 22 pools ────────
+// itemRef → MiniGameItem.itemId (for arena grants); null for cars/car_parts
+// reward.carId / reward.carPartId used by the spin handler for garage grants
+// All new-style items use royaleType:"general" to satisfy the required field
+
+type CatPoolItem = {
+  royaleCategory: string;
+  spinType: string;
+  royaleType: string;
+  tier: string;
+  name: string;
+  itemType: string;
+  itemRef: string | null;
+  reward: Record<string, unknown>;
+  dropWeight: number;
+  imageCard: string;
+};
+
+function weaponItem(
+  cat: string, st: string, tier: string, name: string, itemId: string, dw: number,
+): CatPoolItem {
+  return {
+    royaleCategory: cat, spinType: st, royaleType: "general",
+    tier, name, itemType: "weapon", itemRef: itemId, reward: {},
+    dropWeight: dw, imageCard: `/assets/items/${itemId}.png`,
+  };
+}
+
+function armorItem(
+  cat: string, st: string, tier: string, name: string, itemId: string, dw: number,
+): CatPoolItem {
+  return {
+    royaleCategory: cat, spinType: st, royaleType: "general",
+    tier, name, itemType: "armor", itemRef: itemId, reward: {},
+    dropWeight: dw, imageCard: `/assets/items/${itemId}.png`,
+  };
+}
+
+function consumableItem(
+  cat: string, st: string, tier: string, name: string, itemId: string, dw: number,
+): CatPoolItem {
+  return {
+    royaleCategory: cat, spinType: st, royaleType: "general",
+    tier, name, itemType: "consumable", itemRef: itemId, reward: {},
+    dropWeight: dw, imageCard: `/assets/items/${itemId}.png`,
+  };
+}
+
+function ammoItem(
+  cat: string, st: string, tier: string, name: string, itemId: string, dw: number,
+): CatPoolItem {
+  return {
+    royaleCategory: cat, spinType: st, royaleType: "general",
+    tier, name, itemType: "ammo", itemRef: itemId, reward: {},
+    dropWeight: dw, imageCard: `/assets/items/${itemId}.png`,
+  };
+}
+
+function carItem(
+  st: string, tier: string, name: string, carId: string, dw: number,
+): CatPoolItem {
+  return {
+    royaleCategory: "race_cars", spinType: st, royaleType: "general",
+    tier, name, itemType: "car", itemRef: null,
+    reward: { carId },
+    dropWeight: dw, imageCard: `/assets/cars/${carId}.png`,
+  };
+}
+
+function carPartItem(
+  st: string, tier: string, name: string, partId: string, dw: number,
+): CatPoolItem {
+  return {
+    royaleCategory: "car_parts", spinType: st, royaleType: "general",
+    tier, name, itemType: "car_part", itemRef: null,
+    reward: { carPartId: partId },
+    dropWeight: dw, imageCard: `/assets/parts/${partId}.png`,
+  };
+}
+
+const CATEGORY_POOLS: CatPoolItem[] = [
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // PISTOLS — dc_spin (3C + 3U + 2R) + master_royale (2R + 2E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  weaponItem("pistols","dc_spin",    "common",    "Glock 17",           "glock17_common",    CW.common),
+  weaponItem("pistols","dc_spin",    "common",    "Desert Eagle",       "deagle_common",     CW.common),
+  weaponItem("pistols","dc_spin",    "common",    "Beretta M9",         "beretta_common",    CW.common),
+  weaponItem("pistols","dc_spin",    "uncommon",  "Glock 17 Mk.II",     "glock17_uncommon",  CW.uncommon),
+  weaponItem("pistols","dc_spin",    "uncommon",  "Desert Eagle Mk.II", "deagle_uncommon",   CW.uncommon),
+  weaponItem("pistols","dc_spin",    "uncommon",  "USP-S Mk.II",        "usps_uncommon",     CW.uncommon),
+  weaponItem("pistols","dc_spin",    "rare",      "Glock 17 Custom",    "glock17_rare",      CW.rare_dc),
+  weaponItem("pistols","dc_spin",    "rare",      "Desert Eagle Custom","deagle_rare",       CW.rare_dc),
+
+  weaponItem("pistols","master_royale","rare",    "Beretta M9 Custom",  "beretta_rare",      CW.rare_mr),
+  weaponItem("pistols","master_royale","rare",    "USP-S Custom",       "usps_rare",         CW.rare_mr),
+  weaponItem("pistols","master_royale","epic",    "Glock 17 Cyber",     "glock17_epic",      CW.epic),
+  weaponItem("pistols","master_royale","epic",    "Desert Eagle Cyber", "deagle_epic",       CW.epic),
+  weaponItem("pistols","master_royale","legendary","Glock 17 Phantom",  "glock17_legendary", CW.legendary),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // SMGS — dc_spin (3C + 3U + 2R) + master_royale (2R + 2E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  weaponItem("smgs","dc_spin",    "common",    "MP5",          "mp5_common",     CW.common),
+  weaponItem("smgs","dc_spin",    "common",    "Uzi",          "uzi_common",     CW.common),
+  weaponItem("smgs","dc_spin",    "common",    "MAC-10",       "mac10_common",   CW.common),
+  weaponItem("smgs","dc_spin",    "uncommon",  "MP5 Mk.II",    "mp5_uncommon",   CW.uncommon),
+  weaponItem("smgs","dc_spin",    "uncommon",  "Uzi Mk.II",    "uzi_uncommon",   CW.uncommon),
+  weaponItem("smgs","dc_spin",    "uncommon",  "P90 Mk.II",    "p90_uncommon",   CW.uncommon),
+  weaponItem("smgs","dc_spin",    "rare",      "MP5 Custom",   "mp5_rare",       CW.rare_dc),
+  weaponItem("smgs","dc_spin",    "rare",      "Uzi Custom",   "uzi_rare",       CW.rare_dc),
+
+  weaponItem("smgs","master_royale","rare",    "MAC-10 Custom","mac10_rare",     CW.rare_mr),
+  weaponItem("smgs","master_royale","rare",    "P90 Custom",   "p90_rare",       CW.rare_mr),
+  weaponItem("smgs","master_royale","epic",    "MP5 Cyber",    "mp5_epic",       CW.epic),
+  weaponItem("smgs","master_royale","epic",    "Uzi Cyber",    "uzi_epic",       CW.epic),
+  weaponItem("smgs","master_royale","legendary","MP5 Phantom", "mp5_legendary",  CW.legendary),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ASSAULT RIFLES — dc_spin (3C + 3U + 2R) + master_royale (2R + 2E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  weaponItem("assault_rifles","dc_spin",    "common",    "AK-47",         "ak47_common",     CW.common),
+  weaponItem("assault_rifles","dc_spin",    "common",    "M4A1",          "m4a1_common",     CW.common),
+  weaponItem("assault_rifles","dc_spin",    "common",    "SCAR-H",        "scarh_common",    CW.common),
+  weaponItem("assault_rifles","dc_spin",    "uncommon",  "AK-47 Mk.II",   "ak47_uncommon",   CW.uncommon),
+  weaponItem("assault_rifles","dc_spin",    "uncommon",  "M4A1 Mk.II",    "m4a1_uncommon",   CW.uncommon),
+  weaponItem("assault_rifles","dc_spin",    "uncommon",  "HK416 Mk.II",   "hk416_uncommon",  CW.uncommon),
+  weaponItem("assault_rifles","dc_spin",    "rare",      "AK-47 Custom",  "ak47_rare",       CW.rare_dc),
+  weaponItem("assault_rifles","dc_spin",    "rare",      "M4A1 Custom",   "m4a1_rare",       CW.rare_dc),
+
+  weaponItem("assault_rifles","master_royale","rare",    "SCAR-H Custom", "scarh_rare",      CW.rare_mr),
+  weaponItem("assault_rifles","master_royale","rare",    "HK416 Custom",  "hk416_rare",      CW.rare_mr),
+  weaponItem("assault_rifles","master_royale","epic",    "AK-47 Cyber",   "ak47_epic",       CW.epic),
+  weaponItem("assault_rifles","master_royale","epic",    "M4A1 Cyber",    "m4a1_epic",       CW.epic),
+  weaponItem("assault_rifles","master_royale","legendary","AK-47 Phantom","ak47_legendary",  CW.legendary),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // SHOTGUNS — dc_spin (3C + 3U + 2R) + master_royale (2R + 2E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  weaponItem("shotguns","dc_spin",    "common",    "Mossberg 500",       "mossberg_common",   CW.common),
+  weaponItem("shotguns","dc_spin",    "common",    "SPAS-12",            "spas12_common",     CW.common),
+  weaponItem("shotguns","dc_spin",    "common",    "AA-12",              "aa12_common",       CW.common),
+  weaponItem("shotguns","dc_spin",    "uncommon",  "Mossberg 500 Mk.II", "mossberg_uncommon", CW.uncommon),
+  weaponItem("shotguns","dc_spin",    "uncommon",  "SPAS-12 Mk.II",      "spas12_uncommon",   CW.uncommon),
+  weaponItem("shotguns","dc_spin",    "uncommon",  "Benelli M4 Mk.II",   "benelli_uncommon",  CW.uncommon),
+  weaponItem("shotguns","dc_spin",    "rare",      "Mossberg 500 Custom","mossberg_rare",     CW.rare_dc),
+  weaponItem("shotguns","dc_spin",    "rare",      "SPAS-12 Custom",     "spas12_rare",       CW.rare_dc),
+
+  weaponItem("shotguns","master_royale","rare",    "AA-12 Custom",       "aa12_rare",         CW.rare_mr),
+  weaponItem("shotguns","master_royale","rare",    "Benelli M4 Custom",  "benelli_rare",      CW.rare_mr),
+  weaponItem("shotguns","master_royale","epic",    "Mossberg 500 Cyber", "mossberg_epic",     CW.epic),
+  weaponItem("shotguns","master_royale","epic",    "SPAS-12 Cyber",      "spas12_epic",       CW.epic),
+  weaponItem("shotguns","master_royale","legendary","Mossberg 500 Phantom","mossberg_legendary",CW.legendary),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // SNIPER RIFLES — dc_spin (3C + 3U + 2R) + master_royale (2R + 2E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  weaponItem("sniper_rifles","dc_spin",    "common",    "Barrett M82",         "barrett_common",    CW.common),
+  weaponItem("sniper_rifles","dc_spin",    "common",    "AWP",                 "awp_common",        CW.common),
+  weaponItem("sniper_rifles","dc_spin",    "common",    "Dragunov",            "dragunov_common",   CW.common),
+  weaponItem("sniper_rifles","dc_spin",    "uncommon",  "Barrett M82 Mk.II",   "barrett_uncommon",  CW.uncommon),
+  weaponItem("sniper_rifles","dc_spin",    "uncommon",  "AWP Mk.II",           "awp_uncommon",      CW.uncommon),
+  weaponItem("sniper_rifles","dc_spin",    "uncommon",  "Intervention Mk.II",  "intervention_uncommon", CW.uncommon),
+  weaponItem("sniper_rifles","dc_spin",    "rare",      "Barrett M82 Custom",  "barrett_rare",      CW.rare_dc),
+  weaponItem("sniper_rifles","dc_spin",    "rare",      "AWP Custom",          "awp_rare",          CW.rare_dc),
+
+  weaponItem("sniper_rifles","master_royale","rare",    "Dragunov Custom",     "dragunov_rare",     CW.rare_mr),
+  weaponItem("sniper_rifles","master_royale","rare",    "Intervention Custom", "intervention_rare", CW.rare_mr),
+  weaponItem("sniper_rifles","master_royale","epic",    "Barrett M82 Cyber",   "barrett_epic",      CW.epic),
+  weaponItem("sniper_rifles","master_royale","epic",    "AWP Cyber",           "awp_epic",          CW.epic),
+  weaponItem("sniper_rifles","master_royale","legendary","Barrett M82 Phantom","barrett_legendary", CW.legendary),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // LMGS — dc_spin (3C + 3U + 2R) + master_royale (2R + 2E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  weaponItem("lmgs","dc_spin",    "common",    "M249 SAW",      "m249_common",     CW.common),
+  weaponItem("lmgs","dc_spin",    "common",    "RPK",           "rpk_common",      CW.common),
+  weaponItem("lmgs","dc_spin",    "common",    "Minigun",       "minigun_common",  CW.common),
+  weaponItem("lmgs","dc_spin",    "uncommon",  "M249 SAW Mk.II","m249_uncommon",   CW.uncommon),
+  weaponItem("lmgs","dc_spin",    "uncommon",  "RPK Mk.II",     "rpk_uncommon",    CW.uncommon),
+  weaponItem("lmgs","dc_spin",    "uncommon",  "MG4 Mk.II",     "mg4_uncommon",    CW.uncommon),
+  weaponItem("lmgs","dc_spin",    "rare",      "M249 SAW Custom","m249_rare",      CW.rare_dc),
+  weaponItem("lmgs","dc_spin",    "rare",      "RPK Custom",    "rpk_rare",        CW.rare_dc),
+
+  weaponItem("lmgs","master_royale","rare",    "Minigun Custom","minigun_rare",    CW.rare_mr),
+  weaponItem("lmgs","master_royale","rare",    "MG4 Custom",    "mg4_rare",        CW.rare_mr),
+  weaponItem("lmgs","master_royale","epic",    "M249 SAW Cyber","m249_epic",       CW.epic),
+  weaponItem("lmgs","master_royale","epic",    "RPK Cyber",     "rpk_epic",        CW.epic),
+  weaponItem("lmgs","master_royale","legendary","M249 SAW Phantom","m249_legendary",CW.legendary),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // BODY ARMOR — dc_spin (1C + 1U + 1R) + master_royale (1R + 1E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  armorItem("body_armor","dc_spin",    "common",    "Street Vest",    "street_vest",    CW.common),
+  armorItem("body_armor","dc_spin",    "uncommon",  "Tactical Vest",  "tactical_vest",  CW.uncommon),
+  armorItem("body_armor","dc_spin",    "rare",      "Combat Plate",   "combat_plate",   CW.rare_dc),
+
+  armorItem("body_armor","master_royale","rare",    "Combat Plate",   "combat_plate",   CW.rare_mr),
+  armorItem("body_armor","master_royale","epic",    "Ballistic Rig",  "ballistic_rig",  CW.epic),
+  armorItem("body_armor","master_royale","legendary","Exo-Armor",     "exo_armor",      CW.legendary),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // CONSUMABLES — dc_spin (2C + 2U + 2R) + master_royale (2R + 1E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  consumableItem("consumables","dc_spin",    "common",    "Small Medkit",   "small_medkit",   CW.common),
+  consumableItem("consumables","dc_spin",    "common",    "Smoke Grenade",  "smoke_grenade",  CW.common),
+  consumableItem("consumables","dc_spin",    "uncommon",  "Large Medkit",   "large_medkit",   CW.uncommon),
+  consumableItem("consumables","dc_spin",    "uncommon",  "Frag Grenade",   "frag_grenade",   CW.uncommon),
+  consumableItem("consumables","dc_spin",    "rare",      "Mega Medkit",    "mega_medkit",    CW.rare_dc),
+  consumableItem("consumables","dc_spin",    "rare",      "Stimpack",       "stimpack",       CW.rare_dc),
+
+  consumableItem("consumables","master_royale","rare",    "Cyber Grenade",  "cyber_grenade",  CW.rare_mr),
+  consumableItem("consumables","master_royale","rare",    "Stimpack",       "stimpack",       CW.rare_mr),
+  consumableItem("consumables","master_royale","epic",    "Nano Shield",    "nano_shield",    CW.epic),
+  consumableItem("consumables","master_royale","legendary","Berserker Dose","berserker_dose", CW.legendary),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // AMMO — dc_spin (3C + 3U + 1R) + master_royale (2R + 2E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  ammoItem("ammo","dc_spin",    "common",    "Pistol Rounds",       "pistol_rounds_common",    CW.common),
+  ammoItem("ammo","dc_spin",    "common",    "SMG Rounds",          "smg_rounds_common",       CW.common),
+  ammoItem("ammo","dc_spin",    "common",    "Rifle Rounds",        "rifle_rounds_common",     CW.common),
+  ammoItem("ammo","dc_spin",    "uncommon",  "Pistol Rounds (Hot)", "pistol_rounds_uncommon",  CW.uncommon),
+  ammoItem("ammo","dc_spin",    "uncommon",  "Rifle Rounds (Hot)",  "rifle_rounds_uncommon",   CW.uncommon),
+  ammoItem("ammo","dc_spin",    "uncommon",  "Shotgun Shells (Mag)","shotgun_shells_uncommon", CW.uncommon),
+  ammoItem("ammo","dc_spin",    "rare",      "Rifle Rounds (Match)","rifle_rounds_rare",       CW.rare_dc),
+
+  ammoItem("ammo","master_royale","rare",    "Sniper Rounds (AP)",  "sniper_rounds_rare",      CW.rare_mr),
+  ammoItem("ammo","master_royale","rare",    "LMG Rounds (Match)",  "lmg_rounds_rare",         CW.rare_mr),
+  ammoItem("ammo","master_royale","epic",    "Rifle Rounds (Cyber)","rifle_rounds_epic",       CW.epic),
+  ammoItem("ammo","master_royale","epic",    "Sniper Rounds (Cyber)","sniper_rounds_epic",     CW.epic),
+  ammoItem("ammo","master_royale","legendary","LMG Rounds (Phantom)","lmg_rounds_legendary",  CW.legendary),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // RACE CARS — dc_spin (2C + 2U + 1R) + master_royale (2R + 2E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  carItem("dc_spin",    "common",    "Rustbucket",      "rustbucket_common",   CW.common),
+  carItem("dc_spin",    "common",    "Scooter",         "scooter_common",      CW.common),
+  carItem("dc_spin",    "uncommon",  "Hatchback",       "hatchback_uncommon",  CW.uncommon),
+  carItem("dc_spin",    "uncommon",  "Sport Bike",      "sport_bike_uncommon", CW.uncommon),
+  carItem("dc_spin",    "rare",      "Sports Car",      "sports_car_rare",     CW.rare_dc),
+
+  carItem("master_royale","rare",    "Drift Coupe",     "drift_coupe_rare",    CW.rare_mr),
+  carItem("master_royale","rare",    "Racing Motorcycle","race_moto_rare",     CW.rare_mr),
+  carItem("master_royale","epic",    "Supercar",        "supercar_epic",       CW.epic),
+  carItem("master_royale","epic",    "Hyperbike",       "hyperbike_epic",      CW.epic),
+  carItem("master_royale","legendary","Cyberjet",       "cyberjet_legendary",  CW.legendary),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // CAR PARTS — dc_spin (3C + 3U + 1R) + master_royale (2R + 2E + 1L)
+  // ══════════════════════════════════════════════════════════════════════════════
+  carPartItem("dc_spin",    "common",    "Standard Engine", "std_engine_common",   CW.common),
+  carPartItem("dc_spin",    "common",    "Basic Tires",     "basic_tires_common",  CW.common),
+  carPartItem("dc_spin",    "common",    "Oil Can",         "oil_can_common",      CW.common),
+  carPartItem("dc_spin",    "uncommon",  "V6 Engine",       "v6_engine_uncommon",  CW.uncommon),
+  carPartItem("dc_spin",    "uncommon",  "Racing Tires",    "race_tires_uncommon", CW.uncommon),
+  carPartItem("dc_spin",    "uncommon",  "Repair Kit",      "repair_kit_uncommon", CW.uncommon),
+  carPartItem("dc_spin",    "rare",      "V8 Engine",       "v8_engine_rare",      CW.rare_dc),
+
+  carPartItem("master_royale","rare",    "Slick Tires",     "slick_tires_rare",    CW.rare_mr),
+  carPartItem("master_royale","rare",    "Nitro Tank",      "nitro_tank_rare",     CW.rare_mr),
+  carPartItem("master_royale","epic",    "Electric Engine", "elec_engine_epic",    CW.epic),
+  carPartItem("master_royale","epic",    "Double Nitro",    "double_nitro_epic",   CW.epic),
+  carPartItem("master_royale","legendary","Fusion Engine",  "fusion_engine_leg",   CW.legendary),
+];
+
 export async function seedRoyaleItems(): Promise<void> {
   const count = await RoyaleItem.countDocuments();
-  if (count > 0) return;
 
-  logger.info("Seeding royale items…");
+  if (count === 0) {
+    // Fresh database — seed all legacy items
+    logger.info("Seeding royale items (legacy pools)…");
 
-  // General royale items get their own generated icon; shooting/racing royale items
-  // reuse the actual combat item / car / car-part artwork they grant, so the reveal
-  // card shows the real weapon, armor, or vehicle the player just won.
-  const generalSlug = (name: string) => name.toLowerCase().replace(/\s+/g, "_").replace(/[(),]/g, "");
+    const generalSlug = (name: string) =>
+      name.toLowerCase().replace(/\s+/g, "_").replace(/[(),]/g, "");
 
-  const toInsert = [
-    ...GENERAL_ROYALE_ITEMS.map(i => ({ ...i, royaleType: "general", imageCard: `/assets/royale/general/${generalSlug(i.name)}.png` })),
-    ...SHOOTING_ROYALE_ITEMS.map(i => ({
-      ...i,
-      royaleType: "shooting",
-      imageCard: i.reward.miniGameItemId ? `/assets/items/${i.reward.miniGameItemId}.png` : "/assets/royale/placeholder.png",
-    })),
-    ...RACING_ROYALE_ITEMS.map(i => ({
-      ...i,
-      royaleType: "racing",
-      imageCard: i.reward.carId
-        ? `/assets/cars/${i.reward.carId}.png`
-        : i.reward.carPartId
-          ? `/assets/parts/${i.reward.carPartId}.png`
+    const toInsert = [
+      ...GENERAL_ROYALE_ITEMS.map(i => ({
+        ...i,
+        royaleType: "general",
+        royaleCategory: null,
+        spinType: null,
+        itemRef: null,
+        imageCard: `/assets/royale/general/${generalSlug(i.name)}.png`,
+      })),
+      ...SHOOTING_ROYALE_ITEMS.map(i => ({
+        ...i,
+        royaleType: "shooting",
+        royaleCategory: null,
+        spinType: null,
+        itemRef: null,
+        imageCard: i.reward.miniGameItemId
+          ? `/assets/items/${i.reward.miniGameItemId}.png`
           : "/assets/royale/placeholder.png",
-    })),
-  ];
+      })),
+      ...RACING_ROYALE_ITEMS.map(i => ({
+        ...i,
+        royaleType: "racing",
+        royaleCategory: null,
+        spinType: null,
+        itemRef: null,
+        imageCard: i.reward.carId
+          ? `/assets/cars/${i.reward.carId}.png`
+          : i.reward.carPartId
+            ? `/assets/parts/${i.reward.carPartId}.png`
+            : "/assets/royale/placeholder.png",
+      })),
+    ];
 
-  await RoyaleItem.insertMany(toInsert);
-  logger.info(`Seeded ${toInsert.length} royale items`);
+    await RoyaleItem.insertMany(toInsert);
+    logger.info(`Seeded ${toInsert.length} legacy royale items`);
+  }
+
+  // Always check whether category pools need seeding (independent of legacy check)
+  const categoryCount = await RoyaleItem.countDocuments({ royaleCategory: { $ne: null } });
+  if (categoryCount === 0) {
+    logger.info("Seeding royale category pools (22 pools)…");
+    await RoyaleItem.insertMany(CATEGORY_POOLS);
+    logger.info(`Seeded ${CATEGORY_POOLS.length} royale category pool items`);
+  }
 }
