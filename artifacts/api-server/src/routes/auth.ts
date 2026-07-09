@@ -89,7 +89,6 @@ export function safeUser(user: InstanceType<typeof User>) {
     blockedUsers: user.blockedUsers || [],
     following: user.following || [],
     referralCode: user.referralCode,
-    attacksToday: user.attacksToday,
     createdAt: user.createdAt,
     onboardingStage: user.onboardingStage ?? 0,
     ownedChatFrames: (user as any).ownedChatFrames || [],

@@ -109,7 +109,7 @@ async function resolveLoadoutStats(userId: string, level: number, prestige: numb
   // Fetch user strength
   const userDoc = await User.findById(userId).select("strength").lean();
   const strength = (userDoc as any)?.strength ?? 10;
-  const strengthBonus = Math.floor(strength * 0.5);
+  const strengthBonus = Math.floor(strength * 0.08);
 
   // Fetch item definitions
   const allIds = [
@@ -189,7 +189,7 @@ async function generateAILoadout(playerLevel: number): Promise<LoadoutSnapshot> 
   const hp    = Math.floor(maxHp * variance);
   const damageMin: number = (weapon as any)?.stats?.damageMin ?? 10;
   const damageMax: number = (weapon as any)?.stats?.damageMax ?? 20;
-  const strengthBonus = Math.floor(playerLevel * 0.5);
+  const strengthBonus = Math.floor(playerLevel * 0.08);
   const damage = Math.floor(((damageMin + damageMax) / 2 + strengthBonus) * variance);
   const weaponAccuracy: number = (weapon as any)?.stats?.accuracy ?? 75;
   const specialEffect: string | null = (weapon as any)?.stats?.specialEffect ?? null;
@@ -273,8 +273,19 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    // Build warnings for missing ammo / armor
+    // Build warnings for missing ammo / armor + consumable clamp
     const warnings: string[] = [];
+
+    // Clamp consumable count to actual inventory quantity (Issue 4)
+    if (loadout.consumableItemId && loadout.consumableCount > 0) {
+      const invConsumable = inv?.consumables.find(c => c.itemId === loadout.consumableItemId);
+      const ownedQty = invConsumable?.quantity ?? 0;
+      if (loadout.consumableCount > ownedQty) {
+        loadout.consumableCount = ownedQty;
+        if (ownedQty === 0) loadout.consumableItemId = null;
+        warnings.push(`Consumable count clamped to ${ownedQty} — that's all you own`);
+      }
+    }
     const ammoCategory = loadout.primaryWeaponId
       ? await MiniGameItem.findOne({ itemId: loadout.primaryWeaponId }).select("ammoCategory").lean().then(d => (d as any)?.ammoCategory ?? null)
       : null;
@@ -489,6 +500,8 @@ const EFFECT_CONFIG: Record<string, { turns: number; value: number }> = {
   stun:       { turns: 1, value: 0  },
   regen:      { turns: 2, value: 15 },
   regen_field:{ turns: 99,value: 20 },
+  berserk:    { turns: 4, value: 0  }, // handled in fireWeapon multiplier
+  shield:     { turns: 2, value: 100 }, // adds temporary armorHp
 };
 
 /** Apply start-of-turn effects (DoT, regen, stun) to both players. */
@@ -687,6 +700,14 @@ function fireWeapon(
       case "armor_pierce":
         // already handled above
         break;
+      case "berserk":
+        triggeredEffect = "berserk";
+        narrativeParts.push("[BERSERK!]");
+        break;
+      case "shield":
+        triggeredEffect = "shield";
+        narrativeParts.push("[SHIELD!]");
+        break;
     }
   }
 
@@ -775,11 +796,8 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
     const isP2 = !match.isPlayer2AI && match.player2Id?.toString() === req.userId;
     if (!isP1 && !isP2) { res.status(403).json({ message: "Not your match" }); return; }
 
-    if (!match.isPlayer2AI) {
-      const isP1Turn = match.currentTurn % 2 === 1;
-      if (isP1Turn && !isP1) { res.status(400).json({ message: "Not your turn" }); return; }
-      if (!isP1Turn && !isP2) { res.status(400).json({ message: "Not your turn" }); return; }
-    }
+    // Simultaneous resolution: both players submit independently; no "not your turn" block.
+    // (For AI matches: player submits, AI resolves same turn below.)
 
     const [p1User, p2NameResolved] = await Promise.all([
       User.findById(match.player1Id).select("username").lean(),
@@ -811,15 +829,22 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
     p2Effects = efxResult.p2Effects;
     const efxNarratives = efxResult.narratives;
 
-    // Check knockback flags from previous turn
+    // Check stun/knockback flags from previous turn (simultaneous resolution)
+    const p1StunNextTurn = (match as any).player1StunNextTurn ?? false;
+    const p2StunNextTurn = (match as any).player2StunNextTurn ?? false;
     const p1KnockedBack = (match as any).player1KnockedBack ?? false;
     const p2KnockedBack = (match as any).player2KnockedBack ?? false;
-    // Reset knockback flags
+    // Reset per-turn flags
+    (match as any).player1StunNextTurn = false;
+    (match as any).player2StunNextTurn = false;
     (match as any).player1KnockedBack = false;
     (match as any).player2KnockedBack = false;
 
-    const myStunned = (isP1 && (efxResult.p1Stunned || p1KnockedBack)) || (isP2 && (efxResult.p2Stunned || p2KnockedBack));
-    const effectiveAction = myStunned ? "defend" : action;
+    const p1Stunned = efxResult.p1Stunned || p1StunNextTurn;
+    const p2Stunned = efxResult.p2Stunned || p2StunNextTurn;
+
+    const myStunned = (isP1 && (p1Stunned || p1KnockedBack)) || (isP2 && (p2Stunned || p2KnockedBack));
+    const effectiveAction = myStunned ? "melee" : action;
 
     let narrative = "";
     let player1Effect: string | null = null;
@@ -901,10 +926,10 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
       fireMissionEvent(String(req.userId), "consumable").catch(() => {});
 
     } else if (effectiveAction === "melee") {
-      // Melee: strength-based, always hits, no weapon needed
+      // Melee: strength-based, always hits, no weapon needed (spec 3.10)
       const userDoc = await User.findById(req.userId).select("strength").lean();
       const strength = (userDoc as any)?.strength ?? 10;
-      const meleeDmg = Math.floor(strength * 0.15) + Math.floor(Math.random() * 11) + 5;
+      const meleeDmg = Math.floor(Math.random() * 7) + 8 + Math.floor(strength * 0.05);
       const attackerName = isP1 ? p1Name : p2Name;
       const defenderName = isP1 ? (match.isPlayer2AI ? match.aiName ?? "AI" : p2Name) : p1Name;
       if (isP1) {
@@ -989,17 +1014,47 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
           multiplier,
         );
 
+        // Helper: apply triggered effect to defender/attacker
+        function applyTriggeredEffect(triggeredEffect: string | null, toDefenderEffects: ActiveEffect[], toAttackerEffects: ActiveEffect[], defenderArmorHpRef: { val: number }, attackerHpRef: { val: number }, defenderHpRef: { val: number }, dmgHit: number, setDefenderStun: () => void, setDefenderKnockback: () => void) {
+          if (!triggeredEffect) return { defEffects: toDefenderEffects, atkEffects: toAttackerEffects };
+          let defEffects = toDefenderEffects;
+          let atkEffects = toAttackerEffects;
+          if (triggeredEffect === "stun") {
+            setDefenderStun();
+          } else if (triggeredEffect === "knockback") {
+            setDefenderKnockback();
+          } else if (triggeredEffect === "bleed") {
+            // bleed: dps = floor(hitDamage * 0.08), 2 turns (spec 3.3)
+            const bleedDps = Math.max(1, Math.floor(dmgHit * 0.08));
+            const existing = defEffects.find(e => e.effect === "bleed");
+            defEffects = defEffects.filter(e => e.effect !== "bleed");
+            defEffects = [...defEffects, { effect: "bleed", turnsLeft: 2, value: existing ? Math.max(existing.value, bleedDps) : bleedDps }];
+          } else if (triggeredEffect === "shield") {
+            // shield: adds 100 temp armorHp to attacker for 2 turns (spec 3.3)
+            atkEffects = addEffect(atkEffects, "shield");
+          } else if (triggeredEffect === "berserk") {
+            // berserk: store on attacker for 4 turns (spec 3.3)
+            atkEffects = addEffect(atkEffects, "berserk");
+          } else if (EFFECT_CONFIG[triggeredEffect]) {
+            defEffects = addEffect(defEffects, triggeredEffect);
+          }
+          return { defEffects, atkEffects };
+        }
+
         if (isP1) {
           p2HPAfter  = Math.max(0, p2HPAfter - result.damage);
           p2ArmorHp  = result.newArmorHp;
           if (result.damage > 0) player2Effect = "hit";
-          if (result.triggeredEffect === "stun") {
-            (match as any).player2StunNextTurn = true;
-          } else if (result.triggeredEffect === "knockback") {
-            (match as any).player2KnockedBack = true;
-          } else if (result.triggeredEffect && EFFECT_CONFIG[result.triggeredEffect]) {
-            p2Effects = addEffect(p2Effects, result.triggeredEffect);
-          }
+          const { defEffects: newP2Efx, atkEffects: newP1Efx } = applyTriggeredEffect(
+            result.triggeredEffect, p2Effects, p1Effects,
+            { val: p2ArmorHp }, { val: p1HPAfter }, { val: p2HPAfter },
+            result.damage,
+            () => { (match as any).player2StunNextTurn = true; },
+            () => { (match as any).player2KnockedBack = true; },
+          );
+          p2Effects = newP2Efx; p1Effects = newP1Efx;
+          // Shield: apply armorHp bonus to attacker (p1)
+          if (result.triggeredEffect === "shield") p1ArmorHp += 100;
           // Double tap: second shot
           if (result.extraAttack) {
             const r2 = fireWeapon(
@@ -1011,6 +1066,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
             p2HPAfter = Math.max(0, p2HPAfter - r2.damage);
             p2ArmorHp = r2.newArmorHp;
             narrative = result.narrative + ` | Second shot: ${r2.narrative}`;
+            if (isPrimary) (match as any).player1RoundsFiredPrimary = ((match as any).player1RoundsFiredPrimary ?? 0) + 1; // count second tap too
           }
           // Track rounds fired
           if (isPrimary) (match as any).player1RoundsFiredPrimary = ((match as any).player1RoundsFiredPrimary ?? 0) + 1;
@@ -1019,13 +1075,16 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
           p1HPAfter  = Math.max(0, p1HPAfter - result.damage);
           p1ArmorHp  = result.newArmorHp;
           if (result.damage > 0) player1Effect = "hit";
-          if (result.triggeredEffect === "stun") {
-            (match as any).player1StunNextTurn = true;
-          } else if (result.triggeredEffect === "knockback") {
-            (match as any).player1KnockedBack = true;
-          } else if (result.triggeredEffect && EFFECT_CONFIG[result.triggeredEffect]) {
-            p1Effects = addEffect(p1Effects, result.triggeredEffect);
-          }
+          const { defEffects: newP1Efx, atkEffects: newP2Efx } = applyTriggeredEffect(
+            result.triggeredEffect, p1Effects, p2Effects,
+            { val: p1ArmorHp }, { val: p2HPAfter }, { val: p1HPAfter },
+            result.damage,
+            () => { (match as any).player1StunNextTurn = true; },
+            () => { (match as any).player1KnockedBack = true; },
+          );
+          p1Effects = newP1Efx; p2Effects = newP2Efx;
+          // Shield: apply armorHp bonus to attacker (p2)
+          if (result.triggeredEffect === "shield") p2ArmorHp += 100;
           if (result.extraAttack) {
             const r2 = fireWeapon(
               attackerName, defenderName, weaponName,
@@ -1036,6 +1095,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
             p1HPAfter = Math.max(0, p1HPAfter - r2.damage);
             p1ArmorHp = r2.newArmorHp;
             narrative = result.narrative + ` | Second shot: ${r2.narrative}`;
+            if (isPrimary) (match as any).player2RoundsFiredPrimary = ((match as any).player2RoundsFiredPrimary ?? 0) + 1;
           }
           if (isPrimary) (match as any).player2RoundsFiredPrimary = ((match as any).player2RoundsFiredPrimary ?? 0) + 1;
           else           (match as any).player2RoundsFiredSecondary = ((match as any).player2RoundsFiredSecondary ?? 0) + 1;
@@ -1060,7 +1120,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
         p2Effects.some(e => ["stun", "shock"].includes(e.effect) && e.turnsLeft >= (EFFECT_CONFIG[e.effect]?.turns ?? 1))
       );
       const aiKnockedBack = (match as any).player2KnockedBack ?? false;
-      const aiStunned = efxResult.p2Stunned || aiJustStunned || aiKnockedBack;
+      const aiStunned = efxResult.p2Stunned || p2StunNextTurn || aiJustStunned || aiKnockedBack;
       aiAction = aiStunned ? "defend" : aiPickAction({ ...match.toObject(), player1HP: p1HPAfter, player2HP: p2HPAfter }, true, p2ConsUsed);
 
       if (!aiStunned && (aiAction === "use_consumable" || aiAction === "use_item")) {
@@ -1113,6 +1173,15 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
           (match as any).player1StunNextTurn = true;
         } else if (aiResult.triggeredEffect === "knockback") {
           (match as any).player1KnockedBack = true;
+        } else if (aiResult.triggeredEffect === "bleed") {
+          const bleedDps = Math.max(1, Math.floor(aiResult.damage * 0.08));
+          p1Effects = p1Effects.filter(e => e.effect !== "bleed");
+          p1Effects = [...p1Effects, { effect: "bleed", turnsLeft: 2, value: bleedDps }];
+        } else if (aiResult.triggeredEffect === "shield") {
+          p2ArmorHp += 100;
+          p2Effects = addEffect(p2Effects, "shield");
+        } else if (aiResult.triggeredEffect === "berserk") {
+          p2Effects = addEffect(p2Effects, "berserk");
         } else if (aiResult.triggeredEffect && EFFECT_CONFIG[aiResult.triggeredEffect]) {
           p1Effects = addEffect(p1Effects, aiResult.triggeredEffect);
         }
@@ -1190,7 +1259,7 @@ async function postMatchCleanup(match: any): Promise<void> {
     await Promise.all(userUpdates);
 
     // Deduct ammo and degrade weapons for real players
-    async function cleanupPlayer(userId: string, loadoutSnapshot: any, roundsPrimary: number, roundsSecondary: number) {
+    async function cleanupPlayer(userId: string, loadoutSnapshot: any, roundsPrimary: number, roundsSecondary: number, playerIsP1: boolean) {
       const inv = await PlayerMiniGameInventory.findOne({ userId });
       if (!inv) return;
 
@@ -1216,21 +1285,41 @@ async function postMatchCleanup(match: any): Promise<void> {
         }
       }
 
-      // Degrade primary weapon durability
+      // Degrade primary weapon durability (spec 3.8: -5 per match)
       if (primaryWeaponId) {
-        const durabilityLoss = Math.floor(Math.random() * 3) + 1;
         const pw = inv.primaryWeapons.find((w: { itemId: string; durability: number }) => w.itemId === primaryWeaponId);
         if (pw) {
-          pw.durability = Math.max(0, pw.durability - durabilityLoss);
+          pw.durability = Math.max(0, pw.durability - 5);
         }
       }
 
-      // Degrade secondary weapon durability
+      // Degrade secondary weapon durability (spec 3.8: -3 per match)
       if (secondaryWeaponId) {
-        const durabilityLoss = Math.floor(Math.random() * 3) + 1;
         const sw = inv.secondaryWeapons.find((w: { itemId: string; durability: number }) => w.itemId === secondaryWeaponId);
         if (sw) {
-          sw.durability = Math.max(0, sw.durability - durabilityLoss);
+          sw.durability = Math.max(0, sw.durability - 3);
+        }
+      }
+
+      // Degrade body armor durability (spec 3.8: -4 per match)
+      const bodyArmorId = loadoutSnapshot.bodyArmorId ?? loadoutSnapshot.armor;
+      if (bodyArmorId) {
+        const ba = inv.bodyArmors.find((w: { itemId: string; durability: number }) => w.itemId === bodyArmorId);
+        if (ba) {
+          ba.durability = Math.max(0, ba.durability - 4);
+        }
+      }
+
+      // Deduct consumables used this match (spec 3.7)
+      const consumableItemId = loadoutSnapshot.consumableItemId ?? loadoutSnapshot.consumable1;
+      const consumablesUsedCount: number = playerIsP1 ? (match.player1ConsumablesUsed?.length ?? 0) : (match.player2ConsumablesUsed?.length ?? 0);
+      if (consumableItemId && consumablesUsedCount > 0) {
+        const consEntry = inv.consumables.find((c: { itemId: string; quantity: number }) => c.itemId === consumableItemId);
+        if (consEntry) {
+          consEntry.quantity = Math.max(0, consEntry.quantity - consumablesUsedCount);
+          if (consEntry.quantity === 0) {
+            inv.consumables = inv.consumables.filter((c: { itemId: string }) => c.itemId !== consumableItemId) as any;
+          }
         }
       }
 
@@ -1242,6 +1331,7 @@ async function postMatchCleanup(match: any): Promise<void> {
         p1Id, match.player1Loadout,
         match.player1RoundsFiredPrimary ?? 0,
         match.player1RoundsFiredSecondary ?? 0,
+        true,
       );
     }
     if (p2Id) {
@@ -1249,6 +1339,7 @@ async function postMatchCleanup(match: any): Promise<void> {
         p2Id, match.player2Loadout,
         match.player2RoundsFiredPrimary ?? 0,
         match.player2RoundsFiredSecondary ?? 0,
+        false,
       );
     }
   } catch (err) {

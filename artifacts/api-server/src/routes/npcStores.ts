@@ -89,6 +89,11 @@ const PRICE_RANGES: Record<string, Record<string, [number,number]>> = {
   chrome_garage: { common:[4000,8000], uncommon:[12000,20000], rare:[35000,60000] },
 };
 
+// ABSOLUTE RULE (spec Appendix A / Section 9.4): Epic and Legendary items
+// must NEVER appear in any NPC store — Downtown or district. Enforce at the
+// listing-generation boundary so no code path can accidentally slip them in.
+const FORBIDDEN_TIERS = new Set(["epic", "legendary"]);
+
 async function restockStore(storeId: string): Promise<void> {
   const config = STORE_CONFIGS[storeId];
   if (!config) return;
@@ -168,8 +173,10 @@ async function restockStore(storeId: string): Promise<void> {
   }
   // chrome_garage falls through with empty listings (arena car parts not seeded yet)
 
-  if (listings.length > 0) {
-    await NpcStoreListing.insertMany(listings);
+  // Final guard: strip any Epic/Legendary items before inserting (absolute rule)
+  const safeListings = listings.filter(l => !FORBIDDEN_TIERS.has(l.itemTier ?? ""));
+  if (safeListings.length > 0) {
+    await NpcStoreListing.insertMany(safeListings);
   }
 }
 

@@ -61,7 +61,7 @@ export default function RaceHubPage({ user, addToast, onNavigate }: Props) {
   const [selectedMode, setSelectedMode] = useState<"2player" | "4player">("2player");
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [joining, setJoining] = useState(false);
-  const [activeCar, setActiveCar] = useState<{ carId: string } | null>(null);
+  const [activeCar, setActiveCar] = useState<{ carId: string; condition: number } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStatus = useCallback(async () => {
@@ -76,9 +76,12 @@ export default function RaceHubPage({ user, addToast, onNavigate }: Props) {
 
   useEffect(() => {
     fetchStatus();
-    // Also fetch active car from garage
-    api.get<{ garage: { activeCar?: string } }>("/garage").catch(() => null).then(d => {
-      if (d?.garage?.activeCar) setActiveCar({ carId: d.garage.activeCar });
+    // Also fetch active car from garage (including condition for sidelined check)
+    api.get<{ garage: { activeCar?: string; cars?: Array<{ carId: string; condition?: number }> } }>("/garage").catch(() => null).then(d => {
+      if (d?.garage?.activeCar) {
+        const carEntry = d.garage.cars?.find(c => c.carId === d.garage.activeCar);
+        setActiveCar({ carId: d.garage.activeCar, condition: carEntry?.condition ?? 100 });
+      }
     });
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchStatus]);
@@ -127,6 +130,8 @@ export default function RaceHubPage({ user, addToast, onNavigate }: Props) {
 
   const energyCost = selectedMode === "2player" ? 15 : 25;
   const canAfford = user.energy >= energyCost;
+  const carSidelined = (activeCar?.condition ?? 100) === 0;
+  const canEnterRace = canAfford && !carSidelined;
 
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: 16 }}>
@@ -242,18 +247,19 @@ export default function RaceHubPage({ user, addToast, onNavigate }: Props) {
 
           <button
             onClick={joinQueue}
-            disabled={joining || !canAfford}
+            disabled={joining || !canEnterRace}
+            title={carSidelined ? "Your car is sidelined — service it before racing" : undefined}
             style={{
-              width: "100%", padding: "14px", borderRadius: 10, cursor: canAfford ? "pointer" : "not-allowed",
+              width: "100%", padding: "14px", borderRadius: 10, cursor: canEnterRace ? "pointer" : "not-allowed",
               fontFamily: "monospace", fontSize: 14, fontWeight: "bold", letterSpacing: 2,
-              background: canAfford ? "linear-gradient(135deg, #00d4ff20, #00d4ff10)" : "#0a0a14",
-              border: `1px solid ${canAfford ? "#00d4ff60" : "#1e293b"}`,
-              color: canAfford ? "#00d4ff" : "#334155",
-              boxShadow: canAfford ? "0 0 16px #00d4ff30" : "none",
+              background: canEnterRace ? "linear-gradient(135deg, #00d4ff20, #00d4ff10)" : "#0a0a14",
+              border: `1px solid ${canEnterRace ? "#00d4ff60" : "#1e293b"}`,
+              color: canEnterRace ? "#00d4ff" : "#334155",
+              boxShadow: canEnterRace ? "0 0 16px #00d4ff30" : "none",
               transition: "all 0.2s",
             }}
           >
-            {joining ? "JOINING…" : !canAfford ? `NOT ENOUGH ENERGY (need ${energyCost})` : `▶ JOIN QUEUE — ${selectedMode === "2player" ? "2 PLAYER" : "4 PLAYER"}`}
+            {joining ? "JOINING…" : carSidelined ? "⛔ CAR SIDELINED — Service Required" : !canAfford ? `NOT ENOUGH ENERGY (need ${energyCost})` : `▶ JOIN QUEUE — ${selectedMode === "2player" ? "2 PLAYER" : "4 PLAYER"}`}
           </button>
         </>
       )}

@@ -588,12 +588,23 @@ async function checkRaceCompletion(match: any) {
       if (garage && garage.activeCar) {
         const ownedCar = garage.cars.find((c: any) => c.carId === garage.activeCar);
         if (ownedCar) {
-          const hadCrash = false; // set to true if race result indicates crash
+          const hadCrash = (p.crashCount ?? 0) > 0;
           const degradation = hadCrash
             ? Math.floor(Math.random() * 8) + 8
             : Math.floor(Math.random() * 4) + 2;
           (ownedCar as any).condition = Math.max(0, ((ownedCar as any).condition ?? 100) - degradation);
+
+          // Degrade all installed parts by the same amount
+          const equippedPartIds = Object.values((ownedCar as any).equippedParts ?? {}).filter(Boolean) as string[];
+          for (const partId of equippedPartIds) {
+            const partStack = garage.parts.find((pt: any) => pt.partId === partId);
+            if (partStack) {
+              (partStack as any).condition = Math.max(0, ((partStack as any).condition ?? 100) - degradation);
+            }
+          }
+
           garage.markModified("cars");
+          garage.markModified("parts");
           await garage.save();
         }
       }
@@ -752,7 +763,18 @@ router.post("/cars/:carId/service", requireAuth, async (req: AuthRequest, res) =
     }
 
     ownedCar.condition = 100;
+
+    // Restore all installed parts to 100% condition
+    const equippedPartIds = Object.values((ownedCar as any).equippedParts ?? {}).filter(Boolean) as string[];
+    for (const partId of equippedPartIds) {
+      const partStack = garage.parts.find((pt: any) => pt.partId === partId);
+      if (partStack) {
+        (partStack as any).condition = 100;
+      }
+    }
+
     garage.markModified("cars");
+    garage.markModified("parts");
     await garage.save();
 
     res.json({ message: "Car serviced to 100% condition", condition: 100 });

@@ -17,6 +17,11 @@ interface LoadoutSnap {
   hp: number; damage: number; defense: number; accuracy: number;
   weapon: string | null; armor: string | null;
   consumable1: string | null; consumable2: string | null; ammoType: string | null;
+  armorHp?: number;
+  primaryWeaponId?: string | null; secondaryWeaponId?: string | null;
+  bodyArmorId?: string | null; consumableItemId?: string | null; consumableCount?: number;
+  damageMin?: number; damageMax?: number; weaponAccuracy?: number;
+  specialEffect?: string | null; specialChance?: number; strengthBonus?: number;
 }
 interface TurnRecord {
   turnNumber: number; player1Action: string; player2Action: string;

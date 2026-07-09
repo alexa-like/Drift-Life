@@ -30,8 +30,9 @@ export interface OwnedCar {
 }
 
 interface PartStack {
-  partId:   string;
-  quantity: number;
+  partId:    string;
+  quantity:  number;
+  condition: number;
 }
 
 export interface IPlayerGarage extends Document {
@@ -75,8 +76,9 @@ const OwnedCarSchema = new Schema<OwnedCar>(
 
 const PartStackSchema = new Schema<PartStack>(
   {
-    partId:   { type: String, required: true },
-    quantity: { type: Number, required: true, default: 1, min: 0 },
+    partId:    { type: String, required: true },
+    quantity:  { type: Number, required: true, default: 1, min: 0 },
+    condition: { type: Number, default: 100, min: 0, max: 100 },
   },
   { _id: false },
 );

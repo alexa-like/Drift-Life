@@ -73,7 +73,6 @@ export interface IUser extends Document {
   wins: number;
   losses: number;
   reputation: number;
-  attacksToday: number;
   status: 'normal' | 'traveling' | 'abroad' | 'hospitalized' | 'jailed';
   currentLocation: string;   // district slug — 'downtown' when at home
   hospitalizedUntil: Date | null;
@@ -264,7 +263,6 @@ const UserSchema = new Schema<IUser>(
     wins: { type: Number, default: 0 },
     losses: { type: Number, default: 0 },
     reputation: { type: Number, default: 0 },
-    attacksToday: { type: Number, default: 0 },
     status: { type: String, enum: ['normal', 'traveling', 'abroad', 'hospitalized', 'jailed'], default: 'normal' },
     currentLocation: { type: String, default: 'downtown' },
     hospitalizedUntil: { type: Date, default: null },
@@ -494,11 +492,15 @@ export function applyRegen(user: IUser): void {
     user.nitroRegenAt = new Date(now);
   }
 
-  // Travel arrival auto-completion (legacy district field)
+  // Travel arrival auto-completion
   if (user.travelingTo && user.travelArrivesAt && user.travelArrivesAt.getTime() <= now) {
+    user.currentLocation = user.travelingTo;
     user.district = user.travelingTo;
     user.travelingTo = null;
     user.travelArrivesAt = null;
+    if (user.status === 'traveling') {
+      user.status = user.currentLocation === 'downtown' ? 'normal' : 'abroad';
+    }
   }
 
   // Wanted level decay (1 star per 30 min inactivity)
