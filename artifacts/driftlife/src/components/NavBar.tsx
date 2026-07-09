@@ -260,6 +260,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
           if (!sf) return true; // no filter = always visible
           if (sf === "normal")         return isNormal;
           if (sf === "normal|abroad")  return isNormal || isAbroad;
+          if (sf === "abroad")         return isAbroad;
           return true;
         }).map(item => (
           <button

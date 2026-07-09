@@ -1,6 +1,7 @@
 import { Router } from "express";
 import User from "../models/User";
 import Item from "../models/Item";
+import PlayerGarage from "../models/PlayerGarage";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
@@ -183,6 +184,21 @@ router.post("/:id/use", requireAuth, async (req: AuthRequest, res) => {
     if (effect.includes("energy_full:")) {
       user.energy = user.maxEnergy;
       effectMessage += `Energy fully restored. `;
+    }
+    if (effect === "service_car") {
+      const garage = await PlayerGarage.findOne({ userId: req.userId });
+      if (!garage || !garage.activeCar) {
+        return res.status(400).json({ message: "No active race car selected. Go to the Garage and select a car first." });
+      }
+      const ownedCar = garage.cars.find((c: any) => c.carId === garage.activeCar);
+      if (!ownedCar) {
+        return res.status(400).json({ message: "Active car not found in your garage." });
+      }
+      const prev = ownedCar.durability ?? 100;
+      ownedCar.durability = 100;
+      garage.markModified("cars");
+      await garage.save();
+      effectMessage = `Race car serviced — durability restored from ${prev}% to 100%. `;
     }
 
     item.quantity -= 1;
