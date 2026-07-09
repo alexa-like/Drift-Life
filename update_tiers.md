@@ -2300,20 +2300,21 @@ The System Feed is a public, city-wide activity board. It is NOT a notification 
 ```
 Only post arrivals for districts with danger level Medium or higher. Downtown arrivals are silent (too common, no drama).
 
-#### Arena Events (auto-posted on match completion)
+#### Arena Events (auto-posted on win-streak milestones ONLY)
 ```
-[⚔️ ARENA] @PlayerName defeated @OpponentName in the Shooting Arena. Match lasted 4 rounds.
-[⚔️ ARENA] @PlayerName's Reinforced AK-47 was destroyed in combat.
-[⚔️ ARENA] @PlayerName achieved a 10-win streak in the Arena!
+[⚔️ ARENA] Wow, Hero @PlayerName has a 5 win streak in the Arena! :swordclash:
+[⚔️ ARENA] @PlayerName is unstoppable — 10 win streak in the Arena! The city takes notice. :neonskull:
+[⚔️ ARENA] Legends only: @PlayerName just hit a 20 win streak in the Arena. Nobody can touch them. :goldtrophy:
 ```
-Post every match result. Post item destruction only for Rare+ items (Common/Uncommon destruction is noise). Post win streaks at 5, 10, 20, 50.
+Do NOT post individual match results, wins, losses, or item destruction — that is personal noise, not city news. Post ONLY win-streak milestones, at 5, 10, 20, 50 wins. Tone escalates with the milestone: 5 = fun/celebratory, 10 = dramatic, 20+ = incredulous about the dominance. Keep messages short, playful, and cyberpunk in voice — never dry stat dumps.
 
-#### Race Events (auto-posted on race completion)
+#### Race Events (auto-posted on win-streak milestones ONLY)
 ```
-[🏁 RACING] @PlayerName won a race with a margin of 0.3 seconds.
-[🏁 RACING] @PlayerName crashed during a race. Car condition: 32%.
-[🏁 RACING] @PlayerName's car reached 0% condition and was sidelined.
+[🏁 RACING] Wow, Hero @PlayerName has a 5 win streak in Racing! :driftcar:
+[🏁 RACING] @PlayerName is on fire — 10 win streak in Racing! :nitroflame:
+[🏁 RACING] Absolute legend: @PlayerName just hit a 20 win streak in Racing. The streets are talking. :goldtrophy:
 ```
+Do NOT post individual race wins, crashes, or car-condition events — personal, not city-worthy. Post ONLY win-streak milestones, at 5, 10, 20, 50 wins, with the same escalating playful tone as Arena.
 
 #### Crime Events (auto-posted on notable crimes only)
 ```
@@ -2322,12 +2323,22 @@ Post every match result. Post item destruction only for Rare+ items (Common/Unco
 ```
 Do NOT post every crime — only the highest-tier crimes per district (the top 2 crime types from the district crime table in 9.5). Home crimes: only post the highest-tier home crimes (e.g. "Bank Heist" tier). This keeps the feed signal-to-noise high.
 
-#### Market & Auction Events (auto-posted on sale/auction end)
+#### Market & Auction Events (auto-posted when a NEW auction opens, not on completion)
 ```
-[💰 MARKET] A Legendary Ghost Sniper sold at auction for 285,000 DC. Winner: @PlayerName.
+[💰 AUCTION] New auction available — check it out at /auction :jackpot:
+[💰 AUCTION] A Legendary Ghost Sniper just hit the block. Rare pulls like this don't last — /auction :cashspill:
 [💰 MARKET] @PlayerName listed a Rare Reinforced Barrel on the market for 15,000 DC.
 ```
-Post ALL auction completions (Epic and Legendary only — these are rare and exciting). Post market listings only for Rare+ items (no Common/Uncommon spam).
+Post when a new Epic/Legendary auction is LISTED (creates urgency to check it out), not when it closes/sells — closing a sale is not exciting to a bystander, but a fresh rare listing is. Always include the `/auction` location link. Post regular market listings only for Rare+ items (no Common/Uncommon spam).
+
+#### Feed & Chat Formatting Conventions (applies everywhere feed/chat text is rendered)
+
+There are exactly two live-link formats in any system-generated or player-sent text:
+
+- **`@username`** — a player mention. Always clickable, links to that player's profile. Rendered in the neon "mention" highlight color.
+- **`/path`** — a location or page link (e.g. `/auction`, `/arena`, `/feed`, `/district/docks`). Always clickable, links to that in-app route. Rendered in a distinct "link" color, visually different from the `@` mention color, so players can tell "who" from "where" at a glance.
+
+The feed/chat renderer must parse both patterns with a regex/tokenizer and turn each into a clickable element; everything else renders as plain text. This convention applies to system feed posts, notifications, and player chat messages alike — it must be implemented once in a shared renderer, not duplicated per surface.
 
 #### Royale Events (auto-posted on big wins)
 ```
@@ -2378,10 +2389,11 @@ A special admin-only endpoint `POST /system/feed` allows the owner/admin to post
 ```typescript
 // SystemFeedPost schema
 {
-  category: String,          // "district" | "arena" | "race" | "crime" | "market" | "royale" | "prestige" | "leaderboard" | "system"
+  category: String,          // "district" | "arena" | "race" | "crime" | "market" | "auction" | "royale" | "prestige" | "leaderboard" | "system"
   district: String,          // null for global posts
-  message: String,           // rendered text with @username placeholders
+  message: String,           // rendered text with @username and /path placeholders, may include :emojiSlug: shortcodes
   mentionedUsers: [{ userId, username }],  // for @ linking
+  links: [String],           // extracted /path links for the renderer, e.g. ["/auction"]
   pinned: Boolean,           // true only for weekly recap, 24hr
   createdAt: Date
 }
@@ -2398,9 +2410,60 @@ export async function postToFeed(category, message, mentionedUsers = [], distric
   await SystemFeedPost.create({ category, district, message, mentionedUsers, pinned: false });
 }
 ```
-Call this helper from every relevant route handler at the moment the event occurs (match end, crime resolution, auction close, etc.).
+Call this helper from every relevant route handler at the moment the event occurs (arena/race win-streak milestone reached, notable crime resolution, new auction listed, royale Epic/Legendary pull, prestige reached, weekly recap cron). Arena/race handlers must NOT call this on every match — only when a streak counter crosses a milestone threshold.
+
+**Custom Game Emojis:** feed messages and chat may reference emoji shortcodes like `:driftcar:` or `:goldtrospy:` — see 10.1a below for the full set and how the renderer resolves them.
 
 **Feed retention:** Keep last 500 posts. A scheduled cleanup job deletes posts older than 30 days if total count > 500. Weekly recap posts are exempt from the 30-day rule — keep the last 8 weekly recaps (2 months).
+
+---
+
+### 10.1a — Custom Game Emojis
+
+DriftLife ships its own animated emoji set, themed around the game's systems, for use in global chat, faction chat, and system feed posts. These are NOT static Unicode emoji — each one is a short looping animation (spinning wheels, flickering flames, pulsing glows) so the chat and feed feel alive.
+
+**Each emoji has:**
+- `slug` — unique ID used as the shortcode, e.g. `driftcar`
+- `file` — animated asset (looping WebM/GIF/Lottie — pick one format and use it consistently across the set)
+- `displayName` — human-readable label shown on hover/in the picker, e.g. "Drift Car"
+- `shortcode` — the chat-typed form, always `:slug:`, e.g. `:driftcar:`
+
+**Emoji set (initial 16, themed to existing game systems):**
+
+| Slug | Shortcode | Display Name | Animation | Theme |
+|---|---|---|---|---|
+| `driftcar` | `:driftcar:` | Drift Car | Spinning wheels, drifting motion | Racing |
+| `swordclash` | `:swordclash:` | Sword Clash | Two blades clashing with a spark flash | Arena |
+| `stimshot` | `:stimshot:` | Stim Shot | Glowing syringe pulsing | Crimes/Buffs |
+| `nitroflame` | `:nitroflame:` | Nitro Flame | Flickering blue-white nitro flame | Racing |
+| `voltbolt` | `:voltbolt:` | Volt Bolt | Pulsing energy bolt arcing | Arena effects |
+| `neonskull` | `:neonskull:` | Neon Skull | Glowing skull, slow pulse | Danger/Streaks |
+| `goldtrophy` | `:goldtrophy:` | Gold Trophy | Shine sweep across a trophy | Achievements |
+| `cashspill` | `:cashspill:` | Cash Spill | Money bag spilling bills | Market/Economy |
+| `jackpot` | `:jackpot:` | Jackpot | Spinning slot machine reels | Royale/Auction |
+| `smokepistol` | `:smokepistol:` | Smoke Pistol | Pistol firing with a smoke trail | Crimes/Arena |
+| `barriershield` | `:barriershield:` | Barrier Shield | Energy shield rippling on impact | Arena effects |
+| `neoncity` | `:neoncity:` | Neon City | Neon-lit skyline with flickering lights | Districts |
+| `chainlock` | `:chainlock:` | Chain Lock | Chains rattling on a lock | Jail/Crimes |
+| `medcross` | `:medcross:` | Med Cross | Hospital cross pulsing red | Hospital |
+| `cybereye` | `:cybereye:` | Cyber Eye | Blinking cybernetic eye | Faction/Syndicate |
+| `botscan` | `:botscan:` | Bot Scan | Scanning beam sweeping left-right | Security/NPC |
+
+**Backend — GameEmoji model:**
+```typescript
+// GameEmoji schema
+{
+  slug: String,        // unique, e.g. "driftcar"
+  displayName: String, // "Drift Car"
+  file: String,         // asset path/URL
+  theme: String,        // "racing" | "arena" | "market" | "districts" | "crimes" | "achievements" | "faction"
+}
+```
+Seed all 16 at launch. `GET /emojis` returns the full catalog for the chat emoji picker.
+
+**Rendering:** the same shared renderer that resolves `@username` mentions and `/path` links (see the Formatting Conventions above) also scans for `:slug:` shortcodes and swaps them for the animated asset. Unknown shortcodes render as plain text (no broken-image fallback). This renderer must be shared across chat, faction chat, and the system feed — not reimplemented per surface.
+
+**Chat picker:** an emoji button in the chat input opens a grid of all 16 (grouped by theme), clicking one inserts its `:slug:` shortcode at the cursor.
 
 ---
 
@@ -2931,13 +2994,23 @@ All items below must be added to their relevant seed files or shop inventory dur
 ### 10.17 — Implementation Checklist (Tier 10)
 
 **System Feed:**
-- [ ] `SystemFeedPost` model
+- [ ] `SystemFeedPost` model (includes `links` array for `/path` extraction)
 - [ ] `GET /feed` endpoint (paginated, pinned first)
 - [ ] `POST /system/feed` endpoint (admin/owner only)
 - [ ] `lib/systemFeed.ts` helper (`postToFeed`)
-- [ ] Call `postToFeed` in: arena match end, race end, high-tier crime, district arrival with outcome, auction close, royale Epic/Legendary pull, prestige event
+- [ ] Win-streak counter check on arena/race match end — call `postToFeed` ONLY when streak crosses 5/10/20/50, never on every match
+- [ ] Call `postToFeed` in: arena win-streak milestone, race win-streak milestone, high-tier crime, district arrival with outcome, NEW auction listed (not auction close), royale Epic/Legendary pull, prestige event
+- [ ] Playful, tone-escalating copy for win-streak posts (5 = celebratory, 10 = dramatic, 20+ = incredulous)
 - [ ] Weekly leaderboard cron job (Monday 00:00 UTC) builds and posts recap
+- [ ] Shared feed/chat renderer: parses `@username` mentions, `/path` links, and `:emojiSlug:` shortcodes (distinct colors for mentions vs links)
 - [ ] Feed page frontend (terminal-style, paginated, @ links, pinned recap at top)
+
+**Custom Game Emojis:**
+- [ ] `GameEmoji` model + seed all 16 (driftcar, swordclash, stimshot, nitroflame, voltbolt, neonskull, goldtrophy, cashspill, jackpot, smokepistol, barriershield, neoncity, chainlock, medcross, cybereye, botscan)
+- [ ] `GET /emojis` catalog endpoint
+- [ ] Animated emoji assets produced for all 16 slugs
+- [ ] Shortcode resolution wired into the shared feed/chat renderer (unknown shortcodes render as plain text)
+- [ ] Emoji picker button in chat input (grouped by theme)
 
 **Notifications:**
 - [ ] `Notification` model
