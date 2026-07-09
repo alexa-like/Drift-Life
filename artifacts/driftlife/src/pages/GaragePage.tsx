@@ -92,7 +92,8 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
   const [loading, setLoading]       = useState(true);
   const [selectedCar, setSelectedCar] = useState<string | null>(null);
   const [toast, setToast]           = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [confirmAction, setConfirmAction] = useState<"sell" | "scrap" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"sell" | "scrap" | "service" | null>(null);
+  const [servicingCarId, setServicingCarId] = useState<string | null>(null);
   const [busy, setBusy]             = useState(false);
   // Pending part selections for the currently-open car (before saving tune)
   const [pendingParts, setPendingParts] = useState<Record<string, string | null>>({});
@@ -200,6 +201,27 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
     }
   }
 
+  function handleServiceCar(carId: string) {
+    setServicingCarId(carId);
+    setConfirmAction("service");
+  }
+
+  async function serviceCar() {
+    if (!servicingCarId) return;
+    setBusy(true);
+    try {
+      const data = await api.post<{ message: string; condition: number }>(`/race/cars/${servicingCarId}/service`, { method: "dc" });
+      showToast(data.message);
+      await loadGarage();
+    } catch (err: any) {
+      showToast(err.message ?? "Failed to service car", "error");
+    } finally {
+      setBusy(false);
+      setConfirmAction(null);
+      setServicingCarId(null);
+    }
+  }
+
   // Preview stats with pending (unsaved) part selections applied
   function previewStats(): CarStats | null {
     if (!activeCarObj?.def) return null;
@@ -287,6 +309,32 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
                         {isActive && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#22c55e" }}>● ACTIVE</span>}
                       </div>
                       <div style={{ fontFamily: "monospace", fontSize: 10, color }}>{def?.tier.toUpperCase() ?? ""}</div>
+                      {(() => {
+                        const condition = (car as any).condition ?? 100;
+                        const conditionColor = condition >= 75 ? "#22c55e" : condition >= 50 ? "#eab308" : condition >= 25 ? "#f97316" : condition > 0 ? "#ef4444" : "#6b7280";
+                        const conditionLabel = condition >= 75 ? "Good" : condition >= 50 ? "Showing Wear" : condition >= 25 ? "Needs Service" : condition > 0 ? "Critical" : "SIDELINED";
+                        return (
+                          <div style={{ marginTop: "0.5rem" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "#aaa", marginBottom: "2px" }}>
+                              <span>Condition</span>
+                              <span style={{ color: conditionColor }}>{condition}% — {conditionLabel}</span>
+                            </div>
+                            <div style={{ background: "#333", borderRadius: "3px", height: "6px" }}>
+                              <div style={{ background: conditionColor, height: "100%", width: condition + "%", borderRadius: "3px", transition: "width 0.3s" }} />
+                            </div>
+                            {condition < 100 && (
+                              <button
+                                onClick={e => { e.stopPropagation(); handleServiceCar(car.carId); }}
+                                style={{ marginTop: "0.5rem", fontSize: "0.75rem", padding: "0.3rem 0.75rem", background: "#1e3a5f", border: "1px solid #3b82f6", color: "#60a5fa", borderRadius: "4px", cursor: "pointer", width: "100%" }}>
+                                SERVICE CAR
+                              </button>
+                            )}
+                            {condition === 0 && (
+                              <div style={{ color: "#ef4444", fontSize: "0.75rem", marginTop: "0.25rem", fontWeight: "bold" }}>⛔ SIDELINED — Service Required</div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </button>
                 );
@@ -407,6 +455,16 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
         </div>
       )}
 
+      {confirmAction === "service" && servicingCarId && (
+        <ConfirmModal
+          title="Service this car?"
+          body={`Restore ${garage.cars.find(c => c.carId === servicingCarId)?.def?.name ?? servicingCarId} to 100% condition. Cost depends on car tier (2,000–30,000 DC).`}
+          confirmLabel="Service"
+          confirmColor="#3b82f6"
+          onConfirm={serviceCar}
+          onCancel={() => { setConfirmAction(null); setServicingCarId(null); }}
+        />
+      )}
       {confirmAction === "sell" && activeCarObj && (
         <ConfirmModal
           title="Sell this car?"

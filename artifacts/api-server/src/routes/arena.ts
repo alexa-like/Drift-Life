@@ -7,7 +7,7 @@
  */
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import User from "../models/User";
+import User, { computeMaxHp } from "../models/User";
 import CombatMatch from "../models/CombatMatch";
 import PlayerLoadout from "../models/PlayerLoadout";
 import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
@@ -42,6 +42,7 @@ interface QueueEntry {
 }
 
 interface LoadoutSnapshot {
+  // Legacy fields
   weapon:            string | null;
   armor:             string | null;
   consumable1:       string | null;
@@ -51,14 +52,26 @@ interface LoadoutSnapshot {
   damage:            number;
   defense:           number;
   accuracy:          number;
-  // Element / special effects snapshotted at match start (optional — defaults to no effect)
-  weaponEffect?:      string | null;   // e.g. "burn", "shock", "bleed", "headshot", "double_fire"
-  weaponEffectChance?: number;          // 0–100 percent
-  armorEffect?:       string | null;   // e.g. "block", "dodge", "anti_crit", "retaliate"
+  weaponEffect?:      string | null;
+  weaponEffectChance?: number;
+  armorEffect?:       string | null;
   armorEffectChance?:  number;
-  ammoArmorPierce?:   number;           // 0–1 fraction of defender defense ignored (AP ammo)
-  ammoEffect?:        string | null;   // ammo-triggered DoT e.g. "burn" from incendiary
+  ammoArmorPierce?:   number;
+  ammoEffect?:        string | null;
   ammoEffectChance?:  number;
+  // New Tier 2 fields
+  primaryWeaponId:   string | null;
+  secondaryWeaponId: string | null;
+  bodyArmorId:       string | null;
+  consumableItemId:  string | null;
+  consumableCount:   number;
+  damageMin:         number;
+  damageMax:         number;
+  weaponAccuracy:    number;
+  specialEffect:     string | null;
+  specialChance:     number;
+  armorHp:           number;
+  strengthBonus:     number;
 }
 
 const combatQueue = new Map<string, QueueEntry>();
@@ -75,75 +88,114 @@ function tierToNumber(tier: string): number {
 }
 
 // ── Resolve loadout stats ─────────────────────────────────────────────────────
-async function resolveLoadoutStats(userId: string, level: number, accuracyBonus = 0): Promise<LoadoutSnapshot> {
+async function resolveLoadoutStats(userId: string, level: number, prestige: number, accuracyBonus = 0): Promise<LoadoutSnapshot> {
   const loadout = await PlayerLoadout.findOne({ userId }).lean();
+  const maxHp = computeMaxHp(level, prestige);
+
   if (!loadout) {
-    return { weapon: null, armor: null, consumable1: null, consumable2: null, ammoType: null,
-      hp: 100, damage: 15, defense: 0, accuracy: Math.min(99, 85 + Math.round(accuracyBonus * 100)),
+    return {
+      weapon: null, armor: null, consumable1: null, consumable2: null, ammoType: null,
+      hp: maxHp, damage: 15, defense: 0, accuracy: Math.min(99, 85 + Math.round(accuracyBonus * 100)),
       weaponEffect: null, weaponEffectChance: 0, armorEffect: null, armorEffectChance: 0,
-      ammoArmorPierce: 0, ammoEffect: null, ammoEffectChance: 0 };
+      ammoArmorPierce: 0, ammoEffect: null, ammoEffectChance: 0,
+      primaryWeaponId: null, secondaryWeaponId: null, bodyArmorId: null,
+      consumableItemId: null, consumableCount: 0,
+      damageMin: 10, damageMax: 20, weaponAccuracy: 75,
+      specialEffect: null, specialChance: 0, armorHp: 0, strengthBonus: 0,
+    };
   }
 
-  const ids = [loadout.weapon, loadout.armor, loadout.ammoType].filter(Boolean) as string[];
-  const defs = ids.length ? await MiniGameItem.find({ itemId: { $in: ids } }).lean() : [];
+  // Fetch user strength
+  const userDoc = await User.findById(userId).select("strength").lean();
+  const strength = (userDoc as any)?.strength ?? 10;
+  const strengthBonus = Math.floor(strength * 0.5);
+
+  // Fetch item definitions
+  const allIds = [
+    loadout.primaryWeaponId,
+    loadout.secondaryWeaponId,
+    loadout.bodyArmorId,
+    loadout.consumableItemId,
+  ].filter(Boolean) as string[];
+  const defs = allIds.length ? await MiniGameItem.find({ itemId: { $in: allIds } }).lean() : [];
   const defMap = Object.fromEntries(defs.map(d => [d.itemId, d]));
 
-  const weapon = loadout.weapon ? defMap[loadout.weapon] : null;
-  const armor  = loadout.armor  ? defMap[loadout.armor]  : null;
-  const ammo   = loadout.ammoType ? defMap[loadout.ammoType] : null;
+  const primaryWeapon   = loadout.primaryWeaponId   ? defMap[loadout.primaryWeaponId]   ?? null : null;
+  const secondaryWeapon = loadout.secondaryWeaponId ? defMap[loadout.secondaryWeaponId] ?? null : null;
+  const bodyArmor       = loadout.bodyArmorId       ? defMap[loadout.bodyArmorId]       ?? null : null;
 
-  const hp       = 100 + (armor?.stats.hp ?? 0) + Math.floor(level * 2);
-  const damageMin= weapon?.stats.damageMin ?? 10;
-  const damageMax= weapon?.stats.damageMax ?? 20;
-  const damage   = Math.floor((damageMin + damageMax) / 2) * (ammo?.stats.damageMultiplier ?? 1);
-  const defense  = armor?.stats.defense ?? 0;
-  const accuracy = Math.min(99, (weapon?.stats.accuracy ?? 85) + Math.round(accuracyBonus * 100));
+  // Use primary weapon for combat stats; fall back to secondary
+  const activeWeapon = primaryWeapon ?? secondaryWeapon;
 
-  // Resolve element effects from weapon, armor, and ammo definitions
-  const weaponEffect      = (weapon as any)?.stats?.specialEffect ?? null;
-  const weaponEffectChance= (weapon as any)?.stats?.specialChance ?? 0;
-  const armorEffect       = (armor as any)?.stats?.specialEffect  ?? null;
-  const armorEffectChance = (armor as any)?.stats?.specialChance  ?? 0;
-  const ammoEffectRaw     = (ammo as any)?.stats?.specialEffect   ?? null;
-  const ammoEffectChance  = (ammo as any)?.stats?.specialChance   ?? 0;
-  // pierce_armor ammo: extract fractional pierce (40% default for AP ammo)
-  const ammoArmorPierce   = ammoEffectRaw === "pierce_armor" ? 0.4 : 0;
-  const ammoEffect        = ammoEffectRaw === "pierce_armor" ? null : ammoEffectRaw;
+  const damageMin      = (activeWeapon as any)?.stats?.damageMin ?? 10;
+  const damageMax      = (activeWeapon as any)?.stats?.damageMax ?? 20;
+  const weaponAccuracy = (activeWeapon as any)?.stats?.accuracy  ?? 75;
+  const specialEffect  = (activeWeapon as any)?.stats?.specialEffect ?? null;
+  const specialChance  = (activeWeapon as any)?.stats?.specialChance ?? 0;
+
+  const damage   = Math.floor((damageMin + damageMax) / 2) + strengthBonus;
+  const accuracy = Math.min(99, weaponAccuracy + Math.round(accuracyBonus * 100));
+
+  const armorHp              = (bodyArmor as any)?.armorHp ?? 0;
+  const armorSpecialEffect   = (bodyArmor as any)?.stats?.specialEffect ?? null;
+  const armorSpecialChance   = (bodyArmor as any)?.stats?.specialChance ?? 0;
 
   return {
-    weapon:      loadout.weapon,
-    armor:       loadout.armor,
-    consumable1: loadout.consumable1,
-    consumable2: loadout.consumable2,
-    ammoType:    loadout.ammoType,
-    hp, damage, defense, accuracy,
-    weaponEffect, weaponEffectChance,
-    armorEffect,  armorEffectChance,
-    ammoArmorPierce, ammoEffect, ammoEffectChance,
+    // Legacy compat
+    weapon:      loadout.primaryWeaponId,
+    armor:       loadout.bodyArmorId,
+    consumable1: loadout.consumableItemId,
+    consumable2: null,
+    ammoType:    null,
+    hp:          maxHp,
+    damage,
+    defense:     0,
+    accuracy,
+    weaponEffect:       specialEffect,
+    weaponEffectChance: specialChance,
+    armorEffect:        armorSpecialEffect,
+    armorEffectChance:  armorSpecialChance,
+    ammoArmorPierce:    0,
+    ammoEffect:         null,
+    ammoEffectChance:   0,
+    // New fields
+    primaryWeaponId:   loadout.primaryWeaponId,
+    secondaryWeaponId: loadout.secondaryWeaponId,
+    bodyArmorId:       loadout.bodyArmorId,
+    consumableItemId:  loadout.consumableItemId,
+    consumableCount:   loadout.consumableCount,
+    damageMin,
+    damageMax,
+    weaponAccuracy,
+    specialEffect,
+    specialChance,
+    armorHp,
+    strengthBonus,
   };
 }
 
 // ── AI loadout generator ──────────────────────────────────────────────────────
 async function generateAILoadout(playerLevel: number): Promise<LoadoutSnapshot> {
-  // Pick items roughly matching player tier
   const tierTarget = playerLevel >= 30 ? "legendary" : playerLevel >= 20 ? "epic" : playerLevel >= 10 ? "rare" : playerLevel >= 5 ? "uncommon" : "common";
-  const weapons  = await MiniGameItem.find({ category: "weapon",  tier: tierTarget }).lean();
-  const armors   = await MiniGameItem.find({ category: "armor",   tier: tierTarget }).lean();
+  const rifles  = await MiniGameItem.find({ category: "assault_rifle", tier: tierTarget }).lean();
+  const armors  = await MiniGameItem.find({ category: "body_armor",    tier: tierTarget }).lean();
 
-  const weapon = weapons.length ? weapons[Math.floor(Math.random() * weapons.length)] : null;
-  const armor  = armors.length  ? armors[Math.floor(Math.random() * armors.length)]   : null;
+  const weapon = rifles.length ? rifles[Math.floor(Math.random() * rifles.length)] : null;
+  const armor  = armors.length ? armors[Math.floor(Math.random() * armors.length)]  : null;
 
-  const variance = 0.9 + Math.random() * 0.2; // ±10%
-  const hp      = Math.floor((100 + (armor?.stats.hp ?? 0) + playerLevel * 2) * variance);
-  const damageMin = weapon?.stats.damageMin ?? 10;
-  const damageMax = weapon?.stats.damageMax ?? 20;
-  const damage  = Math.floor(((damageMin + damageMax) / 2) * variance);
-  const defense = Math.floor((armor?.stats.defense ?? 0) * variance);
-
-  const weaponEffect       = (weapon as any)?.stats?.specialEffect ?? null;
-  const weaponEffectChance = (weapon as any)?.stats?.specialChance  ?? 0;
-  const armorEffect        = (armor as any)?.stats?.specialEffect   ?? null;
-  const armorEffectChance  = (armor as any)?.stats?.specialChance   ?? 0;
+  const variance = 0.9 + Math.random() * 0.2;
+  const maxHp = computeMaxHp(playerLevel, 0);
+  const hp    = Math.floor(maxHp * variance);
+  const damageMin: number = (weapon as any)?.stats?.damageMin ?? 10;
+  const damageMax: number = (weapon as any)?.stats?.damageMax ?? 20;
+  const strengthBonus = Math.floor(playerLevel * 0.5);
+  const damage = Math.floor(((damageMin + damageMax) / 2 + strengthBonus) * variance);
+  const weaponAccuracy: number = (weapon as any)?.stats?.accuracy ?? 75;
+  const specialEffect: string | null = (weapon as any)?.stats?.specialEffect ?? null;
+  const specialChance: number = (weapon as any)?.stats?.specialChance ?? 0;
+  const armorHp: number = (armor as any)?.armorHp ?? 0;
+  const armorSpecialEffect: string | null = (armor as any)?.stats?.specialEffect ?? null;
+  const armorSpecialChance: number = (armor as any)?.stats?.specialChance ?? 0;
 
   return {
     weapon:      weapon?.itemId ?? null,
@@ -151,17 +203,32 @@ async function generateAILoadout(playerLevel: number): Promise<LoadoutSnapshot> 
     consumable1: null,
     consumable2: null,
     ammoType:    null,
-    hp, damage, defense, accuracy: 80 + Math.floor(Math.random() * 15),
-    weaponEffect, weaponEffectChance,
-    armorEffect,  armorEffectChance,
+    hp, damage, defense: 0,
+    accuracy: Math.min(99, weaponAccuracy + Math.floor(Math.random() * 5)),
+    weaponEffect:        specialEffect,
+    weaponEffectChance:  specialChance,
+    armorEffect:         armorSpecialEffect,
+    armorEffectChance:   armorSpecialChance,
     ammoArmorPierce: 0, ammoEffect: null, ammoEffectChance: 0,
+    primaryWeaponId:   weapon?.itemId ?? null,
+    secondaryWeaponId: null,
+    bodyArmorId:       armor?.itemId  ?? null,
+    consumableItemId:  null,
+    consumableCount:   0,
+    damageMin,
+    damageMax,
+    weaponAccuracy,
+    specialEffect,
+    specialChance,
+    armorHp,
+    strengthBonus,
   };
 }
 
 // ── POST /api/arena/queue/join ────────────────────────────────────────────────
 router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await User.findById(req.userId).select("username level wins totalFights adrenaline maxAdrenaline combatWinStreak combatAccuracyBonus");
+    const user = await User.findById(req.userId).select("username level prestige wins totalFights adrenaline maxAdrenaline combatWinStreak combatAccuracyBonus");
     if (!user) { res.status(404).json({ message: "User not found" }); return; }
 
     if (combatQueue.has(req.userId!)) {
@@ -184,8 +251,41 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
     user.adrenaline -= ADRENALINE_COST;
     await user.save();
 
-    const loadout = await resolveLoadoutStats(req.userId!, user.level, (user as any).combatAccuracyBonus ?? 0);
-    const score = skillScore(user.level, user.wins, user.totalFights, tierToNumber(loadout.weapon ? "common" : "common"));
+    const loadout = await resolveLoadoutStats(req.userId!, user.level, (user as any).prestige ?? 0, (user as any).combatAccuracyBonus ?? 0);
+
+    // Validate primary weapon requirement
+    if (!loadout.primaryWeaponId) {
+      // Refund adrenaline
+      user.adrenaline = Math.min(user.maxAdrenaline, user.adrenaline + ADRENALINE_COST);
+      await user.save();
+      res.status(400).json({ message: "You must equip a primary weapon to queue for the arena" });
+      return;
+    }
+
+    // Check primary weapon has durability > 0
+    const inv = await PlayerMiniGameInventory.findOne({ userId: req.userId }).lean();
+    const primaryEntry = inv?.primaryWeapons.find(w => w.itemId === loadout.primaryWeaponId);
+    if (!primaryEntry || primaryEntry.durability <= 0) {
+      user.adrenaline = Math.min(user.maxAdrenaline, user.adrenaline + ADRENALINE_COST);
+      await user.save();
+      res.status(400).json({ message: "Your primary weapon is destroyed — repair or replace it before queuing" });
+      return;
+    }
+
+    // Build warnings for missing ammo / armor
+    const warnings: string[] = [];
+    const ammoCategory = loadout.primaryWeaponId
+      ? await MiniGameItem.findOne({ itemId: loadout.primaryWeaponId }).select("ammoCategory").lean().then(d => (d as any)?.ammoCategory ?? null)
+      : null;
+    if (ammoCategory && inv?.ammo) {
+      const ammoCount = (inv.ammo as any)[ammoCategory] ?? 0;
+      if (ammoCount === 0) warnings.push(`No ${ammoCategory} in inventory — you'll fight with reduced effectiveness`);
+    }
+    if (!loadout.bodyArmorId) {
+      warnings.push("No body armor equipped — you have no armor protection");
+    }
+
+    const score = skillScore(user.level, user.wins, user.totalFights, tierToNumber("common"));
 
     const entry: QueueEntry = {
       userId: req.userId!,
@@ -201,9 +301,9 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
     const matchId = await tryMatch(entry);
     if (matchId) {
       combatQueue.delete(req.userId!);
-      res.json({ matchId, status: "matched" });
+      res.json({ matchId, status: "matched", warnings });
     } else {
-      res.json({ status: "queued", position: combatQueue.size });
+      res.json({ status: "queued", position: combatQueue.size, warnings });
     }
   } catch (err) {
     req.log.error({ err }, "arena queue join error");
@@ -219,7 +319,6 @@ router.post("/queue/leave", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
     combatQueue.delete(req.userId!);
-    // Refund energy — capped at maxEnergy using aggregation pipeline update
     await User.updateOne(
       { _id: req.userId },
       [{ $set: { adrenaline: { $min: ["$maxAdrenaline", { $add: ["$adrenaline", ADRENALINE_COST] }] } } }],
@@ -267,6 +366,8 @@ async function tryMatch(challenger: QueueEntry): Promise<string | null> {
     player2Loadout: opponent.loadout,
     player1HP:    challenger.loadout.hp,
     player2HP:    opponent.loadout.hp,
+    player1CurrentArmorHp: challenger.loadout.armorHp,
+    player2CurrentArmorHp: opponent.loadout.armorHp,
     status:       "active",
     currentTurn:  1,
     currentTurnDeadline: new Date(Date.now() + 15_000),
@@ -291,6 +392,8 @@ async function fillWithAI(entry: QueueEntry): Promise<string> {
     player2Loadout: aiLoadout,
     player1HP:    entry.loadout.hp,
     player2HP:    aiLoadout.hp,
+    player1CurrentArmorHp: entry.loadout.armorHp,
+    player2CurrentArmorHp: aiLoadout.armorHp,
     status:       "active",
     currentTurn:  1,
     currentTurnDeadline: new Date(Date.now() + 15_000),
@@ -301,7 +404,6 @@ async function fillWithAI(entry: QueueEntry): Promise<string> {
 }
 
 // ── Queue worker ──────────────────────────────────────────────────────────────
-// Direct pair-match helper: creates match from two resolved entries (already removed from queue)
 async function matchPair(a: QueueEntry, b: QueueEntry): Promise<string> {
   const match = await CombatMatch.create({
     matchId:         randomUUID(),
@@ -313,6 +415,8 @@ async function matchPair(a: QueueEntry, b: QueueEntry): Promise<string> {
     player2Loadout:  b.loadout,
     player1HP:       a.loadout.hp,
     player2HP:       b.loadout.hp,
+    player1CurrentArmorHp: a.loadout.armorHp,
+    player2CurrentArmorHp: b.loadout.armorHp,
     status:          "active",
     currentTurn:     1,
     currentTurnDeadline: new Date(Date.now() + 15_000),
@@ -323,9 +427,8 @@ async function matchPair(a: QueueEntry, b: QueueEntry): Promise<string> {
 
 setInterval(async () => {
   const now = Date.now();
-  // Snapshot current entries to avoid mutation during iteration
   const entries = [...combatQueue.entries()];
-  const matched = new Set<string>(); // track players already paired this tick
+  const matched = new Set<string>();
 
   for (const [userId, entry] of entries) {
     if (matched.has(userId)) continue;
@@ -333,7 +436,6 @@ setInterval(async () => {
     const age = now - entry.joinedAt.getTime();
     if (age < 5_000) continue;
 
-    // After 30s fill with AI — takes priority
     if (age >= 30_000) {
       combatQueue.delete(userId);
       matched.add(userId);
@@ -341,7 +443,6 @@ setInterval(async () => {
       continue;
     }
 
-    // 5s–15s: narrow range (±10%), 15s–30s: wider range (±25%)
     const range = age >= 15_000 ? 0.25 : 0.10;
     const opp = entries.find(([id, e]) =>
       id !== userId &&
@@ -380,13 +481,13 @@ router.get("/match/:matchId", requireAuth, async (req: AuthRequest, res) => {
 interface ActiveEffect { effect: string; turnsLeft: number; value: number; }
 
 const EFFECT_CONFIG: Record<string, { turns: number; value: number }> = {
-  burn:       { turns: 3, value: 10 },  // fire DoT
-  bleed:      { turns: 3, value: 5  },  // bleed DoT
-  toxic:      { turns: 4, value: 8  },  // poison DoT
-  shock:      { turns: 1, value: 0  },  // stun: skip action
-  stun:       { turns: 1, value: 0  },  // stun: skip action
-  regen:      { turns: 2, value: 15 },  // heal per turn (nano medkit)
-  regen_field:{ turns: 99,value: 20 },  // heal per turn for whole match
+  burn:       { turns: 3, value: 10 },
+  bleed:      { turns: 3, value: 5  },
+  toxic:      { turns: 4, value: 8  },
+  shock:      { turns: 1, value: 0  },
+  stun:       { turns: 1, value: 0  },
+  regen:      { turns: 2, value: 15 },
+  regen_field:{ turns: 99,value: 20 },
 };
 
 /** Apply start-of-turn effects (DoT, regen, stun) to both players. */
@@ -416,7 +517,6 @@ function applyActiveEffects(
       } else if (["stun", "shock"].includes(eff.effect)) {
         stunned = true;
         narratives.push(`${name} is stunned — action skipped!`);
-        // stun lasts 1 turn, do not keep it
       }
     }
     return { hp, effects: remaining, stunned };
@@ -436,7 +536,7 @@ function addEffect(effects: ActiveEffect[], effectName: string): ActiveEffect[] 
   return [...others, { effect: effectName, turnsLeft: cfg.turns, value: cfg.value }];
 }
 
-// ── Damage formula ────────────────────────────────────────────────────────────
+// ── Damage formula (legacy — kept for auto-resolve and backward compat) ───────
 function calcDamage(
   attackerLoadout: LoadoutSnapshot,
   defenderLoadout: LoadoutSnapshot,
@@ -446,7 +546,6 @@ function calcDamage(
   isDefending: boolean,
 ): { damage: number; narrative: string; isCrit: boolean; triggeredEffect: string | null; extraAttack: boolean; retaliateDmg: number } {
 
-  // Resolve optional effect fields with safe defaults
   const defArmorEffect  = defenderLoadout.armorEffect  ?? null;
   const defArmorChance  = defenderLoadout.armorEffectChance  ?? 0;
   const atkWeaponEffect = attackerLoadout.weaponEffect ?? null;
@@ -455,7 +554,6 @@ function calcDamage(
   const atkAmmoChance   = attackerLoadout.ammoEffectChance   ?? 0;
   const atkArmoPierce   = attackerLoadout.ammoArmorPierce    ?? 0;
 
-  // Dodge check (armor effect — checked before accuracy roll)
   if (defArmorEffect === "dodge" && Math.random() * 100 < defArmorChance) {
     return { damage: 0, narrative: `${defenderName} dodges the attack!`, isCrit: false, triggeredEffect: null, extraAttack: false, retaliateDmg: 0 };
   }
@@ -463,12 +561,10 @@ function calcDamage(
   const hit = Math.random() * 100 < (attackerLoadout.accuracy ?? 85);
   if (!hit) return { damage: 0, narrative: `${attackerName} missed!`, isCrit: false, triggeredEffect: null, extraAttack: false, retaliateDmg: 0 };
 
-  // Full block (armor effect)
   if (defArmorEffect === "block" && Math.random() * 100 < defArmorChance) {
     return { damage: 0, narrative: `${defenderName} blocks the attack completely!`, isCrit: false, triggeredEffect: null, extraAttack: false, retaliateDmg: 0 };
   }
 
-  // Armor pierce from ammo (AP ammo ignores atkArmoPierce fraction of defense)
   const effectiveDefense = Math.floor(defenderLoadout.defense * (1 - atkArmoPierce));
   const defBonus = isDefending ? Math.floor(effectiveDefense * 0.5) : 0;
 
@@ -476,33 +572,27 @@ function calcDamage(
   const base = Math.max(1, attackerLoadout.damage + variance);
   const raw = Math.max(1, base - effectiveDefense - defBonus);
 
-  // Anti-crit (armor effect)
   const naturalCrit = Math.random() < 0.1;
   const critNegated = naturalCrit && defArmorEffect === "anti_crit" && Math.random() * 100 < defArmorChance;
   const isCrit = naturalCrit && !critNegated;
 
-  // Headshot bonus (weapon effect)
   let finalDmg = isCrit ? Math.floor(raw * 1.5) : raw;
   if (atkWeaponEffect === "headshot" && Math.random() * 100 < atkWeaponChance) {
     finalDmg = Math.floor(finalDmg * 1.5);
   }
 
-  // Double fire (weapon effect): triggers a second hit (caller handles)
   const extraAttack = atkWeaponEffect === "double_fire" && Math.random() * 100 < atkWeaponChance;
 
-  // Triggered DoT/stun from weapon or ammo
   let triggeredEffect: string | null = null;
   if (atkWeaponEffect && EFFECT_CONFIG[atkWeaponEffect] && Math.random() * 100 < atkWeaponChance) {
     triggeredEffect = atkWeaponEffect;
   }
-  // Ammo effect (e.g. burn from incendiary ammo) — only if weapon didn't already trigger
   if (!triggeredEffect && atkAmmoEffect && EFFECT_CONFIG[atkAmmoEffect]) {
     if (Math.random() * 100 < atkAmmoChance) {
       triggeredEffect = atkAmmoEffect;
     }
   }
 
-  // Retaliate (defender armor effect) — returns flat counter-damage
   const retaliateDmg = (defArmorEffect === "retaliate" && Math.random() * 100 < defArmorChance) ? 30 : 0;
 
   const weapon = weaponName ?? "fists";
@@ -518,17 +608,106 @@ function calcDamage(
   return { damage: finalDmg, narrative, isCrit, triggeredEffect, extraAttack, retaliateDmg };
 }
 
+// ── New Tier 3 weapon fire helper ─────────────────────────────────────────────
+interface FireResult {
+  damage: number;
+  narrative: string;
+  triggeredEffect: string | null;
+  extraAttack: boolean;
+  armorAbsorbed: number;
+  newArmorHp: number;
+}
+
+function fireWeapon(
+  attackerName: string,
+  defenderName: string,
+  weaponName: string,
+  damageMin: number,
+  damageMax: number,
+  weaponAccuracy: number,
+  specialEffect: string | null,
+  specialChance: number,
+  strengthBonus: number,
+  defenderArmorHp: number,
+  defenderArmorEffect: string | null,
+  defenderArmorChance: number,
+  multiplier = 1,
+): FireResult {
+  // Accuracy roll
+  if (Math.random() * 100 > weaponAccuracy) {
+    return { damage: 0, narrative: `${attackerName} missed with ${weaponName}!`, triggeredEffect: null, extraAttack: false, armorAbsorbed: 0, newArmorHp: defenderArmorHp };
+  }
+
+  // Base damage roll
+  const rolled = Math.floor(Math.random() * (damageMax - damageMin + 1)) + damageMin;
+  let rawDmg = Math.max(1, Math.floor((rolled + strengthBonus) * multiplier));
+
+  // Armor absorb special effect
+  let armorAbsorbed = 0;
+  let newArmorHp = defenderArmorHp;
+  if (defenderArmorEffect === "absorb" && Math.random() * 100 < defenderArmorChance) {
+    rawDmg = Math.floor(rawDmg * 0.85);
+  }
+
+  // armor_pierce: skip armor
+  const armorPierce = specialEffect === "armor_pierce";
+
+  if (!armorPierce && newArmorHp > 0) {
+    armorAbsorbed = Math.min(newArmorHp, rawDmg);
+    newArmorHp = Math.max(0, newArmorHp - rawDmg);
+    rawDmg = Math.max(0, rawDmg - armorAbsorbed);
+  }
+
+  let triggeredEffect: string | null = null;
+  let extraAttack = false;
+  const narrativeParts: string[] = [`${attackerName} fires ${weaponName} at ${defenderName} for ${rawDmg} dmg`];
+
+  if (armorAbsorbed > 0) narrativeParts.push(`(${armorAbsorbed} absorbed by armor)`);
+  if (armorPierce)        narrativeParts.push("[ARMOR PIERCE]");
+
+  if (specialEffect && specialChance > 0 && Math.random() * 100 < specialChance) {
+    switch (specialEffect) {
+      case "bleed":
+        triggeredEffect = "bleed";
+        narrativeParts.push("[BLEED!]");
+        break;
+      case "stun":
+        triggeredEffect = "stun";
+        narrativeParts.push("[STUN!]");
+        break;
+      case "knockback":
+        triggeredEffect = "knockback";
+        narrativeParts.push("[KNOCKBACK!]");
+        break;
+      case "double_tap":
+        extraAttack = true;
+        narrativeParts.push("[DOUBLE TAP!]");
+        break;
+      case "armor_pierce":
+        // already handled above
+        break;
+    }
+  }
+
+  return {
+    damage: rawDmg,
+    narrative: narrativeParts.join(" "),
+    triggeredEffect,
+    extraAttack,
+    armorAbsorbed,
+    newArmorHp,
+  };
+}
+
 function aiPickAction(match: any, aiIsP2: boolean, aiConsumablesUsed: string[]): string {
   const myHP     = aiIsP2 ? match.player2HP : match.player1HP;
   const myMaxHP  = aiIsP2 ? match.player2Loadout.hp : match.player1Loadout.hp;
   const myLoadout: LoadoutSnapshot = aiIsP2 ? match.player2Loadout : match.player1Loadout;
   const pct = myHP / myMaxHP;
 
-  const hasConsumable = (myLoadout.consumable1 && !aiConsumablesUsed.includes(myLoadout.consumable1 ?? "")) ||
-                        (myLoadout.consumable2 && !aiConsumablesUsed.includes(myLoadout.consumable2 ?? ""));
-  if (pct < 0.35 && hasConsumable) return "use_item";
+  const hasConsumable = myLoadout.consumableItemId && !aiConsumablesUsed.includes(myLoadout.consumableItemId ?? "") && (myLoadout.consumableCount ?? 0) > 0;
+  if (pct < 0.35 && hasConsumable) return "use_consumable";
 
-  // Defend if below 50% HP or recent damage was significant
   const turns = match.turns ?? [];
   if (turns.length >= 2) {
     const prev   = turns[turns.length - 2];
@@ -541,9 +720,9 @@ function aiPickAction(match: any, aiIsP2: boolean, aiConsumablesUsed: string[]):
   if (pct < 0.5 && Math.random() < 0.2) return "defend";
 
   const roll = Math.random();
-  if (roll < 0.65) return "attack";
+  if (roll < 0.65) return "fire_primary";
   if (roll < 0.80) return "defend";
-  return "attack";
+  return "fire_primary";
 }
 
 // ── Resolve consumable heal amount ────────────────────────────────────────────
@@ -556,24 +735,34 @@ async function resolveHealAmount(itemId: string | null): Promise<number> {
 // ── POST /api/arena/match/:matchId/action ─────────────────────────────────────
 router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { action, expectedTurn } = req.body as {
-      action: "attack" | "defend" | "use_item" | "reload" | "special";
+    const { action: rawAction, expectedTurn } = req.body as {
+      action: string;
       expectedTurn?: number;
     };
-    if (!["attack","defend","use_item","reload","special"].includes(action)) {
+
+    // Normalize action aliases
+    const ACTION_MAP: Record<string, string> = {
+      attack:       "fire_primary",
+      fire_primary: "fire_primary",
+      fire_secondary: "fire_secondary",
+      use_item:     "use_consumable",
+      use_consumable: "use_consumable",
+      reload:       "reload",
+      special:      "special",
+      melee:        "melee",
+      defend:       "defend",
+    };
+    const action = ACTION_MAP[rawAction];
+    if (!action) {
       res.status(400).json({ message: "Invalid action" }); return;
     }
 
-    // Atomic guard: only accept action if match is still on the expected turn.
-    // The $inc on currentTurn is deferred to save(), but we pre-validate here
-    // to catch the common concurrent-double-submit race.
     const match = await CombatMatch.findOne({
       matchId: req.params["matchId"],
       status:  "active",
       ...(expectedTurn != null ? { currentTurn: expectedTurn } : {}),
     });
     if (!match) {
-      // Re-fetch to distinguish "not found" from "stale turn"
       const exists = await CombatMatch.findOne({ matchId: req.params["matchId"] }).select("status currentTurn").lean();
       if (!exists) { res.status(404).json({ message: "Match not found" }); return; }
       if (exists.status !== "active") { res.status(400).json({ message: "Match is not active" }); return; }
@@ -585,14 +774,12 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
     const isP2 = !match.isPlayer2AI && match.player2Id?.toString() === req.userId;
     if (!isP1 && !isP2) { res.status(403).json({ message: "Not your match" }); return; }
 
-    // PvP turn ownership: odd turns = P1, even turns = P2
     if (!match.isPlayer2AI) {
       const isP1Turn = match.currentTurn % 2 === 1;
       if (isP1Turn && !isP1) { res.status(400).json({ message: "Not your turn" }); return; }
       if (!isP1Turn && !isP2) { res.status(400).json({ message: "Not your turn" }); return; }
     }
 
-    // Fetch player usernames for narrative
     const [p1User, p2NameResolved] = await Promise.all([
       User.findById(match.player1Id).select("username").lean(),
       match.isPlayer2AI ? Promise.resolve(match.aiName ?? "AI") : User.findById(match.player2Id).select("username").lean().then(u => (u as any)?.username ?? "Opponent"),
@@ -600,12 +787,9 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
     const p1Name = (p1User as any)?.username ?? "Player";
     const p2Name = p2NameResolved;
 
-    // Defend tracking: carry over from previous turn for PvP
     const lastTurn = match.turns[match.turns.length - 1];
-    const p1DefendingThisTurn = action === "defend" && isP1;
-    const p2DefendingThisTurn = action === "defend" && isP2;
-    const p1WasDefending = p1DefendingThisTurn || (lastTurn?.player1Action === "defend");
-    const p2WasDefending = p2DefendingThisTurn || (lastTurn?.player2Action === "defend");
+    const p1WasDefending = action === "defend" && isP1 || (lastTurn?.player1Action === "defend");
+    const p2WasDefending = action === "defend" && isP2 || (lastTurn?.player2Action === "defend");
 
     const p1ConsUsed = match.player1ConsumablesUsed ?? [];
     const p2ConsUsed = match.player2ConsumablesUsed ?? [];
@@ -613,7 +797,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
     let p1Effects: ActiveEffect[] = ((match as any).player1ActiveEffects ?? []) as ActiveEffect[];
     let p2Effects: ActiveEffect[] = ((match as any).player2ActiveEffects ?? []) as ActiveEffect[];
 
-    // ── Apply start-of-turn status effects (DoT, regen, stun) ─────────────────
+    // ── Apply start-of-turn status effects ────────────────────────────────────
     const efxResult = applyActiveEffects(
       match.player1HP, match.player2HP,
       match.player1Loadout.hp, match.player2Loadout.hp,
@@ -626,25 +810,26 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
     p2Effects = efxResult.p2Effects;
     const efxNarratives = efxResult.narratives;
 
-    // If this player is stunned, override their action to a no-op defend
-    const myStunned = (isP1 && efxResult.p1Stunned) || (isP2 && efxResult.p2Stunned);
+    // Check knockback flags from previous turn
+    const p1KnockedBack = (match as any).player1KnockedBack ?? false;
+    const p2KnockedBack = (match as any).player2KnockedBack ?? false;
+    // Reset knockback flags
+    (match as any).player1KnockedBack = false;
+    (match as any).player2KnockedBack = false;
+
+    const myStunned = (isP1 && (efxResult.p1Stunned || p1KnockedBack)) || (isP2 && (efxResult.p2Stunned || p2KnockedBack));
     const effectiveAction = myStunned ? "defend" : action;
-    if (myStunned && action !== "defend") {
-      // Still accept the request but treat as defend — client sees updated state
-    }
 
     let narrative = "";
     let player1Effect: string | null = null;
     let player2Effect: string | null = null;
 
     // ── Early-exit: DoT may have already killed someone ────────────────────────
-    // If a status effect (burn/bleed/toxic) reduced HP to 0 before this turn's
-    // action runs, finalize the match now without processing any further attacks.
     const dotKilledP1 = p1HPAfter <= 0;
     const dotKilledP2 = p2HPAfter <= 0;
     if (dotKilledP1 || dotKilledP2) {
       const dotNarrative = efxNarratives.join(" | ") || "Status effect ended the match";
-      const dotTurnRecord = {
+      match.turns.push({
         turnNumber:     match.currentTurn,
         player1Action:  "auto_attack" as any,
         player2Action:  "auto_attack" as any,
@@ -654,8 +839,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
         player2Effect:  null,
         narrative:      dotNarrative,
         resolvedAt:     new Date(),
-      };
-      match.turns.push(dotTurnRecord);
+      });
       match.player1HP = p1HPAfter;
       match.player2HP = p2HPAfter;
       match.currentTurn += 1;
@@ -678,18 +862,23 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
       return;
     }
 
+    // Current armor HP values (live from match document)
+    let p1ArmorHp = (match as any).player1CurrentArmorHp ?? match.player1Loadout.armorHp ?? 0;
+    let p2ArmorHp = (match as any).player2CurrentArmorHp ?? match.player2Loadout.armorHp ?? 0;
+
     // ── Apply player action ────────────────────────────────────────────────────
     if (effectiveAction === "defend") {
       narrative = myStunned
         ? `${isP1 ? p1Name : p2Name} is stunned and cannot act!`
         : `${isP1 ? p1Name : p2Name} braces for impact`;
-    } else if (effectiveAction === "use_item") {
+
+    } else if (effectiveAction === "use_consumable") {
       const myLoadout = isP1 ? match.player1Loadout : match.player2Loadout;
       const myConsUsed = isP1 ? p1ConsUsed : p2ConsUsed;
-      const consumable = [myLoadout.consumable1, myLoadout.consumable2].find(c => c && !myConsUsed.includes(c)) ?? null;
+      const consumable = myLoadout.consumableItemId && !myConsUsed.includes(myLoadout.consumableItemId ?? "") && (myLoadout.consumableCount ?? 0) > 0
+        ? myLoadout.consumableItemId : null;
       if (!consumable) { res.status(400).json({ message: "No consumable available" }); return; }
 
-      // Check for regen consumable (nano medkit, regen field kit)
       const consDef = await MiniGameItem.findOne({ itemId: consumable }).lean();
       const consEffect = (consDef as any)?.stats?.specialEffect ?? null;
       const healAmount = await resolveHealAmount(consumable);
@@ -698,86 +887,147 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
         p1HPAfter = Math.min(match.player1Loadout.hp, p1HPAfter + healAmount);
         match.player1ConsumablesUsed = [...p1ConsUsed, consumable];
         player1Effect = "heal";
-        if (consEffect === "regen" || consEffect === "regen_field") {
-          p1Effects = addEffect(p1Effects, consEffect);
-        }
+        if (consEffect === "regen" || consEffect === "regen_field") p1Effects = addEffect(p1Effects, consEffect);
+        if (consEffect === "clear_bleed") p1Effects = p1Effects.filter(e => e.effect !== "bleed");
       } else {
         p2HPAfter = Math.min(match.player2Loadout.hp, p2HPAfter + healAmount);
         match.player2ConsumablesUsed = [...p2ConsUsed, consumable];
         player2Effect = "heal";
-        if (consEffect === "regen" || consEffect === "regen_field") {
-          p2Effects = addEffect(p2Effects, consEffect);
-        }
+        if (consEffect === "regen" || consEffect === "regen_field") p2Effects = addEffect(p2Effects, consEffect);
+        if (consEffect === "clear_bleed") p2Effects = p2Effects.filter(e => e.effect !== "bleed");
       }
-      narrative = `${isP1 ? p1Name : p2Name} used a med-kit — healed ${healAmount} HP`;
-      // Fire consumable mission event (non-fatal, fire-and-forget)
+      narrative = `${isP1 ? p1Name : p2Name} used ${(consDef as any)?.name ?? "consumable"} — healed ${healAmount} HP`;
       fireMissionEvent(String(req.userId), "consumable").catch(() => {});
+
+    } else if (effectiveAction === "melee") {
+      // Melee: strength-based, always hits, no weapon needed
+      const userDoc = await User.findById(req.userId).select("strength").lean();
+      const strength = (userDoc as any)?.strength ?? 10;
+      const meleeDmg = Math.floor(strength * 0.15) + Math.floor(Math.random() * 11) + 5;
+      const attackerName = isP1 ? p1Name : p2Name;
+      const defenderName = isP1 ? (match.isPlayer2AI ? match.aiName ?? "AI" : p2Name) : p1Name;
+      if (isP1) {
+        p2HPAfter = Math.max(0, p2HPAfter - meleeDmg);
+        player2Effect = "hit";
+      } else {
+        p1HPAfter = Math.max(0, p1HPAfter - meleeDmg);
+        player1Effect = "hit";
+      }
+      narrative = `${attackerName} smashes ${defenderName} for ${meleeDmg} melee damage!`;
+
     } else {
-      // attack / reload / special
+      // fire_primary / fire_secondary / reload / special
       const attackerName = isP1 ? p1Name : (match.isPlayer2AI ? match.aiName ?? "AI" : p2Name);
       const defenderName = isP1 ? (match.isPlayer2AI ? match.aiName ?? "AI" : p2Name) : p1Name;
       const attackerLoadout = isP1 ? match.player1Loadout : match.player2Loadout;
-      const defenderLoadout = isP1 ? match.player2Loadout : match.player1Loadout;
-      const defenderWasDefending = isP1 ? p2WasDefending : p1WasDefending;
+      const defenderArmorHp = isP1 ? p2ArmorHp : p1ArmorHp;
+      const defenderArmorEffect = isP1 ? (match.player2Loadout.armorEffect ?? null) : (match.player1Loadout.armorEffect ?? null);
+      const defenderArmorChance = isP1 ? (match.player2Loadout.armorEffectChance ?? 0) : (match.player1Loadout.armorEffectChance ?? 0);
 
-      const weaponId  = attackerLoadout.weapon;
-      const weaponDef = weaponId ? await MiniGameItem.findOne({ itemId: weaponId }).select("name").lean() : null;
-      const weaponName = (weaponDef as any)?.name ?? null;
+      const isPrimary = effectiveAction === "fire_primary" || effectiveAction === "reload" || effectiveAction === "special";
+      const weaponItemId = isPrimary
+        ? (attackerLoadout.primaryWeaponId ?? attackerLoadout.weapon)
+        : (attackerLoadout.secondaryWeaponId ?? null);
 
-      let specialMultiplier = 1;
-      if (effectiveAction === "special") specialMultiplier = 1.5;
-      if (effectiveAction === "reload")  specialMultiplier = 0.6;
+      const weaponDef = weaponItemId ? await MiniGameItem.findOne({ itemId: weaponItemId }).lean() : null;
+      const weaponName = (weaponDef as any)?.name ?? (isPrimary ? "Primary Weapon" : "Secondary Weapon");
 
-      const result = calcDamage(
-        { ...attackerLoadout, damage: Math.floor(attackerLoadout.damage * specialMultiplier) },
-        defenderLoadout, attackerName ?? "?", defenderName ?? "?", weaponName, defenderWasDefending,
+      const damageMin: number = (attackerLoadout as any).damageMin ?? (weaponDef as any)?.stats?.damageMin ?? 10;
+      const damageMax: number = (attackerLoadout as any).damageMax ?? (weaponDef as any)?.stats?.damageMax ?? 20;
+      const weaponAccuracy: number = (attackerLoadout as any).weaponAccuracy ?? (weaponDef as any)?.stats?.accuracy ?? 75;
+      const specialEffect: string | null = (attackerLoadout as any).specialEffect ?? (weaponDef as any)?.stats?.specialEffect ?? null;
+      const specialChance: number = (attackerLoadout as any).specialChance ?? (weaponDef as any)?.stats?.specialChance ?? 0;
+      const strengthBonus: number = (attackerLoadout as any).strengthBonus ?? 0;
+
+      let multiplier = 1;
+      if (effectiveAction === "special") multiplier = 1.5;
+      if (effectiveAction === "reload")  multiplier = 0.6;
+
+      const result = fireWeapon(
+        attackerName, defenderName, weaponName,
+        damageMin, damageMax, weaponAccuracy,
+        specialEffect, specialChance, strengthBonus,
+        defenderArmorHp, defenderArmorEffect, defenderArmorChance,
+        multiplier,
       );
 
       if (isP1) {
-        p2HPAfter = Math.max(0, p2HPAfter - result.damage);
-        if (result.damage > 0) player2Effect = result.isCrit ? "crit" : "hit";
-        // Apply retaliate damage back to attacker
-        if (result.retaliateDmg > 0) p1HPAfter = Math.max(0, p1HPAfter - result.retaliateDmg);
-        // Apply triggered DoT/stun to defender (p2)
-        if (result.triggeredEffect) p2Effects = addEffect(p2Effects, result.triggeredEffect);
-        // Double fire: second hit
+        p2HPAfter  = Math.max(0, p2HPAfter - result.damage);
+        p2ArmorHp  = result.newArmorHp;
+        if (result.damage > 0) player2Effect = "hit";
+        if (result.triggeredEffect === "stun") {
+          (match as any).player2StunNextTurn = true;
+        } else if (result.triggeredEffect === "knockback") {
+          (match as any).player2KnockedBack = true;
+        } else if (result.triggeredEffect && EFFECT_CONFIG[result.triggeredEffect]) {
+          p2Effects = addEffect(p2Effects, result.triggeredEffect);
+        }
+        // Double tap: second shot
         if (result.extraAttack) {
-          const r2 = calcDamage(attackerLoadout, defenderLoadout, attackerName ?? "?", defenderName ?? "?", weaponName, defenderWasDefending);
+          const r2 = fireWeapon(
+            attackerName, defenderName, weaponName,
+            damageMin, damageMax, weaponAccuracy,
+            null, 0, strengthBonus,
+            p2ArmorHp, defenderArmorEffect, defenderArmorChance,
+          );
           p2HPAfter = Math.max(0, p2HPAfter - r2.damage);
+          p2ArmorHp = r2.newArmorHp;
           narrative = result.narrative + ` | Second shot: ${r2.narrative}`;
         }
+        // Track rounds fired
+        if (isPrimary) (match as any).player1RoundsFiredPrimary = ((match as any).player1RoundsFiredPrimary ?? 0) + 1;
+        else           (match as any).player1RoundsFiredSecondary = ((match as any).player1RoundsFiredSecondary ?? 0) + 1;
       } else {
-        p1HPAfter = Math.max(0, p1HPAfter - result.damage);
-        if (result.damage > 0) player1Effect = result.isCrit ? "crit" : "hit";
-        if (result.retaliateDmg > 0) p2HPAfter = Math.max(0, p2HPAfter - result.retaliateDmg);
-        if (result.triggeredEffect) p1Effects = addEffect(p1Effects, result.triggeredEffect);
+        p1HPAfter  = Math.max(0, p1HPAfter - result.damage);
+        p1ArmorHp  = result.newArmorHp;
+        if (result.damage > 0) player1Effect = "hit";
+        if (result.triggeredEffect === "stun") {
+          (match as any).player1StunNextTurn = true;
+        } else if (result.triggeredEffect === "knockback") {
+          (match as any).player1KnockedBack = true;
+        } else if (result.triggeredEffect && EFFECT_CONFIG[result.triggeredEffect]) {
+          p1Effects = addEffect(p1Effects, result.triggeredEffect);
+        }
         if (result.extraAttack) {
-          const r2 = calcDamage(attackerLoadout, defenderLoadout, attackerName ?? "?", defenderName ?? "?", weaponName, defenderWasDefending);
+          const r2 = fireWeapon(
+            attackerName, defenderName, weaponName,
+            damageMin, damageMax, weaponAccuracy,
+            null, 0, strengthBonus,
+            p1ArmorHp, defenderArmorEffect, defenderArmorChance,
+          );
           p1HPAfter = Math.max(0, p1HPAfter - r2.damage);
+          p1ArmorHp = r2.newArmorHp;
           narrative = result.narrative + ` | Second shot: ${r2.narrative}`;
         }
+        if (isPrimary) (match as any).player2RoundsFiredPrimary = ((match as any).player2RoundsFiredPrimary ?? 0) + 1;
+        else           (match as any).player2RoundsFiredSecondary = ((match as any).player2RoundsFiredSecondary ?? 0) + 1;
       }
 
       if (!result.extraAttack) narrative = result.narrative;
       if (effectiveAction === "reload")  narrative = `${attackerName} reloads and fires — ${narrative.toLowerCase()}`;
       if (effectiveAction === "special") narrative = `${attackerName} unleashes a special attack — ${narrative.toLowerCase()}`;
+
+      // Update live armor HP in match
+      (match as any).player1CurrentArmorHp = isP1 ? p1ArmorHp : p1ArmorHp;
+      (match as any).player2CurrentArmorHp = isP1 ? p2ArmorHp : p2ArmorHp;
     }
 
     // ── AI counter-action (if vs AI) ─────────────────────────────────────────
     let aiNarrative = "";
     let aiAction: string | null = null;
     if (match.isPlayer2AI) {
-      // AI is stunned if: (a) a start-of-turn stun was active, OR
-      // (b) the player's attack JUST applied shock/stun this turn
       const aiJustStunned = !!(
         isP1 &&
-        p2Effects.some(e => ["stun", "shock"].includes(e.effect) && e.turnsLeft >= EFFECT_CONFIG[e.effect]?.turns)
+        p2Effects.some(e => ["stun", "shock"].includes(e.effect) && e.turnsLeft >= (EFFECT_CONFIG[e.effect]?.turns ?? 1))
       );
-      const aiStunned = efxResult.p2Stunned || aiJustStunned;
+      const aiKnockedBack = (match as any).player2KnockedBack ?? false;
+      const aiStunned = efxResult.p2Stunned || aiJustStunned || aiKnockedBack;
       aiAction = aiStunned ? "defend" : aiPickAction({ ...match.toObject(), player1HP: p1HPAfter, player2HP: p2HPAfter }, true, p2ConsUsed);
 
-      if (!aiStunned && aiAction === "use_item") {
-        const aiConsumable = [match.player2Loadout.consumable1, match.player2Loadout.consumable2].find(c => c && !p2ConsUsed.includes(c)) ?? null;
+      if (!aiStunned && (aiAction === "use_consumable" || aiAction === "use_item")) {
+        const aiLoadout = match.player2Loadout;
+        const aiConsumable = aiLoadout.consumableItemId && !p2ConsUsed.includes(aiLoadout.consumableItemId ?? "") && (aiLoadout.consumableCount ?? 0) > 0
+          ? aiLoadout.consumableItemId : null;
         if (aiConsumable) {
           const consDef = await MiniGameItem.findOne({ itemId: aiConsumable }).lean();
           const consEffect = (consDef as any)?.stats?.specialEffect ?? null;
@@ -788,7 +1038,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
           if (consEffect === "regen" || consEffect === "regen_field") p2Effects = addEffect(p2Effects, consEffect);
           aiNarrative = `${match.aiName} used a med-kit — healed ${healAmount} HP`;
         } else {
-          aiAction = "attack";
+          aiAction = "fire_primary";
         }
       }
 
@@ -796,19 +1046,38 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
         aiNarrative = `${match.aiName} is stunned and cannot act!`;
       } else if (aiAction === "defend") {
         aiNarrative = `${match.aiName} braces for impact`;
-      } else if (aiAction === "attack" || aiAction == null) {
-        const aiWeaponDef = match.player2Loadout.weapon
-          ? await MiniGameItem.findOne({ itemId: match.player2Loadout.weapon }).select("name").lean() : null;
-        const aiWeaponName = (aiWeaponDef as any)?.name ?? null;
-        const aiResult = calcDamage(
-          match.player2Loadout, match.player1Loadout,
-          match.aiName ?? "AI", p1Name ?? "Player",
-          aiWeaponName, p1WasDefending,
+      } else if (aiAction === "fire_primary" || aiAction === "attack" || aiAction == null) {
+        const aiLoadout = match.player2Loadout;
+        const aiWeaponId = aiLoadout.primaryWeaponId ?? aiLoadout.weapon;
+        const aiWeaponDef = aiWeaponId ? await MiniGameItem.findOne({ itemId: aiWeaponId }).lean() : null;
+        const aiWeaponName = (aiWeaponDef as any)?.name ?? "Weapon";
+        const aiDmgMin: number = (aiLoadout as any).damageMin ?? (aiWeaponDef as any)?.stats?.damageMin ?? 10;
+        const aiDmgMax: number = (aiLoadout as any).damageMax ?? (aiWeaponDef as any)?.stats?.damageMax ?? 20;
+        const aiAccuracy: number = (aiLoadout as any).weaponAccuracy ?? (aiWeaponDef as any)?.stats?.accuracy ?? 75;
+        const aiSpecialEffect: string | null = (aiLoadout as any).specialEffect ?? (aiWeaponDef as any)?.stats?.specialEffect ?? null;
+        const aiSpecialChance: number = (aiLoadout as any).specialChance ?? (aiWeaponDef as any)?.stats?.specialChance ?? 0;
+        const aiStrBonus: number = (aiLoadout as any).strengthBonus ?? 0;
+
+        const aiResult = fireWeapon(
+          match.aiName ?? "AI", p1Name, aiWeaponName,
+          aiDmgMin, aiDmgMax, aiAccuracy,
+          aiSpecialEffect, aiSpecialChance, aiStrBonus,
+          p1ArmorHp,
+          match.player1Loadout.armorEffect ?? null,
+          match.player1Loadout.armorEffectChance ?? 0,
         );
         p1HPAfter = Math.max(0, p1HPAfter - aiResult.damage);
-        if (aiResult.damage > 0) player1Effect = aiResult.isCrit ? "crit" : "hit";
-        if (aiResult.retaliateDmg > 0) p2HPAfter = Math.max(0, p2HPAfter - aiResult.retaliateDmg);
-        if (aiResult.triggeredEffect) p1Effects = addEffect(p1Effects, aiResult.triggeredEffect);
+        p1ArmorHp = aiResult.newArmorHp;
+        (match as any).player1CurrentArmorHp = p1ArmorHp;
+        if (aiResult.damage > 0) player1Effect = "hit";
+        if (aiResult.triggeredEffect === "stun") {
+          (match as any).player1StunNextTurn = true;
+        } else if (aiResult.triggeredEffect === "knockback") {
+          (match as any).player1KnockedBack = true;
+        } else if (aiResult.triggeredEffect && EFFECT_CONFIG[aiResult.triggeredEffect]) {
+          p1Effects = addEffect(p1Effects, aiResult.triggeredEffect);
+        }
+        (match as any).player2RoundsFiredPrimary = ((match as any).player2RoundsFiredPrimary ?? 0) + 1;
         aiNarrative = aiResult.narrative;
       }
     }
@@ -818,8 +1087,8 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
     const fullNarrative = allNarratives.join(" | ");
     const turnRecord = {
       turnNumber:     match.currentTurn,
-      player1Action:  (isP1 ? effectiveAction : (match.isPlayer2AI ? aiAction ?? "attack" : "auto_attack")) as any,
-      player2Action:  (isP1 ? (match.isPlayer2AI ? aiAction ?? "attack" : "auto_attack") : effectiveAction) as any,
+      player1Action:  (isP1 ? effectiveAction : (match.isPlayer2AI ? aiAction ?? "fire_primary" : "auto_attack")) as any,
+      player2Action:  (isP1 ? (match.isPlayer2AI ? aiAction ?? "fire_primary" : "auto_attack") : effectiveAction) as any,
       player1HpAfter: p1HPAfter,
       player2HpAfter: p2HPAfter,
       player1Effect,
@@ -857,6 +1126,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
       );
       if (claimed) {
         await grantCombatRewards(match);
+        await postMatchCleanup(match);
         match.rewardsGranted = true;
       }
     }
@@ -868,20 +1138,93 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
   }
 });
 
+// ── Post-match cleanup: deduct ammo, degrade weapons, grant keyShards ─────────
+async function postMatchCleanup(match: any): Promise<void> {
+  try {
+    const p1Id = match.player1Id?.toString();
+    const p2Id = match.isPlayer2AI ? null : match.player2Id?.toString();
+
+    // Grant +1 keyShards to both players
+    const userUpdates: Promise<any>[] = [];
+    if (p1Id) userUpdates.push(User.findByIdAndUpdate(p1Id, { $inc: { keyShards: 1 } }));
+    if (p2Id) userUpdates.push(User.findByIdAndUpdate(p2Id, { $inc: { keyShards: 1 } }));
+    await Promise.all(userUpdates);
+
+    // Deduct ammo and degrade weapons for real players
+    async function cleanupPlayer(userId: string, loadoutSnapshot: any, roundsPrimary: number, roundsSecondary: number) {
+      const inv = await PlayerMiniGameInventory.findOne({ userId });
+      if (!inv) return;
+
+      // Deduct primary ammo
+      const primaryWeaponId = loadoutSnapshot.primaryWeaponId ?? loadoutSnapshot.weapon;
+      if (primaryWeaponId && roundsPrimary > 0) {
+        const weaponDef = await MiniGameItem.findOne({ itemId: primaryWeaponId }).select("ammoCategory").lean();
+        const ammoCategory = (weaponDef as any)?.ammoCategory;
+        if (ammoCategory && (inv.ammo as any)[ammoCategory] !== undefined) {
+          const current = (inv.ammo as any)[ammoCategory] ?? 0;
+          (inv.ammo as any)[ammoCategory] = Math.max(0, current - roundsPrimary);
+        }
+      }
+
+      // Deduct secondary ammo
+      const secondaryWeaponId = loadoutSnapshot.secondaryWeaponId;
+      if (secondaryWeaponId && roundsSecondary > 0) {
+        const weaponDef = await MiniGameItem.findOne({ itemId: secondaryWeaponId }).select("ammoCategory").lean();
+        const ammoCategory = (weaponDef as any)?.ammoCategory;
+        if (ammoCategory && (inv.ammo as any)[ammoCategory] !== undefined) {
+          const current = (inv.ammo as any)[ammoCategory] ?? 0;
+          (inv.ammo as any)[ammoCategory] = Math.max(0, current - roundsSecondary);
+        }
+      }
+
+      // Degrade primary weapon durability
+      if (primaryWeaponId) {
+        const durabilityLoss = Math.floor(Math.random() * 3) + 1;
+        const pw = inv.primaryWeapons.find((w: { itemId: string; durability: number }) => w.itemId === primaryWeaponId);
+        if (pw) {
+          pw.durability = Math.max(0, pw.durability - durabilityLoss);
+        }
+      }
+
+      // Degrade secondary weapon durability
+      if (secondaryWeaponId) {
+        const durabilityLoss = Math.floor(Math.random() * 3) + 1;
+        const sw = inv.secondaryWeapons.find((w: { itemId: string; durability: number }) => w.itemId === secondaryWeaponId);
+        if (sw) {
+          sw.durability = Math.max(0, sw.durability - durabilityLoss);
+        }
+      }
+
+      await inv.save();
+    }
+
+    if (p1Id) {
+      await cleanupPlayer(
+        p1Id, match.player1Loadout,
+        match.player1RoundsFiredPrimary ?? 0,
+        match.player1RoundsFiredSecondary ?? 0,
+      );
+    }
+    if (p2Id) {
+      await cleanupPlayer(
+        p2Id, match.player2Loadout,
+        match.player2RoundsFiredPrimary ?? 0,
+        match.player2RoundsFiredSecondary ?? 0,
+      );
+    }
+  } catch (err) {
+    // Non-fatal
+  }
+}
+
 // ── Turn timeout auto-resolver ────────────────────────────────────────────────
-// Every 5 seconds find active matches whose deadline has passed and auto-resolve
-// the timed-out player's turn as a basic attack, then apply the AI counter-attack
-// (or advance PvP to the next player's turn).
 async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<void> {
-  // Atomic claim: match BOTH the deadline expiry AND the expected turn number.
-  // If a player action resolved the turn first (incrementing currentTurn), this
-  // findOneAndUpdate will not match (currentTurn changed) and returns null — safe no-op.
   const match = await CombatMatch.findOneAndUpdate(
     { matchId, status: "active", currentTurn: expectedTurn, currentTurnDeadline: { $lt: new Date() } },
-    { $set: { currentTurnDeadline: new Date(Date.now() + 30_000) } }, // extend deadline = "claimed"
+    { $set: { currentTurnDeadline: new Date(Date.now() + 30_000) } },
     { new: true },
   );
-  if (!match) return; // player already acted, or another worker tick claimed it
+  if (!match) return;
 
   const p1Effects: ActiveEffect[] = ((match as any).player1ActiveEffects ?? []) as ActiveEffect[];
   const p2Effects: ActiveEffect[] = ((match as any).player2ActiveEffects ?? []) as ActiveEffect[];
@@ -889,7 +1232,6 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
   const p1Name = "Player";
   const p2Name = match.isPlayer2AI ? (match.aiName ?? "AI") : "Opponent";
 
-  // Apply start-of-turn status effects
   const efx = applyActiveEffects(
     match.player1HP, match.player2HP,
     match.player1Loadout.hp, match.player2Loadout.hp,
@@ -897,37 +1239,58 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
   );
   let p1HPAfter = efx.p1HP;
   let p2HPAfter = efx.p2HP;
+  let p1ArmorHp = (match as any).player1CurrentArmorHp ?? match.player1Loadout.armorHp ?? 0;
+  let p2ArmorHp = (match as any).player2CurrentArmorHp ?? match.player2Loadout.armorHp ?? 0;
 
-  // Determine whose turn timed out
-  // For AI matches: always P1's turn (AI responds immediately, never waits)
-  // For PvP: odd turns = P1, even = P2
   const isP1Turn = match.isPlayer2AI || match.currentTurn % 2 === 1;
 
   let player1Effect: string | null = null;
   let player2Effect: string | null = null;
   const narrativeParts: string[] = [...efx.narratives];
 
-  // Timed-out player: auto-attack (basic, no element effects triggered)
   if (isP1Turn && !efx.p1Stunned) {
-    const r = calcDamage(match.player1Loadout, match.player2Loadout, p1Name, p2Name, null, false);
+    const l = match.player1Loadout;
+    const r = fireWeapon(
+      p1Name, p2Name, "Auto",
+      (l as any).damageMin ?? 10, (l as any).damageMax ?? 20, (l as any).weaponAccuracy ?? 75,
+      null, 0, (l as any).strengthBonus ?? 0,
+      p2ArmorHp,
+      (l as any).armorEffect ?? null, (l as any).armorEffectChance ?? 0,
+    );
     p2HPAfter = Math.max(0, p2HPAfter - r.damage);
-    if (r.damage > 0) player2Effect = r.isCrit ? "crit" : "hit";
+    p2ArmorHp = r.newArmorHp;
+    if (r.damage > 0) player2Effect = "hit";
     narrativeParts.push(`[AUTO] ${r.narrative}`);
   } else if (!isP1Turn && !efx.p2Stunned) {
-    const r = calcDamage(match.player2Loadout, match.player1Loadout, p2Name, p1Name, null, false);
+    const l = match.player2Loadout;
+    const r = fireWeapon(
+      p2Name, p1Name, "Auto",
+      (l as any).damageMin ?? 10, (l as any).damageMax ?? 20, (l as any).weaponAccuracy ?? 75,
+      null, 0, (l as any).strengthBonus ?? 0,
+      p1ArmorHp,
+      (l as any).armorEffect ?? null, (l as any).armorEffectChance ?? 0,
+    );
     p1HPAfter = Math.max(0, p1HPAfter - r.damage);
-    if (r.damage > 0) player1Effect = r.isCrit ? "crit" : "hit";
+    p1ArmorHp = r.newArmorHp;
+    if (r.damage > 0) player1Effect = "hit";
     narrativeParts.push(`[AUTO] ${r.narrative}`);
   } else {
     narrativeParts.push(`${isP1Turn ? p1Name : p2Name} is stunned — auto-skipped`);
   }
 
-  // AI counter-attack (if vs AI and P1 was the timed-out player)
   if (match.isPlayer2AI && !efx.p2Stunned) {
     const aiAction = aiPickAction({ ...match.toObject(), player1HP: p1HPAfter, player2HP: p2HPAfter }, true, match.player2ConsumablesUsed ?? []);
-    if (aiAction !== "defend" && aiAction !== "use_item") {
-      const aiR = calcDamage(match.player2Loadout, match.player1Loadout, match.aiName ?? "AI", p1Name, null, false);
+    if (aiAction !== "defend" && aiAction !== "use_consumable" && aiAction !== "use_item") {
+      const l = match.player2Loadout;
+      const aiR = fireWeapon(
+        match.aiName ?? "AI", p1Name, "Auto",
+        (l as any).damageMin ?? 10, (l as any).damageMax ?? 20, (l as any).weaponAccuracy ?? 75,
+        null, 0, (l as any).strengthBonus ?? 0,
+        p1ArmorHp,
+        (match.player1Loadout as any).armorEffect ?? null, (match.player1Loadout as any).armorEffectChance ?? 0,
+      );
       p1HPAfter = Math.max(0, p1HPAfter - aiR.damage);
+      p1ArmorHp = aiR.newArmorHp;
       if (aiR.damage > 0) player1Effect = aiR.isCrit ? "crit" : "hit";
       narrativeParts.push(aiR.narrative);
     } else if (aiAction === "defend") {
@@ -935,9 +1298,12 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
     }
   }
 
-  const turnRecord = {
+  (match as any).player1CurrentArmorHp = p1ArmorHp;
+  (match as any).player2CurrentArmorHp = p2ArmorHp;
+
+  match.turns.push({
     turnNumber:     match.currentTurn,
-    player1Action:  (isP1Turn ? "auto_attack" : "auto_attack") as any,
+    player1Action:  "auto_attack" as any,
     player2Action:  "auto_attack" as any,
     player1HpAfter: p1HPAfter,
     player2HpAfter: p2HPAfter,
@@ -945,9 +1311,8 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
     player2Effect,
     narrative:      narrativeParts.join(" | "),
     resolvedAt:     new Date(),
-  };
+  });
 
-  match.turns.push(turnRecord);
   match.player1HP = p1HPAfter;
   match.player2HP = p2HPAfter;
   match.currentTurn += 1;
@@ -974,7 +1339,10 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
       { $set: { rewardsGranted: true } },
       { new: false },
     );
-    if (claimed) await grantCombatRewards(match);
+    if (claimed) {
+      await grantCombatRewards(match);
+      await postMatchCleanup(match);
+    }
   }
 }
 
@@ -992,7 +1360,6 @@ async function grantCombatRewards(match: any) {
   const now = new Date();
   const isDraw = !match.winnerId;
 
-  // Daily reward cap multipliers
   const FULL_CAP = 30;
   const HALF_CAP = 50;
 
@@ -1001,7 +1368,6 @@ async function grantCombatRewards(match: any) {
     const u = await User.findById(userId);
     if (!u) return;
 
-    // Check / reset daily match counter
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     if (!u.miniGameResetAt || u.miniGameResetAt < today) {
@@ -1009,13 +1375,9 @@ async function grantCombatRewards(match: any) {
       u.miniGameResetAt = new Date(today.getTime() + 86_400_000);
     }
     const matchesToday = u.miniGameMatchesToday ?? 0;
-    // Cap tiers:
-    //   0–29  (first 30):  full DC + full XP + Key Shard for winner
-    //   30–49 (matches 30–49): 50% DC + 50% XP, no Key Shard
-    //   50+   (after 50): DC = 0, XP = 5% (tiny XP only — spec: "tiny XP only after 50")
     const dcMult  = matchesToday >= HALF_CAP ? 0   : matchesToday >= FULL_CAP ? 0.5 : 1;
     const xpMult  = matchesToday >= HALF_CAP ? 0.05: matchesToday >= FULL_CAP ? 0.5 : 1;
-    const fullRewards = matchesToday < FULL_CAP; // Key Shards only for first 30 matches
+    const fullRewards = matchesToday < FULL_CAP;
     u.miniGameMatchesToday = matchesToday + 1;
 
     let dcEarned = 0;
@@ -1030,7 +1392,7 @@ async function grantCombatRewards(match: any) {
       const streakBonus = Math.min(((u.combatWinStreak ?? 0) + 1) * 50, 300);
       dcEarned     = Math.floor((150 + streakBonus) * dcMult);
       xpEarned     = Math.floor(200 * xpMult);
-      shardsEarned = fullRewards ? 1 : 0; // Key Shard only within first 30 matches
+      shardsEarned = fullRewards ? 1 : 0;
       u.dc += dcEarned;
       u.xp += xpEarned;
       u.combatWinStreak = (u.combatWinStreak ?? 0) + 1;
@@ -1044,7 +1406,6 @@ async function grantCombatRewards(match: any) {
       u.losses += 1;
     }
     u.totalFights += 1;
-    // Track max streak for achievements
     if (isWinner) {
       const newStreak = u.combatWinStreak ?? 0;
       if (newStreak > ((u as any).maxCombatWinStreak ?? 0)) {
@@ -1053,7 +1414,6 @@ async function grantCombatRewards(match: any) {
     }
     await u.save();
 
-    // Update mini-game leaderboard
     if (isWinner) {
       const weekStart = getWeekStart();
       await MiniGameLeaderboard.findOneAndUpdate(
@@ -1068,13 +1428,11 @@ async function grantCombatRewards(match: any) {
       );
     }
 
-    // Fire mission events (non-fatal)
     fireMissionEvent(userId, "combat_play").catch(() => {});
     if (isWinner) fireMissionEvent(userId, "combat_win").catch(() => {});
     if (isWinner && dcEarned > 0) fireMissionEvent(userId, "dc_earned", dcEarned).catch(() => {});
     checkAchievements(userId).catch(() => {});
 
-    // Notification — reflects actual earned amounts including streak bonus and daily cap
     const capNote = dcMult < 1 ? ` (${matchesToday >= HALF_CAP ? "XP only" : "50% cap"})` : "";
     const notifTitle = isDraw ? "Combat Draw" : isWinner ? "Combat Victory! 🏆" : "Combat Defeat";
     const notifBody  = isDraw

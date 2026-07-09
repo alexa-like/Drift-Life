@@ -26,6 +26,21 @@ export type RoyaleItemType =
   | "car"
   | "car_part";
 
+export type RoyaleCategory =
+  | "pistols"
+  | "smgs"
+  | "assault_rifles"
+  | "shotguns"
+  | "sniper_rifles"
+  | "lmgs"
+  | "body_armor"
+  | "consumables"
+  | "ammo"
+  | "race_cars"
+  | "car_parts";
+
+export type SpinType = "dc_spin" | "master_royale";
+
 export interface IRoyaleItem extends Document {
   royaleType: RoyaleType;
   itemType:   RoyaleItemType;
@@ -50,6 +65,10 @@ export interface IRoyaleItem extends Document {
   };
   dropWeight: number;   // relative weight; higher = more common
   isActive:   boolean;
+  // New category-based fields
+  royaleCategory: RoyaleCategory | null;
+  spinType:       SpinType | null;
+  itemRef:        string | null;  // MiniGameItem.itemId or RaceCar.carId
 }
 
 const RoyaleItemSchema = new Schema<IRoyaleItem>(
@@ -77,10 +96,23 @@ const RoyaleItemSchema = new Schema<IRoyaleItem>(
     },
     dropWeight: { type: Number, required: true, default: 1 },
     isActive:   { type: Boolean, default: true },
+    // New category-based fields
+    royaleCategory: {
+      type: String,
+      enum: ["pistols","smgs","assault_rifles","shotguns","sniper_rifles","lmgs","body_armor","consumables","ammo","race_cars","car_parts"],
+      default: null,
+    },
+    spinType: {
+      type: String,
+      enum: ["dc_spin","master_royale"],
+      default: null,
+    },
+    itemRef: { type: String, default: null },
   },
   { timestamps: true },
 );
 
 RoyaleItemSchema.index({ royaleType: 1, tier: 1, isActive: 1 });
+RoyaleItemSchema.index({ royaleCategory: 1, spinType: 1, isActive: 1 });
 
 export default mongoose.model<IRoyaleItem>("RoyaleItem", RoyaleItemSchema);

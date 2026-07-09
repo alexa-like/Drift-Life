@@ -6,23 +6,23 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IPlayerLoadout extends Document {
-  userId:      mongoose.Types.ObjectId;
-  weapon:      string | null;   // MiniGameItem itemId
-  armor:       string | null;
-  consumable1: string | null;
-  consumable2: string | null;
-  ammoType:    string | null;
-  updatedAt:   Date;
+  userId:            mongoose.Types.ObjectId;
+  primaryWeaponId:   string | null;
+  secondaryWeaponId: string | null;
+  bodyArmorId:       string | null;
+  consumableItemId:  string | null;
+  consumableCount:   number;  // 0-3
+  updatedAt:         Date;
 }
 
 const PlayerLoadoutSchema = new Schema<IPlayerLoadout>(
   {
-    userId:      { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true, index: true },
-    weapon:      { type: String, default: null },
-    armor:       { type: String, default: null },
-    consumable1: { type: String, default: null },
-    consumable2: { type: String, default: null },
-    ammoType:    { type: String, default: null },
+    userId:            { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true, index: true },
+    primaryWeaponId:   { type: String, default: null },
+    secondaryWeaponId: { type: String, default: null },
+    bodyArmorId:       { type: String, default: null },
+    consumableItemId:  { type: String, default: null },
+    consumableCount:   { type: Number, default: 0, min: 0, max: 3 },
   },
   { timestamps: true },
 );

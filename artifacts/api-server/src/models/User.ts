@@ -402,19 +402,19 @@ export function applyRegen(user: IUser): void {
   // Mood: inversely tied to stress. Recompute lazily.
   user.mood = Math.max(0, 100 - user.stress);
 
-  // Adrenaline: +1 per 30 min (Arena queue fuel)
+  // Adrenaline: +1 per 12 min (Arena queue fuel)
   if (!user.adrenalineRegenAt) user.adrenalineRegenAt = new Date(now);
   const adrenalineMinutes = (now - user.adrenalineRegenAt.getTime()) / 60000;
-  const adrenalineGain = Math.floor(adrenalineMinutes / 30);
+  const adrenalineGain = Math.floor(adrenalineMinutes / 12);
   if (adrenalineGain > 0 && user.adrenaline < user.maxAdrenaline) {
     user.adrenaline = Math.min(user.maxAdrenaline, user.adrenaline + adrenalineGain);
     user.adrenalineRegenAt = new Date(now);
   }
 
-  // Nitro: +1 per 30 min (Race queue fuel)
+  // Nitro: +1 per 12 min (Race queue fuel)
   if (!user.nitroRegenAt) user.nitroRegenAt = new Date(now);
   const nitroMinutes = (now - user.nitroRegenAt.getTime()) / 60000;
-  const nitroGain = Math.floor(nitroMinutes / 30);
+  const nitroGain = Math.floor(nitroMinutes / 12);
   if (nitroGain > 0 && user.nitro < user.maxNitro) {
     user.nitro = Math.min(user.maxNitro, user.nitro + nitroGain);
     user.nitroRegenAt = new Date(now);

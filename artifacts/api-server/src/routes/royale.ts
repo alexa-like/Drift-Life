@@ -331,14 +331,157 @@ router.get("/pity", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ── GET /api/royale/pools/:category — pool contents with probabilities ────────
+router.get("/pools/:category", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { category } = req.params;
+    const [dcItems, masterItems] = await Promise.all([
+      RoyaleItem.find({ royaleCategory: category as any, spinType: "dc_spin" as any, isActive: true }).lean(),
+      RoyaleItem.find({ royaleCategory: category as any, spinType: "master_royale" as any, isActive: true }).lean(),
+    ]);
+
+    function addProbabilities(items: any[]) {
+      const total = items.reduce((s, i) => s + (i.dropWeight ?? 1), 0);
+      return items.map(i => ({ ...i, probability: total > 0 ? (i.dropWeight / total) * 100 : 0 }));
+    }
+
+    res.json({ dcSpin: addProbabilities(dcItems), masterRoyale: addProbabilities(masterItems) });
+  } catch (err) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // ── POST /api/royale/spin ────────────────────────────────────────────────────
 router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { royaleType, currency, count } = req.body as {
+    const { royaleType, category, spinType, currency, count } = req.body as {
       royaleType: "general" | "shooting" | "racing";
+      category?: string;
+      spinType?: string;
       currency: "dc" | "nc" | "key";
       count: 1 | 10;
     };
+
+    // ── New-style category+spinType spin ──────────────────────────────────────
+    if (category && spinType) {
+      const validCategories = ["pistols","smgs","assault_rifles","shotguns","sniper_rifles","lmgs","body_armor","consumables","ammo","race_cars","car_parts"];
+      const validSpinTypes = ["dc_spin","master_royale"];
+      if (!validCategories.includes(category)) { res.status(400).json({ message: "Invalid category" }); return; }
+      if (!validSpinTypes.includes(spinType)) { res.status(400).json({ message: "Invalid spinType" }); return; }
+
+      // Cost check
+      const user = await User.findById(req.userId).select("dc nc keys keyShards");
+      if (!user) { res.status(404).json({ message: "User not found" }); return; }
+
+      if (spinType === "dc_spin") {
+        if (user.dc < 500) { res.status(400).json({ message: "Not enough DC. DC Spin costs 500 DC." }); return; }
+        await User.findByIdAndUpdate(req.userId, { $inc: { dc: -500 } });
+      } else {
+        if (user.nc < 20 || user.keys < 1) { res.status(400).json({ message: "Not enough NC or Keys. Master Royale costs 20 NC + 1 Key." }); return; }
+        await User.findByIdAndUpdate(req.userId, { $inc: { nc: -20, keys: -1 } });
+      }
+
+      // Fetch pool
+      const pool = await RoyaleItem.find({ royaleCategory: category as any, spinType: spinType as any, isActive: true }).lean();
+      if (!pool || pool.length === 0) {
+        const refund = spinType === "dc_spin" ? { dc: 500 } : { nc: 20, keys: 1 };
+        await User.findByIdAndUpdate(req.userId, { $inc: refund });
+        res.status(400).json({ message: "Royale pool not seeded yet for this category. Please try again later." }); return;
+      }
+
+      // Weighted random selection
+      const totalWeight = pool.reduce((sum, item) => sum + (item.dropWeight ?? 1), 0);
+      let roll = Math.random() * totalWeight;
+      let won = pool[pool.length - 1];
+      for (const item of pool) {
+        roll -= item.dropWeight ?? 1;
+        if (roll <= 0) { won = item; break; }
+      }
+
+      // Grant item to arena inventory
+      const MiniGameItemModel = (await import("../models/MiniGameItem")).default;
+      const PlayerMiniGameInventoryModel = (await import("../models/PlayerMiniGameInventory")).default;
+
+      const itemDef = won.itemRef ? await MiniGameItemModel.findOne({ itemId: won.itemRef }).lean() : null;
+
+      if (itemDef) {
+        await PlayerMiniGameInventoryModel.findOneAndUpdate(
+          { userId: req.userId },
+          { $setOnInsert: { userId: req.userId } },
+          { upsert: true, new: true }
+        );
+
+        const cat = (itemDef as any).category;
+        const isPrimary = ["assault_rifle","shotgun","sniper_rifle","lmg"].includes(cat);
+        const isSecondary = ["pistol","smg"].includes(cat);
+        const isArmor = cat === "body_armor";
+        const isConsumable = cat === "consumable";
+        const isAmmo = cat?.endsWith("_rounds") || cat === "shotgun_shells";
+
+        if (isPrimary || isSecondary) {
+          const slot = isPrimary ? "primaryWeapons" : "secondaryWeapons";
+          await PlayerMiniGameInventoryModel.findOneAndUpdate(
+            { userId: req.userId },
+            { $push: { [slot]: { itemId: won.itemRef, durability: (itemDef as any).maxDurability ?? 100 } } }
+          );
+        } else if (isArmor) {
+          await PlayerMiniGameInventoryModel.findOneAndUpdate(
+            { userId: req.userId },
+            { $push: { bodyArmors: { itemId: won.itemRef, durability: (itemDef as any).maxDurability ?? 100 } } }
+          );
+        } else if (isConsumable) {
+          const inv = await PlayerMiniGameInventoryModel.findOne({ userId: req.userId }).lean();
+          const existing = (inv as any)?.consumables?.find((c: any) => c.itemId === won.itemRef);
+          if (existing) {
+            await PlayerMiniGameInventoryModel.findOneAndUpdate(
+              { userId: req.userId, "consumables.itemId": won.itemRef },
+              { $inc: { "consumables.$.quantity": 1 } }
+            );
+          } else {
+            await PlayerMiniGameInventoryModel.findOneAndUpdate(
+              { userId: req.userId },
+              { $push: { consumables: { itemId: won.itemRef, quantity: 1 } } }
+            );
+          }
+        } else if (isAmmo) {
+          const ammoCategory = (itemDef as any).ammoCategory ?? cat;
+          const magazineSize = (itemDef as any).magazineSize ?? 10;
+          await PlayerMiniGameInventoryModel.findOneAndUpdate(
+            { userId: req.userId },
+            { $inc: { ["ammo." + ammoCategory]: magazineSize } }
+          );
+        }
+      }
+
+      // Auto key-shard conversion
+      const updatedUser = await User.findById(req.userId).select("keyShards keys dc nc");
+      if (updatedUser && updatedUser.keyShards >= 20) {
+        const keysToAdd = Math.floor(updatedUser.keyShards / 20);
+        await User.findByIdAndUpdate(req.userId, {
+          $inc: { keyShards: -(keysToAdd * 20), keys: keysToAdd }
+        });
+      }
+
+      const finalUser = await User.findById(req.userId).select("dc nc keys keyShards");
+
+      res.json({
+        won: {
+          itemId: won.itemRef,
+          name: won.name,
+          tier: won.tier,
+          category: category,
+          itemType: won.itemType,
+        },
+        updatedBalances: {
+          dc: finalUser?.dc,
+          nc: finalUser?.nc,
+          keys: finalUser?.keys,
+          keyShards: finalUser?.keyShards,
+        }
+      });
+      return;
+    }
+    // ── End new-style spin ────────────────────────────────────────────────────
 
     if (!["general", "shooting", "racing"].includes(royaleType)) {
       res.status(400).json({ message: "Invalid royale type" });

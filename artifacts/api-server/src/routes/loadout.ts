@@ -17,37 +17,23 @@ router.get("/combat", requireAuth, async (req: AuthRequest, res) => {
     const loadout = await PlayerLoadout.findOne({ userId: req.userId }).lean();
     const inv     = await PlayerMiniGameInventory.findOne({ userId: req.userId }).lean();
 
+    const emptyLoadout = { primaryWeaponId: null, secondaryWeaponId: null, bodyArmorId: null, consumableItemId: null, consumableCount: 0 };
+    const emptyInv = { primaryWeapons: [], secondaryWeapons: [], bodyArmors: [], consumables: [], ammo: { pistol_rounds: 0, smg_rounds: 0, rifle_rounds: 0, shotgun_shells: 0, sniper_rounds: 0, lmg_rounds: 0 } };
+
     if (!loadout) {
-      res.json({
-        loadout: { weapon: null, armor: null, consumable1: null, consumable2: null, ammoType: null },
-        inventory: inv ?? { weapons: [], armor: [], consumables: [], ammo: [] },
-      });
+      res.json({ loadout: emptyLoadout, inventory: inv ?? emptyInv });
       return;
     }
 
-    // Resolve item details for each slot
-    const slotIds = [loadout.weapon, loadout.armor, loadout.consumable1, loadout.consumable2, loadout.ammoType].filter(Boolean) as string[];
-    const itemDefs = slotIds.length
-      ? await MiniGameItem.find({ itemId: { $in: slotIds } }).lean()
-      : [];
-    const defMap = Object.fromEntries(itemDefs.map(i => [i.itemId, i]));
-
     res.json({
       loadout: {
-        weapon:      loadout.weapon,
-        armor:       loadout.armor,
-        consumable1: loadout.consumable1,
-        consumable2: loadout.consumable2,
-        ammoType:    loadout.ammoType,
+        primaryWeaponId:   loadout.primaryWeaponId,
+        secondaryWeaponId: loadout.secondaryWeaponId,
+        bodyArmorId:       loadout.bodyArmorId,
+        consumableItemId:  loadout.consumableItemId,
+        consumableCount:   loadout.consumableCount,
       },
-      resolvedSlots: {
-        weapon:      loadout.weapon      ? defMap[loadout.weapon]      ?? null : null,
-        armor:       loadout.armor       ? defMap[loadout.armor]       ?? null : null,
-        consumable1: loadout.consumable1 ? defMap[loadout.consumable1] ?? null : null,
-        consumable2: loadout.consumable2 ? defMap[loadout.consumable2] ?? null : null,
-        ammoType:    loadout.ammoType    ? defMap[loadout.ammoType]    ?? null : null,
-      },
-      inventory: inv ?? { weapons: [], armor: [], consumables: [], ammo: [] },
+      inventory: inv ?? emptyInv,
     });
   } catch (err) {
     req.log.error({ err }, "loadout get error");
@@ -58,36 +44,69 @@ router.get("/combat", requireAuth, async (req: AuthRequest, res) => {
 // ── POST /api/loadout/combat ──────────────────────────────────────────────────
 router.post("/combat", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { weapon = null, armor = null, consumable1 = null, consumable2 = null, ammoType = null } = req.body as {
-      weapon?: string | null;
-      armor?: string | null;
-      consumable1?: string | null;
-      consumable2?: string | null;
-      ammoType?: string | null;
+    const {
+      primaryWeaponId   = null,
+      secondaryWeaponId = null,
+      bodyArmorId       = null,
+      consumableItemId  = null,
+      consumableCount   = 0,
+    } = req.body as {
+      primaryWeaponId?:   string | null;
+      secondaryWeaponId?: string | null;
+      bodyArmorId?:       string | null;
+      consumableItemId?:  string | null;
+      consumableCount?:   number;
     };
+
+    // Validate consumableCount
+    const count = Math.max(0, Math.min(3, Math.floor(Number(consumableCount) || 0)));
 
     // Validate that items exist in player's inventory
     const inv = await PlayerMiniGameInventory.findOne({ userId: req.userId }).lean();
-    if (!inv && (weapon || armor || consumable1 || consumable2 || ammoType)) {
+    if (!inv && (primaryWeaponId || secondaryWeaponId || bodyArmorId || consumableItemId)) {
       res.status(400).json({ message: "You don't own any combat items yet" });
       return;
     }
 
-    function owns(itemId: string | null, category: string): boolean {
-      if (!itemId || !inv) return itemId === null;
-      const arr = (inv as any)[category] as Array<{ itemId: string; quantity: number }>;
-      return arr.some(e => e.itemId === itemId && e.quantity > 0);
+    // Validate primary weapon
+    if (primaryWeaponId) {
+      const entry = inv?.primaryWeapons.find(w => w.itemId === primaryWeaponId);
+      if (!entry || entry.durability <= 0) {
+        res.status(400).json({ message: `Primary weapon not available or destroyed: ${primaryWeaponId}` });
+        return;
+      }
     }
 
-    if (weapon      && !owns(weapon,      "weapons"))     { res.status(400).json({ message: `You don't own weapon: ${weapon}` }); return; }
-    if (armor       && !owns(armor,        "armor"))       { res.status(400).json({ message: `You don't own armor: ${armor}` }); return; }
-    if (consumable1 && !owns(consumable1, "consumables")) { res.status(400).json({ message: `You don't own consumable: ${consumable1}` }); return; }
-    if (consumable2 && !owns(consumable2, "consumables")) { res.status(400).json({ message: `You don't own consumable: ${consumable2}` }); return; }
-    if (ammoType    && !owns(ammoType,    "ammo"))         { res.status(400).json({ message: `You don't own ammo: ${ammoType}` }); return; }
+    // Validate secondary weapon
+    if (secondaryWeaponId) {
+      const entry = inv?.secondaryWeapons.find(w => w.itemId === secondaryWeaponId);
+      if (!entry || entry.durability <= 0) {
+        res.status(400).json({ message: `Secondary weapon not available or destroyed: ${secondaryWeaponId}` });
+        return;
+      }
+    }
+
+    // Validate body armor
+    if (bodyArmorId) {
+      const entry = inv?.bodyArmors.find(w => w.itemId === bodyArmorId);
+      if (!entry) {
+        res.status(400).json({ message: `Body armor not in inventory: ${bodyArmorId}` });
+        return;
+      }
+    }
+
+    // Validate consumable
+    if (consumableItemId) {
+      const entry = inv?.consumables.find(c => c.itemId === consumableItemId);
+      if (!entry || entry.quantity < count) {
+        res.status(400).json({ message: `Consumable not available or insufficient quantity: ${consumableItemId}` });
+        return;
+      }
+    }
 
     const updated = await PlayerLoadout.findOneAndUpdate(
       { userId: req.userId },
-      { weapon, armor, consumable1, consumable2, ammoType },
+      { primaryWeaponId, secondaryWeaponId, bodyArmorId, consumableItemId, consumableCount: count },
       { upsert: true, new: true },
     );
 
@@ -103,29 +122,33 @@ router.get("/inventory", requireAuth, async (req: AuthRequest, res) => {
   try {
     const inv = await PlayerMiniGameInventory.findOne({ userId: req.userId }).lean();
     if (!inv) {
-      res.json({ weapons: [], armor: [], consumables: [], ammo: [] });
+      res.json({ primaryWeapons: [], secondaryWeapons: [], bodyArmors: [], consumables: [], ammo: { pistol_rounds: 0, smg_rounds: 0, rifle_rounds: 0, shotgun_shells: 0, sniper_rounds: 0, lmg_rounds: 0 } });
       return;
     }
 
     // Resolve all item details
-    const allIds = [
-      ...inv.weapons.map(w => w.itemId),
-      ...inv.armor.map(a => a.itemId),
+    const weaponIds = [
+      ...inv.primaryWeapons.map(w => w.itemId),
+      ...inv.secondaryWeapons.map(w => w.itemId),
+      ...inv.bodyArmors.map(w => w.itemId),
       ...inv.consumables.map(c => c.itemId),
-      ...inv.ammo.map(a => a.itemId),
     ];
-    const defs = allIds.length ? await MiniGameItem.find({ itemId: { $in: allIds } }).lean() : [];
+    const defs = weaponIds.length ? await MiniGameItem.find({ itemId: { $in: weaponIds } }).lean() : [];
     const defMap = Object.fromEntries(defs.map(d => [d.itemId, d]));
 
-    function enrichStack(stack: { itemId: string; quantity: number }[]) {
+    function enrichWeaponStack(stack: { itemId: string; durability: number }[]) {
+      return stack.map(s => ({ ...s, def: defMap[s.itemId] ?? null }));
+    }
+    function enrichConsumableStack(stack: { itemId: string; quantity: number }[]) {
       return stack.map(s => ({ ...s, def: defMap[s.itemId] ?? null }));
     }
 
     res.json({
-      weapons:     enrichStack(inv.weapons),
-      armor:       enrichStack(inv.armor),
-      consumables: enrichStack(inv.consumables),
-      ammo:        enrichStack(inv.ammo),
+      primaryWeapons:   enrichWeaponStack(inv.primaryWeapons),
+      secondaryWeapons: enrichWeaponStack(inv.secondaryWeapons),
+      bodyArmors:       enrichWeaponStack(inv.bodyArmors),
+      consumables:      enrichConsumableStack(inv.consumables),
+      ammo:             inv.ammo,
     });
   } catch (err) {
     req.log.error({ err }, "inventory get error");
@@ -149,14 +172,27 @@ router.post("/sell", requireAuth, async (req: AuthRequest, res) => {
     }
 
     // Find the item across all stacks
-    const categories = ["weapons", "armor", "consumables", "ammo"] as const;
-    let foundCategory: (typeof categories)[number] | null = null;
-    for (const cat of categories) {
-      if ((inv as any)[cat].some((e: { itemId: string; quantity: number }) => e.itemId === itemId && e.quantity > 0)) {
+    type WeaponCat = "primaryWeapons" | "secondaryWeapons" | "bodyArmors";
+    type ConsumableCat = "consumables";
+    type AnyCategory = WeaponCat | ConsumableCat;
+
+    const weaponCategories: WeaponCat[] = ["primaryWeapons", "secondaryWeapons", "bodyArmors"];
+    let foundCategory: AnyCategory | null = null;
+    let isWeapon = false;
+
+    for (const cat of weaponCategories) {
+      if (inv[cat].some((e: { itemId: string; durability: number }) => e.itemId === itemId)) {
         foundCategory = cat;
+        isWeapon = true;
         break;
       }
     }
+    if (!foundCategory) {
+      if (inv.consumables.some((e: { itemId: string; quantity: number }) => e.itemId === itemId && e.quantity > 0)) {
+        foundCategory = "consumables";
+      }
+    }
+
     if (!foundCategory) {
       res.status(400).json({ message: "You don't own that item" });
       return;
@@ -174,27 +210,36 @@ router.post("/sell", requireAuth, async (req: AuthRequest, res) => {
     };
     const dcGained = SELL_DC[itemDef.tier] ?? 50;
 
-    // Atomically decrement quantity (guard against concurrent sells)
     const User = (await import("../models/User")).default;
 
-    // Attempt atomic pull (quantity 1) or $inc decrement (quantity > 1)
-    // We use two conditional updates: try decrement first, fall back to pull
-    const decremented = await PlayerMiniGameInventory.findOneAndUpdate(
-      { userId: req.userId, [`${foundCategory}.itemId`]: itemId, [`${foundCategory}.$.quantity`]: { $gt: 1 } },
-      { $inc: { [`${foundCategory}.$.quantity`]: -1 } },
-      { new: true },
-    );
-
-    if (!decremented) {
-      // quantity was 1 — pull the whole entry
+    if (isWeapon) {
+      // Pull weapon stack entry
       const pulled = await PlayerMiniGameInventory.findOneAndUpdate(
-        { userId: req.userId, [`${foundCategory}.itemId`]: itemId, [`${foundCategory}.$.quantity`]: 1 },
+        { userId: req.userId, [`${foundCategory}.itemId`]: itemId },
         { $pull: { [foundCategory]: { itemId } } },
         { new: true },
       );
       if (!pulled) {
         res.status(409).json({ message: "Item was already sold or not found" });
         return;
+      }
+    } else {
+      // Consumable: decrement or pull
+      const decremented = await PlayerMiniGameInventory.findOneAndUpdate(
+        { userId: req.userId, "consumables.itemId": itemId, "consumables.$.quantity": { $gt: 1 } },
+        { $inc: { "consumables.$.quantity": -1 } },
+        { new: true },
+      );
+      if (!decremented) {
+        const pulled = await PlayerMiniGameInventory.findOneAndUpdate(
+          { userId: req.userId, "consumables.itemId": itemId, "consumables.$.quantity": 1 },
+          { $pull: { consumables: { itemId } } },
+          { new: true },
+        );
+        if (!pulled) {
+          res.status(409).json({ message: "Item was already sold or not found" });
+          return;
+        }
       }
     }
 
@@ -205,7 +250,7 @@ router.post("/sell", requireAuth, async (req: AuthRequest, res) => {
     const currentLoadout = await PlayerLoadout.findOne({ userId: req.userId }).lean();
     if (currentLoadout) {
       const clearFields: Record<string, null> = {};
-      for (const slot of ["weapon", "armor", "consumable1", "consumable2", "ammoType"] as const) {
+      for (const slot of ["primaryWeaponId", "secondaryWeaponId", "bodyArmorId", "consumableItemId"] as const) {
         if ((currentLoadout as any)[slot] === itemId) clearFields[slot] = null;
       }
       if (Object.keys(clearFields).length > 0) {

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import sanitizeHtml from "sanitize-html";
-import User from "../models/User";
+import User, { computeMaxHp } from "../models/User";
 import Item from "../models/Item";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen } from "../lib/regen";
@@ -300,6 +300,53 @@ router.get("/stats", requireAuth, async (req: AuthRequest, res) => {
     });
   } catch (err: any) {
     req.log.error({ err }, "get stats error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/user/prestige
+router.post("/prestige", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) { res.status(404).json({ message: "User not found" }); return; }
+
+    if (user.level < 100) {
+      res.status(400).json({ message: "You must reach level 100 to prestige." }); return;
+    }
+    const totalMatches = (user.wins ?? 0) + (user.losses ?? 0);
+    if (totalMatches < 50) {
+      res.status(400).json({ message: "You need at least 50 arena matches (" + totalMatches + "/50)." }); return;
+    }
+
+    const newPrestige = (user.prestige ?? 0) + 1;
+    user.prestige = newPrestige;
+    user.level = 1;
+    user.xp = 0;
+    user.xpToNext = 100;
+    user.prestigeXpBoost = (user.prestigeXpBoost ?? 0) + 10;
+    user.health = computeMaxHp(1, newPrestige);
+
+    const badgeId = "prestige_badge_P" + newPrestige;
+    const frameId = "prestige_frame_P" + newPrestige;
+    if (!Array.isArray(user.titles)) user.titles = [];
+    if (!user.titles.includes(badgeId)) user.titles.push(badgeId);
+    if (!Array.isArray(user.ownedChatFrames)) user.ownedChatFrames = [];
+    if (!user.ownedChatFrames.includes(frameId)) user.ownedChatFrames.push(frameId);
+
+    await user.save();
+
+    res.json({
+      message: "Prestige " + newPrestige + " achieved! Welcome back to level 1.",
+      prestige: newPrestige,
+      level: 1,
+      xp: 0,
+      health: user.health,
+      maxHealth: computeMaxHp(1, newPrestige),
+      prestigeXpBoost: user.prestigeXpBoost,
+      badgeGranted: badgeId,
+      frameGranted: frameId,
+    });
+  } catch (err: any) {
     res.status(500).json({ message: "Internal server error" });
   }
 });

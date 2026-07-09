@@ -26,6 +26,7 @@ export interface OwnedCar {
   equippedParts:  EquippedParts;
   customization:  CarCustomization;
   acquiredAt:     Date;
+  condition:      number;
 }
 
 interface PartStack {
@@ -67,6 +68,7 @@ const OwnedCarSchema = new Schema<OwnedCar>(
     equippedParts: { type: EquippedPartsSchema, default: () => ({}) },
     customization: { type: CarCustomizationSchema, default: () => ({}) },
     acquiredAt:    { type: Date, default: Date.now },
+    condition:     { type: Number, default: 100, min: 0, max: 100 },
   },
   { _id: false },
 );

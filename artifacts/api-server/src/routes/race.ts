@@ -78,10 +78,26 @@ const CAR_STATS: Record<string, CarSnap> = {
   hovercar_legendary:      { carId: "hovercar_legendary",      topSpeed: 95,  accel: 90,  handling: 100, nitro: 90 },
 };
 
+function getConditionMultiplier(condition: number): number {
+  if (condition >= 75) return 1.0;
+  if (condition >= 50) return 0.95;
+  if (condition >= 25) return 0.88;
+  if (condition >= 1)  return 0.80;
+  return 0;
+}
+
 async function getPlayerCarSnap(userId: string): Promise<CarSnap> {
   const garage = await PlayerGarage.findOne({ userId }).lean();
   if (!garage || !garage.activeCar) return DEFAULT_CAR;
-  return CAR_STATS[garage.activeCar] ?? DEFAULT_CAR;
+  const base = CAR_STATS[garage.activeCar] ?? DEFAULT_CAR;
+  // Apply condition multiplier to topSpeed
+  const ownedCar = garage.cars.find((c: any) => c.carId === garage.activeCar);
+  const condition: number = (ownedCar as any)?.condition ?? 100;
+  const mult = getConditionMultiplier(condition);
+  return {
+    ...base,
+    topSpeed: Math.floor(base.topSpeed * mult),
+  };
 }
 
 // ── POST /api/race/queue/join ─────────────────────────────────────────────────
@@ -98,6 +114,14 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
     }
 
     const cost = NITRO_COST[mode];
+
+    // Check car condition — sidelined cars cannot race
+    const garageCheck = await PlayerGarage.findOne({ userId: req.userId });
+    const activeCarCheck = garageCheck?.cars.find((c: any) => c.carId === garageCheck?.activeCar);
+    if (activeCarCheck && (activeCarCheck as any).condition === 0) {
+      res.status(400).json({ message: "Your car is sidelined — service it before racing." });
+      return;
+    }
 
     // Atomic nitro deduction — prevents concurrent double-spend
     const user = await User.findOneAndUpdate(
@@ -552,6 +576,40 @@ async function checkRaceCompletion(match: any) {
     await grantRaceRewards(match);
     match.rewardsGranted = true;
   }
+
+  // Degrade car condition and grant key shards for each human player
+  for (const p of match.players) {
+    if (p.isAI || !p.userId) continue;
+    const playerId = String(p.userId);
+
+    // Degrade car condition
+    try {
+      const garage = await PlayerGarage.findOne({ userId: playerId });
+      if (garage && garage.activeCar) {
+        const ownedCar = garage.cars.find((c: any) => c.carId === garage.activeCar);
+        if (ownedCar) {
+          const hadCrash = false; // set to true if race result indicates crash
+          const degradation = hadCrash
+            ? Math.floor(Math.random() * 8) + 8
+            : Math.floor(Math.random() * 4) + 2;
+          (ownedCar as any).condition = Math.max(0, ((ownedCar as any).condition ?? 100) - degradation);
+          garage.markModified("cars");
+          await garage.save();
+        }
+      }
+    } catch (e) { /* non-fatal */ }
+
+    // Grant +1 keyShard after each race completion
+    try {
+      await User.findByIdAndUpdate(playerId, { $inc: { keyShards: 1 } });
+      // Auto-convert shards to keys
+      const u = await User.findById(playerId).select("keyShards keys");
+      if (u && u.keyShards >= 20) {
+        const toAdd = Math.floor(u.keyShards / 20);
+        await User.findByIdAndUpdate(playerId, { $inc: { keyShards: -(toAdd * 20), keys: toAdd } });
+      }
+    } catch (e) { /* non-fatal */ }
+  }
 }
 
 // Daily reward cap constants (mirrors combat system)
@@ -648,5 +706,59 @@ function getWeekStart(): Date {
   d.setUTCHours(0, 0, 0, 0);
   return d;
 }
+
+// ── POST /api/race/cars/:carId/service ────────────────────────────────────────
+router.post("/cars/:carId/service", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { carId } = req.params;
+    const { method } = req.body as { method?: "dc" | "token" };
+
+    const garage = await PlayerGarage.findOne({ userId: req.userId });
+    if (!garage) { res.status(404).json({ message: "Garage not found" }); return; }
+
+    const ownedCar = garage.cars.find((c: any) => c.carId === carId) as any;
+    if (!ownedCar) { res.status(404).json({ message: "Car not in your garage" }); return; }
+
+    if ((ownedCar.condition ?? 100) >= 100) {
+      res.status(400).json({ message: "Car is already in perfect condition" }); return;
+    }
+
+    const user = await User.findById(req.userId).select("dc");
+    if (!user) { res.status(404).json({ message: "User not found" }); return; }
+
+    if (!method || method === "dc") {
+      // Get car tier from RaceCar model
+      let carTier = "common";
+      try {
+        const RaceCar = (await import("../models/RaceCar")).default;
+        const carDef = await RaceCar.findOne({ carId }).lean();
+        carTier = (carDef as any)?.tier ?? "common";
+      } catch (e) {}
+
+      const DC_COSTS: Record<string, number> = { common: 2000, uncommon: 5000, rare: 10000, epic: 18000, legendary: 30000 };
+      const cost = DC_COSTS[carTier] ?? 2000;
+
+      if (user.dc < cost) { res.status(400).json({ message: "Not enough DC. Service costs " + cost + " DC." }); return; }
+      await User.findByIdAndUpdate(req.userId, { $inc: { dc: -cost } });
+    } else if (method === "token") {
+      const Item = (await import("../models/Item")).default;
+      const token = await Item.findOne({ owner: req.userId, name: "Service Token", quantity: { $gt: 0 } });
+      if (!token) { res.status(400).json({ message: "No Service Token in inventory" }); return; }
+      token.quantity = (token.quantity ?? 1) - 1;
+      if (token.quantity <= 0) await token.deleteOne();
+      else await token.save();
+    } else {
+      res.status(400).json({ message: "Invalid method. Use 'dc' or 'token'." }); return;
+    }
+
+    ownedCar.condition = 100;
+    garage.markModified("cars");
+    await garage.save();
+
+    res.json({ message: "Car serviced to 100% condition", condition: 100 });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 export default router;

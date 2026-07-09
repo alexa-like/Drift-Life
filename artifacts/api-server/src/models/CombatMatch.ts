@@ -5,7 +5,8 @@
  */
 import mongoose, { Document, Schema } from "mongoose";
 
-export type CombatAction = "attack" | "defend" | "use_item" | "reload" | "special" | "auto_attack";
+export type CombatAction = "attack" | "defend" | "use_item" | "reload" | "special" | "auto_attack"
+  | "fire_primary" | "fire_secondary" | "use_consumable" | "melee";
 export type CombatStatus = "waiting" | "active" | "complete" | "abandoned";
 
 interface TurnRecord {
@@ -14,13 +15,14 @@ interface TurnRecord {
   player2Action:   CombatAction;
   player1HpAfter:  number;
   player2HpAfter:  number;
-  player1Effect:   string | null;   // e.g. "poisoned", "stunned", "shielded"
+  player1Effect:   string | null;
   player2Effect:   string | null;
   narrative:       string;
   resolvedAt:      Date;
 }
 
 interface LoadoutSnapshot {
+  // Legacy fields (backward compat)
   weapon:      string | null;
   armor:       string | null;
   consumable1: string | null;
@@ -39,12 +41,25 @@ interface LoadoutSnapshot {
   ammoArmorPierce?:    number;
   ammoEffect?:         string | null;
   ammoEffectChance?:   number;
+  // New Tier 2 fields
+  primaryWeaponId:   string | null;
+  secondaryWeaponId: string | null;
+  bodyArmorId:       string | null;
+  consumableItemId:  string | null;
+  consumableCount:   number;
+  damageMin:         number;
+  damageMax:         number;
+  weaponAccuracy:    number;
+  specialEffect:     string | null;
+  specialChance:     number;
+  armorHp:           number;
+  strengthBonus:     number;
 }
 
 export interface ActiveEffect {
-  effect:   string;  // "burn" | "bleed" | "toxic" | "shock" | "stun" | "regen" | "regen_field"
+  effect:    string;  // "burn" | "bleed" | "toxic" | "shock" | "stun" | "regen" | "regen_field"
   turnsLeft: number;
-  value:    number;  // dmg per turn (DoT) or hp per turn (regen); 0 for stun
+  value:     number;  // dmg per turn (DoT) or hp per turn (regen); 0 for stun
 }
 
 export interface ICombatMatch extends Document {
@@ -70,6 +85,17 @@ export interface ICombatMatch extends Document {
   // Active status effects (DoT, stun, regen, etc.)
   player1ActiveEffects: ActiveEffect[];
   player2ActiveEffects: ActiveEffect[];
+  // New Tier 2 fields
+  player1CurrentArmorHp:       number;
+  player2CurrentArmorHp:       number;
+  player1RoundsFiredPrimary:   number;
+  player1RoundsFiredSecondary: number;
+  player2RoundsFiredPrimary:   number;
+  player2RoundsFiredSecondary: number;
+  player1StunNextTurn:         boolean;
+  player2StunNextTurn:         boolean;
+  player1KnockedBack:          boolean;
+  player2KnockedBack:          boolean;
   // Injected by { timestamps: true }
   createdAt: Date;
   updatedAt: Date;
@@ -77,6 +103,7 @@ export interface ICombatMatch extends Document {
 
 const LoadoutSnapshotSchema = new Schema<LoadoutSnapshot>(
   {
+    // Legacy fields
     weapon:      { type: String, default: null },
     armor:       { type: String, default: null },
     consumable1: { type: String, default: null },
@@ -86,7 +113,6 @@ const LoadoutSnapshotSchema = new Schema<LoadoutSnapshot>(
     damage:      { type: Number, default: 15 },
     defense:     { type: Number, default: 0 },
     accuracy:    { type: Number, default: 100 },
-    // Element effects — snapshotted at match start for efficient combat calculation
     weaponEffect:       { type: String, default: null },
     weaponEffectChance: { type: Number, default: 0 },
     armorEffect:        { type: String, default: null },
@@ -94,6 +120,19 @@ const LoadoutSnapshotSchema = new Schema<LoadoutSnapshot>(
     ammoArmorPierce:    { type: Number, default: 0 },
     ammoEffect:         { type: String, default: null },
     ammoEffectChance:   { type: Number, default: 0 },
+    // New Tier 2 fields
+    primaryWeaponId:   { type: String, default: null },
+    secondaryWeaponId: { type: String, default: null },
+    bodyArmorId:       { type: String, default: null },
+    consumableItemId:  { type: String, default: null },
+    consumableCount:   { type: Number, default: 0 },
+    damageMin:         { type: Number, default: 10 },
+    damageMax:         { type: Number, default: 20 },
+    weaponAccuracy:    { type: Number, default: 75 },
+    specialEffect:     { type: String, default: null },
+    specialChance:     { type: Number, default: 0 },
+    armorHp:           { type: Number, default: 0 },
+    strengthBonus:     { type: Number, default: 0 },
   },
   { _id: false },
 );
@@ -135,6 +174,17 @@ const CombatMatchSchema = new Schema<ICombatMatch>(
     player2ConsumablesUsed: { type: [String], default: [] },
     player1ActiveEffects:   { type: Schema.Types.Mixed, default: [] },
     player2ActiveEffects:   { type: Schema.Types.Mixed, default: [] },
+    // New Tier 2 fields
+    player1CurrentArmorHp:       { type: Number, default: 0 },
+    player2CurrentArmorHp:       { type: Number, default: 0 },
+    player1RoundsFiredPrimary:   { type: Number, default: 0 },
+    player1RoundsFiredSecondary: { type: Number, default: 0 },
+    player2RoundsFiredPrimary:   { type: Number, default: 0 },
+    player2RoundsFiredSecondary: { type: Number, default: 0 },
+    player1StunNextTurn:         { type: Boolean, default: false },
+    player2StunNextTurn:         { type: Boolean, default: false },
+    player1KnockedBack:          { type: Boolean, default: false },
+    player2KnockedBack:          { type: Boolean, default: false },
   },
   { timestamps: true },
 );
