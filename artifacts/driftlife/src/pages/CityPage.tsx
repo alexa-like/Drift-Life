@@ -174,6 +174,17 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
     } finally { setTraveling(null); }
   }
 
+  async function returnHome() {
+    setTraveling("__return_home__");
+    try {
+      const data = await api.post<any>("/districts/return-home");
+      toast(data.message, "success");
+      if (refreshUser) await refreshUser();
+    } catch (err: any) {
+      toast(err.message, "error");
+    } finally { setTraveling(null); }
+  }
+
   async function doRun(run: Run) {
     if (streetLoading) return;
     setStreetLoading(true); setStreetMsg(null);
@@ -569,6 +580,15 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
             </span>
           </div>
 
+          {user.status === "abroad" ? (
+            <div className="rounded-lg p-6 text-center space-y-3" style={{ background: "#111118", border: "1px solid #00d4ff40" }}>
+              <div className="font-mono font-bold" style={{ color: "#00d4ff" }}>🌍 You are abroad in {user.district.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div>
+              <p className="font-mono text-xs" style={{ color: "#64748b" }}>You must return to Downtown before traveling to another district.</p>
+              <CyberButton variant="primary" size="md" loading={traveling === "__return_home__"} disabled={!!traveling} onClick={returnHome}>
+                Return to Downtown
+              </CyberButton>
+            </div>
+          ) : (
           <div className="grid gap-3">
             {districts.map(d => {
               const isCurrent = d.id === user.district;
@@ -612,6 +632,7 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
               );
             })}
           </div>
+          )}
         </div>
       )}
 

@@ -27,6 +27,8 @@ export interface User {
   nitro: number;
   maxNitro: number;
   activeBuffs?: Array<{ buffType: string; value: number; expiresAt: string }>;
+  status?: "normal" | "traveling" | "abroad" | "hospitalized" | "jailed";
+  currentLocation?: string;
   travelingTo?: string | null;
   travelArrivesAt?: string | null;
   nerve: number;

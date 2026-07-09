@@ -247,6 +247,67 @@ router.post("/:id/travel", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/districts/return-home — travel back to downtown from abroad (Section 9.8)
+router.post("/return-home", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    applyRegen(user); // in-memory for checks only — not saved
+
+    if (user.status !== "abroad") {
+      return res.status(400).json({ message: "You are not abroad — nothing to return home from" });
+    }
+    if (user.hospitalizedUntil && user.hospitalizedUntil > new Date()) {
+      return res.status(400).json({ message: "Cannot travel while hospitalized" });
+    }
+
+    // Same vehicle-based travel time formula as outbound travel (Section 1.9)
+    let reductionPct = 0;
+    if (user.equippedVehicle) {
+      const vehicle = await Item.findById(user.equippedVehicle).lean();
+      if (vehicle && vehicle.travelTimeReduction) {
+        reductionPct = vehicle.travelTimeReduction;
+      }
+    }
+    const BASE_TRAVEL_MS = 10 * 60 * 1000; // 10 minutes base
+    const travelMs = Math.round(BASE_TRAVEL_MS * (1 - reductionPct / 100));
+
+    const updated = await User.findOneAndUpdate(
+      { _id: req.userId, status: "abroad" },
+      {
+        $set: {
+          district:        "downtown",
+          status:          "traveling",
+          travelingTo:     "downtown",
+          travelArrivesAt: new Date(Date.now() + travelMs),
+        },
+      },
+      { new: true },
+    );
+
+    if (!updated) {
+      return res.status(400).json({ message: "You are not abroad — nothing to return home from" });
+    }
+
+    res.json({
+      message: `Heading back to Downtown — arriving in ${Math.ceil(travelMs / 1000)}s`,
+      travelArrivesAt: updated.travelArrivesAt,
+      travelTimeReductionPct: reductionPct,
+      user: {
+        district:        updated.district,
+        status:          updated.status,
+        currentLocation: updated.currentLocation,
+        travelingTo:     updated.travelingTo,
+        travelArrivesAt: updated.travelArrivesAt,
+      },
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "return-home error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // GET /api/districts/:slug/shop — district shop inventory
 // Requires player to be abroad in that district (status === "abroad" && currentLocation === slug)
 router.get("/:slug/shop", requireAuth, async (req: AuthRequest, res) => {

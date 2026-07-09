@@ -22,8 +22,8 @@ const RARITY_COLORS: Record<string, string> = {
   mythic:    "#ff2d55",
 };
 
-type View = "inventory" | "trade" | "list" | "auction";
-const VIEW_LABELS: Record<View, string> = { inventory: "Inventory", trade: "Trade", list: "List", auction: "Auction" };
+type View = "inventory" | "trade" | "list";
+const VIEW_LABELS: Record<View, string> = { inventory: "Inventory", trade: "Trade", list: "List" };
 
 export function InventoryPage({ user, refreshUser, addToast }: Props) {
   const [items, setItems] = useState<Item[]>([]);
@@ -36,11 +36,6 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
   const [listItemId, setListItemId] = useState<string>("");
   const [listPrice, setListPrice] = useState<string>("");
   const [listing, setListing] = useState(false);
-  const [auctionItemId, setAuctionItemId] = useState<string>("");
-  const [auctionStart, setAuctionStart] = useState<string>("");
-  const [auctionHours, setAuctionHours] = useState<string>("24");
-  const [auctionBuyout, setAuctionBuyout] = useState<string>("");
-  const [auctioning, setAuctioning] = useState(false);
 
   const loadInventory = () => api.get<Item[]>("/inventory").then(setItems).catch(() => {});
   useEffect(() => { loadInventory(); }, []);
@@ -91,18 +86,6 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
       addToast(data.message, "success"); setListItemId(""); setListPrice(""); await loadInventory();
     } catch (err: any) { addToast(err.message, "error"); } finally { setListing(false); }
   }
-  async function listOnAuction() {
-    const startPrice = Number(auctionStart); const hours = Number(auctionHours); const buyout = auctionBuyout ? Number(auctionBuyout) : undefined;
-    if (!auctionItemId || !startPrice || startPrice <= 0) { addToast("Select an item and enter a starting bid", "error"); return; }
-    if (hours < 1 || hours > 72) { addToast("Duration must be 1–72 hours", "error"); return; }
-    if (user.level < 25) { addToast("Auction House requires level 25", "error"); return; }
-    setAuctioning(true);
-    try {
-      const data = await api.post<any>("/auction/list", { itemId: auctionItemId, startingPrice: startPrice, durationHours: hours, ...(buyout ? { buyoutPrice: buyout } : {}) });
-      addToast(data.message, "success"); setAuctionItemId(""); setAuctionStart(""); setAuctionHours("24"); setAuctionBuyout(""); await loadInventory();
-    } catch (err: any) { addToast(err.message, "error"); } finally { setAuctioning(false); }
-  }
-
   const commonCount = items.filter(i => i.rarity === "common" && !i.equipped && !i.marketListed).length;
   const tradeable = items.filter(i => !i.equipped && !i.marketListed);
   const inputCls = "w-full px-3 py-2 rounded font-mono text-xs focus:outline-none";
@@ -130,7 +113,7 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
 
       {/* Tabs */}
       <div className="flex gap-2 flex-wrap">
-        {(["inventory", "trade", "list", "auction"] as View[]).map(v => (
+        {(["inventory", "trade", "list"] as View[]).map(v => (
           <CyberButton key={v} variant={view === v ? "primary" : "ghost"} size="sm" onClick={() => setView(v)}>
             {VIEW_LABELS[v]}
           </CyberButton>
@@ -168,43 +151,6 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
               List on Market
             </CyberButton>
           </div>
-        </AnimatedCard>
-      )}
-
-      {/* Auction panel */}
-      {view === "auction" && (
-        <AnimatedCard accent="#f59e0b">
-          <div className="flex items-center justify-between mb-3">
-            <CyberSectionHeader title="⚡ Auction House" accent="#f59e0b" className="mb-0" />
-            {user.level < 25 && <span className="font-mono text-xs" style={{ color: "#475569" }}>Requires level 25</span>}
-          </div>
-          {user.level < 25 ? (
-            <p className="font-mono text-xs" style={{ color: "#334155" }}>Reach level 25 to access the Auction House and list items for competitive bidding.</p>
-          ) : (
-            <div className="space-y-3">
-              <select value={auctionItemId} onChange={e => setAuctionItemId(e.target.value)} className={inputCls} style={inputStyle}>
-                <option value="">Select item to auction…</option>
-                {tradeable.filter(i => i.type !== "consumable").map(i => <option key={i.id} value={i.id}>{i.name} ({i.rarity})</option>)}
-              </select>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Starting bid (DC)</label>
-                  <input value={auctionStart} onChange={e => setAuctionStart(e.target.value)} placeholder="Min. 1 DC" type="number" min="1" className={inputCls} style={inputStyle} />
-                </div>
-                <div>
-                  <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Duration (1–72 hrs)</label>
-                  <input value={auctionHours} onChange={e => setAuctionHours(e.target.value)} placeholder="24" type="number" min="1" max="72" className={inputCls} style={inputStyle} />
-                </div>
-              </div>
-              <div>
-                <label className="font-mono text-xs block mb-1" style={{ color: "#64748b" }}>Buyout price (DC) — optional</label>
-                <input value={auctionBuyout} onChange={e => setAuctionBuyout(e.target.value)} placeholder="Leave blank for auction-only" type="number" min="1" className={inputCls} style={inputStyle} />
-              </div>
-              <CyberButton variant="warning" size="md" className="w-full" loading={auctioning} disabled={auctioning || !auctionItemId || !auctionStart} onClick={listOnAuction}>
-                Create Auction
-              </CyberButton>
-            </div>
-          )}
         </AnimatedCard>
       )}
 

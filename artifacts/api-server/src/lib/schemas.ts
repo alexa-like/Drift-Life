@@ -27,13 +27,7 @@ export const marketListingCreateSchema = z.object({
 });
 export const marketListingBuySchema = z.object({});
 
-// ── Auction ──────────────────────────────────────────────────────────────
-export const auctionListSchema = z.object({
-  itemId: objectId,
-  startingPrice: z.coerce.number().finite().min(1).max(1_000_000_000),
-  buyoutPrice: z.coerce.number().finite().positive().max(1_000_000_000).optional(),
-  durationHours: z.coerce.number().finite().min(1).max(72),
-});
+// ── Auction (fully bot-operated — players only bid, never list) ────────────
 export const auctionBidSchema = z.object({
   amount: z.coerce.number().finite().positive().max(1_000_000_000),
 });
