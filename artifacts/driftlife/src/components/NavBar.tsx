@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard, Link as LinkIcon,
+  BarChart2, Gavel, Building2, Dumbbell, Briefcase, Car, Globe, Cpu, Shield, Swords, Crosshair,
+  Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark, Warehouse,
+  Wrench, Star, Trophy, Gift, PawPrint, type LucideIcon,
+} from "lucide-react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
 import { formatDC } from "../lib/format";
@@ -32,43 +38,43 @@ const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b
 // Full canonical list of top-level game sections (icon nav row).
 // minStage: minimum onboardingStage required to see this item
 // statusFilter: which statuses can see this item ("all" | "normal" | "normal|abroad" | "abroad")
-const NAV: { id: string; label: string; icon: string; minStage?: number; group?: string; statusFilter?: string }[] = [
-  { id: "dashboard",    label: "Home",     icon: "🏠" },
-  { id: "feed",         label: "Feed",     icon: "📰" },
-  { id: "chat",         label: "Chat",     icon: "💬" },
-  { id: "inventory",    label: "Bag",      icon: "🎒" },
-  { id: "chatframes",   label: "Frames",   icon: "🖼️" },
-  { id: "store",        label: "Store",    icon: "💳" },
-  { id: "connections",  label: "Connect",  icon: "🔗" },
-  { id: "leaderboard",  label: "Board",    icon: "📊" },
-  { id: "auction",      label: "Auction",  icon: "🔨" },
+const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minStage?: number; group?: string; statusFilter?: string }[] = [
+  { id: "dashboard",    label: "Home",     icon: Home },
+  { id: "feed",         label: "Feed",     icon: Newspaper },
+  { id: "chat",         label: "Chat",     icon: MessageCircle },
+  { id: "inventory",    label: "Bag",      icon: Package },
+  { id: "chatframes",   label: "Frames",   icon: ImageIcon },
+  { id: "store",        label: "Store",    icon: CreditCard },
+  { id: "connections",  label: "Connect",  icon: LinkIcon },
+  { id: "leaderboard",  label: "Board",    icon: BarChart2 },
+  { id: "auction",      label: "Auction",  icon: Gavel },
   // Wire Cartel core loop (onboarding gated, normal only)
-  { id: "city",         label: "City",     icon: "🏙️", group: "wc",  statusFilter: "normal" },
-  { id: "training",     label: "Gym",      icon: "🏋️", group: "wc",  statusFilter: "normal" },
-  { id: "jobs",         label: "Jobs",     icon: "💼", group: "wc",  statusFilter: "normal" },
-  { id: "garage",       label: "Garage",   icon: "🚗", group: "wc",  minStage: 1, statusFilter: "normal" },
-  { id: "net",          label: "Net",      icon: "🌐", group: "wc",  minStage: 3, statusFilter: "normal" },
-  { id: "cyber",        label: "Cyber",    icon: "🤖", group: "wc",  minStage: 3, statusFilter: "normal" },
-  { id: "guilds",       label: "Crew",     icon: "🛡️", group: "wc",  minStage: 2, statusFilter: "normal" },
+  { id: "city",         label: "City",     icon: Building2,     group: "wc",  statusFilter: "normal" },
+  { id: "training",     label: "Gym",      icon: Dumbbell,      group: "wc",  statusFilter: "normal" },
+  { id: "jobs",         label: "Jobs",     icon: Briefcase,     group: "wc",  statusFilter: "normal" },
+  { id: "garage",       label: "Garage",   icon: Car,           group: "wc",  minStage: 1, statusFilter: "normal" },
+  { id: "net",          label: "Net",      icon: Globe,         group: "wc",  minStage: 3, statusFilter: "normal" },
+  { id: "cyber",        label: "Cyber",    icon: Cpu,           group: "wc",  minStage: 3, statusFilter: "normal" },
+  { id: "guilds",       label: "Crew",     icon: Shield,        group: "wc",  minStage: 2, statusFilter: "normal" },
   // Combat / racing (normal only)
-  { id: "arena",        label: "Arena",    icon: "⚔️", statusFilter: "normal" },
-  { id: "loadout",      label: "Loadout",  icon: "🎯", statusFilter: "normal" },
-  { id: "royale",       label: "Royale",   icon: "👑", statusFilter: "normal" },
-  { id: "missions",     label: "Missions", icon: "📋", statusFilter: "normal" },
+  { id: "arena",        label: "Arena",    icon: Swords,        statusFilter: "normal" },
+  { id: "loadout",      label: "Loadout",  icon: Crosshair,     statusFilter: "normal" },
+  { id: "royale",       label: "Royale",   icon: Crown,         statusFilter: "normal" },
+  { id: "missions",     label: "Missions", icon: ClipboardList },
   // Normal or abroad
-  { id: "crimes",       label: "Crimes",   icon: "🔪", statusFilter: "normal|abroad" },
-  { id: "travel",       label: "Travel",   icon: "✈️", statusFilter: "normal|abroad" },
-  { id: "market",       label: "Market",   icon: "🛒", statusFilter: "normal|abroad" },
-  { id: "district-hub", label: "Hub",      icon: "🌆", statusFilter: "abroad" },
+  { id: "crimes",       label: "Crimes",   icon: Skull,         statusFilter: "normal|abroad" },
+  { id: "travel",       label: "Travel",   icon: Plane,         statusFilter: "normal|abroad" },
+  { id: "market",       label: "Market",   icon: ShoppingCart,  statusFilter: "normal|abroad" },
+  { id: "district-hub", label: "Hub",      icon: Building,      statusFilter: "abroad" },
   // Economy & social (normal only)
-  { id: "friends",      label: "Friends",  icon: "👥", statusFilter: "normal" },
-  { id: "bank",         label: "Bank",     icon: "🏦", statusFilter: "normal" },
-  { id: "properties",   label: "Estate",   icon: "🏢", statusFilter: "normal" },
-  { id: "crafting",     label: "Craft",    icon: "🔧", statusFilter: "normal" },
-  { id: "skills",       label: "Skills",   icon: "🌟", statusFilter: "normal" },
-  { id: "achievements", label: "Achiev",   icon: "🏆" },
-  { id: "daily",        label: "Daily",    icon: "🎁" },
-  { id: "companions",   label: "Allies",   icon: "🐺", statusFilter: "normal" },
+  { id: "friends",      label: "Friends",  icon: Users,         statusFilter: "normal" },
+  { id: "bank",         label: "Bank",     icon: Landmark,      statusFilter: "normal" },
+  { id: "properties",   label: "Estate",   icon: Warehouse,     statusFilter: "normal" },
+  { id: "crafting",     label: "Craft",    icon: Wrench,        statusFilter: "normal" },
+  { id: "skills",       label: "Skills",   icon: Star,          statusFilter: "normal" },
+  { id: "achievements", label: "Achiev",   icon: Trophy },
+  { id: "daily",        label: "Daily",    icon: Gift },
+  { id: "companions",   label: "Allies",   icon: PawPrint,      statusFilter: "normal" },
 ];
 
 function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; maxEnergy: number; energyRegenAt?: string | null }) {
@@ -98,25 +104,14 @@ function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; m
   );
 }
 
-function StatBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+function StatBar({ label, value, max }: { label: string; value: number; max: number; color?: string }) {
   return (
-    <div className="flex-1 min-w-[70px]" style={{ minWidth: 70 }}>
-      <div style={{ position: "relative", height: 14, background: "#111118", borderRadius: 3, overflow: "hidden", border: "1px solid #1e1e2e" }}>
-        <div style={{
-          height: "100%", width: `${pct}%`,
-          background: `linear-gradient(90deg, ${color}90, ${color})`,
-          boxShadow: `0 0 6px ${color}60`,
-          transition: "width 0.6s ease",
-        }} />
-        <span className="font-mono" style={{
-          position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 9, fontWeight: "bold", color: "#e2e8f0", textShadow: "0 1px 2px #000",
-        }}>
-          {label} {value}/{max}
-        </span>
-      </div>
-    </div>
+    <span
+      className="font-mono flex items-center justify-center flex-1"
+      style={{ minWidth: 70, fontSize: 11, fontWeight: "bold", color: "#e2e8f0" }}
+    >
+      {label} {value}/{max}
+    </span>
   );
 }
 
@@ -416,6 +411,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
           return true;
         }).map(item => {
           const isActive = active === item.id;
+          const Icon = item.icon;
+          const iconColor = isActive ? fc : item.group === "wc" ? "#64748b" : "#475569";
           return (
             <button
               key={item.id}
@@ -427,15 +424,25 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 background: isActive ? `${fc}18` : "transparent",
                 border: isActive ? `1px solid ${fc}60` : "1px solid transparent",
                 boxShadow: isActive ? `0 0 8px ${fc}30` : "none",
+                position: "relative",
               }}
             >
-              <span style={{ fontSize: 15, lineHeight: 1 }}>{item.icon}</span>
+              {item.notify && (
+                <span
+                  style={{
+                    position: "absolute", top: 2, right: 6,
+                    width: 6, height: 6, borderRadius: "50%",
+                    background: fc, boxShadow: `0 0 4px ${fc}`,
+                  }}
+                />
+              )}
+              <Icon size={16} strokeWidth={1.5} color={iconColor} style={{ display: "block" }} />
               <span
                 className="font-mono"
                 style={{
                   fontSize: 8.5,
                   marginTop: 2,
-                  color: isActive ? fc : item.group === "wc" ? "#64748b" : "#475569",
+                  color: iconColor,
                   fontWeight: isActive ? "bold" : "normal",
                 }}
               >
