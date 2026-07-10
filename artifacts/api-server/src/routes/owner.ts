@@ -330,6 +330,48 @@ router.delete("/shop-items/:id/price", requireOwner as any, async (req: AuthRequ
   res.json({ message: `${item.name} price reset to default (${item.basePrice.toLocaleString()} DC)`, price: item.basePrice });
 });
 
+// ── Giveaway system: draft lifetime config (Tier 1.4) ──────────────────────
+export const GIVEAWAY_DRAFT_LIFETIME_KEY = "giveawayDraftLifetimeMs";
+export const DEFAULT_GIVEAWAY_DRAFT_LIFETIME_MS = 60 * 60 * 1000; // 1 hour
+
+/** Reads the current owner-configured draft lifetime, falling back to the default. */
+export async function getGiveawayDraftLifetimeMs(): Promise<number> {
+  const cfg = await ServerConfig.findOne({ key: GIVEAWAY_DRAFT_LIFETIME_KEY }).lean();
+  const value = cfg?.value?.["ms"];
+  return typeof value === "number" && value > 0 ? value : DEFAULT_GIVEAWAY_DRAFT_LIFETIME_MS;
+}
+
+// GET /api/owner/settings/giveaway-draft-lifetime — current draft lifetime (ms)
+router.get("/settings/giveaway-draft-lifetime", requireOwner as any, async (_req: AuthRequest, res) => {
+  try {
+    const ms = await getGiveawayDraftLifetimeMs();
+    res.json({ ms });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /api/owner/settings/giveaway-draft-lifetime — only route allowed to change it
+router.patch("/settings/giveaway-draft-lifetime", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const ms = Number(req.body?.ms);
+    if (!Number.isFinite(ms) || ms <= 0 || ms > 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ message: "ms must be a positive number, at most 24 hours" });
+    }
+    await ServerConfig.findOneAndUpdate(
+      { key: GIVEAWAY_DRAFT_LIFETIME_KEY },
+      { value: { ms }, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "set-giveaway-draft-lifetime", details: { ms } });
+    req.log.info({ ms }, "owner set giveaway draft lifetime");
+    res.json({ message: `Giveaway draft lifetime set to ${ms}ms`, ms });
+  } catch (err: any) {
+    req.log.error({ err }, "giveaway-draft-lifetime error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // GET /api/owner/xp-boost — get current XP boost status
 router.get("/xp-boost", async (_req, res) => {
   try {

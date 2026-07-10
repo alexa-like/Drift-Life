@@ -187,6 +187,9 @@ export interface IUser extends Document {
   // ── Security / Vanta ─────────────────────────────────────────────────────
   lastLoginIp?: string | null;
   loginIpHistory?: string[];
+  // ── Giveaway system ───────────────────────────────────────────────────────
+  underReview: boolean;
+  underReviewReason: string | null;
   createdAt: Date;
   updatedAt: Date;
   getEffectiveStats(): EffectiveStats;
@@ -403,6 +406,9 @@ const UserSchema = new Schema<IUser>(
     // ── Security / Vanta ──────────────────────────────────────────────────
     lastLoginIp:    { type: String, default: null },
     loginIpHistory: [{ type: String }],
+    // ── Giveaway system ────────────────────────────────────────────────────
+    underReview:       { type: Boolean, default: false },
+    underReviewReason: { type: String, default: null },
   },
   { timestamps: true }
 );
