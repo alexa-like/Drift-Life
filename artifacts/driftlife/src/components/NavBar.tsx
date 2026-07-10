@@ -36,7 +36,6 @@ const NAV: { id: string; label: string; icon: string; minStage?: number; group?:
   { id: "dashboard",    label: "Home",     icon: "🏠" },
   { id: "feed",         label: "Feed",     icon: "📰" },
   { id: "chat",         label: "Chat",     icon: "💬" },
-  { id: "profile",      label: "Profile",  icon: "🧑" },
   { id: "inventory",    label: "Bag",      icon: "🎒" },
   { id: "chatframes",   label: "Frames",   icon: "🖼️" },
   { id: "store",        label: "Store",    icon: "💳" },
@@ -62,7 +61,6 @@ const NAV: { id: string; label: string; icon: string; minStage?: number; group?:
   { id: "market",       label: "Market",   icon: "🛒", statusFilter: "normal|abroad" },
   { id: "district-hub", label: "Hub",      icon: "🌆", statusFilter: "abroad" },
   // Economy & social (normal only)
-  { id: "shop",         label: "Shop",     icon: "🏪", statusFilter: "normal" },
   { id: "friends",      label: "Friends",  icon: "👥", statusFilter: "normal" },
   { id: "bank",         label: "Bank",     icon: "🏦", statusFilter: "normal" },
   { id: "properties",   label: "Estate",   icon: "🏢", statusFilter: "normal" },
@@ -71,8 +69,6 @@ const NAV: { id: string; label: string; icon: string; minStage?: number; group?:
   { id: "achievements", label: "Achiev",   icon: "🏆" },
   { id: "daily",        label: "Daily",    icon: "🎁" },
   { id: "companions",   label: "Allies",   icon: "🐺", statusFilter: "normal" },
-  { id: "support",      label: "Support",  icon: "🆘" },
-  { id: "legal",        label: "Legal",    icon: "📜" },
 ];
 
 function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; maxEnergy: number; energyRegenAt?: string | null }) {
@@ -247,6 +243,8 @@ function AvatarMenu({ user, onNav, onLogout }: { user: User; onNav: (id: string)
           {[
             { id: "profile", label: "👤 Profile" },
             { id: "settings", label: "⚙ Settings" },
+            { id: "support", label: "🆘 Support / Report" },
+            { id: "legal", label: "📜 Legal" },
           ].map(item => (
             <button
               key={item.id}

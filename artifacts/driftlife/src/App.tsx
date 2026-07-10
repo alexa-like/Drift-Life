@@ -8,7 +8,6 @@ import { CrimesPage } from "./pages/CrimesPage";
 import { JobsPage } from "./pages/JobsPage";
 
 import { BankPage } from "./pages/BankPage";
-import { MarketPage } from "./pages/MarketPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { FeedPage } from "./pages/FeedPage";
@@ -208,7 +207,10 @@ function GameApp() {
       case "jobs":         return <JobsPage {...pageProps} />;
 
       case "bank":         return <BankPage {...pageProps} />;
-      case "market":       return <MarketPage {...pageProps} />;
+      case "market":
+      case "shop":         return shopStoreId
+                              ? <NpcStorePage key={shopStoreId} storeId={shopStoreId} onBack={() => { setShopStoreId(null); }} />
+                              : <ShopHubPage onSelectStore={(id) => setShopStoreId(id)} />;
       case "inventory":    return <InventoryPage {...pageProps} />;
       case "leaderboard":  return <LeaderboardPage />;
       case "hospital":     return <HospitalPage {...pageProps} />;
@@ -222,9 +224,6 @@ function GameApp() {
       case "guilds":        return <GuildsPage user={user!} addToast={addToast} />;
       case "auction":       return <AuctionPage {...pageProps} />;
       case "loadout":       return <LoadoutPage user={user!} addToast={addToast} />;
-      case "shop":          return shopStoreId
-                              ? <NpcStorePage key={shopStoreId} storeId={shopStoreId} onBack={() => { setShopStoreId(null); }} />
-                              : <ShopHubPage onSelectStore={(id) => setShopStoreId(id)} />;
       case "properties":    return <PropertiesPage {...pageProps} />;
       case "crafting":      return <CraftingPage {...pageProps} />;
       case "trade":         return <TradePage user={user!} addToast={addToast} />;
