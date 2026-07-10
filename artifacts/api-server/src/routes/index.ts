@@ -135,6 +135,9 @@ router.use("/mentor", mentorRouter);
 router.use("/npc-stores", npcStoresRouter);
 router.use("/black-market", blackMarketRouter);
 router.use("/faction", factionBankRouter);
+// ── Community / Safety ─────────────────────────────────────────────────────
+router.use("/reports", reportsRouter);
+router.use("/support", supportRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

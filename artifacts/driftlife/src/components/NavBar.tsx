@@ -69,6 +69,8 @@ const NAV: { id: string; label: string; minStage?: number; group?: string; statu
   { id: "achievements", label: "Achiev" },
   { id: "daily",        label: "Daily" },
   { id: "companions",   label: "Allies",   statusFilter: "normal" },
+  { id: "support",      label: "Support" },
+  { id: "legal",        label: "Legal" },
 ];
 
 function RollingNumber({ value, color }: { value: number; color: string }) {

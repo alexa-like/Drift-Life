@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { fireVantaEvent } from "../lib/vanta";
 import bcrypt from "bcryptjs";
 import User, { generateTag, generateReferralCode, levelUp, activeBuffTotal, computeMaxHp } from "../models/User";
 import { signAccess, signRefresh, verifyRefresh } from "../lib/jwt";
@@ -355,7 +356,37 @@ router.post("/login", async (req, res) => {
       await user.save();
     }
 
-    await User.updateOne({ _id: user._id }, { $set: { lastLogin: new Date() } });
+    // ── IP tracking + alt-account detection ──────────────────────────────
+    const rawIp: string =
+      (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+      req.socket.remoteAddress ??
+      "unknown";
+    // Store IP history (keep last 10 unique IPs)
+    const prevHistory: string[] = (user as any).loginIpHistory ?? [];
+    const newHistory = Array.from(new Set([rawIp, ...prevHistory])).slice(0, 10);
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { lastLogin: new Date(), lastLoginIp: rawIp, loginIpHistory: newHistory } },
+    );
+
+    // Alt-account check: find another active user who recently logged in from same IP
+    if (rawIp !== "unknown" && rawIp !== "127.0.0.1" && rawIp !== "::1") {
+      const altUser = await User.findOne({
+        _id: { $ne: user._id },
+        banned: { $ne: true },
+        lastLoginIp: rawIp,
+      }).select("username").lean();
+      if (altUser) {
+        fireVantaEvent(
+          user._id,
+          user.username,
+          "alt_account",
+          "high",
+          `Shared login IP ${rawIp} with account "${(altUser as any).username}"`,
+        );
+      }
+    }
+
     const payload = { userId: String(user._id), username: user.username, role: user.role };
     res.json({
       accessToken: signAccess(payload),

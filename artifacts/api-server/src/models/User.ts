@@ -184,6 +184,9 @@ export interface IUser extends Document {
   menteeIds?: string[];
   // ── 10.15 Pinned achievement badges ─────────────────────────────────────
   pinnedBadges?: string[];
+  // ── Security / Vanta ─────────────────────────────────────────────────────
+  lastLoginIp?: string | null;
+  loginIpHistory?: string[];
   createdAt: Date;
   updatedAt: Date;
   getEffectiveStats(): EffectiveStats;
@@ -397,6 +400,9 @@ const UserSchema = new Schema<IUser>(
     menteeIds:  [{ type: Schema.Types.ObjectId, ref: "User" }],
     // ── 10.15 Pinned achievement badges (max 3) ────────────────────────────
     pinnedBadges: [{ type: String }],
+    // ── Security / Vanta ──────────────────────────────────────────────────
+    lastLoginIp:    { type: String, default: null },
+    loginIpHistory: [{ type: String }],
   },
   { timestamps: true }
 );

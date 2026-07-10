@@ -7,6 +7,8 @@ import { requireAuth, requireOwner, AuthRequest } from "../middlewares/auth";
 import mongoose from "mongoose";
 import { notifyMentions } from "../lib/mentions";
 import { getActiveTier } from "../lib/subscription";
+import { scanMessage } from "../lib/chatMod";
+import { fireVantaEvent } from "../lib/vanta";
 
 const router = Router();
 
@@ -88,6 +90,16 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
 
     const activeTierGlobal = getActiveTier(user as any);
     const senderBadges: string[] = (user as any).pinnedBadges ?? [];
+
+    // Auto-moderation scan
+    const modGlobal = scanMessage(content);
+    if (!modGlobal.ok) {
+      fireVantaEvent(user._id, user.username, "manual_flag" as any, modGlobal.severity as any,
+        `[auto-mod/global] ${modGlobal.reason}: "${content.slice(0, 120)}"`);
+      if (modGlobal.severity === "high") {
+        return res.status(400).json({ message: "Message blocked: violates community guidelines." });
+      }
+    }
 
     const message = await ChatMessage.create({
       channel: "global",
@@ -191,6 +203,17 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
     const activeTierDistrict = getActiveTier(user as any);
     const dId = String(districtId);
     const districtBadges: string[] = (user as any).pinnedBadges ?? [];
+
+    // Auto-moderation scan
+    const modDistrict = scanMessage(content);
+    if (!modDistrict.ok) {
+      fireVantaEvent(user._id, user.username, "manual_flag" as any, modDistrict.severity as any,
+        `[auto-mod/district:${dId}] ${modDistrict.reason}: "${content.slice(0, 120)}"`);
+      if (modDistrict.severity === "high") {
+        return res.status(400).json({ message: "Message blocked: violates community guidelines." });
+      }
+    }
+
     const message = await ChatMessage.create({
       channel: "district",
       districtId: dId,
@@ -297,6 +320,17 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
     const activeTierFaction = getActiveTier(user as any);
     const channel = `faction:${user.faction}` as `faction:${string}`;
     const factionBadges: string[] = (user as any).pinnedBadges ?? [];
+
+    // Auto-moderation scan
+    const modFaction = scanMessage(content);
+    if (!modFaction.ok) {
+      fireVantaEvent(user._id, user.username, "manual_flag" as any, modFaction.severity as any,
+        `[auto-mod/faction:${user.faction}] ${modFaction.reason}: "${content.slice(0, 120)}"`);
+      if (modFaction.severity === "high") {
+        return res.status(400).json({ message: "Message blocked: violates community guidelines." });
+      }
+    }
+
     const message = await ChatMessage.create({
       channel,
       districtId: null,

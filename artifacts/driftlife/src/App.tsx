@@ -42,6 +42,8 @@ import { TravelPage } from "./pages/TravelPage";
 import { DailyPage } from "./pages/DailyPage";
 import { DistrictPage } from "./pages/DistrictPage";
 import { CompanionsPage } from "./pages/CompanionsPage";
+import { LegalPage } from "./pages/LegalPage";
+import { SupportPage } from "./pages/SupportPage";
 import NpcStorePage from "./pages/NpcStorePage";
 import RaceHubPage from "./pages/RaceHubPage";
 import RaceMatchPage from "./pages/RaceMatchPage";
@@ -247,6 +249,8 @@ function GameApp() {
       case "daily":         return <DailyPage {...pageProps} onNav={setPage} />;
       case "district":      return <DistrictPage {...pageProps} />;
       case "companions":    return <CompanionsPage {...pageProps} />;
+      case "legal":         return <LegalPage onNav={setPage} />;
+      case "support":       return <SupportPage user={user!} addToast={addToast} />;
       case "travel":        return <TravelPage user={user!} refreshUser={refreshUser} addToast={addToast} onNavigate={setPage} />;
       case "district-hub":  return <DistrictHubPage {...pageProps} />;
       case "match-history": return <MatchHistoryPage />;
