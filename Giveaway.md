@@ -121,7 +121,7 @@ Re-read §1.1–1.4 above field by field and confirm every field a later tier re
 
 ## TIER 2 — ELIGIBILITY & VALUATION ENGINE
 **Depends on: Tier 1**
-Status: ⏳ Not started
+Status: ✅ Done
 
 ### 2.1 — Listing eligibility check
 Create a reusable function (e.g. `lib/giveawayEligibility.ts`):
