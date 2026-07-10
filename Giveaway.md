@@ -65,7 +65,7 @@ Mark status by editing only the one status line at the top of a tier section —
 
 ## TIER 1 — DATA MODELS & OWNER SETTINGS
 **Goal: every field every later tier needs must exist here, correctly typed, with no retrofits needed downstream.**
-Status: ⏳ Not started
+Status: ✅ Done
 
 ### 1.1 — `Giveaway` model
 Create `artifacts/api-server/src/models/Giveaway.ts`:

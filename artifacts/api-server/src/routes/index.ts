@@ -70,6 +70,9 @@ import mentorRouter from "./mentor";
 import npcStoresRouter from "./npcStores";
 import blackMarketRouter from "./blackMarket";
 import factionBankRouter from "./factionBank";
+// ── Giveaway system (models registered here; routes added per-tier) ───────────
+import "../models/Giveaway";
+import "../models/GiveawayEntry";
 
 const router: IRouter = Router();
 
