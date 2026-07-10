@@ -63,6 +63,10 @@ import discordRouter from "./discord";
 import emojisRouter from "./emojis";
 // ── Mentor System (Tier 10.14) ─────────────────────────────────────────────────
 import mentorRouter from "./mentor";
+// ── Previously unregistered routes ────────────────────────────────────────────
+import npcStoresRouter from "./npcStores";
+import blackMarketRouter from "./blackMarket";
+import factionBankRouter from "./factionBank";
 
 const router: IRouter = Router();
 
@@ -127,6 +131,10 @@ router.use("/discord", discordRouter);
 router.use("/emojis", emojisRouter);
 // ── Mentor System (Tier 10.14) ─────────────────────────────────────────────────
 router.use("/mentor", mentorRouter);
+// ── Previously unregistered routes ────────────────────────────────────────────
+router.use("/npc-stores", npcStoresRouter);
+router.use("/black-market", blackMarketRouter);
+router.use("/faction", factionBankRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);
