@@ -220,7 +220,7 @@ function GameApp() {
       case "chat":          return <ChatPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       case "skills":        return <SkillsPage user={user!} addToast={addToast} />;
       case "guilds":        return <GuildsPage user={user!} addToast={addToast} />;
-      case "auction":       return <AuctionPage user={user!} addToast={addToast} />;
+      case "auction":       return <AuctionPage {...pageProps} />;
       case "loadout":       return <LoadoutPage user={user!} addToast={addToast} />;
       case "shop":          return shopStoreId
                               ? <NpcStorePage key={shopStoreId} storeId={shopStoreId} onBack={() => { setShopStoreId(null); }} />

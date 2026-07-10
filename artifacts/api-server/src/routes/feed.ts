@@ -1,15 +1,21 @@
 import { Router } from "express";
+import sanitizeHtml from "sanitize-html";
 import FeedEvent, { IFeedEvent } from "../models/FeedEvent";
+import User from "../models/User";
 import { requireAuth, requireStaff, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 
-// System-generated event types — these are the only ones shown on the broadcast feed.
-// "post" is excluded: players cannot self-post to the system feed.
+function cleanText(raw: string): string {
+  return sanitizeHtml(raw, { allowedTags: [], allowedAttributes: {} }).trim();
+}
+
+// Event types shown on the broadcast feed — system-generated events plus
+// player self-posts ("post").
 const SYSTEM_EVENT_TYPES: IFeedEvent["type"][] = [
   "crime", "fight", "job", "level_up", "market", "bank",
   "system", "hospital", "travel", "daily", "achievement",
-  "race", "hack", "garage",
+  "race", "hack", "garage", "post",
 ];
 
 // GET /api/feed?page=1&limit=30
@@ -36,19 +42,65 @@ router.get("/", requireAuth, async (req, res) => {
     const events = [...pinned, ...rest];
 
     res.json(events.map(e => ({
-      id:        e._id,
-      type:      e.type,
-      actor:     e.actor,
-      actorId:   e.actorId,
-      target:    e.target,
-      message:   e.message,
-      dc:        e.dc,
-      xp:        e.xp,
-      pinned:    (e as any).pinned ?? false,
-      createdAt: e.createdAt,
+      id:             e._id,
+      type:           e.type,
+      actor:          e.actor,
+      actorId:        e.actorId,
+      actorChatFrame: (e as any).actorChatFrame ?? null,
+      actorLevel:     (e as any).actorLevel ?? null,
+      target:         e.target,
+      message:        e.message,
+      dc:             e.dc,
+      xp:             e.xp,
+      pinned:         (e as any).pinned ?? false,
+      createdAt:      e.createdAt,
     })));
   } catch (err: any) {
     req.log.error({ err }, "feed error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/feed/post — public player post, any logged-in player.
+// Body: { message: string }
+// Rate limited to one post per 30s per player to prevent spam.
+const lastPostAt = new Map<string, number>();
+router.post("/post", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ message: "message required" });
+    }
+    const trimmed = cleanText(message).slice(0, 500);
+    if (!trimmed) return res.status(400).json({ message: "message cannot be empty" });
+
+    const userId = req.userId!;
+    const last = lastPostAt.get(userId) ?? 0;
+    const now = Date.now();
+    if (now - last < 30_000) {
+      return res.status(429).json({ message: "Slow down — you can post again in a few seconds" });
+    }
+
+    const user = await User.findById(userId).select("username level equippedChatFrame").lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    lastPostAt.set(userId, now);
+
+    const event = await FeedEvent.create({
+      type:           "post",
+      actor:          user.username,
+      actorId:        userId,
+      actorChatFrame: user.equippedChatFrame ?? null,
+      actorLevel:     user.level ?? 1,
+      message:        trimmed,
+    });
+
+    res.status(201).json({
+      id: event._id, message: trimmed, createdAt: event.createdAt,
+      actor: user.username, actorChatFrame: user.equippedChatFrame ?? null, actorLevel: user.level ?? 1,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "player feed post error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

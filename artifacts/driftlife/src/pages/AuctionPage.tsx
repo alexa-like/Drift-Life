@@ -1,8 +1,13 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { api } from "../lib/api";
 import { User } from "../lib/types";
 import { ItemImage } from "../components/ItemImage";
+import { formatDC } from "../lib/format";
+import { AnimatedCard } from "../components/AnimatedCard";
+import { CyberButton } from "../components/CyberButton";
+import { TradePage } from "./TradePage";
 
 interface AuctionItem {
   id: string;
@@ -21,12 +26,51 @@ interface AuctionItem {
   isWinning: boolean;
 }
 
+interface Listing {
+  id: string; name: string; type: string; rarity: string;
+  strengthBonus: number; description: string;
+  price: number; seller: string; imageUrl?: string | null;
+}
+
+interface BMListing {
+  id: string; name: string; type: string; rarity: string;
+  strengthBonus: number; charismaBonus: number; intelligenceBonus: number;
+  streetCredBonus: number; description: string; price: number;
+  seller: string; imageUrl?: string | null; expiresAt: string;
+}
+
 interface Props {
   user: User;
-  addToast: (msg: string, type?: "success" | "error" | "info") => void;
+  refreshUser: () => Promise<User | null>;
+  addToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
 }
 
 const TIER_COLORS: Record<string, string> = { epic: "#a855f7", legendary: "#f59e0b" };
+const RARITY_COLORS: Record<string, string> = {
+  common: "#94a3b8", uncommon: "#39d353", rare: "#00d4ff", epic: "#a855f7", legendary: "#f59e0b",
+};
+
+type Tab = "auction" | "listings" | "trade" | "black-market";
+const TAB_LABELS: Record<Tab, string> = { auction: "Bot Auction", listings: "P2P Listings", trade: "Trades", "black-market": "☠ Dark" };
+
+type CategoryFilter = "all" | "weapons" | "clothing" | "vehicles" | "consumables" | "materials" | "arena" | "cars";
+const CATEGORY_LABELS: Record<CategoryFilter, string> = {
+  all: "All", weapons: "Weapons", clothing: "Clothing", vehicles: "Vehicles",
+  consumables: "Consumables", materials: "Materials", arena: "Arena Gear", cars: "Cars & Parts",
+};
+
+function matchesCategory(listing: Listing, cat: CategoryFilter): boolean {
+  if (cat === "all") return true;
+  const t = listing.type?.toLowerCase() ?? "";
+  if (cat === "weapons") return t === "weapon";
+  if (cat === "clothing") return t === "clothing";
+  if (cat === "vehicles") return t === "vehicle";
+  if (cat === "consumables") return t === "consumable";
+  if (cat === "materials") return t === "material";
+  if (cat === "arena") return t === "arena" || t === "arena_ammo";
+  if (cat === "cars") return t === "car" || t === "car_part";
+  return true;
+}
 
 function timeLeft(expiresAt: string): string {
   const ms = new Date(expiresAt).getTime() - Date.now();
@@ -40,7 +84,7 @@ function timeLeft(expiresAt: string): string {
   return `${m}m ${s % 60}s`;
 }
 
-export function AuctionPage({ user, addToast }: Props) {
+function BotAuctionTab({ addToast }: { addToast: Props["addToast"] }) {
   const qc = useQueryClient();
   const [bidAmounts, setBidAmounts] = useState<Record<string, string>>({});
   const [, forceTick] = useState(0);
@@ -51,7 +95,6 @@ export function AuctionPage({ user, addToast }: Props) {
     refetchInterval: 15000,
   });
 
-  // Tick every second so countdowns stay live between refetches.
   useEffect(() => {
     const id = setInterval(() => forceTick((n) => n + 1), 1000);
     return () => clearInterval(id);
@@ -60,8 +103,8 @@ export function AuctionPage({ user, addToast }: Props) {
   const placeBid = useMutation({
     mutationFn: ({ id, amount }: { id: string; amount: number }) => api.post(`/auction/${id}/bid`, { amount }),
     onSuccess: (r: { message: string }) => {
-      addToast(r.message, "success");
       qc.invalidateQueries({ queryKey: ["auction"] });
+      addToast(r.message, "success");
     },
     onError: (e: Error) => addToast(e.message, "error"),
   });
@@ -160,6 +203,206 @@ export function AuctionPage({ user, addToast }: Props) {
           50% { box-shadow: 0 0 24px #f59e0b55; }
         }
       `}</style>
+    </div>
+  );
+}
+
+function ListingsTab({ user, refreshUser, addToast }: Props) {
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [buying, setBuying] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
+
+  useEffect(() => {
+    api.get<Listing[]>("/market/listings").then(setListings).catch(() => {});
+  }, []);
+
+  async function buyListing(listingId: string) {
+    setBuying(listingId);
+    try {
+      const data = await api.post<any>(`/market/listings/${listingId}/buy`);
+      addToast(data.message, "success"); await refreshUser();
+      setListings(await api.get<Listing[]>("/market/listings"));
+    } catch (err: any) { addToast(err.message, "error"); } finally { setBuying(null); }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex gap-1.5 flex-wrap">
+        {(Object.keys(CATEGORY_LABELS) as CategoryFilter[]).map(cat => (
+          <button
+            key={cat}
+            onClick={() => setActiveCategory(cat)}
+            className="text-xs font-mono px-2.5 py-1 rounded transition-all"
+            style={{
+              background: activeCategory === cat ? "#00d4ff20" : "transparent",
+              border: `1px solid ${activeCategory === cat ? "#00d4ff" : "#1e293b"}`,
+              color: activeCategory === cat ? "#00d4ff" : "#64748b",
+              cursor: "pointer",
+            }}
+          >
+            {CATEGORY_LABELS[cat]}
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-3">
+        {(() => {
+          const filtered = listings.filter(l => matchesCategory(l, activeCategory));
+          if (filtered.length === 0) {
+            return (
+              <div className="text-center py-12 text-xs font-mono" style={{ color: "#475569" }}>
+                No listings. Sell items from your inventory.
+              </div>
+            );
+          }
+          return filtered.map((listing, idx) => {
+            const rc = RARITY_COLORS[listing.rarity] ?? "#94a3b8";
+            const canAfford = user.dc >= listing.price;
+            return (
+              <motion.div key={listing.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}>
+                <AnimatedCard accent={rc} noPad>
+                  <div style={{ height: 2, background: `linear-gradient(90deg, ${rc}, transparent)`, borderRadius: "8px 8px 0 0", boxShadow: `0 0 6px ${rc}50` }} />
+                  <div className="p-3">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
+                        style={{ width: 56, height: 56, background: `${rc}08`, border: `1px solid ${rc}25` }}>
+                        <ItemImage itemId={listing.name.toLowerCase().replace(/ /g, "-")} imageUrl={listing.imageUrl} size={44} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                          <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{listing.name}</span>
+                          <span className="text-xs font-mono px-1.5 rounded" style={{ color: rc, background: `${rc}14`, border: `1px solid ${rc}25` }}>{listing.rarity}</span>
+                        </div>
+                        <p className="text-xs font-mono" style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{listing.description}</p>
+                        <span className="text-xs font-mono" style={{ color: "#475569" }}>via {listing.seller}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 pt-2" style={{ borderTop: `1px solid ${rc}15` }}>
+                      <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>{formatDC(listing.price)} DC</span>
+                      <CyberButton
+                        variant="warning"
+                        size="sm"
+                        loading={buying === listing.id}
+                        disabled={buying === listing.id || !canAfford}
+                        onClick={() => buyListing(listing.id)}
+                      >
+                        {!canAfford ? "No funds" : "Buy"}
+                      </CyberButton>
+                    </div>
+                  </div>
+                </AnimatedCard>
+              </motion.div>
+            );
+          });
+        })()}
+      </div>
+    </div>
+  );
+}
+
+function BlackMarketTab({ user, refreshUser, addToast }: Props) {
+  const [bmListings, setBmListings] = useState<BMListing[]>([]);
+  const [bmLoading, setBmLoading] = useState(true);
+  const [buying, setBuying] = useState<string | null>(null);
+
+  useEffect(() => {
+    setBmLoading(true);
+    api.get<BMListing[]>("/black-market/listings")
+      .then(setBmListings).catch(() => {}).finally(() => setBmLoading(false));
+  }, []);
+
+  async function buyBmListing(listingId: string) {
+    setBuying(listingId);
+    try {
+      const data = await api.post<any>(`/black-market/listings/${listingId}/buy`);
+      addToast(data.message, "success");
+      await refreshUser();
+      setBmListings(prev => prev.filter(l => l.id !== listingId));
+    } catch (err: any) { addToast(err.message, "error"); } finally { setBuying(null); }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="font-mono text-xs p-3 rounded" style={{ background: "#ff2d5510", border: "1px solid #ff2d5530", color: "#ff6b35" }}>
+        ☠ Anonymous marketplace. Items carry a 5% seizure risk every 6 hours. Listings expire in 48 hours. Requires Level 20+ to list. No refunds.
+      </div>
+      {bmLoading ? (
+        <div className="font-mono text-xs text-center py-10" style={{ color: "#334155" }}>Loading dark listings…</div>
+      ) : bmListings.length === 0 ? (
+        <div className="font-mono text-xs text-center py-10" style={{ color: "#475569" }}>
+          No listings on the dark market. Be the first to list from your inventory.
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {bmListings.map((listing, idx) => {
+            const rc = RARITY_COLORS[listing.rarity] ?? "#94a3b8";
+            const canAfford = user.dc >= listing.price;
+            const expiresIn = Math.max(0, new Date(listing.expiresAt).getTime() - Date.now());
+            const hoursLeft = Math.floor(expiresIn / 3_600_000);
+            return (
+              <motion.div key={String(listing.id)} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}>
+                <AnimatedCard accent="#ff2d55" noPad>
+                  <div style={{ height: 2, background: "linear-gradient(90deg, #ff2d55, transparent)", borderRadius: "8px 8px 0 0" }} />
+                  <div className="p-3">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>{listing.name}</span>
+                          <span className="text-xs font-mono px-1.5 rounded" style={{ color: rc, background: `${rc}14`, border: `1px solid ${rc}25` }}>{listing.rarity}</span>
+                        </div>
+                        <p className="text-xs font-mono mt-0.5" style={{ color: "#475569" }}>{listing.description}</p>
+                        <div className="flex gap-2 mt-0.5 flex-wrap text-xs font-mono">
+                          {listing.strengthBonus > 0 && <span style={{ color: "#ff6b35" }}>STR+{listing.strengthBonus}</span>}
+                          {listing.charismaBonus > 0 && <span style={{ color: "#a855f7" }}>CHA+{listing.charismaBonus}</span>}
+                          {listing.intelligenceBonus > 0 && <span style={{ color: "#00d4ff" }}>INT+{listing.intelligenceBonus}</span>}
+                          {listing.streetCredBonus > 0 && <span style={{ color: "#f59e0b" }}>REP+{listing.streetCredBonus}</span>}
+                        </div>
+                      </div>
+                      <span className="font-mono text-xs flex-shrink-0" style={{ color: "#334155" }}>
+                        {hoursLeft}h left
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 pt-2" style={{ borderTop: "1px solid #ff2d5515" }}>
+                      <div>
+                        <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>
+                          {listing.price.toLocaleString()} DC
+                        </span>
+                        <span className="font-mono text-xs ml-2" style={{ color: "#334155" }}>seller: Anonymous</span>
+                      </div>
+                      <CyberButton variant="danger" size="sm"
+                        loading={buying === String(listing.id)}
+                        disabled={!canAfford || buying === String(listing.id)}
+                        onClick={() => buyBmListing(String(listing.id))}>
+                        {!canAfford ? "No funds" : "Buy"}
+                      </CyberButton>
+                    </div>
+                  </div>
+                </AnimatedCard>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function AuctionPage({ user, refreshUser, addToast }: Props) {
+  const [tab, setTab] = useState<Tab>("auction");
+
+  return (
+    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+      <div className="flex gap-2 flex-wrap">
+        {(["auction", "listings", "trade", "black-market"] as Tab[]).map(t => (
+          <CyberButton key={t} variant={tab === t ? (t === "black-market" ? "danger" : "primary") : "ghost"} size="sm" onClick={() => setTab(t)}>
+            {TAB_LABELS[t]}
+          </CyberButton>
+        ))}
+      </div>
+
+      {tab === "auction" && <BotAuctionTab addToast={addToast} />}
+      {tab === "listings" && <ListingsTab user={user} refreshUser={refreshUser} addToast={addToast} />}
+      {tab === "trade" && <TradePage user={user} addToast={addToast} />}
+      {tab === "black-market" && <BlackMarketTab user={user} refreshUser={refreshUser} addToast={addToast} />}
     </div>
   );
 }

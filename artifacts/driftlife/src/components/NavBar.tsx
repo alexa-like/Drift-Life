@@ -54,7 +54,6 @@ const NAV: { id: string; label: string; icon: string; minStage?: number; group?:
   // Combat / racing (normal only)
   { id: "arena",        label: "Arena",    icon: "⚔️", statusFilter: "normal" },
   { id: "loadout",      label: "Loadout",  icon: "🎯", statusFilter: "normal" },
-  { id: "race-hub",     label: "Race",     icon: "🏁", statusFilter: "normal" },
   { id: "royale",       label: "Royale",   icon: "👑", statusFilter: "normal" },
   { id: "missions",     label: "Missions", icon: "📋", statusFilter: "normal" },
   // Normal or abroad
