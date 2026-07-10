@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ItemImage } from "../components/ItemImage";
+import { api } from "../lib/api";
 
 type SpinType = "dc_spin" | "master_royale";
 
@@ -30,8 +31,7 @@ export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: P
   const categoryLabel = category?.replace(/_/g, " ").replace(/\w/g, c => c.toUpperCase());
 
   useEffect(() => {
-    fetch("/api/royale/pools/" + category)
-      .then(r => r.json())
+    api.get<any>("/royale/pools/" + category)
       .then(data => {
         setPoolItems(spinType === "dc_spin" ? data.dcSpin ?? [] : data.masterRoyale ?? []);
         setOtherPoolItems(spinType === "dc_spin" ? data.masterRoyale ?? [] : data.dcSpin ?? []);
@@ -43,21 +43,14 @@ export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: P
     setSpinning(true);
     setError(null);
     try {
-      const res = await fetch("/api/royale/spin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ category, spinType }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message ?? "Spin failed"); setSpinning(false); return; }
+      const data = await api.post<any>("/royale/spin", { category, spinType });
       await new Promise(r => setTimeout(r, 2000));
       setResult(data.won);
       setBalances(data.updatedBalances);
       setShowResult(true);
       onUserUpdate?.();
-    } catch (e) {
-      setError("Network error");
+    } catch (e: any) {
+      setError(e.message ?? "Spin failed");
     } finally {
       setSpinning(false);
     }

@@ -67,6 +67,13 @@ export function ConnectionsPage({ user }: Props) {
   // Active modal flow (one at a time)
   const [activeFlow, setActiveFlow] = useState<FlowState | null>(null);
 
+  // Inline unlink confirmation
+  const [confirmUnlink, setConfirmUnlink] = useState<Platform | null>(null);
+  const [unlinkError,   setUnlinkError]   = useState<string | null>(null);
+
+  // Inline fallback email message
+  const [fallbackMsg, setFallbackMsg] = useState<string | null>(null);
+
   // Countdown timer ref
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -182,13 +189,15 @@ export function ConnectionsPage({ user }: Props) {
     }
   }
 
-  async function unlinkPlatform(platform: Platform) {
-    if (!confirm(`Unlink your ${platform === "telegram" ? "Telegram" : "Discord"} account?`)) return;
+  async function doUnlink() {
+    if (!confirmUnlink) return;
+    setUnlinkError(null);
     try {
-      await api.delete(`/platform/${platform}`);
+      await api.delete(`/platform/${confirmUnlink}`);
+      setConfirmUnlink(null);
       await loadStatus();
     } catch (e: any) {
-      alert(e.message || "Failed to unlink");
+      setUnlinkError(e.message || "Failed to unlink");
     }
   }
 
@@ -224,7 +233,7 @@ export function ConnectionsPage({ user }: Props) {
             linkPurpose="Enables NC purchases via Telegram Stars"
             onVerify={() => startFlow("verify", "telegram")}
             onLink={() => startFlow("link", "telegram")}
-            onUnlink={() => unlinkPlatform("telegram")}
+            onUnlink={() => { setUnlinkError(null); setConfirmUnlink("telegram"); }}
           />
 
           {/* ── Discord ──────────────────────────────────────── */}
@@ -238,9 +247,43 @@ export function ConnectionsPage({ user }: Props) {
             linkPurpose="Chat access, nickname sync, Verified role"
             onVerify={() => startFlow("verify", "discord")}
             onLink={() => startFlow("link", "discord")}
-            onUnlink={() => unlinkPlatform("discord")}
+            onUnlink={() => { setUnlinkError(null); setConfirmUnlink("discord"); }}
           />
 
+        </div>
+      )}
+
+      {/* ── Inline unlink confirmation ──────────────────────────────────────── */}
+      {confirmUnlink && (
+        <div style={{
+          position: "fixed", inset: 0, background: "#00000099", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}>
+          <div style={{ background: "#111118", border: "1px solid #ff2d5540", borderRadius: 10, padding: 24, maxWidth: 360, width: "100%" }}>
+            <div style={{ color: "#ff2d55", fontFamily: "monospace", fontSize: 14, fontWeight: 700, marginBottom: 12 }}>
+              UNLINK {confirmUnlink.toUpperCase()}_
+            </div>
+            <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 16 }}>
+              Are you sure? You will need to go through the link flow again to restore access.
+            </div>
+            {unlinkError && (
+              <div style={{ color: "#ff2d55", fontSize: 12, background: "#ff2d5515", borderRadius: 4, padding: "6px 10px", marginBottom: 12 }}>
+                {unlinkError}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={doUnlink} style={{ ...btnStyle("#ff2d55"), flex: 1 }}>Confirm Unlink</button>
+              <button onClick={() => { setConfirmUnlink(null); setUnlinkError(null); }} style={btnStyle("#64748b", true)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Fallback email message ──────────────────────────────────────────── */}
+      {fallbackMsg && (
+        <div style={{ marginTop: 12, background: "#111118", border: "1px solid #ff6b3540", borderRadius: 8, padding: "10px 14px" }}>
+          <div style={{ color: "#ff6b35", fontSize: 12, fontFamily: "monospace" }}>{fallbackMsg}</div>
+          <button onClick={() => setFallbackMsg(null)} style={{ ...btnStyle("#64748b", true), marginTop: 8, fontSize: 11 }}>Dismiss</button>
         </div>
       )}
 
@@ -254,9 +297,8 @@ export function ConnectionsPage({ user }: Props) {
           onResend={resendCode}
           onClose={closeFlow}
           onFallbackEmail={() => {
-            // Route user to email verification — just close and the existing flow applies
             closeFlow();
-            alert("Please use the email verification option on the Auth page to verify via Gmail.");
+            setFallbackMsg("Please use the email verification option on the Auth page to verify via Gmail.");
           }}
           onFallbackRetry={() =>
             setActiveFlow(prev => prev ? { ...prev, showFallback: false, attempts: 0, error: "" } : prev)

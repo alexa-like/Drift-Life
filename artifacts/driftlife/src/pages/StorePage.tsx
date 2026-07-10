@@ -103,6 +103,14 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
   const [ncBuying, setNcBuying] = useState<string | null>(null);
   const [ncBuyResult, setNcBuyResult] = useState<{ tierId: string; msg: string; ok: boolean } | null>(null);
 
+  // Invoice fallback (when window.open is blocked)
+  const [invoiceFallbackUrl, setInvoiceFallbackUrl] = useState<string | null>(null);
+  // Inline error messages
+  const [linkInitError, setLinkInitError] = useState<string | null>(null);
+  const [buyError, setBuyError] = useState<string | null>(null);
+  // Telegram unlink inline confirm
+  const [telegramUnlinkConfirm, setTelegramUnlinkConfirm] = useState(false);
+
   // Gift NC modal
   const [giftModal, setGiftModal] = useState(false);
   const [giftRecipient, setGiftRecipient] = useState("");
@@ -140,12 +148,13 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
   }, [linkPollActive, loadStatus]);
 
   async function handleLinkTelegram() {
+    setLinkInitError(null);
     try {
       const data = await api.post<LinkInitResponse>("/telegram/link-init");
       setLinkData(data);
       setLinkPollActive(true);
     } catch (e: any) {
-      alert(e.message || "Failed to generate link code");
+      setLinkInitError(e.message || "Failed to generate link code");
     }
   }
 
@@ -155,21 +164,22 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
       return;
     }
     setBuying(productId);
+    setBuyError(null);
+    setInvoiceFallbackUrl(null);
     try {
       const r = await api.post<{ invoiceLink?: string }>("/store/create-invoice", { productId });
       if (r.invoiceLink) {
-        window.open(r.invoiceLink, "_blank");
+        const popup = window.open(r.invoiceLink, "_blank");
+        if (!popup) setInvoiceFallbackUrl(r.invoiceLink);
         // Poll for balance change
         setTimeout(loadStatus, 5000);
         setTimeout(loadStatus, 15000);
         setTimeout(loadStatus, 30000);
       }
     } catch (e: any) {
-      if (e.message?.includes("not configured")) {
-        alert("Telegram payments are being set up. Check back soon!");
-      } else {
-        alert(e.message || "Failed to create invoice");
-      }
+      setBuyError(e.message?.includes("not configured")
+        ? "Telegram payments are being set up. Check back soon!"
+        : (e.message || "Failed to create invoice"));
     } finally {
       setBuying(null);
     }
@@ -263,6 +273,11 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
           >
             🔗 Link Telegram Account
           </button>
+          {linkInitError && (
+            <div className="font-mono text-xs mt-2 p-2 rounded" style={{ background: "#ff2d5515", color: "#ff2d55", border: "1px solid #ff2d5530" }}>
+              {linkInitError}
+            </div>
+          )}
         </div>
       )}
 
@@ -389,6 +404,25 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
           </button>
         ))}
       </div>
+
+      {/* ── Inline buy error / popup-blocked fallback ───────────────────────── */}
+      {buyError && (
+        <div className="font-mono text-xs p-3 rounded flex items-start justify-between gap-2"
+          style={{ background: "#ff2d5515", color: "#ff2d55", border: "1px solid #ff2d5530" }}>
+          <span>{buyError}</span>
+          <button onClick={() => setBuyError(null)} style={{ background: "none", border: "none", color: "#ff2d55", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>✕</button>
+        </div>
+      )}
+      {invoiceFallbackUrl && (
+        <div className="font-mono text-xs p-3 rounded" style={{ background: "#0088cc15", border: "1px solid #0088cc40" }}>
+          <div style={{ color: "#0088cc", marginBottom: 6 }}>Your browser blocked the Telegram popup. Open it manually:</div>
+          <a href={invoiceFallbackUrl} target="_blank" rel="noopener noreferrer"
+            style={{ color: "#00E0FF", fontWeight: 700, wordBreak: "break-all" }}>
+            Open Invoice ↗
+          </a>
+          <button onClick={() => setInvoiceFallbackUrl(null)} className="ml-3" style={{ background: "none", border: "none", color: "#475569", cursor: "pointer" }}>Dismiss</button>
+        </div>
+      )}
 
       {loading && (
         <div className="text-center font-mono text-sm py-8" style={{ color: "#475569" }}>Loading store…</div>
@@ -691,22 +725,32 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
 
       {/* ── Telegram linked status ───────────────────────────────────────────── */}
       {status?.telegramLinked && (
-        <div className="flex items-center justify-between p-3 rounded" style={{ background: "#0a0a14", border: "1px solid #1e1e2e" }}>
-          <div className="font-mono text-xs" style={{ color: "#22c55e" }}>
-            ✓ Telegram linked{status.telegramUsername ? ` (@${status.telegramUsername})` : ""}
+        <div style={{ background: "#0a0a14", border: "1px solid #1e1e2e", borderRadius: 8, padding: 12 }}>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="font-mono text-xs" style={{ color: "#22c55e" }}>
+              ✓ Telegram linked{status.telegramUsername ? ` (@${status.telegramUsername})` : ""}
+            </div>
+            {!telegramUnlinkConfirm ? (
+              <button onClick={() => setTelegramUnlinkConfirm(true)} className="font-mono text-xs"
+                style={{ color: "#475569", background: "none", border: "none", cursor: "pointer" }}>
+                Unlink
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-xs" style={{ color: "#ff6b35" }}>Unlink? You'll need to re-link to purchase.</span>
+                <button onClick={async () => { setTelegramUnlinkConfirm(false); await api.post("/telegram/unlink"); await loadStatus(); }}
+                  className="font-mono text-xs px-2 py-1 rounded"
+                  style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540", cursor: "pointer" }}>
+                  Yes
+                </button>
+                <button onClick={() => setTelegramUnlinkConfirm(false)}
+                  className="font-mono text-xs px-2 py-1 rounded"
+                  style={{ background: "#1e1e2e", color: "#475569", border: "1px solid #1e1e2e", cursor: "pointer" }}>
+                  No
+                </button>
+              </div>
+            )}
           </div>
-          <button
-            onClick={async () => {
-              if (confirm("Unlink your Telegram account? You'll need to re-link to make purchases.")) {
-                await api.post("/telegram/unlink");
-                await loadStatus();
-              }
-            }}
-            className="font-mono text-xs"
-            style={{ color: "#475569", background: "none", border: "none", cursor: "pointer" }}
-          >
-            Unlink
-          </button>
         </div>
       )}
     </div>

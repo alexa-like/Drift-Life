@@ -5,6 +5,7 @@ import { User } from "../lib/types";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { AnimatedCard } from "../components/AnimatedCard";
+import { formatDC } from "../lib/format";
 
 interface GuildSummary {
   id: string;
@@ -51,10 +52,13 @@ const INPUT = {
 
 export function GuildsPage({ user, addToast }: Props) {
   const qc = useQueryClient();
-  const [tab,          setTab]         = useState<"mine" | "browse" | "create" | "turf">("mine");
-  const [createForm,   setCreateForm]  = useState({ name: "", tag: "", description: "" });
-  const [donateAmount, setDonateAmount] = useState("");
-  const [turfRacing,   setTurfRacing]  = useState<string | null>(null);
+  const [tab,              setTab]              = useState<"mine" | "browse" | "create" | "turf" | "bank">("mine");
+  const [createForm,       setCreateForm]       = useState({ name: "", tag: "", description: "" });
+  const [donateAmount,     setDonateAmount]     = useState("");
+  const [turfRacing,       setTurfRacing]       = useState<string | null>(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [bankDeposit,      setBankDeposit]      = useState("");
+  const [bankWithdraw,     setBankWithdraw]     = useState("");
 
   const { data: myGuild, isLoading: myGuildLoading } = useQuery<MyGuild | null>({
     queryKey: ["guild-mine"],
@@ -106,6 +110,37 @@ export function GuildsPage({ user, addToast }: Props) {
     onError: (e: Error) => addToast(e.message, "error"),
   });
 
+  interface BankData {
+    bankBalance: number;
+    activePerks: Array<{ perkId: string; expiresAt: string }>;
+    availablePerks: Array<{ id: string; name: string; cost: number; description: string }>;
+    logs: Array<{ id: string; username: string; amount: number; type: string; createdAt: string }>;
+  }
+
+  const { data: bankData, refetch: refetchBank } = useQuery<BankData | null>({
+    queryKey: ["guild-bank"],
+    queryFn: () => api.get("/faction/bank"),
+    enabled: tab === "bank" && !!myGuild,
+  });
+
+  const depositMut = useMutation({
+    mutationFn: (amount: number) => api.post("/faction/bank/deposit", { amount }),
+    onSuccess: (r: { message: string }) => { addToast(r.message, "success"); setBankDeposit(""); refetchBank(); qc.invalidateQueries({ queryKey: ["guild-mine"] }); },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const withdrawMut = useMutation({
+    mutationFn: (amount: number) => api.post("/faction/bank/withdraw", { amount }),
+    onSuccess: (r: { message: string }) => { addToast(r.message, "success"); setBankWithdraw(""); refetchBank(); },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const perkMut = useMutation({
+    mutationFn: (perkId: string) => api.post("/faction/perks/buy", { perkId }),
+    onSuccess: (r: { message: string }) => { addToast(r.message, "success"); refetchBank(); },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
   const { data: turfData } = useQuery<{
     districts: Array<{ id: string; name: string; tier: number; raceCost: number; income: number; controlling: { guildName: string; guildTag: string } | null }>;
     leaderboard: Array<{ name: string; tag: string; points: number; districts: string[] }>;
@@ -126,7 +161,7 @@ export function GuildsPage({ user, addToast }: Props) {
   });
 
   const TABS = myGuild
-    ? (["mine", "browse", "turf"] as const)
+    ? (["mine", "browse", "turf", "bank"] as const)
     : (["mine", "browse", "create", "turf"] as const);
 
   return (
@@ -175,14 +210,18 @@ export function GuildsPage({ user, addToast }: Props) {
                     <span className="font-mono text-xs" style={{ color: ROLE_COLORS[myGuild.myRole] }}>Role: {myGuild.myRole}</span>
                   </div>
                 </div>
-                <CyberButton
-                  variant="danger"
-                  size="sm"
-                  loading={leaveGuild.isPending}
-                  onClick={() => { if (confirm("Leave this guild?")) leaveGuild.mutate(); }}
-                >
-                  Leave
-                </CyberButton>
+                {!showLeaveConfirm ? (
+                  <CyberButton variant="danger" size="sm" onClick={() => setShowLeaveConfirm(true)}>
+                    Leave
+                  </CyberButton>
+                ) : (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="font-mono text-xs" style={{ color: "#ff6b35" }}>Leave guild?</span>
+                    <CyberButton variant="danger" size="sm" loading={leaveGuild.isPending}
+                      onClick={() => { leaveGuild.mutate(); setShowLeaveConfirm(false); }}>Yes</CyberButton>
+                    <CyberButton variant="ghost" size="sm" onClick={() => setShowLeaveConfirm(false)}>No</CyberButton>
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 pt-3" style={{ borderTop: "1px solid #1e1e2e" }}>
@@ -350,6 +389,119 @@ export function GuildsPage({ user, addToast }: Props) {
                 </div>
               ))}
             </AnimatedCard>
+          )}
+        </div>
+      )}
+
+      {/* BANK */}
+      {tab === "bank" && myGuild && (
+        <div className="space-y-4">
+          {!bankData ? (
+            <div className="font-mono text-xs text-center py-8" style={{ color: "#334155" }}>Loading bank…</div>
+          ) : (
+            <>
+              {/* Balance */}
+              <AnimatedCard accent="#f59e0b">
+                <CyberSectionHeader title="GUILD BANK" accent="#f59e0b" size="sm" />
+                <div className="font-mono text-2xl font-bold mt-2" style={{ color: "#f59e0b" }}>
+                  {formatDC(bankData.bankBalance)} DC
+                </div>
+                <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>Shared guild treasury</div>
+
+                {/* Deposit */}
+                <div className="mt-4 space-y-2">
+                  <div className="font-mono text-xs" style={{ color: "#64748b" }}>Deposit DC (anyone can deposit)</div>
+                  <div className="flex gap-2">
+                    <input type="number" value={bankDeposit} onChange={e => setBankDeposit(e.target.value)}
+                      placeholder="Amount" className="font-mono text-xs flex-1" style={INPUT} />
+                    <CyberButton variant="warning" size="sm" loading={depositMut.isPending}
+                      disabled={!bankDeposit || Number(bankDeposit) < 1}
+                      onClick={() => depositMut.mutate(parseInt(bankDeposit))}>
+                      Deposit
+                    </CyberButton>
+                  </div>
+                </div>
+
+                {/* Withdraw — officer+ only */}
+                {(myGuild.myRole === "leader" || myGuild.myRole === "officer") && (
+                  <div className="mt-3 space-y-2">
+                    <div className="font-mono text-xs" style={{ color: "#64748b" }}>Withdraw DC (officer+)</div>
+                    <div className="flex gap-2">
+                      <input type="number" value={bankWithdraw} onChange={e => setBankWithdraw(e.target.value)}
+                        placeholder="Amount" className="font-mono text-xs flex-1" style={INPUT} />
+                      <CyberButton variant="danger" size="sm" loading={withdrawMut.isPending}
+                        disabled={!bankWithdraw || Number(bankWithdraw) < 1}
+                        onClick={() => withdrawMut.mutate(parseInt(bankWithdraw))}>
+                        Withdraw
+                      </CyberButton>
+                    </div>
+                  </div>
+                )}
+              </AnimatedCard>
+
+              {/* Perks */}
+              <AnimatedCard accent="#a855f7">
+                <CyberSectionHeader title="GUILD PERKS" accent="#a855f7" size="sm" />
+                <div className="space-y-3 mt-2">
+                  {bankData.availablePerks.map(perk => {
+                    const isActive = bankData.activePerks.some(ap => ap.perkId === perk.id);
+                    const canAfford = bankData.bankBalance >= perk.cost;
+                    const canBuy = (myGuild.myRole === "leader" || myGuild.myRole === "officer");
+                    const activeEntry = bankData.activePerks.find(ap => ap.perkId === perk.id);
+                    return (
+                      <div key={perk.id} className="flex items-start justify-between gap-3 py-2"
+                        style={{ borderTop: "1px solid #1e1e2e" }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-mono text-sm font-bold" style={{ color: isActive ? "#a855f7" : "#e2e8f0" }}>
+                            {perk.name} {isActive && "✓"}
+                          </div>
+                          <div className="font-mono text-xs mt-0.5" style={{ color: "#64748b" }}>{perk.description}</div>
+                          {isActive && activeEntry && (
+                            <div className="font-mono text-xs mt-0.5" style={{ color: "#a855f7" }}>
+                              Expires {new Date(activeEntry.expiresAt).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>{formatDC(perk.cost)} DC</span>
+                          {canBuy && (
+                            <CyberButton variant="purple" size="sm" loading={perkMut.isPending}
+                              disabled={!canAfford || perkMut.isPending}
+                              onClick={() => perkMut.mutate(perk.id)}>
+                              {isActive ? "Extend" : "Activate"}
+                            </CyberButton>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </AnimatedCard>
+
+              {/* Transaction Log */}
+              {bankData.logs.length > 0 && (
+                <AnimatedCard>
+                  <CyberSectionHeader title="RECENT TRANSACTIONS" accent="#64748b" size="sm" />
+                  <div className="space-y-1 mt-2">
+                    {bankData.logs.map(log => (
+                      <div key={String(log.id)} className="flex items-center justify-between py-1.5"
+                        style={{ borderTop: "1px solid #1e1e2e08" }}>
+                        <div className="flex items-center gap-2">
+                          <span style={{ color: log.type === "deposit" ? "#39d353" : "#ff6b35", fontSize: 12 }}>
+                            {log.type === "deposit" ? "↑" : "↓"}
+                          </span>
+                          <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>{log.username}</span>
+                        </div>
+                        <span className="font-mono text-xs font-bold"
+                          style={{ color: log.type === "deposit" ? "#39d353" : "#ff6b35" }}>
+                          {log.type === "deposit" ? "+" : "-"}{formatDC(log.amount)} DC
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </AnimatedCard>
+              )}
+            </>
           )}
         </div>
       )}

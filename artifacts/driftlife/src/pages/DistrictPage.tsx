@@ -39,7 +39,7 @@ export function DistrictPage({ user, refreshUser, addToast }: Props) {
         <h2 className="text-lg font-mono font-bold" style={{ color: "#a855f7" }}>Districts of New Vanta</h2>
         <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>
           Currently in: <strong style={{ color: "#00d4ff" }}>
-            {user.district.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+            {(user.district ?? "").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || "Unknown"}
           </strong>
         </span>
       </div>

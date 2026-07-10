@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ItemImage } from "../components/ItemImage";
+import { api } from "../lib/api";
 
 const TIER_COLORS: Record<string, string> = {
   common: "#9ca3af", uncommon: "#22c55e", rare: "#3b82f6", epic: "#a855f7", legendary: "#f59e0b",
@@ -81,8 +82,7 @@ export default function NpcStorePage({ storeId, onBack }: Props) {
   useEffect(() => {
     setLoading(true);
     setNpcImgFailed(false);
-    fetch("/api/npc-stores/" + storeId, { credentials: "include" })
-      .then(r => r.json())
+    api.get<StoreData>("/npc-stores/" + storeId)
       .then(data => { setStore(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [storeId]);
@@ -105,18 +105,13 @@ export default function NpcStorePage({ storeId, onBack }: Props) {
     setBuying(itemId);
     setMessage(null);
     try {
-      const res = await fetch("/api/npc-stores/" + storeId + "/buy", {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ itemId }),
-      });
-      const data = await res.json();
-      setMessage(res.ok ? "✓ " + data.message : "✗ " + (data.message ?? "Failed"));
-      if (res.ok) {
-        const r2 = await fetch("/api/npc-stores/" + storeId, { credentials: "include" });
-        const d2 = await r2.json();
-        setStore(d2);
-      }
-    } catch { setMessage("Network error"); }
+      const data = await api.post<{ message: string }>("/npc-stores/" + storeId + "/buy", { itemId });
+      setMessage("✓ " + data.message);
+      const d2 = await api.get<StoreData>("/npc-stores/" + storeId);
+      setStore(d2);
+    } catch (err: any) {
+      setMessage("✗ " + (err.message ?? "Failed"));
+    }
     setBuying(null);
   }
 

@@ -68,6 +68,7 @@ const NAV: { id: string; label: string; minStage?: number; group?: string; statu
   { id: "skills",       label: "Skills",   statusFilter: "normal" },
   { id: "achievements", label: "Achiev" },
   { id: "daily",        label: "Daily" },
+  { id: "companions",   label: "Allies",   statusFilter: "normal" },
 ];
 
 function RollingNumber({ value, color }: { value: number; color: string }) {
