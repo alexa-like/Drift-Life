@@ -26,6 +26,8 @@ import guildsRouter from "./guilds";
 import auctionRouter from "./auction";
 import propertiesRouter from "./properties";
 import vantaRouter from "./vanta";
+import reportsRouter from "./reports";
+import supportRouter from "./support";
 import craftingRouter from "./crafting";
 import tradeRouter from "./trade";
 // ── Wire Cartel additions ────────────────────────────────────────────────────
