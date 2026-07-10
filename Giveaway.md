@@ -149,7 +149,7 @@ Re-read §2.1–2.3 and Appendix A's eligibility/DC-UC bullets; confirm every ch
 
 ## TIER 3 — CREATION, DRAFT, ESCROW, AND CARD IMAGE
 **Depends on: Tier 1, Tier 2**
-Status: ⏳ Not started
+Status: ✅ Done
 
 ### 3.1 — Draft creation route
 `POST /api/giveaways/draft` (player-authenticated): accepts pledge selections, anonymity flag, duration (validated ≤ 3-day ceiling), `maxEntrants` (validated against Tier 2's cap). Runs Tier 2's eligibility checks on every item/frame; rejects with a specific reason on any ineligible item rather than dropping it. Runs Tier 2's valuation + coverage check; if short, returns the required `ucTopUpCost` without deducting anything yet. Creates the `Giveaway` doc with `status: "draft"`, `draftExpiresAt: now + giveawayDraftLifetimeMs`. Nothing is deducted from the host at this step.

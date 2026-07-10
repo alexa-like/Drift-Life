@@ -70,9 +70,11 @@ import mentorRouter from "./mentor";
 import npcStoresRouter from "./npcStores";
 import blackMarketRouter from "./blackMarket";
 import factionBankRouter from "./factionBank";
-// ── Giveaway system (models registered here; routes added per-tier) ───────────
+// ── Giveaway System (Tier 3+) ──────────────────────────────────────────────────
+// Models are imported for side-effect registration; router added below.
 import "../models/Giveaway";
 import "../models/GiveawayEntry";
+import giveawaysRouter from "./giveaways";
 
 const router: IRouter = Router();
 
@@ -149,5 +151,7 @@ router.use("/search", searchRouter);
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);
 router.use("/admin/migration", migrationAdminRouter);
+// ── Giveaway System (Tier 3+) ──────────────────────────────────────────────────
+router.use("/giveaways", giveawaysRouter);
 
 export default router;

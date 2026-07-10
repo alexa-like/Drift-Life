@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export interface IFeedEvent extends Document {
   _id: mongoose.Types.ObjectId;
-  type: "crime" | "fight" | "job" | "level_up" | "market" | "bank" | "system" | "hospital" | "post" | "travel" | "daily" | "achievement" | "race" | "hack" | "garage";
+  type: "crime" | "fight" | "job" | "level_up" | "market" | "bank" | "system" | "hospital" | "post" | "travel" | "daily" | "achievement" | "race" | "hack" | "garage" | "giveaway";
   actor: string;
   actorId: mongoose.Types.ObjectId | null;
   target: string | null;
@@ -22,7 +22,8 @@ const FeedEventSchema = new Schema<IFeedEvent>(
   {
     type: {
       type: String,
-      enum: ["crime", "fight", "job", "level_up", "market", "bank", "system", "hospital", "post", "travel", "daily", "achievement", "race", "hack", "garage"],
+      // "giveaway" added for Tier 5 (created at conclusion, not while live — §3.5 Approach B)
+      enum: ["crime", "fight", "job", "level_up", "market", "bank", "system", "hospital", "post", "travel", "daily", "achievement", "race", "hack", "garage", "giveaway"],
       required: true,
     },
     actor: { type: String, required: true },

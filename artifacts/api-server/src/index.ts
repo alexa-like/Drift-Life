@@ -12,6 +12,7 @@ import { allowedOrigins } from "./lib/cors";
 import { closeExpiredAuctions, scheduleBotAuctions } from "./routes/auction";
 import { expireMarketListings } from "./routes/market";
 import { postWeeklyRecap, pruneFeed } from "./routes/leaderboard";
+import { sweepExpiredDrafts } from "./routes/giveaways";
 
 const rawPort = process.env["PORT"] ?? "3000";
 const port = Number(rawPort);
@@ -285,6 +286,18 @@ async function start() {
     }, 60 * 60 * 1000);
     pruneFeed().catch((err) =>
       logger.error({ err }, "feed prune startup error"),
+    );
+
+    // ── Giveaway draft expiry: sweep every 5 minutes ───────────────────────
+    // NOTE (§3.3): Once Tier 5's resolution worker is built, absorb this sweep
+    // into that worker's polling loop — do not leave two separate intervals.
+    setInterval(() => {
+      sweepExpiredDrafts().catch((err) =>
+        logger.error({ err }, "giveaway draft sweep interval error"),
+      );
+    }, 5 * 60 * 1000);
+    sweepExpiredDrafts().catch((err) =>
+      logger.error({ err }, "giveaway draft sweep startup error"),
     );
 
     // Register Telegram webhook once the server is live and accepting traffic.

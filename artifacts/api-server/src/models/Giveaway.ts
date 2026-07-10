@@ -36,7 +36,8 @@ export interface IGiveaway extends Document {
   createdAt: Date;
   draftExpiresAt: Date | null; // only meaningful while status === "draft"
   liveExpiresAt: Date | null; // only set once status flips to "live"
-  cardImageUrl: string | null; // set once, never regenerated
+  cardImageUrl: string | null;  // set once, never regenerated (§3.4)
+  cardImageData: Buffer | null; // PNG bytes; served via GET /api/giveaways/:id/card
   resolvedAt: Date | null;
   winners: IGiveawayWinner[];
   feedEventId: mongoose.Types.ObjectId | null;
@@ -86,7 +87,8 @@ const GiveawaySchema = new Schema<IGiveaway>({
   createdAt: { type: Date, default: Date.now },
   draftExpiresAt: { type: Date, default: null },
   liveExpiresAt: { type: Date, default: null },
-  cardImageUrl: { type: String, default: null },
+  cardImageUrl:  { type: String, default: null },
+  cardImageData: { type: Buffer, default: null },
   resolvedAt: { type: Date, default: null },
   winners: { type: [GiveawayWinnerSchema], default: [] },
   feedEventId: { type: Schema.Types.ObjectId, ref: "FeedEvent", default: null },
