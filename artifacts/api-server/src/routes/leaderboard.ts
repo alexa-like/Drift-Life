@@ -210,7 +210,7 @@ router.get("/my-rank", requireAuth, async (req: AuthRequest, res) => {
     query[sortField] = { $gt: myVal };
 
     const above = await User.countDocuments(query);
-    res.json({ rank: above + 1, category, ...formatPlayer(me, above, category) });
+    res.json({ category, ...formatPlayer(me, above, category) });
   } catch (err: any) {
     req.log.error({ err }, "my-rank error");
     res.status(500).json({ message: "Internal server error" });

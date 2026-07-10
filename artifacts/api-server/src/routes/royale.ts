@@ -255,7 +255,7 @@ async function grantReward(
       await inv.save({ session });
     } else {
       await PlayerMiniGameInventory.create(
-        [{ userId, weapons: [], armor: [], consumables: [{ itemId: crateItemId, quantity: 1 }], ammo: [] }],
+        [{ userId, consumables: [{ itemId: crateItemId, quantity: 1 }] }],
         { session },
       );
     }
@@ -269,11 +269,11 @@ async function grantReward(
       if (existing) {
         existing.quantity += 1;
       } else {
-        garage.parts.push({ partId: r.carPartId!, quantity: 1 });
+        garage.parts.push({ partId: r.carPartId!, quantity: 1, condition: 100 });
       }
       await garage.save({ session });
     } else {
-      await PlayerGarage.create([{ userId, cars: [], parts: [{ partId: r.carPartId, quantity: 1 }], activeCar: null }], { session });
+      await PlayerGarage.create([{ userId, cars: [], parts: [{ partId: r.carPartId, quantity: 1, condition: 100 }], activeCar: null }], { session });
     }
   }
 }
@@ -482,14 +482,14 @@ router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
             if (existingPart) {
               existingPart.quantity += 1;
             } else {
-              garage.parts.push({ partId: carPartId, quantity: 1 });
+              garage.parts.push({ partId: carPartId, quantity: 1, condition: 100 });
             }
             await garage.save();
           } else {
             await PlayerGarage.create({
               userId: req.userId,
               cars: [],
-              parts: [{ partId: carPartId, quantity: 1 }],
+              parts: [{ partId: carPartId, quantity: 1, condition: 100 }],
               activeCar: null,
             });
           }

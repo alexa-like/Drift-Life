@@ -257,7 +257,7 @@ router.post("/scrap", requireAuth, async (req: AuthRequest, res) => {
       if (existing) {
         existing.quantity += qty;
       } else {
-        garage.parts.push({ partId, quantity: qty });
+        garage.parts.push({ partId, quantity: qty, condition: 100 });
       }
     }
 

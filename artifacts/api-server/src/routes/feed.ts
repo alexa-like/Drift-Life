@@ -1,12 +1,12 @@
 import { Router } from "express";
-import FeedEvent from "../models/FeedEvent";
+import FeedEvent, { IFeedEvent } from "../models/FeedEvent";
 import { requireAuth, requireStaff, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 
 // System-generated event types — these are the only ones shown on the broadcast feed.
 // "post" is excluded: players cannot self-post to the system feed.
-const SYSTEM_EVENT_TYPES = [
+const SYSTEM_EVENT_TYPES: IFeedEvent["type"][] = [
   "crime", "fight", "job", "level_up", "market", "bank",
   "system", "hospital", "travel", "daily", "achievement",
   "race", "hack", "garage",

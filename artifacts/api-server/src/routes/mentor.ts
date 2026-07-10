@@ -145,7 +145,7 @@ router.post("/request", requireAuth, async (req: AuthRequest, res) => {
 router.post("/end/:targetUserId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const callerId   = String(req.userId);
-    const targetId   = req.params.targetUserId;
+    const targetId   = String(req.params.targetUserId);
 
     const [caller, target] = await Promise.all([
       User.findById(callerId),

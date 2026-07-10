@@ -194,11 +194,11 @@ router.post("/:id/use", requireAuth, async (req: AuthRequest, res) => {
       if (!ownedCar) {
         return res.status(400).json({ message: "Active car not found in your garage." });
       }
-      const prev = ownedCar.durability ?? 100;
-      ownedCar.durability = 100;
+      const prev = ownedCar.condition ?? 100;
+      ownedCar.condition = 100;
       garage.markModified("cars");
       await garage.save();
-      effectMessage = `Race car serviced — durability restored from ${prev}% to 100%. `;
+      effectMessage = `Race car serviced — condition restored from ${prev}% to 100%. `;
     }
 
     item.quantity -= 1;
