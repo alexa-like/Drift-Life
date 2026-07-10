@@ -70,7 +70,7 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -161,6 +161,12 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [settingEvent, setSettingEvent] = useState(false);
   const [tierWeights, setTierWeights] = useState({ common: 60, uncommon: 25, rare: 10, epic: 4, legendary: 1 });
   const [savingTierWeights, setSavingTierWeights] = useState(false);
+  // Announcement banner
+  const [announcement, setAnnouncement] = useState<{ active: boolean; message: string; expiresAt: string | null } | null>(null);
+  const [announcementLoading, setAnnouncementLoading] = useState(false);
+  const [announcementText, setAnnouncementText] = useState("");
+  const [announcementHours, setAnnouncementHours] = useState("");
+  const [savingAnnouncement, setSavingAnnouncement] = useState(false);
 
   const loadStats = useCallback(async () => {
     try {
@@ -278,6 +284,13 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         setSpecialEvent(ev);
         setTierWeights({ common: tw.weights.common ?? 60, uncommon: tw.weights.uncommon ?? 25, rare: tw.weights.rare ?? 10, epic: tw.weights.epic ?? 4, legendary: tw.weights.legendary ?? 1 });
       }).catch(() => {}).finally(() => setSpecialEventLoading(false));
+    }
+    if (tab === "announcements") {
+      setAnnouncementLoading(true);
+      api.get<{ active: boolean; message: string; expiresAt: string | null }>("/owner/announcement")
+        .then(a => { setAnnouncement(a); setAnnouncementText(a.message ?? ""); })
+        .catch(() => {})
+        .finally(() => setAnnouncementLoading(false));
     }
   }, [tab]);
 
@@ -489,6 +502,10 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         <button onClick={() => setTab("special-events")} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "special-events" ? "#f59e0b18" : "#111118", color: tab === "special-events" ? "#f59e0b" : "#475569", border: `1px solid ${tab === "special-events" ? "#f59e0b40" : "#1e1e2e"}` }}>
           Events
+        </button>
+        <button onClick={() => setTab("announcements")} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "announcements" ? "#00d4ff18" : "#111118", color: tab === "announcements" ? "#00d4ff" : "#475569", border: `1px solid ${tab === "announcements" ? "#00d4ff40" : "#1e1e2e"}` }}>
+          Announcements
         </button>
         <button className="px-4 py-2 rounded font-mono text-xs opacity-40 cursor-not-allowed"
           style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Coming soon — Phase 2">
@@ -1271,6 +1288,96 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
               {royaleItems.length === 0 && <div className="font-mono text-xs text-center py-6" style={{ color: "#475569" }}>No royale items found</div>}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ANNOUNCEMENTS TAB */}
+      {tab === "announcements" && (
+        <div className="space-y-5">
+          <div style={s}>
+            <div className="font-mono text-xs font-bold mb-3" style={{ color: "#00d4ff", letterSpacing: "0.1em" }}>GLOBAL ANNOUNCEMENT BANNER</div>
+            <div className="font-mono text-xs mb-4" style={{ color: "#475569" }}>
+              Shows as a dismissible strip below the top nav for every player. Optionally attach a countdown.
+            </div>
+            {announcementLoading ? (
+              <div className="font-mono text-xs text-center py-6 animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="font-mono text-xs" style={{ color: "#e2e8f0" }}>
+                    Status: <span style={{ color: announcement?.active ? "#22c55e" : "#ef4444" }}>
+                      {announcement?.active ? "ACTIVE" : "INACTIVE"}
+                    </span>
+                  </div>
+                  {announcement?.active && announcement.expiresAt && (
+                    <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+                      Expires: {new Date(announcement.expiresAt).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+                <textarea
+                  value={announcementText}
+                  onChange={e => setAnnouncementText(e.target.value)}
+                  maxLength={240}
+                  placeholder="e.g. Double DC weekend is live! Ends in..."
+                  rows={2}
+                  className="w-full font-mono text-xs px-3 py-2 rounded"
+                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none", resize: "vertical" }}
+                />
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs" style={{ color: "#64748b" }}>Countdown (hours, optional):</span>
+                    <input
+                      value={announcementHours}
+                      onChange={e => setAnnouncementHours(e.target.value)}
+                      type="number" min={0.25} max={168} step={0.25}
+                      placeholder="none"
+                      className="font-mono text-xs px-2 py-1 rounded"
+                      style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", width: 80, outline: "none" }}
+                    />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!announcementText.trim()) { addToast("Enter a message first", "error"); return; }
+                      setSavingAnnouncement(true);
+                      try {
+                        const body: any = { message: announcementText.trim() };
+                        if (announcementHours.trim()) body.durationHours = Number(announcementHours);
+                        await api.post<any>("/owner/announcement", body);
+                        setAnnouncement({ active: true, message: announcementText.trim(), expiresAt: announcementHours.trim() ? new Date(Date.now() + Number(announcementHours) * 3_600_000).toISOString() : null });
+                        addToast("Announcement published", "success");
+                      } catch (e: any) { addToast(e.message, "error"); }
+                      finally { setSavingAnnouncement(false); }
+                    }}
+                    disabled={savingAnnouncement}
+                    className="font-mono text-xs px-4 py-2 rounded"
+                    style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}
+                  >
+                    {savingAnnouncement ? "…" : "Publish"}
+                  </button>
+                  {announcement?.active && (
+                    <button
+                      onClick={async () => {
+                        setSavingAnnouncement(true);
+                        try {
+                          await api.post<any>("/owner/announcement", { active: false });
+                          setAnnouncement({ active: false, message: "", expiresAt: null });
+                          setAnnouncementText("");
+                          addToast("Announcement cleared", "success");
+                        } catch (e: any) { addToast(e.message, "error"); }
+                        finally { setSavingAnnouncement(false); }
+                      }}
+                      disabled={savingAnnouncement}
+                      className="font-mono text-xs px-4 py-2 rounded"
+                      style={{ background: "#ef444418", color: "#ef4444", border: "1px solid #ef444440" }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

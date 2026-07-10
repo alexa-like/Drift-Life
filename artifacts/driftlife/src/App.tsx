@@ -272,9 +272,10 @@ function GameApp() {
           onNav={navTo}
           onLogout={handleLogout}
           unreadNotifs={unreadNotifs}
+          onInspectPlayer={setInspectUserId}
         />
-        {/* Account for taller nav (2 rows now) */}
-        <main className="pt-[76px] pb-8 px-3 sm:px-4 max-w-5xl mx-auto w-full">
+        {/* Account for taller nav (top bar + banner + status + icon row + stat bars + currency row) */}
+        <main className="pt-[210px] sm:pt-[190px] pb-8 px-3 sm:px-4 max-w-5xl mx-auto w-full">
           <PageTransition pageKey={page}>
             {renderPage()}
           </PageTransition>

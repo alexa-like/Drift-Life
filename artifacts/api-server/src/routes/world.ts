@@ -7,6 +7,7 @@ import User from "../models/User";
 import Companion, { COMPANION_CATALOG, CompanionType } from "../models/Companion";
 import { requireAuth, requireStaff, AuthRequest } from "../middlewares/auth";
 import { getWorldState } from "../models/WorldState";
+import ServerConfig from "../models/ServerConfig";
 
 const router = Router();
 
@@ -51,6 +52,22 @@ router.get("/state", requireAuth, async (req: AuthRequest, res) => {
 // ── GET /api/world/districts — district modifiers ────────────────────────────
 router.get("/districts", requireAuth, (_req, res) => {
   res.json(DISTRICT_MODIFIERS);
+});
+
+// ── GET /api/world/announcement — public banner for the top HUD ──────────────
+router.get("/announcement", requireAuth, async (_req, res) => {
+  try {
+    const cfg = await ServerConfig.findOne({ key: "announcement" }).lean();
+    const val = (cfg?.value ?? {}) as { active?: boolean; message?: string; expiresAt?: string | null };
+    const expired = val.expiresAt ? new Date(val.expiresAt) < new Date() : false;
+    res.json({
+      active: !!val.active && !expired,
+      message: val.message ?? "",
+      expiresAt: val.expiresAt ?? null,
+    });
+  } catch (err: any) {
+    res.status(500).json({ active: false, message: "", expiresAt: null });
+  }
 });
 
 // ── GET /api/world/season/leaderboard — season ladder ────────────────────────

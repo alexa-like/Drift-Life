@@ -28,6 +28,7 @@ import propertiesRouter from "./properties";
 import vantaRouter from "./vanta";
 import reportsRouter from "./reports";
 import supportRouter from "./support";
+import searchRouter from "./search";
 import craftingRouter from "./crafting";
 import tradeRouter from "./trade";
 // ── Wire Cartel additions ────────────────────────────────────────────────────
@@ -140,6 +141,7 @@ router.use("/faction", factionBankRouter);
 // ── Community / Safety ─────────────────────────────────────────────────────
 router.use("/reports", reportsRouter);
 router.use("/support", supportRouter);
+router.use("/search", searchRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);

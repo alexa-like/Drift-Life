@@ -731,6 +731,73 @@ router.post("/special-event", requireOwner as any, async (req: AuthRequest, res)
   }
 });
 
+// ── GET /api/owner/announcement — current banner config (staff view) ──────────
+router.get("/announcement", async (_req, res) => {
+  try {
+    const cfg = await ServerConfig.findOne({ key: "announcement" }).lean();
+    const val = (cfg?.value ?? {}) as { active?: boolean; message?: string; expiresAt?: string | null };
+    res.json({ active: !!val.active, message: val.message ?? "", expiresAt: val.expiresAt ?? null });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/owner/announcement — set or clear the global banner ─────────────
+// Body: { message: string, durationHours?: number } to activate
+//       { active: false } to deactivate
+router.post("/announcement", async (req: AuthRequest, res) => {
+  try {
+    const { active, message, durationHours } = req.body as {
+      active?: boolean;
+      message?: string;
+      durationHours?: number;
+    };
+
+    if (active === false) {
+      await ServerConfig.findOneAndUpdate(
+        { key: "announcement" },
+        { $set: { value: { active: false, message: "", expiresAt: null }, updatedAt: new Date() } },
+        { upsert: true },
+      );
+      logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "deactivate-announcement", details: {} });
+      res.json({ message: "Announcement cleared", active: false });
+      return;
+    }
+
+    const text = String(message ?? "").trim();
+    if (!text) {
+      res.status(400).json({ message: "message is required to activate an announcement" });
+      return;
+    }
+    if (text.length > 240) {
+      res.status(400).json({ message: "message must be 240 characters or fewer" });
+      return;
+    }
+
+    let expiresAt: string | null = null;
+    if (durationHours !== undefined) {
+      const rawHours = Number(durationHours);
+      if (!isFinite(rawHours) || rawHours <= 0) {
+        res.status(400).json({ message: "durationHours must be a positive number (max 168)" });
+        return;
+      }
+      const hours = Math.max(0.25, Math.min(168, rawHours));
+      expiresAt = new Date(Date.now() + hours * 3_600_000).toISOString();
+    }
+
+    await ServerConfig.findOneAndUpdate(
+      { key: "announcement" },
+      { $set: { value: { active: true, message: text, expiresAt }, updatedAt: new Date() } },
+      { upsert: true },
+    );
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "set-announcement", details: { text, expiresAt } });
+    res.json({ active: true, message: text, expiresAt });
+  } catch (err: any) {
+    req.log.error({ err }, "announcement error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // ── CHAT REPORTS ───────────────────────────────────────────────────────────────
 
 // GET /api/owner/chat-reports — list chat reports for staff review

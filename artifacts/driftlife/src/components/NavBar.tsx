@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
 import { formatDC } from "../lib/format";
+import { AnnouncementBanner } from "./AnnouncementBanner";
+import { api } from "../lib/api";
 
-function RollingNC({ value }: { value: number }) {
+function RollingNumber({ value, color }: { value: number; color: string }) {
   const [display, setDisplay] = useState(value);
   const prevRef = useRef(value);
   const animRef = useRef<number | null>(null);
@@ -21,92 +23,58 @@ function RollingNC({ value }: { value: number }) {
     animRef.current = requestAnimationFrame(step);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
   }, [value]);
-  return <span className="font-mono tabular-nums" style={{ color: "#a855f7", fontSize: 11, fontWeight: "bold" }}>{formatDC(display)}</span>;
+  return <span className="font-mono tabular-nums" style={{ color, fontSize: 11, fontWeight: "bold" }}>{formatDC(display)}</span>;
 }
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
-// Wire Cartel onboarding-gated nav items
+// Full canonical list of top-level game sections (icon nav row).
 // minStage: minimum onboardingStage required to see this item
-// statusFilter: which statuses can see this item ("all" | "normal" | "normal|abroad" | etc.)
-const NAV: { id: string; label: string; minStage?: number; group?: string; statusFilter?: string }[] = [
-  // Always visible (all statuses)
-  { id: "feed",         label: "Feed" },
-  { id: "chat",         label: "Chat" },
-  { id: "profile",      label: "Profile" },
-  { id: "chatframes",   label: "Frames" },
-  { id: "store",        label: "Store" },
-  { id: "connections",  label: "Connect" },
-  { id: "leaderboard",  label: "Board" },
-  { id: "auction",      label: "Auction" },
-  // Wire Cartel — core loop (onboarding gated, normal only)
-  { id: "city",         label: "City",     group: "wc",  statusFilter: "normal" },
-  { id: "training",     label: "Training", group: "wc",  statusFilter: "normal" },
-  { id: "jobs",         label: "Jobs",     group: "wc",  statusFilter: "normal" },
-  { id: "garage",       label: "Garage",   group: "wc",  minStage: 1, statusFilter: "normal" },
-  { id: "net",          label: "Net",      group: "wc",  minStage: 3, statusFilter: "normal" },
-  { id: "cyber",        label: "Cyber",    group: "wc",  minStage: 3, statusFilter: "normal" },
-  { id: "guilds",       label: "Crew",     group: "wc",  minStage: 2, statusFilter: "normal" },
-  // Normal-only arena / combat
-  { id: "arena",        label: "Arena",    statusFilter: "normal" },
-  { id: "loadout",      label: "Loadout",  statusFilter: "normal" },
-  { id: "race-hub",     label: "Race",     statusFilter: "normal" },
-  { id: "royale",       label: "Royale",   statusFilter: "normal" },
-  { id: "missions",     label: "Missions", statusFilter: "normal" },
+// statusFilter: which statuses can see this item ("all" | "normal" | "normal|abroad" | "abroad")
+const NAV: { id: string; label: string; icon: string; minStage?: number; group?: string; statusFilter?: string }[] = [
+  { id: "dashboard",    label: "Home",     icon: "🏠" },
+  { id: "feed",         label: "Feed",     icon: "📰" },
+  { id: "chat",         label: "Chat",     icon: "💬" },
+  { id: "profile",      label: "Profile",  icon: "🧑" },
+  { id: "inventory",    label: "Bag",      icon: "🎒" },
+  { id: "chatframes",   label: "Frames",   icon: "🖼️" },
+  { id: "store",        label: "Store",    icon: "💳" },
+  { id: "connections",  label: "Connect",  icon: "🔗" },
+  { id: "leaderboard",  label: "Board",    icon: "📊" },
+  { id: "auction",      label: "Auction",  icon: "🔨" },
+  // Wire Cartel core loop (onboarding gated, normal only)
+  { id: "city",         label: "City",     icon: "🏙️", group: "wc",  statusFilter: "normal" },
+  { id: "training",     label: "Gym",      icon: "🏋️", group: "wc",  statusFilter: "normal" },
+  { id: "jobs",         label: "Jobs",     icon: "💼", group: "wc",  statusFilter: "normal" },
+  { id: "garage",       label: "Garage",   icon: "🚗", group: "wc",  minStage: 1, statusFilter: "normal" },
+  { id: "net",          label: "Net",      icon: "🌐", group: "wc",  minStage: 3, statusFilter: "normal" },
+  { id: "cyber",        label: "Cyber",    icon: "🤖", group: "wc",  minStage: 3, statusFilter: "normal" },
+  { id: "guilds",       label: "Crew",     icon: "🛡️", group: "wc",  minStage: 2, statusFilter: "normal" },
+  // Combat / racing (normal only)
+  { id: "arena",        label: "Arena",    icon: "⚔️", statusFilter: "normal" },
+  { id: "loadout",      label: "Loadout",  icon: "🎯", statusFilter: "normal" },
+  { id: "race-hub",     label: "Race",     icon: "🏁", statusFilter: "normal" },
+  { id: "royale",       label: "Royale",   icon: "👑", statusFilter: "normal" },
+  { id: "missions",     label: "Missions", icon: "📋", statusFilter: "normal" },
   // Normal or abroad
-  { id: "crimes",       label: "Crimes",   statusFilter: "normal|abroad" },
-  { id: "travel",       label: "Travel",   statusFilter: "normal|abroad" },
-  { id: "market",       label: "Market",   statusFilter: "normal|abroad" },
-  { id: "district-hub", label: "Hub",    statusFilter: "abroad" },
+  { id: "crimes",       label: "Crimes",   icon: "🔪", statusFilter: "normal|abroad" },
+  { id: "travel",       label: "Travel",   icon: "✈️", statusFilter: "normal|abroad" },
+  { id: "market",       label: "Market",   icon: "🛒", statusFilter: "normal|abroad" },
+  { id: "district-hub", label: "Hub",      icon: "🌆", statusFilter: "abroad" },
   // Economy & social (normal only)
-  { id: "shop",         label: "Shop",     statusFilter: "normal" },
-  { id: "friends",      label: "Friends",  statusFilter: "normal" },
-  { id: "bank",         label: "Bank",     statusFilter: "normal" },
-  { id: "properties",   label: "Estate",   statusFilter: "normal" },
-  { id: "crafting",     label: "Craft",    statusFilter: "normal" },
-  { id: "skills",       label: "Skills",   statusFilter: "normal" },
-  { id: "achievements", label: "Achiev" },
-  { id: "daily",        label: "Daily" },
-  { id: "companions",   label: "Allies",   statusFilter: "normal" },
-  { id: "support",      label: "Support" },
-  { id: "legal",        label: "Legal" },
+  { id: "shop",         label: "Shop",     icon: "🏪", statusFilter: "normal" },
+  { id: "friends",      label: "Friends",  icon: "👥", statusFilter: "normal" },
+  { id: "bank",         label: "Bank",     icon: "🏦", statusFilter: "normal" },
+  { id: "properties",   label: "Estate",   icon: "🏢", statusFilter: "normal" },
+  { id: "crafting",     label: "Craft",    icon: "🔧", statusFilter: "normal" },
+  { id: "skills",       label: "Skills",   icon: "🌟", statusFilter: "normal" },
+  { id: "achievements", label: "Achiev",   icon: "🏆" },
+  { id: "daily",        label: "Daily",    icon: "🎁" },
+  { id: "companions",   label: "Allies",   icon: "🐺", statusFilter: "normal" },
+  { id: "support",      label: "Support",  icon: "🆘" },
+  { id: "legal",        label: "Legal",    icon: "📜" },
 ];
-
-function RollingNumber({ value, color }: { value: number; color: string }) {
-  const [display, setDisplay] = useState(value);
-  const prevRef = useRef(value);
-  const animRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (value === prevRef.current) return;
-    const start = prevRef.current;
-    const end = value;
-    const duration = 600;
-    const startTime = performance.now();
-
-    function step(now: number) {
-      const t = Math.min((now - startTime) / duration, 1);
-      const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-      setDisplay(Math.round(start + (end - start) * eased));
-      if (t < 1) {
-        animRef.current = requestAnimationFrame(step);
-      } else {
-        prevRef.current = end;
-      }
-    }
-
-    if (animRef.current) cancelAnimationFrame(animRef.current);
-    animRef.current = requestAnimationFrame(step);
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [value]);
-
-  return (
-    <span className="font-mono tabular-nums" style={{ color, fontSize: 11, fontWeight: "bold" }}>
-      {formatDC(display)}
-    </span>
-  );
-}
 
 function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; maxEnergy: number; energyRegenAt?: string | null }) {
   const [secsLeft, setSecsLeft] = useState<number | null>(null);
@@ -135,15 +103,184 @@ function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; m
   );
 }
 
+function StatBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  return (
+    <div className="flex-1 min-w-[70px]" style={{ minWidth: 70 }}>
+      <div style={{ position: "relative", height: 14, background: "#111118", borderRadius: 3, overflow: "hidden", border: "1px solid #1e1e2e" }}>
+        <div style={{
+          height: "100%", width: `${pct}%`,
+          background: `linear-gradient(90deg, ${color}90, ${color})`,
+          boxShadow: `0 0 6px ${color}60`,
+          transition: "width 0.6s ease",
+        }} />
+        <span className="font-mono" style={{
+          position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 9, fontWeight: "bold", color: "#e2e8f0", textShadow: "0 1px 2px #000",
+        }}>
+          {label} {value}/{max}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+interface SearchResult {
+  players: { id: string; username: string; tag: string; avatar: string; faction: string | null; level: number }[];
+  items: { id: string; name: string; type: string; rarity: string }[];
+  districts: { id: string; name: string; dangerLevel: number; minLevel: number }[];
+}
+
+function SearchBar({ onInspectPlayer, onNav }: { onInspectPlayer?: (id: string) => void; onNav: (id: string) => void }) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<SearchResult | null>(null);
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  useEffect(() => {
+    if (q.trim().length < 2) { setResults(null); return; }
+    const iv = setTimeout(async () => {
+      try {
+        const r = await api.get<SearchResult>(`/search?q=${encodeURIComponent(q.trim())}`);
+        setResults(r);
+      } catch {
+        setResults(null);
+      }
+    }, 300);
+    return () => clearTimeout(iv);
+  }, [q]);
+
+  const hasResults = results && (results.players.length || results.items.length || results.districts.length);
+
+  return (
+    <div ref={boxRef} className="relative flex-1 max-w-xs mx-2" style={{ minWidth: 0 }}>
+      <input
+        value={q}
+        onChange={e => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder="Search players, items, districts…"
+        className="w-full font-mono px-2 py-1 rounded"
+        style={{ fontSize: 11, background: "#0d0d15", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+      />
+      {open && q.trim().length >= 2 && (
+        <div
+          className="absolute left-0 right-0 mt-1 rounded overflow-hidden"
+          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", boxShadow: "0 8px 24px #000a", zIndex: 60, maxHeight: 320, overflowY: "auto" }}
+        >
+          {!hasResults && (
+            <div className="font-mono px-2 py-2" style={{ fontSize: 11, color: "#475569" }}>No matches</div>
+          )}
+          {results?.players.map(p => (
+            <button
+              key={p.id}
+              onClick={() => { onInspectPlayer?.(p.id); setOpen(false); setQ(""); }}
+              className="w-full text-left font-mono px-2 py-1.5 flex items-center gap-2"
+              style={{ fontSize: 11, color: "#e2e8f0" }}
+            >
+              <span>🧑</span> {p.username} <span style={{ color: "#475569" }}>Lv.{p.level}</span>
+            </button>
+          ))}
+          {results?.items.map(i => (
+            <button
+              key={i.id}
+              onClick={() => { onNav("market"); setOpen(false); setQ(""); }}
+              className="w-full text-left font-mono px-2 py-1.5 flex items-center gap-2"
+              style={{ fontSize: 11, color: "#e2e8f0" }}
+            >
+              <span>🎒</span> {i.name} <span style={{ color: "#475569" }}>{i.rarity}</span>
+            </button>
+          ))}
+          {results?.districts.map(d => (
+            <button
+              key={d.id}
+              onClick={() => { onNav("travel"); setOpen(false); setQ(""); }}
+              className="w-full text-left font-mono px-2 py-1.5 flex items-center gap-2"
+              style={{ fontSize: 11, color: "#e2e8f0" }}
+            >
+              <span>🏙️</span> {d.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AvatarMenu({ user, onNav, onLogout }: { user: User; onNav: (id: string) => void; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 font-mono px-1.5 py-0.5 rounded"
+        style={{ fontSize: 11, color: "#e2e8f0", border: "1px solid #1e1e2e" }}
+      >
+        {user.avatarUrl ? (
+          <img src={user.avatarUrl} alt="" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover" }} />
+        ) : (
+          <span>🧑</span>
+        )}
+        <span className="hidden sm:inline">{user.username}</span>
+        <span style={{ color: "#475569" }}>▾</span>
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 mt-1 rounded overflow-hidden"
+          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", boxShadow: "0 8px 24px #000a", zIndex: 60, minWidth: 140 }}
+        >
+          {[
+            { id: "profile", label: "👤 Profile" },
+            { id: "settings", label: "⚙ Settings" },
+          ].map(item => (
+            <button
+              key={item.id}
+              onClick={() => { onNav(item.id); setOpen(false); }}
+              className="w-full text-left font-mono px-3 py-2"
+              style={{ fontSize: 11, color: "#e2e8f0" }}
+            >
+              {item.label}
+            </button>
+          ))}
+          <button
+            onClick={() => { onLogout(); setOpen(false); }}
+            className="w-full text-left font-mono px-3 py-2"
+            style={{ fontSize: 11, color: "#ff2d55", borderTop: "1px solid #1e1e2e" }}
+          >
+            ⏻ Logout
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   user: User;
   active: string;
   onNav: (id: string) => void;
   onLogout: () => void;
   unreadNotifs: number;
+  onInspectPlayer?: (id: string) => void;
 }
 
-export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
+export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectPlayer }: Props) {
   const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
   const xpPct = Math.min(100, Math.round((user.xp / user.xpToNext) * 100));
@@ -166,6 +303,56 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
           }}
         />
       </div>
+
+      {/* Top bar: logo | search | notifications/history | avatar menu */}
+      <div className="flex items-center gap-2 px-2 py-1.5" style={{ borderBottom: "1px solid #0d0d15" }}>
+        <button
+          className="font-mono font-bold text-sm flex-shrink-0 tracking-widest"
+          style={{ color: "#00d4ff", textShadow: "0 0 12px #00d4ff80" }}
+          onClick={() => onNav("dashboard")}
+        >
+          DRIFT
+        </button>
+
+        <SearchBar onInspectPlayer={onInspectPlayer} onNav={onNav} />
+
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={() => onNav("notifications")}
+            className="relative font-mono px-1.5 py-0.5 rounded"
+            style={{
+              fontSize: 11,
+              color: unreadNotifs > 0 ? "#ff2d55" : "#475569",
+              border: `1px solid ${unreadNotifs > 0 ? "#ff2d5540" : "#1e1e2e"}`,
+              boxShadow: unreadNotifs > 0 ? "0 0 8px #ff2d5540" : "none",
+            }}
+            title="Notifications"
+          >
+            🔔{unreadNotifs > 0 ? ` ${unreadNotifs}` : ""}
+          </button>
+          <button
+            onClick={() => onNav("match-history")}
+            className="font-mono px-1.5 py-0.5 rounded"
+            style={{ fontSize: 11, color: "#475569", border: "1px solid #1e1e2e" }}
+            title="Activity History"
+          >
+            🕓
+          </button>
+          {(user.role === "owner" || user.role === "admin") && (
+            <button
+              onClick={() => onNav("owner")}
+              className="font-mono px-1.5 py-0.5 rounded"
+              style={{ fontSize: 11, color: "#a855f7", border: "1px solid #a855f730" }}
+              title="Owner Panel"
+            >
+              ★
+            </button>
+          )}
+          <AvatarMenu user={user} onNav={onNav} onLogout={onLogout} />
+        </div>
+      </div>
+
+      <AnnouncementBanner />
 
       {/* Status strip */}
       <div
@@ -195,7 +382,6 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
             🔒 JAILED
           </span>
         )}
-        {/* Wire Cartel heat indicator */}
         {(user.heat ?? 0) > 0 && (
           <span className="font-mono flex-shrink-0 px-1.5 rounded" style={{
             background: (user.heat ?? 0) >= 80 ? "#ef444420" : "#f9731620",
@@ -206,146 +392,89 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs }: Props) {
           </span>
         )}
         <div className="flex-1" />
+        <WantedStars level={user.wantedLevel} />
         <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
           Lv.<span style={{ color: "#e2e8f0", fontWeight: "bold" }}>{user.level}</span>
           {user.prestige > 0 && <span style={{ color: "#f59e0b" }}> ✦{user.prestige}</span>}
         </span>
         <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
-          <RollingNumber value={user.dc} color="#f59e0b" /> DC
-        </span>
-        <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
-          <RollingNC value={user.nc} /> NC
-        </span>
-        <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
           <EnergyDisplay energy={user.energy} maxEnergy={user.maxEnergy} energyRegenAt={(user as any).energyRegenAt} />
         </span>
-        <span className="font-mono flex-shrink-0" style={{ color: "#ff2d55", fontWeight: "bold", fontSize: 11 }}>
-          🥊{user.adrenaline}/{user.maxAdrenaline}
+      </div>
+
+      {/* Icon nav row — every game section, icon + label, horizontal scroll */}
+      <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto" style={{ scrollbarWidth: "none", borderBottom: "1px solid #0d0d15" }}>
+        {NAV.filter(item => {
+          const minStage = item.minStage ?? 0;
+          const stage = user.onboardingStage ?? 0;
+          if (stage < minStage) return false;
+          const status = (user as any).status as string | undefined;
+          const isNormal = !status || status === "normal";
+          const isAbroad = status === "abroad";
+          const sf = item.statusFilter;
+          if (!sf) return true;
+          if (sf === "normal") return isNormal;
+          if (sf === "normal|abroad") return isNormal || isAbroad;
+          if (sf === "abroad") return isAbroad;
+          return true;
+        }).map(item => {
+          const isActive = active === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onNav(item.id)}
+              className="flex flex-col items-center flex-shrink-0 rounded transition-all"
+              style={{
+                minWidth: 46,
+                padding: "4px 4px 3px",
+                background: isActive ? `${fc}18` : "transparent",
+                border: isActive ? `1px solid ${fc}60` : "1px solid transparent",
+                boxShadow: isActive ? `0 0 8px ${fc}30` : "none",
+              }}
+            >
+              <span style={{ fontSize: 15, lineHeight: 1 }}>{item.icon}</span>
+              <span
+                className="font-mono"
+                style={{
+                  fontSize: 8.5,
+                  marginTop: 2,
+                  color: isActive ? fc : item.group === "wc" ? "#64748b" : "#475569",
+                  fontWeight: isActive ? "bold" : "normal",
+                }}
+              >
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Stat bars row — all vitals except energy */}
+      <div className="flex items-center gap-1 px-2 py-1" style={{ borderBottom: "1px solid #0d0d15" }}>
+        <StatBar label="❤" value={user.health} max={user.maxHealth} color="#ff2d55" />
+        <StatBar label="🧠" value={user.nerve} max={user.maxNerve} color="#39d353" />
+        <StatBar label="🥊" value={user.adrenaline} max={user.maxAdrenaline} color="#f59e0b" />
+        <StatBar label="🏁" value={user.nitro} max={user.maxNitro} color="#00d4ff" />
+      </div>
+
+      {/* Currency row — icon-only, no labels */}
+      <div className="flex items-center gap-3 px-3 py-1">
+        <span className="font-mono flex items-center gap-1" style={{ color: "#475569" }}>
+          💰 <RollingNumber value={user.dc} color="#f59e0b" />
         </span>
-        <span className="font-mono flex-shrink-0" style={{ color: "#00d4ff", fontWeight: "bold", fontSize: 11 }}>
-          🏁{user.nitro}/{user.maxNitro}
+        <span className="font-mono flex items-center gap-1" style={{ color: "#475569" }}>
+          💎 <RollingNumber value={user.nc} color="#a855f7" />
         </span>
         {(user.keys ?? 0) > 0 && (
-          <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
+          <span className="font-mono flex items-center gap-1" style={{ color: "#475569" }}>
             🗝️ <span style={{ color: "#f59e0b", fontWeight: "bold", fontSize: 11 }}>{user.keys}</span>
           </span>
         )}
         {(user.keyShards ?? 0) > 0 && (
-          <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
+          <span className="font-mono flex items-center gap-1" style={{ color: "#475569" }}>
             🔮 <span style={{ color: "#a855f7", fontWeight: "bold", fontSize: 11 }}>{user.keyShards}</span>
           </span>
         )}
-      </div>
-
-      {/* Nav row */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-        {/* Brand */}
-        <button
-          className="font-mono font-bold text-sm mr-2 flex-shrink-0 tracking-widest"
-          style={{ color: "#00d4ff", textShadow: "0 0 12px #00d4ff80" }}
-          onClick={() => onNav("dashboard")}
-        >
-          DRIFT
-        </button>
-
-        {/* Nav links — filtered by onboardingStage + user status */}
-        {NAV.filter(item => {
-          const minStage = item.minStage ?? 0;
-          const stage = user.onboardingStage ?? 0;
-          if (minStage === 99) return false;
-          if (stage < minStage) return false;
-
-          // Status-based visibility
-          const status = (user as any).status as string | undefined;
-          const isNormal    = !status || status === "normal";
-          const isAbroad    = status === "abroad";
-          const sf = item.statusFilter;
-          if (!sf) return true; // no filter = always visible
-          if (sf === "normal")         return isNormal;
-          if (sf === "normal|abroad")  return isNormal || isAbroad;
-          if (sf === "abroad")         return isAbroad;
-          return true;
-        }).map(item => (
-          <button
-            key={item.id}
-            onClick={() => onNav(item.id)}
-            className="px-2 py-1 rounded font-mono flex-shrink-0 transition-all relative"
-            style={{
-              fontSize: 11,
-              background: active === item.id ? `${fc}18` : "transparent",
-              color: active === item.id ? fc : item.group === "wc" ? "#64748b" : "#475569",
-              border: active === item.id ? `1px solid ${fc}40` : item.group === "wc" && active !== item.id ? "1px solid #1e293b" : "1px solid transparent",
-              boxShadow: active === item.id ? `0 0 8px ${fc}20` : "none",
-            }}
-          >
-            {item.label}
-            {item.id === "notifications" && unreadNotifs > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: -4,
-                  right: -4,
-                  background: "#ff2d55",
-                  color: "#fff",
-                  borderRadius: "50%",
-                  width: 14,
-                  height: 14,
-                  fontSize: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: "bold",
-                }}
-              >
-                {unreadNotifs}
-              </span>
-            )}
-          </button>
-        ))}
-
-        <div className="flex-1" />
-
-        {/* Right side */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <WantedStars level={user.wantedLevel} />
-          <button
-            onClick={() => onNav("notifications")}
-            className="relative font-mono px-1.5 py-0.5 rounded"
-            style={{
-              fontSize: 11,
-              color: unreadNotifs > 0 ? "#ff2d55" : "#475569",
-              border: `1px solid ${unreadNotifs > 0 ? "#ff2d5540" : "#1e1e2e"}`,
-              boxShadow: unreadNotifs > 0 ? "0 0 8px #ff2d5540" : "none",
-            }}
-          >
-            🔔{unreadNotifs > 0 ? ` ${unreadNotifs}` : ""}
-          </button>
-          <button
-            onClick={() => onNav("settings")}
-            className="font-mono px-1.5 py-0.5 rounded"
-            style={{ fontSize: 11, color: "#475569", border: "1px solid #1e1e2e" }}
-            title="Settings"
-          >
-            ⚙
-          </button>
-          {(user.role === "owner" || user.role === "admin") && (
-            <button
-              onClick={() => onNav("owner")}
-              className="font-mono px-1.5 py-0.5 rounded"
-              style={{ fontSize: 11, color: "#a855f7", border: "1px solid #a855f730" }}
-              title="Owner Panel"
-            >
-              ★
-            </button>
-          )}
-          <button
-            onClick={onLogout}
-            className="font-mono px-1.5 py-0.5 rounded"
-            style={{ fontSize: 11, color: "#475569", border: "1px solid #1e1e2e" }}
-          >
-            exit
-          </button>
-        </div>
       </div>
     </nav>
   );
