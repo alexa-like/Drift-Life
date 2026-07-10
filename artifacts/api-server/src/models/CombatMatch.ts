@@ -54,6 +54,9 @@ interface LoadoutSnapshot {
   specialChance:     number;
   armorHp:           number;
   strengthBonus:     number;
+  // Legendary Exo-Armor perks
+  armorBlocksStun?:      boolean;
+  armorReflectPercent?:  number;
 }
 
 export interface ActiveEffect {
@@ -145,6 +148,8 @@ const LoadoutSnapshotSchema = new Schema<LoadoutSnapshot>(
     specialChance:     { type: Number, default: 0 },
     armorHp:           { type: Number, default: 0 },
     strengthBonus:     { type: Number, default: 0 },
+    armorBlocksStun:      { type: Boolean, default: false },
+    armorReflectPercent:  { type: Number, default: 0 },
   },
   { _id: false },
 );

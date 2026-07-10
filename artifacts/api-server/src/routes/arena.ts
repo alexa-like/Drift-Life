@@ -73,6 +73,8 @@ interface LoadoutSnapshot {
   specialChance:     number;
   armorHp:           number;
   strengthBonus:     number;
+  armorBlocksStun?:   boolean;
+  armorReflectPercent?: number;
 }
 
 const combatQueue = new Map<string, QueueEntry>();
@@ -140,6 +142,8 @@ async function resolveLoadoutStats(userId: string, level: number, prestige: numb
   const armorHp              = (bodyArmor as any)?.armorHp ?? 0;
   const armorSpecialEffect   = (bodyArmor as any)?.stats?.specialEffect ?? null;
   const armorSpecialChance   = (bodyArmor as any)?.stats?.specialChance ?? 0;
+  const armorBlocksStun      = (bodyArmor as any)?.stats?.blocksStun ?? false;
+  const armorReflectPercent  = (bodyArmor as any)?.stats?.reflectPercent ?? 0;
 
   return {
     // Legacy compat
@@ -172,6 +176,8 @@ async function resolveLoadoutStats(userId: string, level: number, prestige: numb
     specialChance,
     armorHp,
     strengthBonus,
+    armorBlocksStun,
+    armorReflectPercent,
   };
 }
 
@@ -949,6 +955,8 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
       const defenderArmorHp = isP1 ? p2ArmorHp : p1ArmorHp;
       const defenderArmorEffect = isP1 ? (match.player2Loadout.armorEffect ?? null) : (match.player1Loadout.armorEffect ?? null);
       const defenderArmorChance = isP1 ? (match.player2Loadout.armorEffectChance ?? 0) : (match.player1Loadout.armorEffectChance ?? 0);
+      const defenderBlocksStun     = isP1 ? !!(match.player2Loadout as any).armorBlocksStun     : !!(match.player1Loadout as any).armorBlocksStun;
+      const defenderReflectPercent = isP1 ? ((match.player2Loadout as any).armorReflectPercent ?? 0) : ((match.player1Loadout as any).armorReflectPercent ?? 0);
 
       const isPrimary = effectiveAction === "fire_primary" || effectiveAction === "reload" || effectiveAction === "special";
 
@@ -1020,7 +1028,11 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
           let defEffects = toDefenderEffects;
           let atkEffects = toAttackerEffects;
           if (triggeredEffect === "stun") {
-            setDefenderStun();
+            if (defenderBlocksStun) {
+              // Legendary armor perk (e.g. Exo-Armor): stun negated entirely.
+            } else {
+              setDefenderStun();
+            }
           } else if (triggeredEffect === "knockback") {
             setDefenderKnockback();
           } else if (triggeredEffect === "bleed") {
@@ -1055,6 +1067,14 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
           p2Effects = newP2Efx; p1Effects = newP1Efx;
           // Shield: apply armorHp bonus to attacker (p1)
           if (result.triggeredEffect === "shield") p1ArmorHp += 100;
+          // Reflect: defender's armor reflects a % of the hit back at the attacker
+          if (result.damage > 0 && defenderReflectPercent > 0) {
+            const reflected = Math.max(0, Math.floor(result.damage * (defenderReflectPercent / 100)));
+            if (reflected > 0) {
+              p1HPAfter = Math.max(0, p1HPAfter - reflected);
+              narrative = result.narrative + ` | Exo-Armor reflects ${reflected} dmg back!`;
+            }
+          }
           // Double tap: second shot
           if (result.extraAttack) {
             const r2 = fireWeapon(
@@ -1066,6 +1086,13 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
             p2HPAfter = Math.max(0, p2HPAfter - r2.damage);
             p2ArmorHp = r2.newArmorHp;
             narrative = result.narrative + ` | Second shot: ${r2.narrative}`;
+            if (r2.damage > 0 && defenderReflectPercent > 0) {
+              const reflected2 = Math.max(0, Math.floor(r2.damage * (defenderReflectPercent / 100)));
+              if (reflected2 > 0) {
+                p1HPAfter = Math.max(0, p1HPAfter - reflected2);
+                narrative += ` | Exo-Armor reflects ${reflected2} dmg back!`;
+              }
+            }
             if (isPrimary) (match as any).player1RoundsFiredPrimary = ((match as any).player1RoundsFiredPrimary ?? 0) + 1; // count second tap too
           }
           // Track rounds fired
@@ -1085,6 +1112,14 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
           p1Effects = newP1Efx; p2Effects = newP2Efx;
           // Shield: apply armorHp bonus to attacker (p2)
           if (result.triggeredEffect === "shield") p2ArmorHp += 100;
+          // Reflect: defender's armor reflects a % of the hit back at the attacker
+          if (result.damage > 0 && defenderReflectPercent > 0) {
+            const reflected = Math.max(0, Math.floor(result.damage * (defenderReflectPercent / 100)));
+            if (reflected > 0) {
+              p2HPAfter = Math.max(0, p2HPAfter - reflected);
+              narrative = result.narrative + ` | Exo-Armor reflects ${reflected} dmg back!`;
+            }
+          }
           if (result.extraAttack) {
             const r2 = fireWeapon(
               attackerName, defenderName, weaponName,
@@ -1095,6 +1130,13 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
             p1HPAfter = Math.max(0, p1HPAfter - r2.damage);
             p1ArmorHp = r2.newArmorHp;
             narrative = result.narrative + ` | Second shot: ${r2.narrative}`;
+            if (r2.damage > 0 && defenderReflectPercent > 0) {
+              const reflected2 = Math.max(0, Math.floor(r2.damage * (defenderReflectPercent / 100)));
+              if (reflected2 > 0) {
+                p2HPAfter = Math.max(0, p2HPAfter - reflected2);
+                narrative += ` | Exo-Armor reflects ${reflected2} dmg back!`;
+              }
+            }
             if (isPrimary) (match as any).player2RoundsFiredPrimary = ((match as any).player2RoundsFiredPrimary ?? 0) + 1;
           }
           if (isPrimary) (match as any).player2RoundsFiredPrimary = ((match as any).player2RoundsFiredPrimary ?? 0) + 1;
@@ -1169,8 +1211,23 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
         p1ArmorHp = aiResult.newArmorHp;
         (match as any).player1CurrentArmorHp = p1ArmorHp;
         if (aiResult.damage > 0) player1Effect = "hit";
+
+        const p1BlocksStun     = !!(match.player1Loadout as any).armorBlocksStun;
+        const p1ReflectPercent = (match.player1Loadout as any).armorReflectPercent ?? 0;
+        if (p1ReflectPercent > 0 && aiResult.damage > 0) {
+          const aiReflected = Math.max(0, Math.floor(aiResult.damage * (p1ReflectPercent / 100)));
+          if (aiReflected > 0) {
+            p2HPAfter = Math.max(0, p2HPAfter - aiReflected);
+            aiResult.narrative += ` | Exo-Armor reflects ${aiReflected} dmg back!`;
+          }
+        }
+
         if (aiResult.triggeredEffect === "stun") {
-          (match as any).player1StunNextTurn = true;
+          if (p1BlocksStun) {
+            aiResult.narrative += " | Exo-Armor blocks the stun!";
+          } else {
+            (match as any).player1StunNextTurn = true;
+          }
         } else if (aiResult.triggeredEffect === "knockback") {
           (match as any).player1KnockedBack = true;
         } else if (aiResult.triggeredEffect === "bleed") {

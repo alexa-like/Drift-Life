@@ -51,7 +51,8 @@ const FeedEventSchema = new Schema<IFeedEvent>(
 );
 
 FeedEventSchema.index({ createdAt: -1 });
-// Auto-expire all feed events after 24 hours
-FeedEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
+// Auto-expire feed events after 30 days (hard ceiling); the feed is additionally
+// pruned to the newest 500 events on a periodic timer — see pruneFeed() in index.ts.
+FeedEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 export default mongoose.model<IFeedEvent>("FeedEvent", FeedEventSchema);

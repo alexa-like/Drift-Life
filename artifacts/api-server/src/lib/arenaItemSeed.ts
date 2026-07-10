@@ -18,6 +18,7 @@ interface ItemSeed {
   armorHp?: number | null;
   maxDurability?: number | null;
   stats?: Record<string, any>;
+  flavorText?: string;
 }
 
 async function upsertItem(item: ItemSeed): Promise<void> {
@@ -36,6 +37,8 @@ async function upsertItem(item: ItemSeed): Promise<void> {
         armorHp:      item.armorHp ?? null,
         maxDurability:item.maxDurability ?? null,
         stats:        item.stats ?? {},
+        imageCard:    `/assets/items/${item.itemId}.png`,
+        flavorText:   item.flavorText ?? "",
         isActive:     true,
       },
     },
@@ -201,7 +204,7 @@ export async function seedArenaItems(): Promise<void> {
     { itemId: "tactical_vest", name: "Tactical Vest", category: "body_armor", tier: "uncommon",  stackable: false, maxStack: 1, weaponSlot: null, ammoCategory: null, armorHp: 85,  maxDurability: 150, stats: {} },
     { itemId: "combat_plate",  name: "Combat Plate",  category: "body_armor", tier: "rare",      stackable: false, maxStack: 1, weaponSlot: null, ammoCategory: null, armorHp: 130, maxDurability: 200, stats: { specialEffect: "absorb", specialChance: 10 } },
     { itemId: "ballistic_rig", name: "Ballistic Rig", category: "body_armor", tier: "epic",      stackable: false, maxStack: 1, weaponSlot: null, ammoCategory: null, armorHp: 195, maxDurability: 280, stats: { specialEffect: "absorb", specialChance: 20 } },
-    { itemId: "exo_armor",     name: "Exo-Armor",     category: "body_armor", tier: "legendary", stackable: false, maxStack: 1, weaponSlot: null, ammoCategory: null, armorHp: 275, maxDurability: 400, stats: { specialEffect: "absorb", specialChance: 30 } },
+    { itemId: "exo_armor",     name: "Exo-Armor",     category: "body_armor", tier: "legendary", stackable: false, maxStack: 1, weaponSlot: null, ammoCategory: null, armorHp: 275, maxDurability: 400, stats: { specialEffect: "absorb", specialChance: 30, blocksStun: true, reflectPercent: 5 } },
 
     // ── AMMO ──────────────────────────────────────────────────────────────────
     { itemId: "pistol_rounds_common",    name: "Pistol Rounds",         category: "pistol_rounds",  tier: "common",    stackable: true, magazineSize: 15,  stats: { damageMultiplier: 1.00 } },

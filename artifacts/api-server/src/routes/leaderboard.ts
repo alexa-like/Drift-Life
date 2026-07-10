@@ -1,6 +1,7 @@
 import { Router } from "express";
 import User from "../models/User";
 import ServerConfig from "../models/ServerConfig";
+import FeedEvent from "../models/FeedEvent";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { postToSystemFeed } from "../lib/systemFeed";
 
@@ -82,6 +83,36 @@ const WEEKLY_RECAP_KEY = "leaderboard:lastWeeklyRecap";
 // weekly stats. Must run BEFORE maybeResetWeekly zeroes the fields it reads.
 // Idempotent per Monday — guarded by a persisted marker so re-running the
 // interval (or multiple server instances) never double-posts.
+// Keep the system feed to a bounded size (newest 500 non-pinned events) between
+// the 30-day hard-TTL passes on FeedEvent — see models/FeedEvent.ts. Pinned
+// events (e.g. weekly recap) are exempt from both the count and the cap.
+export async function pruneFeed(): Promise<void> {
+  const FEED_CAP = 500;
+  const nonPinnedFilter = { pinned: { $ne: true } };
+  const count = await FeedEvent.countDocuments(nonPinnedFilter);
+  if (count <= FEED_CAP) return;
+  // Find the boundary document (the FEED_CAP-th newest non-pinned event) and
+  // delete everything strictly older than it — using (createdAt, _id) as a
+  // stable tiebreaker. Deleting by an absolute boundary (rather than an ID
+  // keep-set) means events inserted after this query runs are always newer
+  // than the boundary and are never caught by the delete.
+  const boundary = await FeedEvent.find(nonPinnedFilter)
+    .sort({ createdAt: -1, _id: -1 })
+    .skip(FEED_CAP - 1)
+    .limit(1)
+    .select("_id createdAt")
+    .lean();
+  if (boundary.length === 0) return;
+  const { _id: boundaryId, createdAt: boundaryCreatedAt } = boundary[0];
+  await FeedEvent.deleteMany({
+    ...nonPinnedFilter,
+    $or: [
+      { createdAt: { $lt: boundaryCreatedAt } },
+      { createdAt: boundaryCreatedAt, _id: { $lt: boundaryId } },
+    ],
+  });
+}
+
 export async function postWeeklyRecap(): Promise<boolean> {
   const monday = getMondayMidnightUTC();
   const marker = await ServerConfig.findOne({ key: WEEKLY_RECAP_KEY }).lean();

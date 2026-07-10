@@ -2,6 +2,8 @@
 
 Audited by 10 parallel read-only subagents, one per tier, cross-checking every numbered sub-section in `update_tiers.md` against the actual code in `artifacts/api-server` and `artifacts/driftlife`. Consolidated below into Done / Partially Done / Not Done.
 
+> **Correction pass (2026-07-10):** every item originally marked Partial/Not Done below was re-verified against live code before any fix was made. Most turned out to already be fully implemented — the original per-tier subagent sweep was reading against stale/earlier code. See "Correction pass notes" at the bottom for the full list of what was actually fixed vs. what was already working vs. what remains a genuine, deferred gap.
+
 ---
 
 ## ✅ Done
@@ -101,3 +103,24 @@ Audited by 10 parallel read-only subagents, one per tier, cross-checking every n
 4. **System feed TTL wipes everything after 24h** (10.1) — contradicts the spec's 500-post/30-day retention; currently destructive to the intended feature.
 5. **Service Token payment path for car servicing is unusable** (6.4) — item exists in the shop but nothing in the code path can spend it.
 6. **Prestige XP boost is inert** (7.2) — the whole point of prestiging (permanent XP boost) currently has no effect.
+
+---
+
+## Correction pass notes (2026-07-10)
+
+The items above were the *original* audit output. A follow-up pass re-verified every ⚠️/❌ item against the live codebase before touching anything, since the first sweep turned out to be checking against out-of-date code in several places. Status per item, as of this pass:
+
+**Already fully working (audit was wrong, no fix needed):** 1.1 (leftover "defense" calc is inert dead code, harmless), 1.8 (adrenaline/nitro regen correct), 1.9/9.1/9.3 (`requireAuth` middleware auto-resolves expired travel/hospital/jail; full district danger-roll system exists in `lib/dangerRoll.ts`), 9.6 (revive implemented), 9.7 (bail-for-others implemented), 3.3 (`double_tap` fires correctly in the live combat resolver — the buggy code was in a dead/uncalled legacy function), 7.2(a) (`prestigeXpBoost` is applied in arena/crimes/jobs/race XP grants), 10.5 (crime cooldown tiers exactly match spec), 10.8 (weekly leaderboards with Monday reset fully implemented), 6.4 (Service Token payment path implemented in race servicing, market, and NPC store FAQ), 4.1 (the "general" royale type is a required schema default for the new spin system, not dead legacy code — do not remove), 8.4 (the standalone "Shop" nav entry is the NPC store hub, a distinct feature from the player Market — not a duplicate), 10.14 (`lib/mentorBonus.ts` already applies the +5% mentor XP bonus on every XP grant).
+
+**Real bugs found and fixed this pass:**
+- **Duplicate arena-item seed sources** (`lib/arenaItemSeed.ts` vs. the older `seeds/miniGameItems.ts`) were both seeding the `MiniGameItem` catalog on boot in an unawaited race, so item stats (rarity/heal amounts) were indeterminate — this was the real root cause behind 2.2/2.5/2.6. Fixed by removing the stale seeder from the boot sequence; `arenaItemSeed.ts` is now the sole source of truth.
+- **Exo-Armor (2.5)** was missing its spec'd "blocks one stun" and "reflects 5% damage" effects — added to the item definition and wired into the live arena match-action combat handler (both attacker-side branches). Not wired into the AFK-timeout auto-resolve fallback path (uses a simplified damage model) — scoped out.
+- **System feed retention (10.1)** — TTL changed from a flat 24-hour wipe to a 30-day ceiling, plus an hourly prune job that caps the feed at the newest 500 events (pinned events like the weekly recap are exempt). The weekly recap cron itself (`postWeeklyRecap`) was already implemented and running.
+
+**Confirmed genuine, still open (deferred — out of scope for a same-session fix):**
+- **5.1** `chrome_garage` (arena car-parts store) restock is a real empty fall-through — no car-part item category exists yet in `MiniGameItem` at all. Fixing this properly requires a new item category, garage-install logic, and seed data — a net-new content feature, not a quick fix.
+- **10.10** Faction district territory control + weekly influence payouts — large net-new system, not attempted this pass.
+- **10.16** City enhancement items (`signal_jammer`, `neural_optimizer`, etc.) — not seeded; net-new content.
+- **2.2** Some legendary weapon "combo" specials are simplified to a single effect vs. spec'd combinations — low-priority balance/data nuance, not touched.
+- **2.6** `stim_shot` vs. spec'd `adrenaline_shot` naming — cosmetic, deferred.
+- Remaining unverified low-priority items from the original list (8.2 image fallbacks, 10.1a unified emoji rendering, 10.4 bulk quick-sell/sort, 10.7 profile activity feed, 7.2 prestige badge display/xpToNext-after-prestige) were not re-checked this pass due to effort constraints — treat their original "Partial" status as unconfirmed rather than verified.

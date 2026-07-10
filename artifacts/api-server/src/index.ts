@@ -11,7 +11,7 @@ import User from "./models/User";
 import { allowedOrigins } from "./lib/cors";
 import { closeExpiredAuctions, scheduleBotAuctions } from "./routes/auction";
 import { expireMarketListings } from "./routes/market";
-import { postWeeklyRecap } from "./routes/leaderboard";
+import { postWeeklyRecap, pruneFeed } from "./routes/leaderboard";
 
 const rawPort = process.env["PORT"] ?? "3000";
 const port = Number(rawPort);
@@ -275,6 +275,16 @@ async function start() {
     }, 60 * 60 * 1000);
     postWeeklyRecap().catch((err) =>
       logger.error({ err }, "weekly leaderboard recap startup error"),
+    );
+
+    // ── System feed pruning: cap at newest 500 events, check hourly ───────────
+    setInterval(() => {
+      pruneFeed().catch((err) =>
+        logger.error({ err }, "feed prune interval error"),
+      );
+    }, 60 * 60 * 1000);
+    pruneFeed().catch((err) =>
+      logger.error({ err }, "feed prune startup error"),
     );
 
     // Register Telegram webhook once the server is live and accepting traffic.
