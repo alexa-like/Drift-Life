@@ -12,7 +12,7 @@ import { allowedOrigins } from "./lib/cors";
 import { closeExpiredAuctions, scheduleBotAuctions } from "./routes/auction";
 import { expireMarketListings } from "./routes/market";
 import { postWeeklyRecap, pruneFeed } from "./routes/leaderboard";
-import { sweepExpiredDrafts } from "./routes/giveaways";
+import { runGiveawayMaintenance } from "./lib/giveawayWorker";
 
 const rawPort = process.env["PORT"] ?? "3000";
 const port = Number(rawPort);
@@ -288,16 +288,18 @@ async function start() {
       logger.error({ err }, "feed prune startup error"),
     );
 
-    // ── Giveaway draft expiry: sweep every 5 minutes ───────────────────────
-    // NOTE (§3.3): Once Tier 5's resolution worker is built, absorb this sweep
-    // into that worker's polling loop — do not leave two separate intervals.
+    // ── Giveaway maintenance: draft expiry (§3.3) + live-timer resolution (§5.1) ─
+    // Single interval per the NOTE left in routes/giveaways.ts — both sweeps
+    // live in lib/giveawayWorker.ts so there is exactly one polling loop.
+    // Runs every 1 minute (matches the auction auto-close cadence) so a giveaway's
+    // real end time doesn't drift far from its displayed liveExpiresAt countdown.
     setInterval(() => {
-      sweepExpiredDrafts().catch((err) =>
-        logger.error({ err }, "giveaway draft sweep interval error"),
+      runGiveawayMaintenance().catch((err) =>
+        logger.error({ err }, "giveaway maintenance interval error"),
       );
-    }, 5 * 60 * 1000);
-    sweepExpiredDrafts().catch((err) =>
-      logger.error({ err }, "giveaway draft sweep startup error"),
+    }, 60 * 1000);
+    runGiveawayMaintenance().catch((err) =>
+      logger.error({ err }, "giveaway maintenance startup error"),
     );
 
     // Register Telegram webhook once the server is live and accepting traffic.

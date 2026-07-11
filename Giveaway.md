@@ -194,7 +194,7 @@ Re-read Appendix A's anonymity and one-entry-per-user bullets plus §4.1–4.4; 
 
 ## TIER 5 — ENDING, DISTRIBUTION, REFUND WORKER
 **Depends on: Tier 4**
-Status: ⏳ Not started
+Status: ✅ Done
 
 ### 5.1 — Background worker
 Add a worker following the existing arena auto-timeout worker's pattern: polls for `Giveaway` docs with `status: "live"` and `liveExpiresAt <= now`, and atomically claims each one before resolving (e.g. a conditional `findOneAndUpdate` that only succeeds if `status` is still `"live"`) so two ticks can never double-process the same giveaway.
