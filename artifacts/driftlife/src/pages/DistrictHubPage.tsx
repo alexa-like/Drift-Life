@@ -6,7 +6,7 @@ import { AnimatedCard } from "../components/AnimatedCard";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { CyberButton } from "../components/CyberButton";
 import { ActionResult } from "../components/ActionResult";
-import { ItemImage } from "../components/ItemImage";
+import { ItemImage, nameToArenaItemId } from "../components/ItemImage";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
@@ -201,7 +201,7 @@ export function DistrictHubPage({ user, refreshUser, addToast }: Props) {
                    >
                      <div className="flex gap-3">
                        <div className="w-12 h-12 flex-shrink-0 bg-black/40 rounded flex items-center justify-center border border-white/5">
-                         <ItemImage itemId={item.id} size={40} />
+                         <ItemImage itemId={nameToArenaItemId(item.name)} size={40} />
                        </div>
                        <div className="min-w-0">
                          <div className="text-xs font-bold text-slate-200 truncate">{item.name}</div>

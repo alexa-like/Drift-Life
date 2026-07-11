@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
-import { ItemImage } from "../components/ItemImage";
+import { ItemImage, nameToArenaItemId } from "../components/ItemImage";
 import { formatDC } from "../lib/format";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
@@ -80,7 +80,7 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
                   <div className="flex items-center gap-3 mb-3">
                     <div className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
                       style={{ width: 56, height: 56, background: `${rc}08`, border: `1px solid ${rc}25` }}>
-                      <ItemImage itemId={item.id} imageUrl={item.imageUrl} size={44} />
+                      <ItemImage itemId={nameToArenaItemId(item.name)} imageUrl={item.imageUrl} size={44} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">

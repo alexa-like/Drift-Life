@@ -7,6 +7,107 @@ interface Props {
   className?: string;
 }
 
+// ─── Arena item → existing asset mapping ──────────────────────────────────────
+// Arena itemIds follow the pattern `<weapon>_<tier>` (e.g. "minigun_legendary").
+// Public assets use different filenames. This function resolves the correct path
+// for every seeded item so we never hit a broken image.
+
+function getAmmoPath(tier: string): string {
+  if (tier === "legendary") return "/assets/items/quantum_ammo_leg.png";
+  if (tier === "epic")      return "/assets/items/incend_ammo_epic.png";
+  if (tier === "rare")      return "/assets/items/ap_ammo_rare.png";
+  if (tier === "uncommon")  return "/assets/items/hp_ammo_uncommon.png";
+  return "/assets/items/std_ammo_common.png";
+}
+
+function resolveImagePath(itemId: string): string | null {
+  // ── Pistols ────────────────────────────────────────────────────────────────
+  if (/^(glock17|deagle|beretta|usps)_legendary$/.test(itemId))
+    return "/assets/items/omega_pistol_leg.png";
+  if (/^(glock17|deagle|beretta|usps)_/.test(itemId))
+    return "/assets/items/pistol_common.png";
+
+  // ── SMGs ───────────────────────────────────────────────────────────────────
+  if (/^(mp5|uzi|mac10|p90)_(epic|legendary)$/.test(itemId))
+    return "/assets/items/energy_smg_epic.png";
+  if (/^(mp5|uzi|mac10|p90)_/.test(itemId))
+    return "/assets/items/smg_uncommon.png";
+
+  // ── Assault Rifles ─────────────────────────────────────────────────────────
+  if (/^(ak47|m4a1|scarh|hk416)_/.test(itemId))
+    return "/assets/items/ar_rare.png";
+
+  // ── Shotguns ───────────────────────────────────────────────────────────────
+  if (/^(mossberg|spas12|aa12|benelli)_/.test(itemId))
+    return "/assets/items/shotgun_rare.png";
+
+  // ── Sniper Rifles ──────────────────────────────────────────────────────────
+  if (/^(barrett|awp|dragunov|intervention)_/.test(itemId))
+    return "/assets/items/sniper_epic.png";
+
+  // ── LMGs ───────────────────────────────────────────────────────────────────
+  if (/^(m249|rpk|mg4|minigun)_/.test(itemId))
+    return "/assets/items/ar_rare.png";
+
+  // ── Body Armor ─────────────────────────────────────────────────────────────
+  if (itemId === "street_vest")   return "/assets/items/light_vest_common.png";
+  if (itemId === "tactical_vest") return "/assets/items/med_vest_uncommon.png";
+  if (itemId === "combat_plate")  return "/assets/items/heavy_vest_rare.png";
+  if (itemId === "ballistic_rig") return "/assets/items/heavy_vest_rare.png";
+  if (itemId === "exo_armor")     return "/assets/items/titan_armor_leg.png";
+
+  // ── Ammo ───────────────────────────────────────────────────────────────────
+  if (/^(pistol_rounds|smg_rounds|rifle_rounds|sniper_rounds|lmg_rounds)_/.test(itemId)) {
+    const tier = itemId.split("_").pop() ?? "common";
+    return getAmmoPath(tier);
+  }
+  if (/^shotgun_shells_/.test(itemId)) {
+    const tier = itemId.split("_").pop() ?? "common";
+    // use dedicated shotgun shells image (shotgun visual) for lower tiers,
+    // ammo images for enhanced tiers
+    if (tier === "epic" || tier === "legendary") return getAmmoPath(tier);
+    return "/assets/items/shotgun_rare.png";
+  }
+
+  // ── Consumables / Grenades ─────────────────────────────────────────────────
+  if (itemId === "small_medkit")   return "/assets/items/bandage_common.png";
+  if (itemId === "large_medkit")   return "/assets/items/medkit_uncommon.png";
+  if (itemId === "mega_medkit")    return "/assets/items/nano_medkit_epic.png";
+  if (itemId === "smoke_grenade")  return "/assets/items/smoke_grenade_common.png";
+  if (itemId === "frag_grenade")   return "/assets/items/frag_nade_uncommon.png";
+  if (itemId === "cyber_grenade")  return "/assets/items/emp_nade_epic.png";
+  if (itemId === "stimpack")       return "/assets/items/stim-pack.png";
+  if (itemId === "nano_shield")    return "/assets/items/heavy_vest_rare.png";
+  if (itemId === "stim_shot")      return "/assets/items/combat-drug.png";
+  if (itemId === "berserker_dose") return "/assets/items/combat-drug.png";
+
+  return null; // let the component handle with its existing fallback chain
+}
+
+// ─── Reverse-lookup: display name → arena itemId ──────────────────────────────
+// Used by P2P listings where only the display name is available.
+export function nameToArenaItemId(name: string): string {
+  const tiers: [RegExp, string][] = [
+    [/ Phantom$/i,  "_legendary"],
+    [/ Cyber$/i,    "_epic"],
+    [/ Custom$/i,   "_rare"],
+    [/ Mk\.II$/i,   "_uncommon"],
+    [/ \(Legendary\)$/i, "_legendary"],
+    [/ \(Epic\)$/i,      "_epic"],
+    [/ \(Rare\)$/i,      "_rare"],
+    [/ \(Uncommon\)$/i,  "_uncommon"],
+    [/ \(Common\)$/i,    "_common"],
+  ];
+  for (const [re, suffix] of tiers) {
+    if (re.test(name)) {
+      return name.replace(re, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") + suffix;
+    }
+  }
+  // No rarity suffix → treat as common
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") + "_common";
+}
+
+// ─── Hand-crafted animated SVGs (legacy item IDs) ─────────────────────────────
 const ITEM_SVGS: Record<string, (size: number) => ReactElement> = {
   "rusty-blade": (s) => (
     <svg width={s} height={s} viewBox="0 0 64 64" fill="none">
@@ -167,8 +268,6 @@ const ITEM_SVGS: Record<string, (size: number) => ReactElement> = {
       <ellipse cx="32" cy="32" rx="14" ry="18" fill="#0d2a2a" stroke="#00d4ff80" strokeWidth="1" className="sp-core"/>
       <line x1="32" y1="14" x2="32" y2="50" stroke="#00d4ff" strokeWidth=".8" className="sp-circuit"/>
       <line x1="10" y1="32" x2="54" y2="32" stroke="#00d4ff" strokeWidth=".8" className="sp-circuit"/>
-      <line x1="16" y1="16" x2="48" y2="48" stroke="#00d4ff60" strokeWidth=".6" className="sp-circuit"/>
-      <line x1="48" y1="16" x2="16" y2="48" stroke="#00d4ff60" strokeWidth=".6" className="sp-circuit"/>
       <circle cx="32" cy="32" r="5" fill="#00d4ff40" stroke="#00d4ff" strokeWidth="1.5" className="sp-core"/>
       <circle cx="32" cy="32" r="2" fill="#00d4ff" className="sp-core"/>
     </svg>
@@ -188,9 +287,6 @@ const ITEM_SVGS: Record<string, (size: number) => ReactElement> = {
       <rect x="22" y="24" width="8" height="4" rx="1" fill="#d4af3720" stroke="#d4af3780" strokeWidth=".5"/>
       <rect x="34" y="24" width="8" height="4" rx="1" fill="#d4af3720" stroke="#d4af3780" strokeWidth=".5"/>
       <rect x="26" y="34" width="12" height="20" fill="#1a1a24" stroke="#d4af3740" strokeWidth=".5" rx="1"/>
-      <path d="M28,36 L28,52 M36,36 L36,52" stroke="#d4af3730" strokeWidth=".8"/>
-      <line x1="14" y1="58" x2="20" y2="38" stroke="#d4af3730" strokeWidth="1"/>
-      <line x1="50" y1="58" x2="44" y2="38" stroke="#d4af3730" strokeWidth="1"/>
       <rect x="10" y="0" width="8" height="64" fill="#d4af3720" rx="2" className="cs-shine"/>
     </svg>
   ),
@@ -213,8 +309,6 @@ const ITEM_SVGS: Record<string, (size: number) => ReactElement> = {
         <circle cx="48" cy="14" r="2" fill="#ff2d5580"/>
         <rect x="14" y="36" width="4" height="4" fill="#ff2d55" rx=".5"/>
         <rect x="22" y="36" width="4" height="4" fill="#f59e0b" rx=".5"/>
-        <rect x="42" y="38" width="6" height="2" fill="#ff2d5540" rx=".5"/>
-        <rect x="42" y="42" width="8" height="2" fill="#ff2d5530" rx=".5"/>
         <text x="30" y="44" fontSize="6" fill="#ff2d55" fontFamily="monospace" textAnchor="middle">STREET</text>
       </g>
     </svg>
@@ -242,7 +336,6 @@ const ITEM_SVGS: Record<string, (size: number) => ReactElement> = {
       </g>
       <circle cx="28" cy="44" r="2" fill="#39d35380" className="stim-b1"/>
       <circle cx="34" cy="48" r="1.5" fill="#39d35360" className="stim-b2"/>
-      <circle cx="30" cy="46" r="1" fill="#39d35370"/>
     </svg>
   ),
 
@@ -251,19 +344,16 @@ const ITEM_SVGS: Record<string, (size: number) => ReactElement> = {
       <defs>
         <style>{`
           @keyframes mp-pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.08);opacity:.8} }
-          @keyframes mp-heartbeat { 0%,100%{d:path("M16,32 L22,32 L26,24 L30,40 L34,28 L38,36 L42,32 L48,32")} 50%{d:path("M16,32 L20,32 L26,20 L30,44 L34,24 L38,38 L44,32 L48,32")} }
           .mp-cross{animation:mp-pulse 1.5s ease-in-out infinite}
         `}</style>
       </defs>
       <rect x="8" y="16" width="48" height="32" rx="5" fill="#1a0a0a" stroke="#ff2d55" strokeWidth="1.5"/>
       <rect x="8" y="24" width="48" height="16" rx="1" fill="#ff2d5510"/>
       <rect x="24" y="16" width="16" height="32" rx="1" fill="#ff2d5510"/>
-      <rect x="26" y="20" width="12" height="24" rx="2" fill="#ff2d5520"/>
       <g className="mp-cross">
         <rect x="28" y="22" width="8" height="20" rx="2" fill="#ff2d55"/>
         <rect x="22" y="28" width="20" height="8" rx="2" fill="#ff2d55"/>
       </g>
-      <path d="M16,38 L22,38 L26,30 L30,46 L34,34 L38,40 L42,38 L48,38" stroke="#ff2d5540" strokeWidth="1" fill="none" strokeLinecap="round"/>
     </svg>
   ),
 
@@ -271,22 +361,16 @@ const ITEM_SVGS: Record<string, (size: number) => ReactElement> = {
     <svg width={s} height={s} viewBox="0 0 64 64" fill="none">
       <defs>
         <style>{`
-          @keyframes nt-swirl { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
           @keyframes nt-glow { 0%,100%{filter:drop-shadow(0 0 4px #a855f7)} 50%{filter:drop-shadow(0 0 10px #7c3aed)} }
           .nt-bottle{animation:nt-glow 2s ease-in-out infinite}
-          .nt-liquid{transform-origin:32px 40px;animation:nt-swirl 4s linear infinite}
         `}</style>
       </defs>
       <g className="nt-bottle">
         <rect x="26" y="4" width="12" height="6" rx="2" fill="#2a1040" stroke="#a855f7" strokeWidth="1.2"/>
         <path d="M22,10 L16,22 L16,56 L48,56 L48,22 L42,10 Z" fill="#1a0830" stroke="#a855f7" strokeWidth="1.5" rx="2"/>
-        <path d="M22,10 L16,22 L16,56 L48,56 L48,22 L42,10 Z" fill="#a855f715"/>
       </g>
-      <ellipse cx="32" cy="40" rx="10" ry="8" fill="#a855f730" className="nt-liquid"/>
-      <ellipse cx="32" cy="36" rx="6" ry="5" fill="#7c3aed40" className="nt-liquid"/>
+      <ellipse cx="32" cy="40" rx="10" ry="8" fill="#a855f730"/>
       <circle cx="24" cy="30" r="2" fill="#a855f740" opacity=".7"/>
-      <circle cx="38" cy="44" r="1.5" fill="#7c3aed40" opacity=".7"/>
-      <circle cx="32" cy="26" r="1" fill="#a855f780"/>
     </svg>
   ),
 
@@ -298,84 +382,84 @@ const ITEM_SVGS: Record<string, (size: number) => ReactElement> = {
           @keyframes tk-pulse { 0%,100%{filter:drop-shadow(0 0 3px #ff2d55)} 50%{filter:drop-shadow(0 0 8px #ff2d55)} }
           .tk-cross{animation:tk-blink 1.2s ease-in-out infinite}
           .tk-case{animation:tk-pulse 2s ease-in-out infinite}
-          .tk-dot{animation:tk-blink 1.2s .6s ease-in-out infinite}
         `}</style>
       </defs>
       <g className="tk-case">
         <rect x="6" y="18" width="52" height="36" rx="4" fill="#100a0a" stroke="#ff2d55" strokeWidth="2"/>
         <rect x="22" y="10" width="20" height="10" rx="3" fill="#1a0a0a" stroke="#ff2d55" strokeWidth="1.5"/>
-        <rect x="26" y="12" width="12" height="6" rx="2" fill="#100a0a"/>
-        <line x1="6" y1="36" x2="58" y2="36" stroke="#ff2d5530" strokeWidth="1"/>
       </g>
       <g className="tk-cross">
         <rect x="28" y="22" width="8" height="24" rx="2" fill="#ff2d55"/>
         <rect x="20" y="30" width="24" height="8" rx="2" fill="#ff2d55"/>
       </g>
-      <circle cx="50" cy="22" r="3" fill="#ff2d55" className="tk-dot"/>
-      <circle cx="50" cy="22" r="1.5" fill="#fff" className="tk-dot"/>
     </svg>
   ),
 };
 
+// ─── Fallback generic icon ─────────────────────────────────────────────────────
 const FALLBACK_COLORS: Record<string, string> = {
-  weapon: "#ff6b35",
-  armor: "#00d4ff",
-  clothing: "#a855f7",
-  consumable: "#39d353",
-  material: "#f59e0b",
-  misc: "#94a3b8",
+  weapon: "#ff6b35", armor: "#00d4ff", clothing: "#a855f7",
+  consumable: "#39d353", material: "#f59e0b", misc: "#94a3b8",
+  ammo: "#f59e0b",
 };
-
 const TYPE_ICONS: Record<string, string> = {
-  weapon: "⚔", armor: "🛡", clothing: "👗", consumable: "💊", misc: "📦",
+  weapon: "⚔", armor: "🛡", clothing: "👗", consumable: "💊",
+  misc: "📦", ammo: "🔹",
 };
 
-interface FallbackProps {
-  type?: string;
-  rarity?: string;
-  size: number;
-}
-
-function FallbackIcon({ type = "misc", size }: FallbackProps) {
+function FallbackIcon({ type = "misc", size }: { type?: string; size: number }) {
   const color = FALLBACK_COLORS[type] ?? "#94a3b8";
   return (
-    <div
-      style={{
-        width: size, height: size,
-        background: `${color}18`,
-        border: `1px solid ${color}40`,
-        borderRadius: 6,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: size * 0.45,
-      }}
-    >
+    <div style={{
+      width: size, height: size,
+      background: `${color}18`, border: `1px solid ${color}40`,
+      borderRadius: 6, display: "flex", alignItems: "center",
+      justifyContent: "center", fontSize: size * 0.45,
+    }}>
       {TYPE_ICONS[type] ?? "📦"}
     </div>
   );
 }
 
+export function getItemType(itemId: string): string {
+  if (/^(glock17|deagle|beretta|usps|mp5|uzi|mac10|p90|ak47|m4a1|scarh|hk416|mossberg|spas12|aa12|benelli|barrett|awp|dragunov|intervention|m249|rpk|mg4|minigun|minigun)_/.test(itemId)) return "weapon";
+  if (/^(street_vest|tactical_vest|combat_plate|ballistic_rig|exo_armor)$/.test(itemId)) return "armor";
+  if (/^(pistol_rounds|smg_rounds|rifle_rounds|shotgun_shells|sniper_rounds|lmg_rounds)_/.test(itemId)) return "ammo";
+  if (/^(small_medkit|large_medkit|mega_medkit|smoke_grenade|frag_grenade|cyber_grenade|stimpack|nano_shield|stim_shot|berserker_dose)$/.test(itemId)) return "consumable";
+  if (["rusty-blade","shock-glove","neural-cutter","plasma-pistol"].includes(itemId)) return "weapon";
+  if (["leather-coat","kevlar-vest","subdermal-plating"].includes(itemId)) return "armor";
+  if (["corpo-suit","street-jacket"].includes(itemId)) return "clothing";
+  if (["stim-pack","med-patch","nerve-tonic","trauma-kit"].includes(itemId)) return "consumable";
+  return "misc";
+}
+
+// ─── Public component ──────────────────────────────────────────────────────────
 export function ItemImage({ itemId, imageUrl, size = 48, className }: Props) {
   return <ItemImageInner key={itemId} itemId={itemId} imageUrl={imageUrl} size={size} className={className} />;
 }
 
-/** Keyed by itemId at the call site above so failure state resets whenever the item changes. */
 function ItemImageInner({ itemId, imageUrl, size = 48, className }: Props) {
   const [pngFailed, setPngFailed] = useState(false);
   const [urlFailed, setUrlFailed] = useState(false);
 
-  // 1st choice: local PNG matched by itemId
-  // Covers slugs ("pistol", "combat-knife") AND seeded itemIds ("pistol_common", "knife_common")
+  // 1st choice: resolved path from our category mapping (arena + seeded items)
+  const resolvedPath = resolveImagePath(itemId);
+  if (resolvedPath) {
+    return (
+      <div className={className} style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <img src={resolvedPath} alt={itemId} width={size} height={size}
+          style={{ objectFit: "contain", display: "block", borderRadius: 4 }}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
+      </div>
+    );
+  }
+
+  // 2nd choice: direct PNG by itemId (legacy slugs like "combat-knife", "pistol", etc.)
   if (!pngFailed) {
     return (
-      <div
-        className={className}
-        style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-      >
-        <img
-          src={`/assets/items/${itemId}.png`}
-          alt={itemId}
-          width={size}
-          height={size}
+      <div className={className} style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <img src={`/assets/items/${itemId}.png`} alt={itemId} width={size} height={size}
           style={{ objectFit: "contain", display: "block", borderRadius: 4 }}
           onError={() => setPngFailed(true)}
         />
@@ -383,31 +467,21 @@ function ItemImageInner({ itemId, imageUrl, size = 48, className }: Props) {
     );
   }
 
-  // 2nd choice: hand-crafted animated SVG (for items that still use them)
+  // 3rd choice: hand-crafted animated SVG
   const renderer = ITEM_SVGS[itemId];
   if (renderer) {
     return (
-      <div
-        className={className}
-        style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-      >
+      <div className={className} style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         {renderer(size)}
       </div>
     );
   }
 
-  // 3rd choice: external imageUrl (e.g. legacy Pollinations or custom upload)
+  // 4th choice: external imageUrl (legacy Pollinations or custom upload)
   if (imageUrl && !urlFailed) {
     return (
-      <div
-        className={className}
-        style={{ width: size, height: size, flexShrink: 0, borderRadius: 4, overflow: "hidden", background: "#0a0a0f" }}
-      >
-        <img
-          src={imageUrl}
-          alt={itemId}
-          width={size}
-          height={size}
+      <div className={className} style={{ width: size, height: size, flexShrink: 0, borderRadius: 4, overflow: "hidden", background: "#0a0a0f" }}>
+        <img src={imageUrl} alt={itemId} width={size} height={size}
           style={{ width: size, height: size, objectFit: "cover", display: "block" }}
           onError={() => setUrlFailed(true)}
         />
@@ -415,14 +489,6 @@ function ItemImageInner({ itemId, imageUrl, size = 48, className }: Props) {
     );
   }
 
-  // 4th choice: generic type-based icon
+  // 5th choice: generic type icon
   return <FallbackIcon size={size} type={getItemType(itemId)} />;
-}
-
-export function getItemType(itemId: string): string {
-  if (["rusty-blade","shock-glove","neural-cutter","plasma-pistol"].includes(itemId)) return "weapon";
-  if (["leather-coat","kevlar-vest","subdermal-plating"].includes(itemId)) return "armor";
-  if (["corpo-suit","street-jacket"].includes(itemId)) return "clothing";
-  if (["stim-pack","med-patch","nerve-tonic","trauma-kit"].includes(itemId)) return "consumable";
-  return "misc";
 }

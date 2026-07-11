@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { User, Item } from "../lib/types";
 import { api } from "../lib/api";
-import { ItemImage } from "../components/ItemImage";
+import { ItemImage, nameToArenaItemId } from "../components/ItemImage";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { CyberButton } from "../components/CyberButton";
@@ -177,7 +177,7 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
                           className="rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden relative"
                           style={{ width: 56, height: 56, background: `${rc}08`, border: `1px solid ${item.equipped ? rc + "60" : rc + "20"}`, boxShadow: item.equipped ? `0 0 10px ${rc}30` : "none" }}
                         >
-                          <ItemImage itemId={item.name.toLowerCase().replace(/ /g, "-")} imageUrl={item.imageUrl} size={44} />
+                          <ItemImage itemId={nameToArenaItemId(item.name)} imageUrl={item.imageUrl} size={44} />
                           {item.equipped && (
                             <div className="absolute bottom-0 left-0 right-0 text-center font-mono" style={{ fontSize: 7, background: `${rc}cc`, color: "#fff", paddingBottom: 2 }}>EQ</div>
                           )}
