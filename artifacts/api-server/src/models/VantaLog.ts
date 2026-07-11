@@ -7,7 +7,8 @@ export type VantaTrigger =
   | "attack_spam"
   | "alt_account"
   | "dc_spike"
-  | "manual_flag";
+  | "manual_flag"
+  | "giveaway_alt_farming";
 
 export interface IVantaLog extends Document {
   _id: mongoose.Types.ObjectId;
@@ -29,7 +30,7 @@ const VantaLogSchema = new Schema<IVantaLog>(
     playerName: { type: String, required: true },
     trigger: {
       type: String,
-      enum: ["repeated_failed_crimes", "economy_exploit", "attack_spam", "alt_account", "dc_spike", "manual_flag"],
+      enum: ["repeated_failed_crimes", "economy_exploit", "attack_spam", "alt_account", "dc_spike", "manual_flag", "giveaway_alt_farming"],
       required: true,
     },
     severity: { type: String, enum: ["low", "medium", "high", "critical"], required: true },

@@ -216,7 +216,7 @@ Re-read Appendix A's ending/distribution bullet and §5.1–5.3; simulate zero/o
 
 ## TIER 6 — VANTA / ANTI-ABUSE ENFORCEMENT
 **Depends on: Tier 1, Tier 4**
-Status: ⏳ Not started
+Status: ✅ Done
 
 ### 6.1 — New Vanta trigger
 Add a `giveaway_alt_farming` trigger at `severity: "critical"` to the existing Vanta detection in/near `auth.ts`'s alt-account check: when multiple `GiveawayEntry` docs on the same giveaway (or across a short recent window) come from accounts sharing `lastLoginIp`/overlapping `loginIpHistory`, log a `VantaLog` entry with this trigger and enough `details` for staff to review (which giveaway, which accounts, which shared IP).

@@ -164,6 +164,12 @@ interface WinnerOut {
  * entrant), or shuffled round-robin distribution (multiple entrants).
  * Safe to call redundantly — the atomic claim ensures only the first caller
  * ever proceeds past it; a second concurrent/duplicate call is a silent no-op.
+ *
+ * §6.2 note: this system has no separate "claim winnings" step — distribution
+ * is fully automatic at resolution. `underReview` is enforced at the entry
+ * gate (routes/giveaways.ts POST /:id/enter), which is the only point a user
+ * takes a voluntary action; a user already validly entered before being
+ * flagged still receives their share if the giveaway resolves afterward.
  */
 export async function resolveGiveaway(giveawayId: string | mongoose.Types.ObjectId): Promise<void> {
   const giveaway = await Giveaway.findById(giveawayId);

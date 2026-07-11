@@ -44,6 +44,7 @@ import { getGiveawayDraftLifetimeMs } from "./owner";
 import { generateGiveawayCard } from "../lib/giveawayCardImage";
 import GiveawayEntry from "../models/GiveawayEntry";
 import { resolveGiveaway } from "../lib/resolveGiveaway";
+import { checkGiveawayAltFarming } from "../lib/giveawayAltFarming";
 
 const router = Router();
 
@@ -599,6 +600,12 @@ router.post("/:id/enter", requireAuth, async (req: AuthRequest, res) => {
       message: "You're in! Good luck.",
       entrantCount: claimed.entrantCount,
       maxEntrants: claimed.maxEntrants,
+    });
+
+    // §6.1 — alt-farming detection. Fires after responding; a detection or
+    // enforcement failure here must never block a legitimate entry response.
+    checkGiveawayAltFarming(giveaway._id, req.userId!).catch((err) => {
+      console.error(`[giveaway:${giveaway._id}] alt-farming check failed:`, err);
     });
 
     // §4.4 — cap-reached trigger. Fires after responding so the player isn't
