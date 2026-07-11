@@ -270,16 +270,37 @@ interface Props {
   onLogout: () => void;
   unreadNotifs: number;
   onInspectPlayer?: (id: string) => void;
+  onHeightChange?: (h: number) => void;
 }
 
-export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectPlayer }: Props) {
+export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectPlayer, onHeightChange }: Props) {
   const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
   const xpPct = Math.min(100, Math.round((user.xp / user.xpToNext) * 100));
   const fc = user.faction ? FACTION_COLOR[user.faction] : "#64748b";
 
+  const navRef = useRef<HTMLElement>(null);
+  const onHeightChangeRef = useRef(onHeightChange);
+  useEffect(() => { onHeightChangeRef.current = onHeightChange; }, [onHeightChange]);
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const h = entries[0]?.borderBoxSize?.[0]?.blockSize ?? entries[0]?.contentRect.height ?? el.getBoundingClientRect().height;
+      onHeightChangeRef.current?.(Math.ceil(h));
+    });
+    ro.observe(el);
+    // Report initial height after first paint
+    const raf = requestAnimationFrame(() => {
+      onHeightChangeRef.current?.(Math.ceil(el.getBoundingClientRect().height));
+    });
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
+  }, []);
+
   return (
     <nav
+      ref={navRef}
       className="fixed top-0 left-0 right-0 z-40"
       style={{ background: "#0a0a0ff0", borderBottom: "1px solid #1e1e2e", backdropFilter: "blur(12px)" }}
     >

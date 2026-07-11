@@ -129,6 +129,7 @@ function GameApp() {
   useEffect(() => { (window as any).__setPage = setPage; }, [setPage]);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [showFactionSelect, setShowFactionSelect] = useState(false);
+  const [navHeight, setNavHeight] = useState(210);
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
   const [shopStoreId, setShopStoreId] = useState<string | null>(null);
   const [royaleCategory, setRoyaleCategory] = useState<string | null>(null);
@@ -278,9 +279,12 @@ function GameApp() {
           onLogout={handleLogout}
           unreadNotifs={unreadNotifs}
           onInspectPlayer={setInspectUserId}
+          onHeightChange={setNavHeight}
         />
-        {/* Account for taller nav (top bar + banner + status + icon row + stat bars + currency row) */}
-        <main className="pt-[210px] sm:pt-[190px] pb-8 px-3 sm:px-4 max-w-5xl mx-auto w-full">
+        <main
+          style={{ paddingTop: navHeight, paddingBottom: 32 }}
+          className="px-3 sm:px-4 max-w-5xl mx-auto w-full"
+        >
           <PageTransition pageKey={page}>
             {renderPage()}
           </PageTransition>
