@@ -42,6 +42,8 @@ import {
 } from "../lib/giveawayConstants";
 import { getGiveawayDraftLifetimeMs } from "./owner";
 import { generateGiveawayCard } from "../lib/giveawayCardImage";
+import GiveawayEntry from "../models/GiveawayEntry";
+import { resolveGiveaway } from "../lib/resolveGiveaway";
 
 const router = Router();
 
@@ -500,6 +502,115 @@ router.get("/live", requireAuth, async (_req, res) => {
 
     res.json(result);
   } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── GET /api/giveaways/:id  (§4.2 — expanded view) ───────────────────────────
+// Full pledge contents for the "Try your luck" expanded card. Anonymity is
+// respected here too, not just on the collapsed card (Appendix A).
+
+router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid giveaway ID" });
+    }
+    const g = await Giveaway.findById(req.params.id).lean();
+    if (!g) return res.status(404).json({ message: "Giveaway not found" });
+
+    const hostDisplay = await resolveHostDisplay(g.host, g.isAnonymous);
+    const alreadyEntered = await GiveawayEntry.exists({ giveawayId: g._id, userId: req.userId });
+
+    res.json({
+      id:            g._id,
+      isAnonymous:   g.isAnonymous,
+      isOwnerHosted: g.isOwnerHosted,
+      host:          hostDisplay,
+      status:        g.status,
+      pledge:        g.pledge,
+      pledgeValueDc: g.pledgeValueDc,
+      maxEntrants:   g.maxEntrants,
+      entrantCount:  g.entrantCount,
+      liveExpiresAt: g.liveExpiresAt,
+      cardImageUrl:  g.cardImageUrl,
+      createdAt:     g.createdAt,
+      isHost:        String(g.host) === req.userId,
+      alreadyEntered: Boolean(alreadyEntered),
+      canEnter:      g.status === "live" && String(g.host) !== req.userId && !alreadyEntered,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "giveaway detail error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/giveaways/:id/enter  (§4.3 — entry, §4.4 — cap-reached trigger) ─
+// Rejects: host entering own giveaway, non-live status, duplicate entry
+// (unique index on GiveawayEntry), and any account under Vanta review (§6.2).
+// If the new entry brings entrantCount to maxEntrants, immediately invokes the
+// SAME resolution function the Tier 5 timer worker uses — no duplicate logic.
+
+router.post("/:id/enter", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid giveaway ID" });
+    }
+
+    const user = await User.findById(req.userId).select("underReview").lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.underReview) {
+      return res.status(403).json({ message: "Your account is under review and cannot enter giveaways" });
+    }
+
+    const giveaway = await Giveaway.findById(req.params.id);
+    if (!giveaway) return res.status(404).json({ message: "Giveaway not found" });
+    if (giveaway.status !== "live") {
+      return res.status(400).json({ message: "This giveaway is not currently live" });
+    }
+    if (String(giveaway.host) === req.userId) {
+      return res.status(400).json({ message: "You cannot enter your own giveaway" });
+    }
+
+    // Atomically claim an entrant slot BEFORE creating the entry doc. The $expr
+    // guard compares two fields on the same document (entrantCount < maxEntrants),
+    // so two concurrent requests can never both squeeze past a nearly-full cap —
+    // only one is guaranteed to win the last slot.
+    const claimed = await Giveaway.findOneAndUpdate(
+      { _id: giveaway._id, status: "live", $expr: { $lt: ["$entrantCount", "$maxEntrants"] } },
+      { $inc: { entrantCount: 1 } },
+      { new: true },
+    );
+    if (!claimed) {
+      return res.status(400).json({ message: "This giveaway is full or no longer live" });
+    }
+
+    try {
+      await GiveawayEntry.create({ giveawayId: giveaway._id, userId: req.userId });
+    } catch (err: any) {
+      // Roll back the slot claim — this entrant didn't actually get in.
+      await Giveaway.findByIdAndUpdate(giveaway._id, { $inc: { entrantCount: -1 } }).catch(() => {});
+      if (err?.code === 11000) {
+        return res.status(400).json({ message: "You have already entered this giveaway" });
+      }
+      throw err;
+    }
+
+    res.json({
+      message: "You're in! Good luck.",
+      entrantCount: claimed.entrantCount,
+      maxEntrants: claimed.maxEntrants,
+    });
+
+    // §4.4 — cap-reached trigger. Fires after responding so the player isn't
+    // kept waiting on the (possibly slower) distribution transaction. Calls
+    // the exact same resolveGiveaway() the Tier 5 worker uses for timer expiry.
+    if (claimed.entrantCount >= claimed.maxEntrants) {
+      resolveGiveaway(giveaway._id).catch((err) => {
+        console.error(`[giveaway:${giveaway._id}] cap-reached resolution failed:`, err);
+      });
+    }
+  } catch (err: any) {
+    req.log.error({ err }, "giveaway enter error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

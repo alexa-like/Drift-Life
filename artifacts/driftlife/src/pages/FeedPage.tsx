@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { FeedEvent, User } from "../lib/types";
+import { FeedEvent, User, LiveGiveaway } from "../lib/types";
 import { api } from "../lib/api";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { MentionText } from "../components/MentionText";
 import { ChatFrameRenderer } from "../components/ChatFrameRenderer";
+import { GiveawayCard } from "../components/GiveawayCard";
 
 interface Props { user?: User; onInspectPlayer?: (id: string) => void; }
 
@@ -25,6 +26,7 @@ const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
   garage:      { label: "🚗 GARAGE",    color: "#fb923c" },
   job:         { label: "💼 JOB",       color: "#94a3b8" },
   post:        { label: "📝 PLAYER",    color: "#39d353" },
+  giveaway:    { label: "🎁 GIVEAWAY",  color: "#a855f7" },
 };
 
 function timeAgo(date: string | Date): string {
@@ -46,6 +48,7 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
   const [draft,   setDraft]   = useState("");
   const [posting, setPosting] = useState(false);
   const [postErr, setPostErr] = useState<string | null>(null);
+  const [liveGiveaways, setLiveGiveaways] = useState<LiveGiveaway[]>([]);
 
   const load = useCallback((p = 1, append = false) => {
     setLoading(true);
@@ -62,11 +65,16 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
       .finally(() => setLoading(false));
   }, []);
 
+  const loadGiveaways = useCallback(() => {
+    api.get<LiveGiveaway[]>("/giveaways/live").then(setLiveGiveaways).catch(() => {});
+  }, []);
+
   useEffect(() => {
     load(1);
-    const interval = setInterval(() => load(1), 60_000);
+    loadGiveaways();
+    const interval = setInterval(() => { load(1); loadGiveaways(); }, 60_000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [load, loadGiveaways]);
 
   function loadMore() {
     const nextPage = page + 1;
@@ -162,6 +170,21 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
               Post
             </CyberButton>
           </div>
+        </div>
+      )}
+
+      {/* Live giveaways — served directly from the Giveaway collection (§3.5 Approach B) */}
+      {liveGiveaways.length > 0 && (
+        <div className="space-y-2">
+          {liveGiveaways.map((g) => (
+            <GiveawayCard
+              key={g.id}
+              giveaway={g}
+              currentUserId={user?.id}
+              onInspectPlayer={onInspectPlayer}
+              onEntered={() => loadGiveaways()}
+            />
+          ))}
         </div>
       )}
 

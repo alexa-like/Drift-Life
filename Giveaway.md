@@ -173,7 +173,7 @@ Re-read Appendix A's escrow-timing and card-image bullets plus §3.1–3.5; trac
 
 ## TIER 4 — ENTRY, VIEWING, "TRY YOUR LUCK"
 **Depends on: Tier 3**
-Status: ⏳ Not started
+Status: ✅ Done
 
 ### 4.1 — Feed/collapsed card rendering
 Frontend: collapsed card shows the single `cardImageUrl`, host display (real name+frame if not anonymous, "??? Anonymous Benefactor" with no avatar/frame/click-through if anonymous), countdown to `liveExpiresAt`, and current entrant count vs `maxEntrants`.

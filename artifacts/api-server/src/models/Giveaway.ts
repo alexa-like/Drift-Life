@@ -32,6 +32,7 @@ export interface IGiveaway extends Document {
   pledgeValueDc: number; // total DC-equivalent value at creation, from §2.2 valuation
   ucTopUpPaid: number;
   maxEntrants: number;
+  entrantCount: number; // denormalized count, incremented atomically on entry (§4.3)
   durationMs: number; // total chosen live duration, ≤ 3 days in ms
   createdAt: Date;
   draftExpiresAt: Date | null; // only meaningful while status === "draft"
@@ -83,6 +84,7 @@ const GiveawaySchema = new Schema<IGiveaway>({
   pledgeValueDc: { type: Number, required: true, default: 0 },
   ucTopUpPaid: { type: Number, default: 0 },
   maxEntrants: { type: Number, required: true },
+  entrantCount: { type: Number, default: 0 },
   durationMs: { type: Number, required: true },
   createdAt: { type: Date, default: Date.now },
   draftExpiresAt: { type: Date, default: null },

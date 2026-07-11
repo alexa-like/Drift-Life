@@ -122,6 +122,46 @@ export interface User {
   pinnedBadges?: string[];
 }
 
+// ── Giveaway system (Tier 4) ──────────────────────────────────────────────────
+
+export interface GiveawayPledgeItem {
+  itemId: string;
+  name: string;
+  quantity: number;
+  iconUrl: string | null;
+}
+
+export interface GiveawayHostDisplay {
+  name: string;
+  avatar: string | null;
+  chatFrame: string | null;
+  userId: string | null;
+}
+
+export interface LiveGiveaway {
+  id: string;
+  isAnonymous: boolean;
+  isOwnerHosted?: boolean;
+  host: GiveawayHostDisplay;
+  status: "draft" | "live" | "ended" | "refunded";
+  pledge: {
+    dc: number;
+    uc: number;
+    keys: number;
+    items: GiveawayPledgeItem[];
+    frames: string[];
+  };
+  pledgeValueDc: number;
+  maxEntrants: number;
+  entrantCount?: number;
+  liveExpiresAt: string;
+  cardImageUrl: string | null;
+  createdAt: string;
+  isHost?: boolean;
+  alreadyEntered?: boolean;
+  canEnter?: boolean;
+}
+
 export interface FeedEvent {
   id: string;
   type: string;
