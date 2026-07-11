@@ -6,7 +6,9 @@ import { safeUser } from "./auth";
 const router = Router();
 
 // Master frame catalog — IDs and prices only. Visual data lives on the frontend.
-const FRAME_CATALOG = [
+// Exported so other systems (e.g. Tier 7 owner-hosted giveaways) can validate a
+// frame id is real without duplicating this list.
+export const FRAME_CATALOG = [
   { id: "neon_drift",          rarity: "elite",     priceNC: 500  },
   { id: "grid_static",         rarity: "elite",     priceNC: 500  },
   { id: "street_phantom",      rarity: "elite",     priceNC: 500  },
@@ -26,7 +28,7 @@ const FRAME_CATALOG = [
 ] as const;
 
 type FrameId = typeof FRAME_CATALOG[number]["id"];
-const FRAME_IDS = FRAME_CATALOG.map(f => f.id) as string[];
+export const FRAME_IDS = FRAME_CATALOG.map(f => f.id) as string[];
 
 // GET /api/chatframes — list catalog + user's owned/equipped state
 router.get("/", requireAuth, async (req: AuthRequest, res) => {

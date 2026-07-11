@@ -1,4 +1,5 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import User from "../models/User";
 import FeedEvent from "../models/FeedEvent";
 import { requireStaff, requireOwner, AuthRequest } from "../middlewares/auth";
@@ -7,6 +8,12 @@ import { SHOP_ITEMS, PRICE_OVERRIDES } from "./market";
 import ServerConfig from "../models/ServerConfig";
 import AdminAuditLog, { logAdminAction } from "../models/AdminAuditLog";
 import ChatReport from "../models/ChatReport";
+import Giveaway from "../models/Giveaway";
+import Item from "../models/Item";
+import { FRAME_IDS } from "./chatframes";
+import { computePledgeValueDc } from "../lib/giveawayValuation";
+import { MAX_LIVE_DURATION_MS, MAX_ENTRANT_CAP } from "../lib/giveawayConstants";
+import { generateAndStoreCardImage } from "../lib/giveawayCardImage";
 
 const router = Router();
 router.use(requireStaff as any);
@@ -368,6 +375,143 @@ router.patch("/settings/giveaway-draft-lifetime", requireOwner as any, async (re
     res.json({ message: `Giveaway draft lifetime set to ${ms}ms`, ms });
   } catch (err: any) {
     req.log.error({ err }, "giveaway-draft-lifetime error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── Owner-hosted giveaways (Tier 7 §7.1) ────────────────────────────────────
+//
+// POST /api/owner/giveaways — single-call creation, straight to "live".
+// Unlike the normal player flow (routes/giveaways.ts POST /draft + /:id/confirm):
+//   - isOwnerHosted: true, isAnonymous forced false (host always resolves to
+//     "System" — see resolveHostDisplay in routes/giveaways.ts)
+//   - skips Tier 2 eligibility checks entirely — items/frames are "conjured",
+//     never deducted from any real user, so ownership/equipped/rarity rules
+//     from lib/giveawayEligibility.ts do not apply here
+//   - skips escrow deduction entirely — no balance is ever touched
+//   - skips the UC top-up flow entirely — nothing is ever short, so there is
+//     no draft/confirm handshake; the giveaway is live as soon as this returns
+//   - still enforces the Tier 1 3-day live-duration ceiling (MAX_LIVE_DURATION_MS)
+//
+// Pledge items reference an existing Item document (looked up by _id only,
+// NOT restricted to this admin's inventory) purely for name/iconUrl/rarity
+// display metadata — quantity/ownership of that document is never checked or
+// touched. Pledge frames reference a real FRAME_CATALOG id purely so the
+// payout/display data is meaningful — ownership is never checked.
+//
+// §7.3: a user with the "owner" role who instead creates a giveaway through
+// the normal player route (routes/giveaways.ts POST /draft) is NOT exempted —
+// isOwnerHosted stays false and every player restriction (escrow, eligibility,
+// cost) still applies. That exemption is reachable ONLY via this route.
+router.post("/giveaways", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { pledge: pledgeInput, durationMs: rawDuration, maxEntrants: rawMax } = req.body;
+
+    if (!pledgeInput || typeof pledgeInput !== "object") {
+      return res.status(400).json({ message: "pledge is required" });
+    }
+
+    const durationMs = Number(rawDuration);
+    if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > MAX_LIVE_DURATION_MS) {
+      return res.status(400).json({
+        message: `durationMs must be a positive number ≤ ${MAX_LIVE_DURATION_MS} (3 days)`,
+      });
+    }
+
+    const maxEntrants = Math.floor(Number(rawMax));
+    if (!Number.isFinite(maxEntrants) || maxEntrants < 1 || maxEntrants > MAX_ENTRANT_CAP) {
+      return res.status(400).json({
+        message: `maxEntrants must be an integer between 1 and ${MAX_ENTRANT_CAP}`,
+      });
+    }
+
+    // ── Items: conjured, not deducted from anyone. Referenced Item document
+    // only supplies display metadata (name/iconUrl) — existence is validated
+    // as basic data integrity, not a Tier 2 eligibility rule.
+    const itemInputs: Array<{ itemId: string; quantity: number }> = Array.isArray(pledgeInput.items)
+      ? pledgeInput.items
+      : [];
+    const pledgeItems: Array<{ itemId: mongoose.Types.ObjectId; name: string; quantity: number; iconUrl: string | null }> = [];
+    for (const pi of itemInputs) {
+      if (!mongoose.isValidObjectId(pi.itemId)) {
+        return res.status(400).json({ message: `Invalid item ID: ${pi.itemId}` });
+      }
+      const qty = Math.floor(Number(pi.quantity));
+      if (!qty || qty < 1) {
+        return res.status(400).json({ message: `quantity must be ≥ 1 for item ${pi.itemId}` });
+      }
+      const itemDoc = await Item.findById(pi.itemId).select("name iconUrl").lean();
+      if (!itemDoc) {
+        return res.status(400).json({ message: `Item ${pi.itemId} does not exist` });
+      }
+      pledgeItems.push({
+        itemId: itemDoc._id,
+        name: itemDoc.name,
+        quantity: qty,
+        iconUrl: itemDoc.iconUrl ?? null,
+      });
+    }
+
+    // ── Frames: conjured, not pulled from anyone's ownedChatFrames. Validated
+    // against the real catalog so payout/display data is meaningful.
+    const frameInputs: string[] = Array.isArray(pledgeInput.frames) ? pledgeInput.frames : [];
+    const pledgeFrames: string[] = [];
+    for (const frameId of frameInputs) {
+      if (!FRAME_IDS.includes(String(frameId))) {
+        return res.status(400).json({ message: `Unknown frame id: ${frameId}` });
+      }
+      pledgeFrames.push(String(frameId));
+    }
+
+    const dc   = Math.max(0, Math.floor(Number(pledgeInput.dc)   || 0));
+    const uc   = Math.max(0, Math.floor(Number(pledgeInput.uc)   || 0));
+    const keys = Math.max(0, Math.floor(Number(pledgeInput.keys) || 0));
+
+    if (dc === 0 && uc === 0 && keys === 0 && pledgeItems.length === 0 && pledgeFrames.length === 0) {
+      return res.status(400).json({ message: "Pledge cannot be empty" });
+    }
+
+    const pledgeValueDc = computePledgeValueDc({
+      dc,
+      keys,
+      items: pledgeItems.map(pi => ({ itemId: pi.itemId, name: pi.name, quantity: pi.quantity })),
+    });
+
+    const liveExpiresAt = new Date(Date.now() + durationMs);
+
+    const giveaway = await Giveaway.create({
+      host:          req.userId,
+      isOwnerHosted: true,
+      isAnonymous:   false, // owner-hosted always resolves to "System" — never anonymous-flavored
+      status:        "live",
+      pledge: { dc, uc, keys, items: pledgeItems, frames: pledgeFrames },
+      pledgeValueDc,
+      ucTopUpPaid:   0,
+      maxEntrants,
+      durationMs,
+      draftExpiresAt: null,
+      liveExpiresAt,
+    });
+
+    // §3.4 — exactly one card image, generated once, fire-and-forget.
+    void generateAndStoreCardImage(String(giveaway._id), giveaway.pledge);
+
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "create-owner-giveaway",
+      details: { giveawayId: giveaway._id, pledgeValueDc, maxEntrants, durationMs },
+    });
+    req.log.info({ giveawayId: giveaway._id, pledgeValueDc, maxEntrants }, "owner created System giveaway");
+
+    res.status(201).json({
+      giveaway,
+      cardImageUrl: `/api/giveaways/${giveaway._id}/card`,
+      liveExpiresAt,
+      message: "System giveaway is now live!",
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "owner giveaway creation error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

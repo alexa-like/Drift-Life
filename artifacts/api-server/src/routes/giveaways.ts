@@ -41,7 +41,7 @@ import {
   MAX_LIVE_DURATION_MS,
 } from "../lib/giveawayConstants";
 import { getGiveawayDraftLifetimeMs } from "./owner";
-import { generateGiveawayCard } from "../lib/giveawayCardImage";
+import { generateAndStoreCardImage } from "../lib/giveawayCardImage";
 import GiveawayEntry from "../models/GiveawayEntry";
 import { resolveGiveaway } from "../lib/resolveGiveaway";
 import { checkGiveawayAltFarming } from "../lib/giveawayAltFarming";
@@ -50,11 +50,21 @@ const router = Router();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Resolve host display info, respecting the anonymity flag. */
+/**
+ * Resolve host display info, respecting anonymity and owner-hosting.
+ *
+ * Owner-hosted giveaways (Tier 7 §7.1) always resolve to "System" regardless
+ * of the isAnonymous flag — isAnonymous stays false for those and is a
+ * player-only concept, but this check is defensive in case that ever changes.
+ */
 async function resolveHostDisplay(
   hostId: mongoose.Types.ObjectId,
   isAnonymous: boolean,
+  isOwnerHosted = false,
 ): Promise<{ name: string; avatar: string | null; chatFrame: string | null; userId: string | null }> {
+  if (isOwnerHosted) {
+    return { name: "System", avatar: null, chatFrame: null, userId: null };
+  }
   if (isAnonymous) {
     return { name: "??? Anonymous Benefactor", avatar: null, chatFrame: null, userId: null };
   }
@@ -67,34 +77,6 @@ async function resolveHostDisplay(
     chatFrame: (host as any)?.equippedChatFrame ?? null,
     userId: String(hostId),
   };
-}
-
-/**
- * Generate the card image and persist it on the Giveaway document.
- * Designed to be called fire-and-forget after the giveaway flips to "live" —
- * errors are caught and logged; a failed card image is non-fatal (giveaway stays live).
- */
-async function generateAndStoreCardImage(
-  giveawayId: string,
-  pledge: { dc: number; uc: number; keys: number; items: any[]; frames: any[] },
-): Promise<void> {
-  try {
-    const cardBuffer = await generateGiveawayCard({
-      dc:     pledge.dc,
-      uc:     pledge.uc,
-      keys:   pledge.keys,
-      items:  pledge.items.map((i: any) => ({ name: i.name, iconUrl: i.iconUrl ?? null, quantity: i.quantity })),
-      frames: [...pledge.frames],
-    });
-    await Giveaway.findByIdAndUpdate(giveawayId, {
-      cardImageData: cardBuffer,
-      cardImageUrl:  `/api/giveaways/${giveawayId}/card`,
-    });
-  } catch (err) {
-    console.error(`[giveaway:${giveawayId}] card image generation failed:`, err);
-    // Leave cardImageUrl null — the frontend must handle a missing card gracefully.
-    await Giveaway.findByIdAndUpdate(giveawayId, { cardImageUrl: null }).catch(() => {});
-  }
 }
 
 // ── POST /api/giveaways/draft  (§3.1) ────────────────────────────────────────
@@ -494,10 +476,11 @@ router.get("/live", requireAuth, async (_req, res) => {
 
     const result = await Promise.all(
       giveaways.map(async (g) => {
-        const hostDisplay = await resolveHostDisplay(g.host, g.isAnonymous);
+        const hostDisplay = await resolveHostDisplay(g.host, g.isAnonymous, g.isOwnerHosted);
         return {
           id:            g._id,
           isAnonymous:   g.isAnonymous,
+          isOwnerHosted: g.isOwnerHosted,
           host:          hostDisplay,
           status:        g.status,
           pledge:        g.pledge,
@@ -529,7 +512,7 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
     const g = await Giveaway.findById(req.params.id).lean();
     if (!g) return res.status(404).json({ message: "Giveaway not found" });
 
-    const hostDisplay = await resolveHostDisplay(g.host, g.isAnonymous);
+    const hostDisplay = await resolveHostDisplay(g.host, g.isAnonymous, g.isOwnerHosted);
     const alreadyEntered = await GiveawayEntry.exists({ giveawayId: g._id, userId: req.userId });
 
     res.json({

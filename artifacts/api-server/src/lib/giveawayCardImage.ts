@@ -9,6 +9,7 @@
  */
 
 import sharp, { type OverlayOptions } from "sharp";
+import Giveaway from "../models/Giveaway";
 
 const CARD_W    = 512;
 const CARD_H    = 200;
@@ -127,4 +128,40 @@ export async function generateGiveawayCard(pledge: {
   }));
 
   return sharp(bg).composite(composites).png().toBuffer();
+}
+
+/**
+ * Generate the card image and persist it on the Giveaway document.
+ *
+ * Lives here (rather than in routes/giveaways.ts) so both routes/giveaways.ts
+ * (player flow, §3.2) and routes/owner.ts (Tier 7 §7.1 owner-hosted flow) can
+ * call it without creating a circular import between those two route files
+ * (routes/giveaways.ts already imports getGiveawayDraftLifetimeMs from
+ * routes/owner.ts).
+ *
+ * Designed to be called fire-and-forget right after a giveaway flips to
+ * "live" — errors are caught and logged; a failed card image is non-fatal
+ * (the giveaway stays live with cardImageUrl left null).
+ */
+export async function generateAndStoreCardImage(
+  giveawayId: string,
+  pledge: { dc: number; uc: number; keys: number; items: any[]; frames: any[] },
+): Promise<void> {
+  try {
+    const cardBuffer = await generateGiveawayCard({
+      dc:     pledge.dc,
+      uc:     pledge.uc,
+      keys:   pledge.keys,
+      items:  pledge.items.map((i: any) => ({ name: i.name, iconUrl: i.iconUrl ?? null, quantity: i.quantity })),
+      frames: [...pledge.frames],
+    });
+    await Giveaway.findByIdAndUpdate(giveawayId, {
+      cardImageData: cardBuffer,
+      cardImageUrl:  `/api/giveaways/${giveawayId}/card`,
+    });
+  } catch (err) {
+    console.error(`[giveaway:${giveawayId}] card image generation failed:`, err);
+    // Leave cardImageUrl null — the frontend must handle a missing card gracefully.
+    await Giveaway.findByIdAndUpdate(giveawayId, { cardImageUrl: null }).catch(() => {});
+  }
 }
