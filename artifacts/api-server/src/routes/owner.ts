@@ -186,6 +186,8 @@ router.post("/adjust-dc", async (req: AuthRequest, res) => {
     user.dc = Math.max(0, user.dc + delta);
     await user.save();
     logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "adjust-dc", targetId: user.id, targetUsername: user.username, details: { delta } });
+    const io = req.app.locals["io"];
+    if (io) io.to(`user:${user._id}`).emit("balance_update", { dc: user.dc, nc: user.nc });
     res.json({ message: `${delta >= 0 ? "+" : ""}${delta} DC applied to ${user.username}`, dc: user.dc });
   } catch (err: any) {
     req.log.error({ err }, "adjust-dc error");
@@ -204,6 +206,8 @@ router.post("/adjust-nc", async (req: AuthRequest, res) => {
     user.nc = Math.max(0, user.nc + delta);
     await user.save();
     logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "adjust-nc", targetId: user.id, targetUsername: user.username, details: { delta } });
+    const io = req.app.locals["io"];
+    if (io) io.to(`user:${user._id}`).emit("balance_update", { dc: user.dc, nc: user.nc });
     res.json({ message: `${delta >= 0 ? "+" : ""}${delta} NC applied to ${user.username}`, nc: user.nc });
   } catch (err: any) {
     req.log.error({ err }, "adjust-nc error");

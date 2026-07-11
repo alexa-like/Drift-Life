@@ -39,14 +39,22 @@ interface Props {
   addToast: (msg: string, t?: string) => void;
 }
 
-export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }: Props) {
+type ActionModal = "gift-dc" | "gift-nc" | null;
+
+export function PlayerInspectModal({ targetId, currentUser, onClose, onNav, addToast }: Props) {
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionModal, setActionModal] = useState<ActionModal>(null);
+  const [giftAmount, setGiftAmount] = useState("");
+  const [actionPending, setActionPending] = useState(false);
+  const [friendSent, setFriendSent] = useState(false);
 
   useEffect(() => {
     if (!targetId) return;
     setLoading(true);
     setProfile(null);
+    setFriendSent(false);
+    setActionModal(null);
     api.get<PublicProfile>(`/user/profile/${targetId}`)
       .then(setProfile)
       .catch(() => setProfile(null))
@@ -58,6 +66,57 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
   const fc = profile?.faction ? FACTION_COLOR[profile.faction] || "#64748b" : "#64748b";
   const xpPct = profile ? Math.min(100, Math.round((profile.xp / profile.xpToNext) * 100)) : 0;
   const isOwn = profile?.id === currentUser.id;
+
+  async function sendFriendRequest() {
+    if (!profile) return;
+    setActionPending(true);
+    try {
+      await api.post("/friends/request", { targetId: profile.id });
+      setFriendSent(true);
+      addToast(`Friend request sent to ${profile.username}`, "success");
+    } catch (e: any) {
+      addToast(e.message ?? "Failed to send request", "error");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  async function sendGift(type: "dc" | "nc") {
+    if (!profile) return;
+    const amount = parseInt(giftAmount, 10);
+    if (!amount || amount <= 0) { addToast("Enter a valid amount", "error"); return; }
+    setActionPending(true);
+    try {
+      if (type === "nc") {
+        await api.post("/store/gift-nc", { recipientUsername: profile.username, amount });
+        addToast(`Gifted ${amount} NC to ${profile.username} (10% fee)`, "success");
+      } else {
+        await api.post("/bank/transfer", { targetUsername: profile.username, amount });
+        addToast(`Sent ${amount} DC to ${profile.username} (7% wire fee)`, "success");
+      }
+      setActionModal(null);
+      setGiftAmount("");
+    } catch (e: any) {
+      addToast(e.message ?? "Transfer failed", "error");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  const btnStyle = (color: string): React.CSSProperties => ({
+    flex: 1,
+    fontFamily: "monospace",
+    fontSize: 11,
+    fontWeight: "bold",
+    padding: "7px 6px",
+    borderRadius: 6,
+    border: `1px solid ${color}40`,
+    background: `${color}14`,
+    color,
+    cursor: "pointer",
+    transition: "background 0.15s",
+    minWidth: 0,
+  });
 
   return (
     <div
@@ -72,7 +131,7 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
         padding: 16,
         backdropFilter: "blur(4px)",
       }}
-      onClick={onClose}
+      onClick={() => { setActionModal(null); onClose(); }}
     >
       <div onClick={e => e.stopPropagation()} style={{ maxWidth: 380, width: "100%" }}>
         <div style={{ background: "#111118", borderRadius: 12 }}>
@@ -114,7 +173,6 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                       <div className="font-mono font-bold text-base" style={{ color: "#e2e8f0" }}>
                         {profile.username}
                       </div>
-                      {/* Online status dot */}
                       {(() => {
                         const s = profile.onlineStatus;
                         const color = s === "online" ? "#39d353" : s === "away" ? "#f59e0b" : "#334155";
@@ -159,11 +217,7 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                 {profile.bio && (
                   <div
                     className="font-mono text-xs mb-4 px-3 py-2 rounded"
-                    style={{
-                      color: "#94a3b8",
-                      background: "#0d0d15",
-                      border: "1px solid #1e1e2e30",
-                    }}
+                    style={{ color: "#94a3b8", background: "#0d0d15", border: "1px solid #1e1e2e30" }}
                   >
                     "{profile.bio}"
                   </div>
@@ -186,10 +240,114 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, addToast }:
                   ))}
                 </div>
 
-                {isOwn && (
+                {isOwn ? (
                   <div className="font-mono text-xs text-center" style={{ color: "#475569" }}>
                     This is your profile
                   </div>
+                ) : (
+                  <>
+                    {/* Gift amount input (shown when a gift action is active) */}
+                    {actionModal && (
+                      <div style={{ marginBottom: 10, padding: "10px 12px", background: "#0a0a0f", borderRadius: 8, border: "1px solid #1e293b" }}>
+                        <div className="font-mono text-xs mb-2" style={{ color: "#64748b" }}>
+                          {actionModal === "gift-nc"
+                            ? "SEND NC (100–10,000 · 10% fee)"
+                            : "SEND DC (7% wire fee)"}
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <input
+                            type="number"
+                            min={actionModal === "gift-nc" ? 100 : 1}
+                            max={actionModal === "gift-nc" ? 10000 : undefined}
+                            value={giftAmount}
+                            onChange={e => setGiftAmount(e.target.value)}
+                            placeholder={actionModal === "gift-nc" ? "100–10,000" : "Amount"}
+                            style={{
+                              flex: 1, fontFamily: "monospace", fontSize: 12,
+                              background: "#111118", border: "1px solid #334155",
+                              color: "#e2e8f0", borderRadius: 6, padding: "6px 10px",
+                              outline: "none",
+                            }}
+                          />
+                          <button
+                            disabled={actionPending}
+                            onClick={() => sendGift(actionModal === "gift-nc" ? "nc" : "dc")}
+                            style={{
+                              fontFamily: "monospace", fontSize: 12, fontWeight: "bold",
+                              padding: "6px 14px", borderRadius: 6, cursor: "pointer",
+                              background: actionModal === "gift-nc" ? "#a855f720" : "#00d4ff20",
+                              border: `1px solid ${actionModal === "gift-nc" ? "#a855f760" : "#00d4ff60"}`,
+                              color: actionModal === "gift-nc" ? "#a855f7" : "#00d4ff",
+                              opacity: actionPending ? 0.5 : 1,
+                            }}
+                          >
+                            {actionPending ? "..." : "Send"}
+                          </button>
+                          <button
+                            onClick={() => { setActionModal(null); setGiftAmount(""); }}
+                            style={{
+                              fontFamily: "monospace", fontSize: 12, padding: "6px 10px",
+                              borderRadius: 6, cursor: "pointer",
+                              background: "#1e293b", border: "1px solid #334155", color: "#64748b",
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action buttons row 1 */}
+                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                      <button
+                        disabled={actionPending || friendSent}
+                        onClick={sendFriendRequest}
+                        style={btnStyle(friendSent ? "#39d353" : "#64748b")}
+                      >
+                        {friendSent ? "✓ Requested" : "➕ Add Friend"}
+                      </button>
+                      <button
+                        onClick={() => { setActionModal(actionModal === "gift-dc" ? null : "gift-dc"); setGiftAmount(""); }}
+                        style={btnStyle(actionModal === "gift-dc" ? "#00d4ff" : "#00d4ff")}
+                      >
+                        💸 Gift DC
+                      </button>
+                      <button
+                        onClick={() => { setActionModal(actionModal === "gift-nc" ? null : "gift-nc"); setGiftAmount(""); }}
+                        style={btnStyle(actionModal === "gift-nc" ? "#a855f7" : "#a855f7")}
+                      >
+                        💎 Gift NC
+                      </button>
+                    </div>
+
+                    {/* Action buttons row 2 */}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        onClick={() => { onClose(); onNav?.("trade"); }}
+                        style={btnStyle("#f59e0b")}
+                      >
+                        🤝 Trade
+                      </button>
+                      <button
+                        onClick={() => { onClose(); onNav?.("chat"); }}
+                        style={btnStyle("#39d353")}
+                      >
+                        💬 Message
+                      </button>
+                      <button
+                        onClick={() => { onClose(); onNav?.("arena"); }}
+                        style={btnStyle("#ff6b35")}
+                      >
+                        ⚔️ Arena
+                      </button>
+                      <button
+                        onClick={() => { onClose(); onNav?.("racing"); }}
+                        style={btnStyle("#ff2d55")}
+                      >
+                        🏎️ Race
+                      </button>
+                    </div>
+                  </>
                 )}
               </>
             )}

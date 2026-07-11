@@ -65,6 +65,7 @@ export default function LoadoutPage({ addToast }: Props) {
     queryKey: ["loadout-combat"],
     queryFn: () => api.get("/loadout/combat"),
     retry: 1,
+    staleTime: 0,
   });
 
   const save = useMutation({
@@ -104,6 +105,22 @@ export default function LoadoutPage({ addToast }: Props) {
 
   const { loadout, inventory } = data;
 
+  // Guard: if either field is missing the API returned something unexpected
+  if (!loadout || !inventory) {
+    return (
+      <div className="font-mono text-xs text-center py-16 space-y-2">
+        <div style={{ color: "#ff2d55" }}>⚠ Loadout data missing — please retry</div>
+        <button
+          onClick={() => qc.invalidateQueries({ queryKey: ["loadout-combat"] })}
+          className="font-mono text-xs px-4 py-2 rounded mt-2"
+          style={{ background: "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5530" }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   function getEquipped(slot: typeof SLOT_CONFIG[number]) {
     const id = loadout[slot.key];
     if (!id) return null;
@@ -114,7 +131,8 @@ export default function LoadoutPage({ addToast }: Props) {
   }
 
   function getPickerItems(slot: typeof SLOT_CONFIG[number]): (WeaponEntry | ConsumableEntry)[] {
-    return inventory[slot.invKey] as (WeaponEntry | ConsumableEntry)[];
+    const items = inventory[slot.invKey];
+    return Array.isArray(items) ? items as (WeaponEntry | ConsumableEntry)[] : [];
   }
 
   // ── Warnings ─────────────────────────────────────────────────────────────────
@@ -126,7 +144,9 @@ export default function LoadoutPage({ addToast }: Props) {
 
   // Check ammo for primary weapon
   if (loadout.primaryWeaponId) {
-    const primaryDef = inventory.primaryWeapons.find(w => w.itemId === loadout.primaryWeaponId)?.def;
+    const primaryDef = Array.isArray(inventory.primaryWeapons)
+      ? inventory.primaryWeapons.find(w => w.itemId === loadout.primaryWeaponId)?.def
+      : undefined;
     const ammoCategory = (primaryDef as any)?.ammoCategory ?? null;
     if (ammoCategory && inventory.ammo) {
       const ammoCount = inventory.ammo[ammoCategory] ?? 0;
@@ -138,7 +158,9 @@ export default function LoadoutPage({ addToast }: Props) {
 
   // Check ammo for secondary weapon
   if (loadout.secondaryWeaponId) {
-    const secondaryDef = inventory.secondaryWeapons.find(w => w.itemId === loadout.secondaryWeaponId)?.def;
+    const secondaryDef = Array.isArray(inventory.secondaryWeapons)
+      ? inventory.secondaryWeapons.find(w => w.itemId === loadout.secondaryWeaponId)?.def
+      : undefined;
     const ammoCategory = (secondaryDef as any)?.ammoCategory ?? null;
     if (ammoCategory && inventory.ammo) {
       const ammoCount = inventory.ammo[ammoCategory] ?? 0;

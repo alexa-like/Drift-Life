@@ -96,12 +96,17 @@ function SocketEvents({ addToast, onUserUpdate }: { addToast: (message: string, 
       onUserUpdate();
     };
 
+    const onBalanceUpdate = () => {
+      onUserUpdate();
+    };
+
     socket.on("attack_notification", onAttack);
     socket.on("trade_offer", onTradeOffer);
     socket.on("trade_completed", onTradeCompleted);
     socket.on("trade_declined", onTradeDeclined);
     socket.on("auction_outbid", onAuctionOutbid);
     socket.on("auction_sold", onAuctionSold);
+    socket.on("balance_update", onBalanceUpdate);
 
     return () => {
       socket.off("attack_notification", onAttack);
@@ -110,6 +115,7 @@ function SocketEvents({ addToast, onUserUpdate }: { addToast: (message: string, 
       socket.off("trade_declined", onTradeDeclined);
       socket.off("auction_outbid", onAuctionOutbid);
       socket.off("auction_sold", onAuctionSold);
+      socket.off("balance_update", onBalanceUpdate);
     };
   }, [socket, addToast, onUserUpdate]);
 
