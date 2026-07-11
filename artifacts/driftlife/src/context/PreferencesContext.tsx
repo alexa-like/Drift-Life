@@ -53,6 +53,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
+  // Apply zoom to <html> — NOT to a child div — so that position:fixed elements
+  // (the NavBar) scale correctly relative to the viewport on mobile Chrome.
+  useEffect(() => {
+    document.documentElement.style.zoom = String(scale);
+    return () => { document.documentElement.style.removeProperty("zoom"); };
+  }, [scale]);
+
   return (
     <Ctx.Provider value={{ scale, setScale, theme, setTheme }}>
       {children}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { PreferencesProvider, usePreferences } from "./context/PreferencesContext";
+import { useUpdateCheck } from "./hooks/useUpdateCheck";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "./hooks/useAuth";
 import { useToast } from "./hooks/useToast";
@@ -123,12 +124,50 @@ function SocketEvents({ addToast, onUserUpdate }: { addToast: (message: string, 
   return null;
 }
 
+// ── Hash routing helpers ──────────────────────────────────────────────────────
+// URL format: example.com/#/settings  (no server config needed; survives refresh)
+const HASH_BLOCKLIST = new Set(["arena-combat", "race-match"]); // sub-pages — don't put in URL
+
+function getPageFromHash(): string {
+  const raw = window.location.hash.replace(/^#\/?/, "").split("?")[0];
+  return raw || "feed";
+}
+
+function setHash(page: string) {
+  if (HASH_BLOCKLIST.has(page)) return;
+  const newHash = `#/${page}`;
+  if (window.location.hash !== newHash) {
+    window.history.pushState(null, "", newHash);
+  }
+}
+
 function GameApp() {
-  const { scale, theme } = usePreferences();
+  const { theme } = usePreferences();
   const { user, loading, login, logout, refreshUser } = useAuth();
   const { toasts, addToast, removeToast } = useToast();
-  const [page, setPage] = useState("feed");
+
+  // ── Hash-based routing ──────────────────────────────────────────────────────
+  const [page, setPageState] = useState(() => getPageFromHash());
+  const setPage = useCallback((p: string) => {
+    setPageState(p);
+    setHash(p);
+  }, []);
   useEffect(() => { (window as any).__setPage = setPage; }, [setPage]);
+
+  // Sync URL → state on browser back/forward
+  useEffect(() => {
+    const handler = () => setPageState(getPageFromHash());
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, []);
+
+  // Keep hash in sync whenever page state changes
+  useEffect(() => { setHash(page); }, [page]);
+
+  // ── Deployment update detection ──────────────────────────────────────────────
+  const updateAvailable = useUpdateCheck(5 * 60 * 1000);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [showFactionSelect, setShowFactionSelect] = useState(false);
   const [navHeight, setNavHeight] = useState(210);
@@ -273,9 +312,39 @@ function GameApp() {
   return (
     <SocketProvider userId={user!.id}>
       <SocketEvents addToast={addToast} onUserUpdate={refreshUser} />
+      {/* Update banner — shown when a new deployment is detected */}
+      {updateAvailable && !updateDismissed && (
+        <div
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+            background: "#00d4ff", color: "#0a0a0f",
+            fontFamily: "monospace", fontSize: 13, fontWeight: "bold",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+            padding: "10px 16px",
+          }}
+        >
+          <span>⚡ New update available</span>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background: "#0a0a0f", color: "#00d4ff", border: "none",
+              borderRadius: 6, padding: "4px 14px", fontFamily: "monospace",
+              fontWeight: "bold", fontSize: 12, cursor: "pointer",
+            }}
+          >
+            Refresh
+          </button>
+          <button
+            onClick={() => setUpdateDismissed(true)}
+            style={{ background: "none", border: "none", color: "#0a0a0f", cursor: "pointer", fontSize: 16 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div
         className={`scanlines dl-root${theme === "light" ? " dl-light" : ""}`}
-        style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e2e8f0", zoom: scale }}
+        style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e2e8f0" }}
       >
         <NavBar
           user={user!}

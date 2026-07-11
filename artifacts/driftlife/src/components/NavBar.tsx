@@ -304,7 +304,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
     <nav
       ref={navRef}
       className="fixed top-0 left-0 right-0 z-40"
-      style={{ background: "#0a0a0ff0", borderBottom: "1px solid #1e1e2e", backdropFilter: "blur(12px)" }}
+      style={{ background: "#0a0a0f", borderBottom: "1px solid #1e1e2e" }}
     >
       {/* XP bar — animated glow */}
       <div style={{ height: 2, background: "#1e1e2e", position: "relative", overflow: "hidden" }}>

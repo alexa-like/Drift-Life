@@ -190,7 +190,7 @@ export default function LoadoutPage({ addToast }: Props) {
         </div>
       )}
 
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))" }}>
         {SLOT_CONFIG.map((slot) => {
           const equipped = getEquipped(slot);
           const isOpen = picker === slot.key;
