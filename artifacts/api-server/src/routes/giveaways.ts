@@ -447,6 +447,15 @@ router.post("/:id/confirm", requireAuth, async (req: AuthRequest, res) => {
           );
         }
       });
+    } catch (txErr: any) {
+      // A thrown "BIZ_ERR" marker means the transaction aborted cleanly for a
+      // known business-logic reason (biz.err is already populated) — swallow
+      // it here so it surfaces as the correct status/body below instead of
+      // falling through to the generic 500 handler. Any other error (a real
+      // unexpected failure) is not a BIZ_ERR marker and must still propagate.
+      if (!(txErr instanceof Error) || txErr.message !== "BIZ_ERR" || !biz.err) {
+        throw txErr;
+      }
     } finally {
       await session.endSession();
     }
@@ -494,6 +503,7 @@ router.get("/live", requireAuth, async (_req, res) => {
           pledge:        g.pledge,
           pledgeValueDc: g.pledgeValueDc,
           maxEntrants:   g.maxEntrants,
+          entrantCount:  g.entrantCount,
           liveExpiresAt: g.liveExpiresAt,
           cardImageUrl:  g.cardImageUrl,
           createdAt:     g.createdAt,
