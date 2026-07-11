@@ -70,7 +70,7 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements" | "giveaways";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -167,6 +167,63 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [announcementText, setAnnouncementText] = useState("");
   const [announcementHours, setAnnouncementHours] = useState("");
   const [savingAnnouncement, setSavingAnnouncement] = useState(false);
+  // Giveaways tab
+  const [ownerGiveDc, setOwnerGiveDc] = useState("0");
+  const [ownerGiveUc, setOwnerGiveUc] = useState("0");
+  const [ownerGiveKeys, setOwnerGiveKeys] = useState("0");
+  const [ownerGiveItems, setOwnerGiveItems] = useState<Array<{ itemId: string; quantity: number }>>([]);
+  const [ownerGiveFrames, setOwnerGiveFrames] = useState<string[]>([]);
+  const [ownerGiveNewItemId, setOwnerGiveNewItemId] = useState("");
+  const [ownerGiveNewItemQty, setOwnerGiveNewItemQty] = useState("1");
+  const [ownerGiveNewFrame, setOwnerGiveNewFrame] = useState("");
+  const [ownerGiveDuration, setOwnerGiveDuration] = useState(24 * 60 * 60 * 1000);
+  const [ownerGiveMax, setOwnerGiveMax] = useState("100");
+  const [ownerGiveCreating, setOwnerGiveCreating] = useState(false);
+  const [liveOwnerGiveaways, setLiveOwnerGiveaways] = useState<any[]>([]);
+  const [ownerGiveawaysLoading, setOwnerGiveawaysLoading] = useState(false);
+
+  const GIVE_DURATIONS = [
+    { label: "1 hour",   ms: 60 * 60 * 1000 },
+    { label: "6 hours",  ms: 6 * 60 * 60 * 1000 },
+    { label: "12 hours", ms: 12 * 60 * 60 * 1000 },
+    { label: "1 day",    ms: 24 * 60 * 60 * 1000 },
+    { label: "2 days",   ms: 2 * 24 * 60 * 60 * 1000 },
+    { label: "3 days",   ms: 3 * 24 * 60 * 60 * 1000 },
+  ];
+
+  const loadOwnerGiveaways = useCallback(async () => {
+    setOwnerGiveawaysLoading(true);
+    try {
+      const rows = await api.get<any[]>("/giveaways/live");
+      setLiveOwnerGiveaways(rows);
+    } catch { /* silent */ }
+    finally { setOwnerGiveawaysLoading(false); }
+  }, []);
+
+  async function createOwnerGiveaway() {
+    const dc   = Math.max(0, Math.floor(Number(ownerGiveDc)   || 0));
+    const uc   = Math.max(0, Math.floor(Number(ownerGiveUc)   || 0));
+    const keys = Math.max(0, Math.floor(Number(ownerGiveKeys) || 0));
+    const maxEntrants = Math.max(1, Math.floor(Number(ownerGiveMax) || 1));
+    if (dc === 0 && uc === 0 && keys === 0 && ownerGiveItems.length === 0 && ownerGiveFrames.length === 0) {
+      addToast("Pledge cannot be empty", "error"); return;
+    }
+    setOwnerGiveCreating(true);
+    try {
+      await api.post<any>("/owner/giveaways", {
+        pledge: { dc, uc, keys, items: ownerGiveItems, frames: ownerGiveFrames },
+        durationMs: ownerGiveDuration,
+        maxEntrants,
+      });
+      addToast("System giveaway is now live!", "success");
+      // Reset form
+      setOwnerGiveDc("0"); setOwnerGiveUc("0"); setOwnerGiveKeys("0");
+      setOwnerGiveItems([]); setOwnerGiveFrames([]);
+      setOwnerGiveMax("100"); setOwnerGiveDuration(24 * 60 * 60 * 1000);
+      loadOwnerGiveaways();
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setOwnerGiveCreating(false); }
+  }
 
   const loadStats = useCallback(async () => {
     try {
@@ -506,6 +563,12 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         <button onClick={() => setTab("announcements")} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "announcements" ? "#00d4ff18" : "#111118", color: tab === "announcements" ? "#00d4ff" : "#475569", border: `1px solid ${tab === "announcements" ? "#00d4ff40" : "#1e1e2e"}` }}>
           Announcements
+        </button>
+        <button
+          onClick={() => { setTab("giveaways"); loadOwnerGiveaways(); }}
+          className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "giveaways" ? "#a855f718" : "#111118", color: tab === "giveaways" ? "#a855f7" : "#475569", border: `1px solid ${tab === "giveaways" ? "#a855f740" : "#1e1e2e"}` }}>
+          🎁 Giveaways
         </button>
         <button className="px-4 py-2 rounded font-mono text-xs opacity-40 cursor-not-allowed"
           style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Coming soon — Phase 2">
@@ -1497,6 +1560,200 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
             >
               {savingTierWeights ? "Saving…" : "Save Tier Weights"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* GIVEAWAYS TAB */}
+      {tab === "giveaways" && (
+        <div className="space-y-4">
+          {/* Create system giveaway */}
+          <div style={s}>
+            <div className="font-mono text-xs font-bold mb-1" style={{ color: "#a855f7", letterSpacing: "0.1em" }}>CREATE SYSTEM GIVEAWAY</div>
+            <div className="font-mono text-xs mb-4" style={{ color: "#475569" }}>
+              Owner-hosted giveaways are conjured — no escrow, no eligibility checks, shown as "System" host.
+            </div>
+
+            {/* Currency */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {[
+                { label: "DC", val: ownerGiveDc, set: setOwnerGiveDc },
+                { label: "UC (NC)", val: ownerGiveUc, set: setOwnerGiveUc },
+                { label: "Keys", val: ownerGiveKeys, set: setOwnerGiveKeys },
+              ].map(({ label, val, set }) => (
+                <div key={label}>
+                  <div className="font-mono text-xs mb-1" style={{ color: "#64748b" }}>{label}</div>
+                  <input
+                    type="number" min="0" value={val}
+                    onChange={e => set(e.target.value)}
+                    className="font-mono text-xs px-2 py-1.5 rounded w-full"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Items */}
+            <div className="mb-4">
+              <div className="font-mono text-xs font-bold mb-2" style={{ color: "#64748b", letterSpacing: "0.05em" }}>ITEMS</div>
+              {ownerGiveItems.map((it, i) => (
+                <div key={i} className="flex items-center gap-2 mb-1">
+                  <input
+                    value={it.itemId} readOnly
+                    className="font-mono text-xs px-2 py-1 rounded flex-1"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#94a3b8", outline: "none" }}
+                  />
+                  <span className="font-mono text-xs" style={{ color: "#475569" }}>×{it.quantity}</span>
+                  <button
+                    onClick={() => setOwnerGiveItems(prev => prev.filter((_, j) => j !== i))}
+                    className="font-mono text-xs px-2 py-1 rounded"
+                    style={{ color: "#ff2d55", border: "1px solid #ff2d5530" }}
+                  >✕</button>
+                </div>
+              ))}
+              <div className="flex gap-2 mt-2">
+                <input
+                  placeholder="Item ObjectId…"
+                  value={ownerGiveNewItemId} onChange={e => setOwnerGiveNewItemId(e.target.value)}
+                  className="font-mono text-xs px-2 py-1.5 rounded flex-1"
+                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                />
+                <input
+                  type="number" min="1" value={ownerGiveNewItemQty}
+                  onChange={e => setOwnerGiveNewItemQty(e.target.value)}
+                  placeholder="qty"
+                  className="font-mono text-xs px-2 py-1.5 rounded"
+                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none", width: 64 }}
+                />
+                <button
+                  onClick={() => {
+                    const id = ownerGiveNewItemId.trim();
+                    const qty = Math.max(1, Math.floor(Number(ownerGiveNewItemQty) || 1));
+                    if (!id) return;
+                    setOwnerGiveItems(prev => [...prev, { itemId: id, quantity: qty }]);
+                    setOwnerGiveNewItemId(""); setOwnerGiveNewItemQty("1");
+                  }}
+                  className="font-mono text-xs px-3 py-1.5 rounded"
+                  style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740" }}
+                >+ Add</button>
+              </div>
+            </div>
+
+            {/* Frames */}
+            <div className="mb-4">
+              <div className="font-mono text-xs font-bold mb-2" style={{ color: "#64748b", letterSpacing: "0.05em" }}>CHAT FRAMES</div>
+              {ownerGiveFrames.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 mb-1">
+                  <span className="font-mono text-xs flex-1" style={{ color: "#94a3b8" }}>{f}</span>
+                  <button
+                    onClick={() => setOwnerGiveFrames(prev => prev.filter((_, j) => j !== i))}
+                    className="font-mono text-xs px-2 py-1 rounded"
+                    style={{ color: "#ff2d55", border: "1px solid #ff2d5530" }}
+                  >✕</button>
+                </div>
+              ))}
+              <div className="flex gap-2 mt-2">
+                <input
+                  placeholder="Frame ID (e.g. neon_grid_elite)…"
+                  value={ownerGiveNewFrame} onChange={e => setOwnerGiveNewFrame(e.target.value)}
+                  className="font-mono text-xs px-2 py-1.5 rounded flex-1"
+                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                />
+                <button
+                  onClick={() => {
+                    const f = ownerGiveNewFrame.trim();
+                    if (!f) return;
+                    setOwnerGiveFrames(prev => [...prev, f]);
+                    setOwnerGiveNewFrame("");
+                  }}
+                  className="font-mono text-xs px-3 py-1.5 rounded"
+                  style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740" }}
+                >+ Add</button>
+              </div>
+            </div>
+
+            {/* Duration & max entrants */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <div className="font-mono text-xs mb-1" style={{ color: "#64748b" }}>Duration</div>
+                <select
+                  value={ownerGiveDuration} onChange={e => setOwnerGiveDuration(Number(e.target.value))}
+                  className="font-mono text-xs px-2 py-1.5 rounded w-full"
+                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                >
+                  {GIVE_DURATIONS.map(d => <option key={d.ms} value={d.ms}>{d.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div className="font-mono text-xs mb-1" style={{ color: "#64748b" }}>Max Entrants (1–500)</div>
+                <input
+                  type="number" min="1" max="500" value={ownerGiveMax}
+                  onChange={e => setOwnerGiveMax(e.target.value)}
+                  className="font-mono text-xs px-2 py-1.5 rounded w-full"
+                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
+                />
+              </div>
+            </div>
+
+            {isOwner && (
+              <button
+                onClick={createOwnerGiveaway}
+                disabled={ownerGiveCreating}
+                className="font-mono text-xs px-6 py-2 rounded font-bold"
+                style={{ background: ownerGiveCreating ? "#a855f720" : "#a855f730", color: "#a855f7", border: "1px solid #a855f750" }}
+              >
+                {ownerGiveCreating ? "Creating…" : "🎁 Launch System Giveaway"}
+              </button>
+            )}
+          </div>
+
+          {/* Live giveaways list */}
+          <div style={s}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="font-mono text-xs font-bold" style={{ color: "#a855f7", letterSpacing: "0.1em" }}>LIVE GIVEAWAYS</div>
+              <button onClick={loadOwnerGiveaways} disabled={ownerGiveawaysLoading} className="font-mono text-xs px-3 py-1 rounded" style={{ background: "#1e1e2e", color: "#64748b", border: "1px solid #1e1e2e" }}>
+                {ownerGiveawaysLoading ? "…" : "Refresh"}
+              </button>
+            </div>
+            {ownerGiveawaysLoading ? (
+              <div className="font-mono text-xs text-center py-6 animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+            ) : liveOwnerGiveaways.length === 0 ? (
+              <div className="font-mono text-xs text-center py-6" style={{ color: "#475569" }}>No live giveaways</div>
+            ) : (
+              <div className="space-y-2">
+                {liveOwnerGiveaways.map((g: any) => {
+                  const expiry = g.liveExpiresAt ? new Date(g.liveExpiresAt) : null;
+                  const msLeft = expiry ? expiry.getTime() - Date.now() : 0;
+                  const hLeft  = Math.floor(msLeft / 3600000);
+                  const mLeft  = Math.floor((msLeft % 3600000) / 60000);
+                  const timeLabel = msLeft <= 0 ? "ending…" : hLeft > 0 ? `${hLeft}h ${mLeft}m left` : `${mLeft}m left`;
+                  return (
+                    <div key={g.id} style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 6, padding: "10px 14px" }}>
+                      <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div>
+                          <span
+                            className="font-mono text-xs font-bold"
+                            style={{ color: g.isOwnerHosted ? "#00d4ff" : "#a855f7" }}
+                          >
+                            {g.isOwnerHosted ? "🖥 System" : g.host?.name ?? "???"}
+                          </span>
+                          <span className="font-mono text-xs ml-3" style={{ color: "#64748b" }}>
+                            {g.entrantCount ?? 0}/{g.maxEntrants} entered · {timeLabel}
+                          </span>
+                        </div>
+                        <div className="flex gap-3 font-mono text-xs" style={{ color: "#475569" }}>
+                          {g.pledge?.dc > 0 && <span>💵 {g.pledge.dc.toLocaleString()} DC</span>}
+                          {g.pledge?.uc > 0 && <span>💎 {g.pledge.uc.toLocaleString()} UC</span>}
+                          {g.pledge?.keys > 0 && <span>🔑 {g.pledge.keys}</span>}
+                          {g.pledge?.items?.length > 0 && <span>📦 {g.pledge.items.length} item(s)</span>}
+                          {g.pledge?.frames?.length > 0 && <span>🖼️ {g.pledge.frames.length} frame(s)</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

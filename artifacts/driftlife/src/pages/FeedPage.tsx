@@ -180,28 +180,71 @@ export function FeedPage({ user, refreshUser, addToast, onInspectPlayer }: Props
         </div>
       )}
 
-      {/* Live giveaways — served directly from the Giveaway collection (§3.5 Approach B) */}
-      {user && (
-        <div className="flex justify-end">
-          <CyberButton variant="purple" size="sm" onClick={() => setShowCreateGiveaway(true)}>
-            🎁 Host a Giveaway
-          </CyberButton>
+      {/* Live giveaways section */}
+      <div
+        style={{
+          background: "#0a0a12",
+          border: "1px solid #3a1a5e",
+          borderRadius: 8,
+          overflow: "hidden",
+        }}
+      >
+        {/* Header row */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 14px",
+            borderBottom: liveGiveaways.length > 0 ? "1px solid #1e1e2e" : undefined,
+            background: "#0d0a18",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span
+              className="font-mono"
+              style={{ fontSize: 10, fontWeight: 700, color: "#a855f7", letterSpacing: "0.08em" }}
+            >
+              🎁 LIVE GIVEAWAYS
+            </span>
+            {liveGiveaways.length > 0 && (
+              <span
+                className="font-mono"
+                style={{ fontSize: 9, color: "#a855f780", background: "#a855f710", border: "1px solid #a855f720", borderRadius: 10, padding: "1px 6px" }}
+              >
+                {liveGiveaways.length} active
+              </span>
+            )}
+          </div>
+          {user && (
+            <CyberButton variant="purple" size="sm" onClick={() => setShowCreateGiveaway(true)}>
+              + Host a Giveaway
+            </CyberButton>
+          )}
         </div>
-      )}
 
-      {liveGiveaways.length > 0 && (
-        <div className="space-y-2">
-          {liveGiveaways.map((g) => (
-            <GiveawayCard
-              key={g.id}
-              giveaway={g}
-              currentUserId={user?.id}
-              onInspectPlayer={onInspectPlayer}
-              onEntered={() => loadGiveaways()}
-            />
-          ))}
-        </div>
-      )}
+        {liveGiveaways.length === 0 ? (
+          <div
+            className="font-mono text-center"
+            style={{ fontSize: 11, color: "#334155", padding: "14px 0" }}
+          >
+            No active giveaways — be the first to host one!
+          </div>
+        ) : (
+          <div className="space-y-0">
+            {liveGiveaways.map((g, i) => (
+              <div key={g.id} style={{ borderTop: i > 0 ? "1px solid #1a1a2e" : undefined, padding: "10px 14px" }}>
+                <GiveawayCard
+                  giveaway={g}
+                  currentUserId={user?.id}
+                  onInspectPlayer={onInspectPlayer}
+                  onEntered={() => loadGiveaways()}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {showCreateGiveaway && user && (
         <CreateGiveawayModal

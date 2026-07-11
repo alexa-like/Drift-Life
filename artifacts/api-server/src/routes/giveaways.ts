@@ -467,16 +467,28 @@ router.post("/:id/confirm", requireAuth, async (req: AuthRequest, res) => {
 // Live giveaways are served directly from the Giveaway collection while open.
 // No FeedEvent is created until the giveaway concludes (Tier 5).
 // Respects anonymity per Appendix A: anonymous host → "??? Anonymous Benefactor", no link.
+// Includes per-user alreadyEntered / isHost so GiveawayCard renders correctly on load.
 
-router.get("/live", requireAuth, async (_req, res) => {
+router.get("/live", requireAuth, async (req: AuthRequest, res) => {
   try {
     const giveaways = await Giveaway.find({ status: "live" })
       .sort({ liveExpiresAt: 1 })
       .lean();
 
+    // Fetch all entries for this user across all live giveaways in one query
+    const liveIds = giveaways.map((g) => g._id);
+    const myEntries = req.userId
+      ? await GiveawayEntry.find({ giveawayId: { $in: liveIds }, userId: req.userId })
+          .select("giveawayId")
+          .lean()
+      : [];
+    const enteredSet = new Set(myEntries.map((e) => String(e.giveawayId)));
+
     const result = await Promise.all(
       giveaways.map(async (g) => {
         const hostDisplay = await resolveHostDisplay(g.host, g.isAnonymous, g.isOwnerHosted);
+        const isHost = String(g.host) === req.userId;
+        const alreadyEntered = enteredSet.has(String(g._id));
         return {
           id:            g._id,
           isAnonymous:   g.isAnonymous,
@@ -490,6 +502,9 @@ router.get("/live", requireAuth, async (_req, res) => {
           liveExpiresAt: g.liveExpiresAt,
           cardImageUrl:  g.cardImageUrl,
           createdAt:     g.createdAt,
+          isHost,
+          alreadyEntered,
+          canEnter:      !isHost && !alreadyEntered,
         };
       }),
     );

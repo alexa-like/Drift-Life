@@ -313,9 +313,11 @@ export function CreateGiveawayModal({ user, onClose, onCreated, addToast }: Prop
             </div>
             {draft.coverage && (
               <div style={{ fontFamily: "monospace", fontSize: 12, color: "#f59e0b", background: "#f59e0b10", border: "1px solid #f59e0b30", borderRadius: 6, padding: 10 }}>
-                Your pledge is below the 1,000 DC minimum. A top-up of{" "}
-                <span style={{ color: "#e2e8f0" }}>{draft.ucTopUpCost} UC</span> will be charged on confirm to cover the{" "}
-                {draft.coverage.shortfallDc.toLocaleString()} DC shortfall.
+                ⚠️ You don't fully own what you pledged. A UC top-up of{" "}
+                <span style={{ color: "#e2e8f0", fontWeight: 700 }}>{draft.ucTopUpCost} UC</span> will be charged on confirm to cover the shortfall.
+                {draft.coverage.shortfallDc > 0 && (
+                  <span style={{ color: "#94a3b8" }}> ({draft.coverage.shortfallDc.toLocaleString()} DC short)</span>
+                )}
               </div>
             )}
             <div style={{ fontFamily: "monospace", fontSize: 12, color: "#64748b" }}>
