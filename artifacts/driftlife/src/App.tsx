@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { PreferencesProvider, usePreferences } from "./context/PreferencesContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "./hooks/useAuth";
 import { useToast } from "./hooks/useToast";
@@ -123,6 +124,7 @@ function SocketEvents({ addToast, onUserUpdate }: { addToast: (message: string, 
 }
 
 function GameApp() {
+  const { scale, theme } = usePreferences();
   const { user, loading, login, logout, refreshUser } = useAuth();
   const { toasts, addToast, removeToast } = useToast();
   const [page, setPage] = useState("feed");
@@ -271,7 +273,10 @@ function GameApp() {
   return (
     <SocketProvider userId={user!.id}>
       <SocketEvents addToast={addToast} onUserUpdate={refreshUser} />
-      <div className="scanlines" style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e2e8f0" }}>
+      <div
+        className={`scanlines dl-root${theme === "light" ? " dl-light" : ""}`}
+        style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e2e8f0", zoom: scale }}
+      >
         <NavBar
           user={user!}
           active={page}
@@ -310,7 +315,9 @@ function GameApp() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <GameApp />
+      <PreferencesProvider>
+        <GameApp />
+      </PreferencesProvider>
     </QueryClientProvider>
   );
 }

@@ -287,13 +287,15 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
     const el = navRef.current;
     if (!el) return;
     const ro = new ResizeObserver(entries => {
-      const h = entries[0]?.borderBoxSize?.[0]?.blockSize ?? entries[0]?.contentRect.height ?? el.getBoundingClientRect().height;
+      // Use borderBoxSize (unaffected by CSS zoom on ancestors) so that
+      // paddingTop in the zoomed coordinate space matches correctly.
+      const h = entries[0]?.borderBoxSize?.[0]?.blockSize ?? entries[0]?.contentRect.height ?? el.offsetHeight;
       onHeightChangeRef.current?.(Math.ceil(h));
     });
     ro.observe(el);
-    // Report initial height after first paint
+    // Report initial height after first paint (offsetHeight is zoom-independent)
     const raf = requestAnimationFrame(() => {
-      onHeightChangeRef.current?.(Math.ceil(el.getBoundingClientRect().height));
+      onHeightChangeRef.current?.(Math.ceil(el.offsetHeight));
     });
     return () => { ro.disconnect(); cancelAnimationFrame(raf); };
   }, []);

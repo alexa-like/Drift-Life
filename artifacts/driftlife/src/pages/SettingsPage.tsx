@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { AnimatedCard } from "../components/AnimatedCard";
+import { usePreferences, DEFAULT_SCALE, MIN_SCALE, MAX_SCALE } from "../context/PreferencesContext";
 
 interface Props {
   user: User;
@@ -41,7 +42,7 @@ const INPUT = {
 };
 
 export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
-  const [tab,        setTab]      = useState<"account" | "privacy" | "notifications" | "password" | "reset">("account");
+  const [tab,        setTab]      = useState<"account" | "appearance" | "privacy" | "notifications" | "password" | "reset">("account");
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("driftlife_sounds_enabled") === "true");
   const [current,   setCurrent]  = useState("");
   const [newPass,   setNewPass]  = useState("");
@@ -114,12 +115,15 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
     finally { setSending(false); }
   }
 
+  const { scale, setScale, theme, setTheme } = usePreferences();
+
   const TABS = [
-    { id: "account"       as const, label: "Account"  },
-    { id: "privacy"       as const, label: "Privacy"  },
-    { id: "notifications" as const, label: "Notifs"   },
-    { id: "password"      as const, label: "Password" },
-    { id: "reset"         as const, label: "Reset"    },
+    { id: "account"       as const, label: "Account"    },
+    { id: "appearance"    as const, label: "Appearance" },
+    { id: "privacy"       as const, label: "Privacy"    },
+    { id: "notifications" as const, label: "Notifs"     },
+    { id: "password"      as const, label: "Password"   },
+    { id: "reset"         as const, label: "Reset"      },
   ];
 
   return (
@@ -140,6 +144,121 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
           </CyberButton>
         ))}
       </div>
+
+      {/* Appearance */}
+      {tab === "appearance" && (
+        <AnimatedCard accent="#a855f7" className="flex flex-col gap-5">
+
+          {/* UI Scale */}
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <div>
+                <div className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>UI Scale</div>
+                <div className="font-mono" style={{ color: "#64748b", fontSize: 11 }}>
+                  Zoom the whole game UI — smaller fits more on screen
+                </div>
+              </div>
+              <span className="font-mono text-xs font-bold" style={{ color: "#a855f7", minWidth: 38, textAlign: "right" }}>
+                {Math.round(scale * 100)}%
+              </span>
+            </div>
+
+            {/* Slider */}
+            <input
+              type="range"
+              min={MIN_SCALE}
+              max={MAX_SCALE}
+              step={0.05}
+              value={scale}
+              onChange={e => setScale(parseFloat(e.target.value))}
+              style={{ width: "100%", accentColor: "#a855f7", cursor: "pointer" }}
+            />
+
+            {/* Preset buttons */}
+            <div className="flex gap-2 mt-2">
+              {[
+                { label: "60%",  v: 0.6  },
+                { label: "75%",  v: 0.75 },
+                { label: "85%",  v: 0.85 },
+                { label: "100%", v: 1.0  },
+                { label: "115%", v: 1.15 },
+              ].map(({ label, v }) => (
+                <button
+                  key={v}
+                  onClick={() => setScale(v)}
+                  style={{
+                    flex: 1,
+                    fontFamily: "monospace", fontSize: 11, fontWeight: "bold",
+                    padding: "5px 2px", borderRadius: 6, cursor: "pointer",
+                    background: Math.abs(scale - v) < 0.01 ? "#a855f720" : "#1e1e2e",
+                    border: `1px solid ${Math.abs(scale - v) < 0.01 ? "#a855f7" : "#334155"}`,
+                    color: Math.abs(scale - v) < 0.01 ? "#a855f7" : "#64748b",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Reset to default */}
+            {Math.abs(scale - DEFAULT_SCALE) > 0.01 && (
+              <button
+                onClick={() => setScale(DEFAULT_SCALE)}
+                style={{
+                  marginTop: 6, fontFamily: "monospace", fontSize: 10,
+                  color: "#475569", background: "none", border: "none",
+                  cursor: "pointer", padding: 0,
+                }}
+              >
+                ↺ Reset to default (85%)
+              </button>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div style={{ borderTop: "1px solid #1e1e2e" }} />
+
+          {/* Color Theme */}
+          <div>
+            <div className="font-mono text-xs font-bold mb-1" style={{ color: "#e2e8f0" }}>Color Theme</div>
+            <div className="font-mono mb-3" style={{ color: "#64748b", fontSize: 11 }}>
+              Dark mode is the default. Day mode inverts the palette for a bright background.
+            </div>
+            <div className="flex gap-3">
+              {([
+                { id: "dark"  as const, label: "🌙 Dark",  desc: "Night / Cyberpunk" },
+                { id: "light" as const, label: "☀️ Day",   desc: "Bright / Inverted" },
+              ]).map(({ id, label, desc }) => (
+                <button
+                  key={id}
+                  onClick={() => setTheme(id)}
+                  style={{
+                    flex: 1, padding: "10px 8px", borderRadius: 8, cursor: "pointer",
+                    background: theme === id ? "#a855f718" : "#1e1e2e",
+                    border: `2px solid ${theme === id ? "#a855f7" : "#334155"}`,
+                    boxShadow: theme === id ? "0 0 12px #a855f730" : "none",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <div className="font-mono text-sm font-bold" style={{ color: theme === id ? "#a855f7" : "#64748b" }}>
+                    {label}
+                  </div>
+                  <div className="font-mono" style={{ color: "#475569", fontSize: 10, marginTop: 2 }}>
+                    {desc}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div
+            className="font-mono text-xs px-3 py-2 rounded"
+            style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#475569" }}
+          >
+            ⚡ Scale and theme are saved to this device — each player can set their own.
+          </div>
+        </AnimatedCard>
+      )}
 
       {/* Account */}
       {tab === "account" && (
