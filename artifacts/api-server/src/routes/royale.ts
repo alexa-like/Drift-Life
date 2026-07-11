@@ -359,7 +359,7 @@ router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
       royaleType: "general" | "shooting" | "racing";
       category?: string;
       spinType?: string;
-      currency: "dc" | "nc" | "key";
+      currency?: "dc" | "nc" | "key";
       count: 1 | 10;
     };
 
@@ -378,8 +378,16 @@ router.post("/spin", requireAuth, async (req: AuthRequest, res) => {
         if (user.dc < 500) { res.status(400).json({ message: "Not enough DC. DC Spin costs 500 DC." }); return; }
         await User.findByIdAndUpdate(req.userId, { $inc: { dc: -500 } });
       } else {
-        if (user.nc < 20 || user.keys < 1) { res.status(400).json({ message: "Not enough NC or Keys. Master Royale costs 20 NC + 1 Key." }); return; }
-        await User.findByIdAndUpdate(req.userId, { $inc: { nc: -20, keys: -1 } });
+        // Master Royale: player pays with either 1 Key OR the NC cost — not both
+        const masterNcCost = 20;
+        if (currency === "key") {
+          if (user.keys < 1) { res.status(400).json({ message: "Not enough Keys. Master Royale costs 1 Key." }); return; }
+          await User.findByIdAndUpdate(req.userId, { $inc: { keys: -1 } });
+        } else {
+          // default to NC when currency is "nc" or unspecified
+          if (user.nc < masterNcCost) { res.status(400).json({ message: `Not enough NC. Master Royale costs ${masterNcCost} NC.` }); return; }
+          await User.findByIdAndUpdate(req.userId, { $inc: { nc: -masterNcCost } });
+        }
       }
 
       // Fetch pool

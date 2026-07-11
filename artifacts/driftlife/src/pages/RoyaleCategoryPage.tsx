@@ -18,8 +18,11 @@ interface Props {
   onUserUpdate?: () => void;
 }
 
+type MasterCurrency = "key" | "nc";
+
 export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: Props) {
   const [spinType, setSpinType] = useState<SpinType>("dc_spin");
+  const [masterCurrency, setMasterCurrency] = useState<MasterCurrency>("key");
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [showResult, setShowResult] = useState(false);
@@ -43,7 +46,8 @@ export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: P
     setSpinning(true);
     setError(null);
     try {
-      const data = await api.post<any>("/royale/spin", { category, spinType });
+      const currency = spinType === "dc_spin" ? "dc" : masterCurrency;
+      const data = await api.post<any>("/royale/spin", { category, spinType, currency });
       await new Promise(r => setTimeout(r, 2000));
       setResult(data.won);
       setBalances(data.updatedBalances);
@@ -56,7 +60,9 @@ export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: P
     }
   }
 
-  const spinCostLabel = spinType === "dc_spin" ? "500 DC" : "20 NC + 1 Key";
+  const spinCostLabel = spinType === "dc_spin"
+    ? "500 DC"
+    : masterCurrency === "key" ? "1 Key" : "20 NC";
   const spinColor = spinType === "dc_spin" ? "#00E0FF" : "#f59e0b";
 
   return (
@@ -93,6 +99,33 @@ export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: P
           }}
         >★ MASTER ROYALE ★</button>
       </div>
+
+      {/* Master Royale currency picker */}
+      {spinType === "master_royale" && (
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem", alignItems: "center" }}>
+          <span style={{ color: "#aaa", fontSize: "0.85rem", fontFamily: "monospace" }}>PAY WITH:</span>
+          <button
+            onClick={() => setMasterCurrency("key")}
+            style={{
+              padding: "0.35rem 0.85rem", borderRadius: "6px", cursor: "pointer",
+              background: masterCurrency === "key" ? "#f59e0b22" : "#1a1a2e",
+              border: masterCurrency === "key" ? "2px solid #f59e0b" : "2px solid #333",
+              color: masterCurrency === "key" ? "#f59e0b" : "#666",
+              fontWeight: "bold", fontSize: "0.85rem",
+            }}
+          >🗝 1 Key</button>
+          <button
+            onClick={() => setMasterCurrency("nc")}
+            style={{
+              padding: "0.35rem 0.85rem", borderRadius: "6px", cursor: "pointer",
+              background: masterCurrency === "nc" ? "#f59e0b22" : "#1a1a2e",
+              border: masterCurrency === "nc" ? "2px solid #f59e0b" : "2px solid #333",
+              color: masterCurrency === "nc" ? "#f59e0b" : "#666",
+              fontWeight: "bold", fontSize: "0.85rem",
+            }}
+          >💠 20 NC</button>
+        </div>
+      )}
 
       {/* Cost + Spin button */}
       <div style={{ textAlign: "center", marginBottom: "2rem" }}>
