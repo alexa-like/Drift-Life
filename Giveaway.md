@@ -234,7 +234,7 @@ Re-read Appendix A and §6.1–6.3; confirm `underReview` truly blocks entry/cla
 
 ## TIER 7 — OWNER PANEL HOSTING
 **Depends on: Tier 1, Tier 2, Tier 3, Tier 5**
-Status: ⏳ Not started
+Status: ✅ Done
 
 ### 7.1 — Owner-panel creation route
 `POST /api/owner/giveaways` gated by `requireOwner`: identical shape to Tier 3's `draft`/`confirm` flow, but sets `isOwnerHosted: true`, `host` display resolved to "System" everywhere in the API/UI, skips Tier 2's eligibility checks entirely (pass the bypass flag), skips escrow deduction entirely, skips the UC top-up flow entirely (nothing is ever short). Still enforces the Tier 1 3-day duration ceiling.
@@ -252,7 +252,7 @@ Re-read Appendix A's Owner-panel-exception bullet and §7.1–7.3; confirm the e
 
 ## TIER 8 — SYSTEM AUTO-POSTING EXTENSIONS
 **Depends on: nothing else in this file (can be built any time after Tier 1 exists)**
-Status: ⏳ Not started
+Status: ✅ Done
 
 ### 8.1 — Leaderboard highlights
 Hook into wherever leaderboard rank changes are already computed; call `postToSystemFeed` when a player reaches #1 or enters the top 3, tagging the player(s).

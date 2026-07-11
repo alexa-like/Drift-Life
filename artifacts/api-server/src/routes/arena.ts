@@ -18,6 +18,7 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { fireMissionEvent } from "../lib/missionEvents";
 import { checkAchievements } from "./achievements";
 import { emitFeedEvent } from "../lib/feedEvents";
+import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
 
 const router = Router();
 
@@ -1702,6 +1703,9 @@ async function grantCombatRewards(match: any) {
         { $max: { score: u.combatWinStreak }, $set: { username: u.username, avatar: u.avatar } },
         { upsert: true },
       );
+      // Tier 8 §8.1 — announce if either board's result pushed the player into the weekly top 3
+      announceLeaderboardMilestone("combat_wins", weekStart, userId, u.username).catch(() => {});
+      announceLeaderboardMilestone("combat_streak", weekStart, userId, u.username).catch(() => {});
     }
 
     fireMissionEvent(userId, "combat_play").catch(() => {});

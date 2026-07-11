@@ -96,6 +96,7 @@ router.post("/ban", async (req: AuthRequest, res) => {
     if (user.role === "owner") return res.status(403).json({ message: "Cannot ban owner" });
     user.banned = true;
     user.banReason = reason ?? "No reason given";
+    user.bannedAt = new Date(); // Tier 8 §8.3 — feeds the anonymized weekly ban-count recap
     await user.save();
     logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "ban", targetId: user.id, targetUsername: user.username, details: { reason: user.banReason } });
     res.json({ message: `${user.username} banned` });

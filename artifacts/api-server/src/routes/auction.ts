@@ -9,6 +9,7 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { validateBody } from "../middlewares/validate";
 import { auctionBidSchema } from "../lib/schemas";
 import { logger } from "../lib/logger";
+import { postToSystemFeed } from "../lib/systemFeed";
 
 const router = Router();
 
@@ -63,6 +64,12 @@ export async function generateBotAuction(): Promise<void> {
     });
 
     logger.info({ itemId: item.itemId, tier }, "generateBotAuction: created new bot auction");
+
+    // Tier 8 §8.2 — announce every new auction listing as it goes live
+    postToSystemFeed(
+      "auction_listing",
+      `:hammer: New ${tier === "legendary" ? "Legendary" : "Epic"} auction just went live — ${item.name}! Bid now at /auction`,
+    ).catch(() => {});
   } catch (err) {
     logger.error({ err }, "generateBotAuction: error");
   }

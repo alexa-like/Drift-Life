@@ -13,6 +13,7 @@ import { closeExpiredAuctions, scheduleBotAuctions } from "./routes/auction";
 import { expireMarketListings } from "./routes/market";
 import { postWeeklyRecap, pruneFeed } from "./routes/leaderboard";
 import { runGiveawayMaintenance } from "./lib/giveawayWorker";
+import { postWeeklyBanRecap } from "./lib/banRecap";
 
 const rawPort = process.env["PORT"] ?? "3000";
 const port = Number(rawPort);
@@ -276,6 +277,17 @@ async function start() {
     }, 60 * 60 * 1000);
     postWeeklyRecap().catch((err) =>
       logger.error({ err }, "weekly leaderboard recap startup error"),
+    );
+
+    // ── Weekly anonymized ban-count recap (Tier 8 §8.3): check hourly, posts
+    // once per Monday — same idempotent-marker pattern as postWeeklyRecap above.
+    setInterval(() => {
+      postWeeklyBanRecap().catch((err) =>
+        logger.error({ err }, "weekly ban recap interval error"),
+      );
+    }, 60 * 60 * 1000);
+    postWeeklyBanRecap().catch((err) =>
+      logger.error({ err }, "weekly ban recap startup error"),
     );
 
     // ── System feed pruning: cap at newest 500 events, check hourly ───────────

@@ -17,6 +17,7 @@ import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { fireMissionEvent } from "../lib/missionEvents";
 import { checkAchievements } from "./achievements";
+import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
 
 const router = Router();
 
@@ -679,6 +680,8 @@ async function grantRaceRewards(match: any) {
         { $inc: { score: 1 }, $set: { username: u.username, avatar: u.avatar } },
         { upsert: true },
       );
+      // Tier 8 §8.1 — announce if this win pushed the player into the weekly top 3
+      announceLeaderboardMilestone("race_wins", weekStart, p.userId, u.username).catch(() => {});
     }
     if (p.finishTime !== null) {
       const lbType = match.mode === "2player" ? "race_fastest_2p" : "race_fastest_4p";
@@ -689,6 +692,7 @@ async function grantRaceRewards(match: any) {
           { $set: { score: p.finishTime, username: u.username, avatar: u.avatar } },
           { upsert: true },
         );
+        announceLeaderboardMilestone(lbType, weekStart, p.userId, u.username).catch(() => {});
       }
     }
 

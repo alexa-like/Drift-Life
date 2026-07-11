@@ -97,6 +97,7 @@ export interface IUser extends Document {
   resetTokenExpiry: Date | null;
   role: "player" | "admin" | "staff" | "owner";
   banned: boolean;
+  bannedAt?: Date | null; // Tier 8 §8.3 — set whenever POST /api/owner/ban bans this account
   banReason: string | null;
   mutedUntil: Date | null;
   mutedUsers: string[];
@@ -297,6 +298,7 @@ const UserSchema = new Schema<IUser>(
     resetTokenExpiry: { type: Date, default: null },
     role: { type: String, enum: ["player", "admin", "staff", "owner"], default: "player" },
     banned: { type: Boolean, default: false },
+    bannedAt: { type: Date, default: null },
     banReason: { type: String, default: null },
     mutedUntil: { type: Date, default: null },
     mutedUsers: [{ type: String }],

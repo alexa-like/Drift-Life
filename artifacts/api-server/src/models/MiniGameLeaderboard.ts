@@ -20,6 +20,7 @@ export interface IMiniGameLeaderboard extends Document {
   score:           number;   // wins count, streak count, or finish time (ms, lower = better for fastest)
   weekStart:       Date;     // ISO Monday 00:00 UTC
   rewardGranted:   boolean;
+  lastAnnouncedRank: number | null; // Tier 8 §8.1 — best rank already posted to the system feed this week
 }
 
 const MiniGameLeaderboardSchema = new Schema<IMiniGameLeaderboard>(
@@ -35,6 +36,7 @@ const MiniGameLeaderboardSchema = new Schema<IMiniGameLeaderboard>(
     score:        { type: Number, required: true, default: 0 },
     weekStart:    { type: Date, required: true },
     rewardGranted:{ type: Boolean, default: false },
+    lastAnnouncedRank: { type: Number, default: null },
   },
   { timestamps: true },
 );
