@@ -7,8 +7,14 @@ import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { MentionText } from "../components/MentionText";
 import { ChatFrameRenderer } from "../components/ChatFrameRenderer";
 import { GiveawayCard } from "../components/GiveawayCard";
+import { CreateGiveawayModal } from "../components/CreateGiveawayModal";
 
-interface Props { user?: User; onInspectPlayer?: (id: string) => void; }
+interface Props {
+  user?: User;
+  refreshUser?: () => Promise<User | null>;
+  addToast?: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
+  onInspectPlayer?: (id: string) => void;
+}
 
 const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
   crime:       { label: "🔫 CRIMES",    color: "#ff6b35" },
@@ -40,7 +46,8 @@ function timeAgo(date: string | Date): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function FeedPage({ user, onInspectPlayer }: Props) {
+export function FeedPage({ user, refreshUser, addToast, onInspectPlayer }: Props) {
+  const [showCreateGiveaway, setShowCreateGiveaway] = useState(false);
   const [events,  setEvents]  = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [page,    setPage]    = useState(1);
@@ -174,6 +181,14 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
       )}
 
       {/* Live giveaways — served directly from the Giveaway collection (§3.5 Approach B) */}
+      {user && (
+        <div className="flex justify-end">
+          <CyberButton variant="purple" size="sm" onClick={() => setShowCreateGiveaway(true)}>
+            🎁 Host a Giveaway
+          </CyberButton>
+        </div>
+      )}
+
       {liveGiveaways.length > 0 && (
         <div className="space-y-2">
           {liveGiveaways.map((g) => (
@@ -186,6 +201,15 @@ export function FeedPage({ user, onInspectPlayer }: Props) {
             />
           ))}
         </div>
+      )}
+
+      {showCreateGiveaway && user && (
+        <CreateGiveawayModal
+          user={user}
+          onClose={() => setShowCreateGiveaway(false)}
+          onCreated={() => { loadGiveaways(); refreshUser?.(); }}
+          addToast={addToast ?? (() => {})}
+        />
       )}
 
       {loading && events.length === 0 ? (

@@ -202,7 +202,7 @@ function GameApp() {
   function renderPage() {
     switch (page) {
       case "dashboard":    return <Dashboard {...pageProps} onNav={setPage} />;
-      case "feed":         return <FeedPage user={user!} onInspectPlayer={setInspectUserId} />;
+      case "feed":         return <FeedPage user={user!} refreshUser={refreshUser} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       case "crimes":       return <CrimesPage {...pageProps} />;
       case "jobs":         return <JobsPage {...pageProps} />;
 
