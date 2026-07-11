@@ -20,3 +20,4 @@
 - [DriftLife Giveaway Tier 4](driftlife-tier4-giveaway.md) — resolveGiveaway() built early (shared by cap-reached + Tier 5 worker); $expr guard for atomic entrant-cap claim; round-robin payout with O(1) currency split + assertion check
 - [DriftLife Giveaway Tier 5](driftlife-tier5-giveaway.md) — worker needs no separate lock (resolveGiveaway's inner claim suffices); single runGiveawayMaintenance() loop absorbs both draft-expiry + live-timer sweeps
 - [DriftLife Giveaway Tier 6](driftlife-tier6-giveaway.md) — alt-farming reuses existing lastLoginIp/loginIpHistory signal; underReview set immediately (not post-review); no claim step exists so only entry is gated
+- [DriftLife Loadout Blank Screen](driftlife-loadout-crash.md) — GET /loadout/combat returned raw lean doc; old docs missing array fields → undefined.find() crash; always use Array.isArray() guard + enrich with def fields

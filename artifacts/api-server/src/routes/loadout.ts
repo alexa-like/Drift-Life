@@ -12,29 +12,76 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 const router = Router();
 
 // ── GET /api/loadout/combat ───────────────────────────────────────────────────
+// Returns the player's current loadout + fully-enriched inventory (with item def
+// fields resolved from MiniGameItem).  The raw lean doc is NOT returned directly
+// because old documents may be missing array fields (e.g. secondaryWeapons added
+// later), which caused a crash in the frontend when a weapon was equipped but the
+// array was undefined.
 router.get("/combat", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const loadout = await PlayerLoadout.findOne({ userId: req.userId }).lean();
-    const inv     = await PlayerMiniGameInventory.findOne({ userId: req.userId }).lean();
+    const [loadoutDoc, inv] = await Promise.all([
+      PlayerLoadout.findOne({ userId: req.userId }).lean(),
+      PlayerMiniGameInventory.findOne({ userId: req.userId }).lean(),
+    ]);
 
-    const emptyLoadout = { primaryWeaponId: null, secondaryWeaponId: null, bodyArmorId: null, consumableItemId: null, consumableCount: 0 };
-    const emptyInv = { primaryWeapons: [], secondaryWeapons: [], bodyArmors: [], consumables: [], ammo: { pistol_rounds: 0, smg_rounds: 0, rifle_rounds: 0, shotgun_shells: 0, sniper_rounds: 0, lmg_rounds: 0 } };
+    const emptyLoadout = {
+      primaryWeaponId: null, secondaryWeaponId: null,
+      bodyArmorId: null, consumableItemId: null, consumableCount: 0,
+    };
+    const emptyAmmo = {
+      pistol_rounds: 0, smg_rounds: 0, rifle_rounds: 0,
+      shotgun_shells: 0, sniper_rounds: 0, lmg_rounds: 0,
+    };
 
-    if (!loadout) {
-      res.json({ loadout: emptyLoadout, inventory: inv ?? emptyInv });
-      return;
+    // Build enriched inventory — always returns arrays (never undefined)
+    let enrichedInventory: {
+      primaryWeapons: any[]; secondaryWeapons: any[]; bodyArmors: any[];
+      consumables: any[]; ammo: typeof emptyAmmo;
+    };
+
+    if (inv) {
+      // Resolve def fields from MiniGameItem for all owned items
+      const primaryWeapons   = Array.isArray(inv.primaryWeapons)   ? inv.primaryWeapons   : [];
+      const secondaryWeapons = Array.isArray(inv.secondaryWeapons) ? inv.secondaryWeapons : [];
+      const bodyArmors       = Array.isArray(inv.bodyArmors)       ? inv.bodyArmors       : [];
+      const consumables      = Array.isArray(inv.consumables)      ? inv.consumables      : [];
+
+      const allItemIds = [
+        ...primaryWeapons.map((w: any) => w.itemId),
+        ...secondaryWeapons.map((w: any) => w.itemId),
+        ...bodyArmors.map((w: any) => w.itemId),
+        ...consumables.map((c: any) => c.itemId),
+      ];
+      const defs = allItemIds.length
+        ? await MiniGameItem.find({ itemId: { $in: allItemIds } }).lean()
+        : [];
+      const defMap = Object.fromEntries(defs.map((d: any) => [d.itemId, d]));
+
+      enrichedInventory = {
+        primaryWeapons:   primaryWeapons.map((w: any) => ({ ...w, def: defMap[w.itemId] ?? null })),
+        secondaryWeapons: secondaryWeapons.map((w: any) => ({ ...w, def: defMap[w.itemId] ?? null })),
+        bodyArmors:       bodyArmors.map((w: any) => ({ ...w, def: defMap[w.itemId] ?? null })),
+        consumables:      consumables.map((c: any) => ({ ...c, def: defMap[c.itemId] ?? null })),
+        ammo:             (inv.ammo ?? emptyAmmo) as typeof emptyAmmo,
+      };
+    } else {
+      enrichedInventory = {
+        primaryWeapons: [], secondaryWeapons: [], bodyArmors: [], consumables: [],
+        ammo: emptyAmmo,
+      };
     }
 
-    res.json({
-      loadout: {
-        primaryWeaponId:   loadout.primaryWeaponId,
-        secondaryWeaponId: loadout.secondaryWeaponId,
-        bodyArmorId:       loadout.bodyArmorId,
-        consumableItemId:  loadout.consumableItemId,
-        consumableCount:   loadout.consumableCount,
-      },
-      inventory: inv ?? emptyInv,
-    });
+    const loadout = loadoutDoc
+      ? {
+          primaryWeaponId:   loadoutDoc.primaryWeaponId,
+          secondaryWeaponId: loadoutDoc.secondaryWeaponId,
+          bodyArmorId:       loadoutDoc.bodyArmorId,
+          consumableItemId:  loadoutDoc.consumableItemId,
+          consumableCount:   loadoutDoc.consumableCount,
+        }
+      : emptyLoadout;
+
+    res.json({ loadout, inventory: enrichedInventory });
   } catch (err) {
     req.log.error({ err }, "loadout get error");
     res.status(500).json({ message: "Internal server error" });

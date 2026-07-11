@@ -61,9 +61,10 @@ export default function LoadoutPage({ addToast }: Props) {
   const [picker, setPicker] = useState<SlotKey | null>(null);
   const [consQty, setConsQty] = useState(1);
 
-  const { data, isLoading } = useQuery<LoadoutData>({
+  const { data, isLoading, isError, error } = useQuery<LoadoutData>({
     queryKey: ["loadout-combat"],
     queryFn: () => api.get("/loadout/combat"),
+    retry: 1,
   });
 
   const save = useMutation({
@@ -77,10 +78,26 @@ export default function LoadoutPage({ addToast }: Props) {
     onError: (e: Error) => addToast(e.message, "error"),
   });
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <div className="font-mono text-xs text-center py-16" style={{ color: "#334155" }}>
         Loading loadout...
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="font-mono text-xs text-center py-16 space-y-2">
+        <div style={{ color: "#ff2d55" }}>⚠ Failed to load loadout</div>
+        <div style={{ color: "#334155" }}>{(error as Error)?.message ?? "Unknown error"}</div>
+        <button
+          onClick={() => qc.invalidateQueries({ queryKey: ["loadout-combat"] })}
+          className="font-mono text-xs px-4 py-2 rounded mt-2"
+          style={{ background: "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5530" }}
+        >
+          Retry
+        </button>
       </div>
     );
   }
