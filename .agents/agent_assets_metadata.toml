@@ -18,3 +18,9 @@ id = "GCfav8NMsFRpGu5QfBxZ7"
 uri = "file://attached_assets/generated_images/cyberdragon-frame-preview.png"
 type = "image"
 title = "CyberDragon Frame — Design Preview"
+
+[[outputs]]
+id = "hDjAOeFdLrK7RiccnYX9X"
+uri = "file://attached_assets/generated_images/driftlife_frame_designs.png"
+type = "image"
+title = "5 DriftLife Frame Designs"
