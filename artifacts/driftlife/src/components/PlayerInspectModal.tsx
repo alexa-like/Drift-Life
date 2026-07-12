@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { User } from "../lib/types";
+import { ChatFrame } from "./ChatFrame";
+import { getFrame } from "../lib/chatFrames";
 
 interface PublicProfile {
   id: string;
@@ -26,6 +28,7 @@ interface PublicProfile {
   district: string;
   rank: string;
   onlineStatus?: "online" | "away" | "offline";
+  equippedChatFrame?: string | null;
 }
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
@@ -169,27 +172,38 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, onNav, addT
                       : profile.username.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <div className="font-mono font-bold text-base" style={{ color: "#e2e8f0" }}>
-                        {profile.username}
-                      </div>
-                      {(() => {
-                        const s = profile.onlineStatus;
-                        const color = s === "online" ? "#39d353" : s === "away" ? "#f59e0b" : "#334155";
-                        const label = s === "online" ? "Online" : s === "away" ? "Away" : "Offline";
-                        return (
-                          <div title={label} style={{
-                            width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                            background: color,
-                            boxShadow: s === "online" ? `0 0 6px ${color}` : "none",
-                          }} />
-                        );
-                      })()}
-                    </div>
+                    {(() => {
+                      const s = profile.onlineStatus;
+                      const color = s === "online" ? "#39d353" : s === "away" ? "#f59e0b" : "#334155";
+                      const label = s === "online" ? "Online" : s === "away" ? "Away" : "Offline";
+                      const statusDot = (
+                        <div title={label} style={{
+                          width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                          background: color,
+                          boxShadow: s === "online" ? `0 0 6px ${color}` : "none",
+                        }} />
+                      );
+                      const equippedFrame = getFrame(profile.equippedChatFrame);
+                      return equippedFrame ? (
+                        <div className="flex items-center gap-2 mb-1">
+                          <ChatFrame frame={equippedFrame} username={profile.username} size="preview">
+                            {profile.equippedTitle ? `[${profile.equippedTitle}]` : "Drifter"}
+                          </ChatFrame>
+                          {statusDot}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="font-mono font-bold text-base" style={{ color: "#e2e8f0" }}>
+                            {profile.username}
+                          </div>
+                          {statusDot}
+                        </div>
+                      );
+                    })()}
                     {profile.tag && (
                       <div className="font-mono text-xs" style={{ color: "#475569" }}>{profile.tag}</div>
                     )}
-                    {profile.equippedTitle && (
+                    {!profile.equippedChatFrame && profile.equippedTitle && (
                       <div className="font-mono text-xs mt-0.5" style={{ color: "#a855f7" }}>
                         [{profile.equippedTitle}]
                       </div>

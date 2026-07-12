@@ -74,7 +74,7 @@ const STAT_LABELS = ["STR", "CHR", "INT", "REP", "LVL"];
 export function FrameProfilePreview({ frame, user, nc, onBack, onBuy, buying, alreadyOwned, canAfford }: Props) {
   const rarityColor = RARITY_COLOR[frame.rarity];
   const accent = frame.accentColor;
-  const isLegendary = frame.rarity === "legendary";
+  const isLegendary = frame.rarity !== "elite";
 
   const stats = [
     Math.min(100, (user.strength  || 0) * 2),

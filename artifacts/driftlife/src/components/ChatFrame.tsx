@@ -1,23 +1,28 @@
 // ─── ChatFrame Component ──────────────────────────────────────────────────────
-// Single component used everywhere frames appear (chat, feed, store, profile).
+// Single component used everywhere frames appear (chat, feed, store, profile,
+// and other players' profile previews via PlayerInspectModal).
 // size="full"    → max-width 85%, used in chat/feed
 // size="preview" → 100% width, used in store cards and locker
 //
-// Clip-path (chevron/ribbon right end):
-//   polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%)
+// Layout (matches the approved tier-gallery mockup):
+//   ┌──────────┐
+//   │ NAME TAG │←— overlaps the box's top-left corner by half its height
+//   └┬─────────┴────────────────────────────────┐  ⟨ TIER NAME ⟩ ←floats top-right
+//    │                                           │
+//    │              message body                 │
+//    │                                           │
+//    └───────────────────────────────────────────┘
+//   LEVEL N                                 12:00 PM
 
 import type { CSSProperties } from 'react'
 import type { Frame } from '../lib/chatFrames'
+import { RARITY_COLOR } from '../lib/chatFrames'
 import { BodyArtLayer } from './frame-art'
 import { SubscriberNameBadge, type SubscriberTier } from './SubscriberNameBadge'
 
 // ── CSS injected once for APEX shimmer + Sovereign weave ──────────────────────
 
 const GLOBAL_FRAME_CSS = `
-@keyframes apexShimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
 @keyframes apexHeaderShimmer {
   0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -59,15 +64,19 @@ function ensureCss() {
   cssInjected = true
 }
 
-// ── Chevron clip-path ─────────────────────────────────────────────────────────
+// ── Tag clip-paths ─────────────────────────────────────────────────────────────
 
-const CHEVRON_CLIP = 'polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%)'
+const PENNANT_CLIP = 'polygon(0 0, calc(100% - 10px) 0, 100% 100%, 0 100%)'
+const SQUARE_CLIP = 'none'
 
-// ── Header rendering ──────────────────────────────────────────────────────────
+const TAG_HEIGHT = 24
 
-function FrameHeader({ frame, username, level, subscriptionTier }: { frame: Frame; username: string; level?: number; subscriptionTier?: SubscriberTier }) {
+// ── Name tag (overlaps the top-left of the body box) ──────────────────────────
+
+function NameTag({ frame, username, subscriptionTier }: { frame: Frame; username: string; subscriptionTier?: SubscriberTier }) {
   ensureCss()
   const textColor = frame.textOnHeader === 'dark' ? '#111111' : '#FFFFFF'
+  const shape = frame.tagShape ?? 'pennant'
 
   let headerClass = ''
   let headerStyle: CSSProperties = { background: frame.headerColor }
@@ -80,42 +89,64 @@ function FrameHeader({ frame, username, level, subscriptionTier }: { frame: Fram
     headerStyle = {}
   }
 
-  // Special: Signal Breach has static scan-line overlay on header
-  const hasHeaderScanlines = frame.id === 'signal_breach'
-
-  // Special: Blackout Protocol has blinking cursor
   const hasBlinkCursor = frame.id === 'blackout_protocol'
 
   return (
     <div
-      className={`font-mono flex items-center justify-between px-3 ${headerClass}`}
+      className={`font-mono inline-flex items-center ${headerClass}`}
       style={{
         ...headerStyle,
-        clipPath: CHEVRON_CLIP,
-        paddingRight: 28, // account for the chevron taper
-        height: 33,
-        minHeight: 33,
-        fontSize: 12,
+        clipPath: shape === 'pennant' ? PENNANT_CLIP : SQUARE_CLIP,
+        height: TAG_HEIGHT,
+        minHeight: TAG_HEIGHT,
+        padding: shape === 'pennant' ? '0 16px 0 10px' : '0 10px',
+        fontSize: 11,
+        fontWeight: 'bold',
         color: textColor,
-        position: 'relative',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        zIndex: 3,
+        whiteSpace: 'nowrap',
+        maxWidth: 'calc(100% - 60px)',
         overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
       }}
     >
-      {hasHeaderScanlines && (
-        <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none',
-          backgroundImage: 'repeating-linear-gradient(0deg, rgba(255,0,64,0.10) 0px, rgba(255,0,64,0.10) 1px, transparent 1px, transparent 3px)',
-        }} />
+      <SubscriberNameBadge username={username} tier={subscriptionTier} fontSize={11} />
+      {hasBlinkCursor && (
+        <span style={{ animation: 'blackoutBlink 0.8s step-start infinite', marginLeft: 2 }}>█</span>
       )}
-      <span style={{ fontWeight: 'bold', position: 'relative' }}>
-        <SubscriberNameBadge username={username} tier={subscriptionTier} fontSize={12} />
-        {hasBlinkCursor && (
-          <span style={{ animation: 'blackoutBlink 0.8s step-start infinite', marginLeft: 2 }}>█</span>
-        )}
-      </span>
-      {level !== undefined && (
-        <span style={{ opacity: 0.75, fontSize: 10, position: 'relative' }}>Lv.{level}</span>
-      )}
+    </div>
+  )
+}
+
+// ── Tier badge (floats free, top-right) ────────────────────────────────────────
+
+function TierBadge({ frame }: { frame: Frame }) {
+  const color = RARITY_COLOR[frame.rarity]
+  return (
+    <div
+      className="font-mono"
+      style={{
+        position: 'absolute',
+        top: -9,
+        right: 8,
+        zIndex: 3,
+        fontSize: 9,
+        fontWeight: 'bold',
+        letterSpacing: '0.06em',
+        padding: '3px 8px',
+        borderRadius: 3,
+        background: '#0A0A12',
+        color,
+        border: `1px solid ${color}88`,
+        boxShadow: `0 0 8px ${color}44`,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {frame.name.toUpperCase()}
     </div>
   )
 }
@@ -174,7 +205,7 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
     return <NullFrame username={username} level={level} timestamp={timestamp} size={size} subscriptionTier={subscriptionTier}>{children}</NullFrame>
   }
 
-  const accentGlow = frame.rarity === 'legendary'
+  const accentGlow = frame.rarity !== 'elite'
     ? `0 0 10px ${frame.accentColor}66`
     : undefined
 
@@ -182,40 +213,43 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
     ? '0 0 8px #3030CC66'
     : accentGlow
 
-  // Void Signal has a slight blue header border glow
-  const headerWrapper: CSSProperties = frame.id === 'void_signal'
-    ? { filter: 'drop-shadow(0 0 4px #4040FF88)' }
-    : {}
-
   return (
     <div style={{ maxWidth: size === 'full' ? '85%' : '100%', wordBreak: 'break-word' }}>
-      {/* Header */}
-      <div style={headerWrapper}>
-        <FrameHeader frame={frame} username={username} level={level} subscriptionTier={subscriptionTier} />
-      </div>
+      {/* Overlap zone: name tag + tier badge float above/over the body box */}
+      <div style={{ position: 'relative', paddingTop: TAG_HEIGHT / 2 }}>
+        <NameTag frame={frame} username={username} subscriptionTier={subscriptionTier} />
+        <TierBadge frame={frame} />
 
-      {/* Body */}
-      <div style={{
-        background: '#0A0008',
-        border: `1px solid ${frame.accentColor}`,
-        boxShadow: bodyBoxShadow,
-        position: 'relative',
-        overflow: 'hidden',
-        minHeight: 36,
-      }}>
-        {/* Body art layer (behind message) */}
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-          <BodyArtLayer bodyArt={frame.bodyArt} accentColor={frame.accentColor} />
-        </div>
-        {/* Message text */}
+        {/* Body */}
         <div style={{
-          position: 'relative', zIndex: 1,
-          padding: '8px 12px',
-          fontSize: 12,
-          color: '#e2e8f0',
-          background: 'rgba(0,0,0,0.45)',
+          background: '#0A0008',
+          border: `1px solid ${frame.accentColor}`,
+          boxShadow: bodyBoxShadow,
+          position: 'relative',
+          overflow: 'hidden',
+          minHeight: 36,
+          marginTop: TAG_HEIGHT / 2,
+          paddingTop: 4,
         }}>
-          {children}
+          {/* Body art layer (behind message) */}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+            <BodyArtLayer bodyArt={frame.bodyArt} accentColor={frame.accentColor} />
+          </div>
+          {/* Message text */}
+          <div style={{
+            position: 'relative', zIndex: 1,
+            padding: '10px 12px 8px',
+            fontSize: 12,
+            color: '#e2e8f0',
+            background: 'rgba(0,0,0,0.45)',
+          }}>
+            {level !== undefined && (
+              <span className="font-mono" style={{ display: 'block', fontSize: 9, opacity: 0.55, marginBottom: 2 }}>
+                Lv.{level}
+              </span>
+            )}
+            {children}
+          </div>
         </div>
       </div>
 

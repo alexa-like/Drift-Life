@@ -170,7 +170,8 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const lockerCollection = enriched
     .filter(f => f.owned && !f.equipped)
     .sort((a, b) => {
-      if (a.rarity !== b.rarity) return a.rarity === "legendary" ? -1 : 1;
+      const rank: Record<string, number> = { mythic: 0, legendary: 1, elite: 2 };
+      if (a.rarity !== b.rarity) return (rank[a.rarity] ?? 3) - (rank[b.rarity] ?? 3);
       return a.name.localeCompare(b.name);
     });
 

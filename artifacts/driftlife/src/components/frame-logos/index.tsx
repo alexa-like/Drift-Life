@@ -311,7 +311,7 @@ interface GlitchLogoProps {
 export function GlitchLogo({ frame, size = 40 }: GlitchLogoProps) {
   const Logo = LOGOS[frame.logoComponent]
   const [glitching, setGlitching] = useState(false)
-  const isLegendary = frame.rarity === 'legendary'
+  const isLegendary = frame.rarity !== 'elite'
 
   useEffect(() => {
     const interval = setInterval(() => {

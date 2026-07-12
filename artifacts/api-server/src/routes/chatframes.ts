@@ -9,19 +9,40 @@ const router = Router();
 // Exported so other systems (e.g. Tier 7 owner-hosted giveaways) can validate a
 // frame id is real without duplicating this list.
 export const FRAME_CATALOG = [
-  { id: "neon_drift",          rarity: "elite",     priceNC: 500  },
-  { id: "grid_static",         rarity: "elite",     priceNC: 500  },
-  { id: "street_phantom",      rarity: "elite",     priceNC: 500  },
-  { id: "urban_heat",          rarity: "elite",     priceNC: 500  },
-  { id: "signal_breach",       rarity: "elite",     priceNC: 500  },
-  { id: "night_market",        rarity: "elite",     priceNC: 500  },
-  { id: "chrome_edge",         rarity: "elite",     priceNC: 500  },
-  { id: "void_signal",         rarity: "elite",     priceNC: 500  },
-  { id: "apex",                rarity: "legendary", priceNC: 2000 },
-  { id: "blackout_protocol",   rarity: "legendary", priceNC: 2000 },
-  { id: "nova_circuit",        rarity: "legendary", priceNC: 2000 },
-  { id: "sovereign",           rarity: "legendary", priceNC: 2000 },
-  // ── Subscriber-exclusive (subscription only, priceNC: 0) ────────────────
+  // ── Elite (900 NC) ────────────────────────────────────────────────────────
+  { id: "neon_drift",          rarity: "elite",     priceNC: 900  },
+  { id: "grid_static",         rarity: "elite",     priceNC: 900  },
+  { id: "street_phantom",      rarity: "elite",     priceNC: 900  },
+  { id: "urban_heat",          rarity: "elite",     priceNC: 900  },
+  { id: "signal_breach",       rarity: "elite",     priceNC: 900  },
+  { id: "night_market",        rarity: "elite",     priceNC: 900  },
+  { id: "chrome_edge",         rarity: "elite",     priceNC: 900  },
+  { id: "void_signal",         rarity: "elite",     priceNC: 900  },
+  { id: "cyberkitty",          rarity: "elite",     priceNC: 900  },
+  { id: "cyberfrost",          rarity: "elite",     priceNC: 900  },
+  { id: "retro_miami",         rarity: "elite",     priceNC: 900  },
+  { id: "sakura",              rarity: "elite",     priceNC: 900  },
+  { id: "halloween",           rarity: "elite",     priceNC: 900  },
+  { id: "cyberbloom",          rarity: "elite",     priceNC: 900  },
+  // ── Legendary (3,500 NC) ──────────────────────────────────────────────────
+  { id: "apex",                rarity: "legendary", priceNC: 3500 },
+  { id: "blackout_protocol",   rarity: "legendary", priceNC: 3500 },
+  { id: "nova_circuit",        rarity: "legendary", priceNC: 3500 },
+  { id: "sovereign",           rarity: "legendary", priceNC: 3500 },
+  { id: "cybersanta",          rarity: "legendary", priceNC: 3500 },
+  { id: "cyberdragon",         rarity: "legendary", priceNC: 3500 },
+  { id: "netrunner",           rarity: "legendary", priceNC: 3500 },
+  { id: "golden_new_year",     rarity: "legendary", priceNC: 3500 },
+  // ── Mythic (rarest, most expensive) ──────────────────────────────────────
+  { id: "lunar_stallion",      rarity: "mythic",    priceNC: 7500  },
+  { id: "lightwalker",         rarity: "mythic",    priceNC: 7500  },
+  { id: "prestige_frame_P1",   rarity: "mythic",    priceNC: 6000  },
+  { id: "prestige_frame_P2",   rarity: "mythic",    priceNC: 8000  },
+  { id: "prestige_frame_P3",   rarity: "mythic",    priceNC: 10000 },
+  { id: "prestige_frame_P4",   rarity: "mythic",    priceNC: 12000 },
+  // ── Subscriber-exclusive (granted only via active paid subscription —
+  //    a paid perk, not a free/random grant; priceNC: 0 means "not sold
+  //    directly", not "free") ────────────────────────────────────────────────
   { id: "sub_street_runner",   rarity: "elite",     priceNC: 0 },
   { id: "sub_neon_syndicate",  rarity: "elite",     priceNC: 0 },
   { id: "sub_apex_sovereign",  rarity: "legendary", priceNC: 0 },

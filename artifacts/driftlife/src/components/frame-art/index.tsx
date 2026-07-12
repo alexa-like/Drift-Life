@@ -227,6 +227,109 @@ function AuroraSovereign() {
   )
 }
 
+// ── Color-parameterized CSS effects (shared across many themed tiers) ────────
+
+function PetalDrift({ accent }: { accent: string }) {
+  const css = `
+@keyframes petalFall {
+  0%   { transform: translateY(-15%) translateX(0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.85; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(130%) translateX(14px) rotate(220deg); opacity: 0; }
+}
+`
+  const petals = [
+    { left: '6%',  delay: '0s',   dur: '7s',  size: 8 },
+    { left: '20%', delay: '1.4s', dur: '9s',  size: 6 },
+    { left: '35%', delay: '0.6s', dur: '8s',  size: 9 },
+    { left: '50%', delay: '2.2s', dur: '6.5s',size: 7 },
+    { left: '65%', delay: '0.2s', dur: '9.5s',size: 8 },
+    { left: '80%', delay: '1.8s', dur: '7.5s',size: 6 },
+    { left: '92%', delay: '3s',   dur: '8.5s',size: 7 },
+  ]
+  return (
+    <>
+      <style>{css}</style>
+      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none' }}>
+        {petals.map((p, i) => (
+          <div key={i} style={{
+            position:'absolute', top: '-15%', left: p.left,
+            width: p.size, height: p.size,
+            borderRadius: '0 60% 0 60%',
+            background: accent,
+            opacity: 0,
+            animation: `petalFall ${p.dur} ease-in ${p.delay} infinite`,
+          }} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+function FrostShimmer({ accent }: { accent: string }) {
+  const css = `
+@keyframes frostShimmerSweep {
+  0%   { background-position: -150% 0; }
+  100% { background-position: 150% 0; }
+}
+@keyframes frostTwinkle {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.9; }
+}
+`
+  const crystals = [
+    { top:'20%', left:'12%', delay:'0s' }, { top:'55%', left:'30%', delay:'0.6s' },
+    { top:'30%', left:'55%', delay:'1.1s' }, { top:'70%', left:'75%', delay:'0.3s' },
+    { top:'15%', left:'88%', delay:'1.6s' },
+  ]
+  return (
+    <>
+      <style>{css}</style>
+      <div style={{
+        position:'absolute', inset:0, pointerEvents:'none',
+        background: `linear-gradient(90deg, transparent 30%, ${accent}33 50%, transparent 70%)`,
+        backgroundSize: '250% 100%',
+        animation: 'frostShimmerSweep 5s ease-in-out infinite',
+      }} />
+      <div style={{ position:'absolute', inset:0, pointerEvents:'none' }}>
+        {crystals.map((c, i) => (
+          <span key={i} style={{
+            position:'absolute', top: c.top, left: c.left,
+            width: 4, height: 4, borderRadius: '50%',
+            background: accent, boxShadow: `0 0 6px ${accent}`,
+            animation: `frostTwinkle 2.2s ease-in-out ${c.delay} infinite`,
+          }} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+function CircuitPulse({ accent }: { accent: string }) {
+  const css = `
+@keyframes circuitFlow {
+  0%   { stroke-dashoffset: 120; opacity: 0.3; }
+  50%  { opacity: 0.9; }
+  100% { stroke-dashoffset: 0; opacity: 0.3; }
+}
+`
+  return (
+    <>
+      <style>{css}</style>
+      <svg width="100%" height="100%" style={{ position:'absolute', inset:0, pointerEvents:'none' }} preserveAspectRatio="none">
+        {[0.2, 0.45, 0.7, 0.9].map((y, i) => (
+          <polyline key={i}
+            points={`0,${y*100}% 15%,${y*100}% 20%,${(y*100)-8}% 45%,${(y*100)-8}% 50%,${y*100}% 100%,${y*100}%`}
+            fill="none" stroke={accent} strokeWidth="1"
+            strokeDasharray="6 4"
+            style={{ animation: `circuitFlow ${3 + i * 0.7}s linear infinite` }}
+          />
+        ))}
+      </svg>
+    </>
+  )
+}
+
 // ── Canvas-based effects ─────────────────────────────────────────────────────
 
 const SmokeParticles = memo(function SmokeParticles({ accent }: { accent: string }) {
@@ -458,6 +561,9 @@ export function BodyArtLayer({ bodyArt, accentColor }: BodyArtLayerProps) {
     case 'code-rain':       return <CodeRain />
     case 'nova-burst':      return <NovaBurst />
     case 'aurora-sovereign':return <AuroraSovereign />
+    case 'petal-drift':     return <PetalDrift accent={accentColor} />
+    case 'frost-shimmer':   return <FrostShimmer accent={accentColor} />
+    case 'circuit-pulse':   return <CircuitPulse accent={accentColor} />
     default:                return null
   }
 }

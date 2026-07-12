@@ -19,7 +19,7 @@ interface Props {
   addToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
 }
 
-type RarityFilter = "all" | "elite" | "legendary";
+type RarityFilter = "all" | "elite" | "legendary" | "mythic";
 
 export function FrameStore({ user, refreshUser, addToast }: Props) {
   const [owned, setOwned]   = useState<string[]>(user.ownedChatFrames || []);
@@ -44,6 +44,7 @@ export function FrameStore({ user, refreshUser, addToast }: Props) {
 
   const eliteCount = storeFrames.filter(f => f.rarity === "elite").length;
   const legendaryCount = storeFrames.filter(f => f.rarity === "legendary").length;
+  const mythicCount = storeFrames.filter(f => f.rarity === "mythic").length;
   const storeEmpty = storeFrames.length === 0;
 
   async function buy(frameId: string) {
@@ -98,9 +99,9 @@ export function FrameStore({ user, refreshUser, addToast }: Props) {
 
       {/* Filter tabs — always visible, show (0) when store is empty */}
       <div className="flex items-center gap-3 flex-wrap">
-        {(["all", "elite", "legendary"] as RarityFilter[]).map(r => {
-          const color = r === "all" ? "#94a3b8" : RARITY_COLOR[r as "elite" | "legendary"];
-          const count = r === "all" ? storeFrames.length : r === "elite" ? eliteCount : legendaryCount;
+        {(["all", "elite", "legendary", "mythic"] as RarityFilter[]).map(r => {
+          const color = r === "all" ? "#94a3b8" : RARITY_COLOR[r as "elite" | "legendary" | "mythic"];
+          const count = r === "all" ? storeFrames.length : r === "elite" ? eliteCount : r === "legendary" ? legendaryCount : mythicCount;
           const isActive = filter === r;
           return (
             <button
@@ -113,7 +114,7 @@ export function FrameStore({ user, refreshUser, addToast }: Props) {
                 border: `1px solid ${isActive ? `${color}50` : "#1e1e2e"}`,
               }}
             >
-              {r === "all" ? "ALL" : RARITY_LABEL[r as "elite" | "legendary"]}
+              {r === "all" ? "ALL" : RARITY_LABEL[r as "elite" | "legendary" | "mythic"]}
               <span style={{ marginLeft: 4, opacity: 0.6 }}>({count})</span>
             </button>
           );

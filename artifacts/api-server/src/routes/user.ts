@@ -419,11 +419,11 @@ router.post("/prestige", requireAuth, async (req: AuthRequest, res) => {
     user.health = computeMaxHp(1, newPrestige);
 
     const badgeId = "prestige_badge_P" + newPrestige;
-    const frameId = "prestige_frame_P" + newPrestige;
+    // Note: Prestige frames are no longer auto-granted for free — they're
+    // purchasable with NC from the Frame Store (mythic rarity), consistent
+    // with the "no free frames" rule. Only the title/badge is granted here.
     if (!Array.isArray(user.titles)) user.titles = [];
     if (!user.titles.includes(badgeId)) user.titles.push(badgeId);
-    if (!Array.isArray(user.ownedChatFrames)) user.ownedChatFrames = [];
-    if (!user.ownedChatFrames.includes(frameId)) user.ownedChatFrames.push(frameId);
 
     await user.save();
 
@@ -445,7 +445,6 @@ router.post("/prestige", requireAuth, async (req: AuthRequest, res) => {
       maxHealth: computeMaxHp(1, newPrestige),
       prestigeXpBoost: user.prestigeXpBoost,
       badgeGranted: badgeId,
-      frameGranted: frameId,
     });
   } catch (err: any) {
     res.status(500).json({ message: "Internal server error" });
