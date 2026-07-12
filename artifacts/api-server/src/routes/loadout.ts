@@ -115,9 +115,10 @@ router.post("/combat", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    // Validate primary weapon
+    // Validate primary weapon (guard against old docs missing array fields)
     if (primaryWeaponId) {
-      const entry = inv?.primaryWeapons.find(w => w.itemId === primaryWeaponId);
+      const pw = Array.isArray(inv?.primaryWeapons) ? inv!.primaryWeapons : [];
+      const entry = pw.find(w => w.itemId === primaryWeaponId);
       if (!entry || entry.durability <= 0) {
         res.status(400).json({ message: `Primary weapon not available or destroyed: ${primaryWeaponId}` });
         return;
@@ -126,7 +127,8 @@ router.post("/combat", requireAuth, async (req: AuthRequest, res) => {
 
     // Validate secondary weapon
     if (secondaryWeaponId) {
-      const entry = inv?.secondaryWeapons.find(w => w.itemId === secondaryWeaponId);
+      const sw = Array.isArray(inv?.secondaryWeapons) ? inv!.secondaryWeapons : [];
+      const entry = sw.find(w => w.itemId === secondaryWeaponId);
       if (!entry || entry.durability <= 0) {
         res.status(400).json({ message: `Secondary weapon not available or destroyed: ${secondaryWeaponId}` });
         return;
@@ -135,7 +137,8 @@ router.post("/combat", requireAuth, async (req: AuthRequest, res) => {
 
     // Validate body armor
     if (bodyArmorId) {
-      const entry = inv?.bodyArmors.find(w => w.itemId === bodyArmorId);
+      const ba = Array.isArray(inv?.bodyArmors) ? inv!.bodyArmors : [];
+      const entry = ba.find(w => w.itemId === bodyArmorId);
       if (!entry) {
         res.status(400).json({ message: `Body armor not in inventory: ${bodyArmorId}` });
         return;
@@ -144,7 +147,8 @@ router.post("/combat", requireAuth, async (req: AuthRequest, res) => {
 
     // Validate consumable
     if (consumableItemId) {
-      const entry = inv?.consumables.find(c => c.itemId === consumableItemId);
+      const cs = Array.isArray(inv?.consumables) ? inv!.consumables : [];
+      const entry = cs.find(c => c.itemId === consumableItemId);
       if (!entry || entry.quantity < count) {
         res.status(400).json({ message: `Consumable not available or insufficient quantity: ${consumableItemId}` });
         return;
@@ -173,12 +177,16 @@ router.get("/inventory", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    // Resolve all item details
+    // Resolve all item details (guard against old docs missing array fields)
+    const _pw = Array.isArray(inv.primaryWeapons)   ? inv.primaryWeapons   : [];
+    const _sw = Array.isArray(inv.secondaryWeapons) ? inv.secondaryWeapons : [];
+    const _ba = Array.isArray(inv.bodyArmors)       ? inv.bodyArmors       : [];
+    const _cs = Array.isArray(inv.consumables)      ? inv.consumables      : [];
     const weaponIds = [
-      ...inv.primaryWeapons.map(w => w.itemId),
-      ...inv.secondaryWeapons.map(w => w.itemId),
-      ...inv.bodyArmors.map(w => w.itemId),
-      ...inv.consumables.map(c => c.itemId),
+      ..._pw.map(w => w.itemId),
+      ..._sw.map(w => w.itemId),
+      ..._ba.map(w => w.itemId),
+      ..._cs.map(c => c.itemId),
     ];
     const defs = weaponIds.length ? await MiniGameItem.find({ itemId: { $in: weaponIds } }).lean() : [];
     const defMap = Object.fromEntries(defs.map(d => [d.itemId, d]));
@@ -191,10 +199,10 @@ router.get("/inventory", requireAuth, async (req: AuthRequest, res) => {
     }
 
     res.json({
-      primaryWeapons:   enrichWeaponStack(inv.primaryWeapons),
-      secondaryWeapons: enrichWeaponStack(inv.secondaryWeapons),
-      bodyArmors:       enrichWeaponStack(inv.bodyArmors),
-      consumables:      enrichConsumableStack(inv.consumables),
+      primaryWeapons:   enrichWeaponStack(_pw),
+      secondaryWeapons: enrichWeaponStack(_sw),
+      bodyArmors:       enrichWeaponStack(_ba),
+      consumables:      enrichConsumableStack(_cs),
       ammo:             inv.ammo,
     });
   } catch (err) {

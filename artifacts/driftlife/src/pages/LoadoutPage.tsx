@@ -121,6 +121,13 @@ export default function LoadoutPage({ addToast }: Props) {
     );
   }
 
+  // Check if inventory is completely empty — show a helpful empty state
+  const hasNoItems =
+    inventory.primaryWeapons.length === 0 &&
+    inventory.secondaryWeapons.length === 0 &&
+    inventory.bodyArmors.length === 0 &&
+    inventory.consumables.length === 0;
+
   function getEquipped(slot: typeof SLOT_CONFIG[number]) {
     const id = loadout[slot.key];
     if (!id) return null;
@@ -178,6 +185,27 @@ export default function LoadoutPage({ addToast }: Props) {
           Configure your gear for Arena combat. Changes take effect on your next match.
         </p>
       </div>
+
+      {/* Empty inventory callout */}
+      {hasNoItems && (
+        <div className="rounded-lg p-5 text-center space-y-3" style={{ background: "#0a0a0f", border: "1px solid #1e293b" }}>
+          <div style={{ fontSize: 32 }}>🎯</div>
+          <div className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>NO COMBAT GEAR EQUIPPED</div>
+          <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+            Your loadout is empty. Purchase weapons, armor, and consumables from the Arena Shop to gear up.
+          </div>
+          <button
+            onClick={() => {
+              const nav = (window as any).__setPage;
+              if (nav) nav("arena");
+            }}
+            className="font-mono text-xs px-5 py-2 rounded"
+            style={{ background: "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5530", cursor: "pointer" }}
+          >
+            ⚔ GO TO ARENA SHOP
+          </button>
+        </div>
+      )}
 
       {/* Warnings */}
       {warnings.length > 0 && (
