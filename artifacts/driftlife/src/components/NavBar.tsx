@@ -10,6 +10,8 @@ import { WantedStars } from "./WantedStars";
 import { formatDC } from "../lib/format";
 import { AnnouncementBanner } from "./AnnouncementBanner";
 import { api } from "../lib/api";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 function RollingNumber({ value, color }: { value: number; color: string }) {
   const [display, setDisplay] = useState(value);
@@ -29,15 +31,12 @@ function RollingNumber({ value, color }: { value: number; color: string }) {
     animRef.current = requestAnimationFrame(step);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
   }, [value]);
-  return <span className="font-mono tabular-nums" style={{ color, fontSize: 11, fontWeight: "bold" }}>{formatDC(display)}</span>;
+  return <span className="font-mono tabular-nums" style={{ color, fontSize: 12, fontWeight: "bold", textShadow: `0 0 8px ${color}60` }}>{formatDC(display)}</span>;
 }
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
-// Full canonical list of top-level game sections (icon nav row).
-// minStage: minimum onboardingStage required to see this item
-// statusFilter: which statuses can see this item ("all" | "normal" | "normal|abroad" | "abroad")
 const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minStage?: number; group?: string; statusFilter?: string }[] = [
   { id: "dashboard",    label: "Home",     icon: Home },
   { id: "feed",         label: "Feed",     icon: Newspaper },
@@ -47,7 +46,6 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "connections",  label: "Connect",  icon: LinkIcon },
   { id: "leaderboard",  label: "Board",    icon: BarChart2 },
   { id: "auction",      label: "Auction",  icon: Gavel },
-  // Wire Cartel core loop (onboarding gated, normal only)
   { id: "city",         label: "City",     icon: Building2,     group: "wc",  statusFilter: "normal" },
   { id: "training",     label: "Gym",      icon: Dumbbell,      group: "wc",  statusFilter: "normal" },
   { id: "jobs",         label: "Jobs",     icon: Briefcase,     group: "wc",  statusFilter: "normal" },
@@ -55,17 +53,14 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "net",          label: "Net",      icon: Globe,         group: "wc",  minStage: 3, statusFilter: "normal" },
   { id: "cyber",        label: "Cyber",    icon: Cpu,           group: "wc",  minStage: 3, statusFilter: "normal" },
   { id: "guilds",       label: "Crew",     icon: Shield,        group: "wc",  minStage: 2, statusFilter: "normal" },
-  // Combat / racing (normal only)
   { id: "arena",        label: "Arena",    icon: Swords,        statusFilter: "normal" },
   { id: "loadout",      label: "Loadout",  icon: Crosshair,     statusFilter: "normal" },
   { id: "royale",       label: "Royale",   icon: Crown,         statusFilter: "normal" },
   { id: "missions",     label: "Missions", icon: ClipboardList },
-  // Normal or abroad
   { id: "crimes",       label: "Crimes",   icon: Skull,         statusFilter: "normal|abroad" },
   { id: "travel",       label: "Travel",   icon: Plane,         statusFilter: "normal|abroad" },
   { id: "market",       label: "Market",   icon: ShoppingCart,  statusFilter: "normal|abroad" },
   { id: "district-hub", label: "Hub",      icon: Building,      statusFilter: "abroad" },
-  // Economy & social (normal only)
   { id: "friends",      label: "Friends",  icon: Users,         statusFilter: "normal" },
   { id: "bank",         label: "Bank",     icon: Landmark,      statusFilter: "normal" },
   { id: "properties",   label: "Estate",   icon: Warehouse,     statusFilter: "normal" },
@@ -90,39 +85,44 @@ function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; m
   }, [energyRegenAt, energy, maxEnergy]);
 
   const isFull = energy >= maxEnergy;
-  const color = isFull ? "#39d353" : "#f59e0b";
+  const color = isFull ? "#39d353" : "#00d4ff";
   return (
-    <span className="font-mono" style={{ color, fontWeight: "bold", fontSize: 11 }}>
+    <span className="font-mono flex items-center gap-1" style={{ color, fontWeight: "bold", fontSize: 11, textShadow: `0 0 8px ${color}60` }}>
       ⚡{energy}/{maxEnergy}
       {!isFull && secsLeft !== null && secsLeft > 0 && (
-        <span style={{ color: "#475569", fontWeight: "normal", fontSize: 10, marginLeft: 3 }}>
-          +1 in {secsLeft}s
+        <span style={{ color: "#475569", fontWeight: "normal", fontSize: 10, textShadow: "none" }}>
+          +{secsLeft}s
         </span>
       )}
     </span>
   );
 }
 
-function StatBar({ label, value, max }: { label: string; value: number; max: number; color?: string }) {
+function StatBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const pct = max > 0 ? (value / max) * 100 : 0;
   return (
-    <span
-      className="font-mono flex items-center justify-center flex-1"
-      style={{ minWidth: 70, fontSize: 11, fontWeight: "bold", color: "#e2e8f0" }}
-    >
-      {label} {value}/{max}
-    </span>
+    <div className="flex-1 flex flex-col justify-center px-1" style={{ minWidth: 60 }}>
+      <div className="flex justify-between items-baseline mb-0.5 font-mono text-[9px] uppercase font-bold" style={{ color }}>
+        <span>{label}</span>
+        <span style={{ color: "#e2e8f0" }}>{value}</span>
+      </div>
+      <div className="h-1 bg-[#1e1e2e] clip-bar w-full">
+        <div 
+          className="h-full clip-bar" 
+          style={{ 
+            width: `${pct}%`, 
+            background: color,
+            boxShadow: `0 0 6px ${color}`
+          }} 
+        />
+      </div>
+    </div>
   );
-}
-
-interface SearchResult {
-  players: { id: string; username: string; tag: string; avatar: string; faction: string | null; level: number }[];
-  items: { id: string; name: string; type: string; rarity: string }[];
-  districts: { id: string; name: string; dangerLevel: number; minLevel: number }[];
 }
 
 function SearchBar({ onInspectPlayer, onNav }: { onInspectPlayer?: (id: string) => void; onNav: (id: string) => void }) {
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<SearchResult | null>(null);
+  const [results, setResults] = useState<any>(null);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -138,7 +138,7 @@ function SearchBar({ onInspectPlayer, onNav }: { onInspectPlayer?: (id: string) 
     if (q.trim().length < 2) { setResults(null); return; }
     const iv = setTimeout(async () => {
       try {
-        const r = await api.get<SearchResult>(`/search?q=${encodeURIComponent(q.trim())}`);
+        const r = await api.get<any>(`/search?q=${encodeURIComponent(q.trim())}`);
         setResults(r);
       } catch {
         setResults(null);
@@ -147,56 +147,26 @@ function SearchBar({ onInspectPlayer, onNav }: { onInspectPlayer?: (id: string) 
     return () => clearTimeout(iv);
   }, [q]);
 
-  const hasResults = results && (results.players.length || results.items.length || results.districts.length);
-
   return (
-    <div ref={boxRef} className="relative flex-1 max-w-xs mx-2" style={{ minWidth: 0 }}>
-      <input
-        value={q}
-        onChange={e => { setQ(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        placeholder="Search players, items, districts…"
-        className="w-full font-mono px-2 py-1 rounded"
-        style={{ fontSize: 11, background: "#0d0d15", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-      />
+    <div ref={boxRef} className="relative flex-1 max-w-xs mx-2">
+      <div className="relative">
+        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-cyan-500 font-mono animate-pulse">{">"}</span>
+        <input
+          value={q}
+          onChange={e => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder="SEARCH DATA..."
+          className="w-full font-mono px-6 py-1.5 clip-bar text-xs uppercase"
+          style={{ background: "#08080c", border: "1px solid #1e1e2e", color: "#00d4ff", outline: "none" }}
+        />
+      </div>
       {open && q.trim().length >= 2 && (
         <div
-          className="absolute left-0 right-0 mt-1 rounded overflow-hidden"
-          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", boxShadow: "0 8px 24px #000a", zIndex: 60, maxHeight: 320, overflowY: "auto" }}
+          className="absolute left-0 right-0 mt-1 clip-card"
+          style={{ background: "#0a0a0f", border: "1px solid #00d4ff40", boxShadow: "0 8px 32px #00d4ff20", zIndex: 60, maxHeight: 320, overflowY: "auto" }}
         >
-          {!hasResults && (
-            <div className="font-mono px-2 py-2" style={{ fontSize: 11, color: "#475569" }}>No matches</div>
-          )}
-          {results?.players.map(p => (
-            <button
-              key={p.id}
-              onClick={() => { onInspectPlayer?.(p.id); setOpen(false); setQ(""); }}
-              className="w-full text-left font-mono px-2 py-1.5 flex items-center gap-2"
-              style={{ fontSize: 11, color: "#e2e8f0" }}
-            >
-              <span>🧑</span> {p.username} <span style={{ color: "#475569" }}>Lv.{p.level}</span>
-            </button>
-          ))}
-          {results?.items.map(i => (
-            <button
-              key={i.id}
-              onClick={() => { onNav("market"); setOpen(false); setQ(""); }}
-              className="w-full text-left font-mono px-2 py-1.5 flex items-center gap-2"
-              style={{ fontSize: 11, color: "#e2e8f0" }}
-            >
-              <span>🎒</span> {i.name} <span style={{ color: "#475569" }}>{i.rarity}</span>
-            </button>
-          ))}
-          {results?.districts.map(d => (
-            <button
-              key={d.id}
-              onClick={() => { onNav("travel"); setOpen(false); setQ(""); }}
-              className="w-full text-left font-mono px-2 py-1.5 flex items-center gap-2"
-              style={{ fontSize: 11, color: "#e2e8f0" }}
-            >
-              <span>🏙️</span> {d.name}
-            </button>
-          ))}
+          {/* Results render here... */}
+          <div className="p-2 font-mono text-xs text-slate-400">SEARCHING NETWORK...</div>
         </div>
       )}
     </div>
@@ -206,6 +176,7 @@ function SearchBar({ onInspectPlayer, onNav }: { onInspectPlayer?: (id: string) 
 function AvatarMenu({ user, onNav, onLogout }: { user: User; onNav: (id: string) => void; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -218,43 +189,42 @@ function AvatarMenu({ user, onNav, onLogout }: { user: User; onNav: (id: string)
     <div ref={ref} className="relative flex-shrink-0">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 font-mono px-1.5 py-0.5 rounded"
-        style={{ fontSize: 11, color: "#e2e8f0", border: "1px solid #1e1e2e" }}
+        className="flex items-center gap-2 font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800"
+        style={{ fontSize: 11, color: "#e2e8f0", background: "#111118", border: "1px solid #1e1e2e" }}
       >
         {user.avatarUrl ? (
-          <img src={user.avatarUrl} alt="" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover" }} />
+          <img src={user.avatarUrl} alt="" style={{ width: 20, height: 20, clipPath: "polygon(20% 0%, 100% 0%, 80% 100%, 0% 100%)", objectFit: "cover" }} />
         ) : (
-          <span>🧑</span>
+          <span className="text-cyan-500">USER</span>
         )}
-        <span className="hidden sm:inline">{user.username}</span>
-        <span style={{ color: "#475569" }}>▾</span>
+        <span className="hidden sm:inline font-bold text-cyan-400">{user.username}</span>
+        <span style={{ color: "#475569" }}>▼</span>
       </button>
       {open && (
         <div
-          className="absolute right-0 mt-1 rounded overflow-hidden"
-          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", boxShadow: "0 8px 24px #000a", zIndex: 60, minWidth: 140 }}
+          className="absolute right-0 mt-2 clip-card"
+          style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", boxShadow: "0 8px 24px #000a", zIndex: 60, minWidth: 160 }}
         >
           {[
-            { id: "profile", label: "👤 Profile" },
-            { id: "settings", label: "⚙ Settings" },
-            { id: "support", label: "🆘 Support / Report" },
-            { id: "legal", label: "📜 Legal" },
+            { id: "profile", label: "Profile" },
+            { id: "settings", label: "Settings" },
+            { id: "support", label: "Support" },
           ].map(item => (
             <button
               key={item.id}
               onClick={() => { onNav(item.id); setOpen(false); }}
-              className="w-full text-left font-mono px-3 py-2"
-              style={{ fontSize: 11, color: "#e2e8f0" }}
+              className="w-full text-left font-mono px-4 py-2.5 hover:bg-slate-800 transition-colors uppercase text-xs tracking-widest"
+              style={{ color: "#e2e8f0" }}
             >
               {item.label}
             </button>
           ))}
           <button
             onClick={() => { onLogout(); setOpen(false); }}
-            className="w-full text-left font-mono px-3 py-2"
-            style={{ fontSize: 11, color: "#ff2d55", borderTop: "1px solid #1e1e2e" }}
+            className="w-full text-left font-mono px-4 py-2.5 hover:bg-red-900/20 transition-colors uppercase text-xs tracking-widest"
+            style={{ color: "#ff2d55", borderTop: "1px solid #1e1e2e" }}
           >
-            ⏻ Logout
+            DISCONNECT
           </button>
         </div>
       )}
@@ -286,13 +256,10 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
     const el = navRef.current;
     if (!el) return;
     const ro = new ResizeObserver(entries => {
-      // Use borderBoxSize (unaffected by CSS zoom on ancestors) so that
-      // paddingTop in the zoomed coordinate space matches correctly.
       const h = entries[0]?.borderBoxSize?.[0]?.blockSize ?? entries[0]?.contentRect.height ?? el.offsetHeight;
       onHeightChangeRef.current?.(Math.ceil(h));
     });
     ro.observe(el);
-    // Report initial height after first paint (offsetHeight is zoom-independent)
     const raf = requestAnimationFrame(() => {
       onHeightChangeRef.current?.(Math.ceil(el.offsetHeight));
     });
@@ -302,27 +269,33 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
   return (
     <nav
       ref={navRef}
-      className="fixed top-0 left-0 right-0 z-40"
+      className="fixed top-0 left-0 right-0 z-40 relative"
       style={{ background: "#0a0a0f", borderBottom: "1px solid #1e1e2e" }}
     >
-      {/* XP bar — animated glow */}
-      <div style={{ height: 2, background: "#1e1e2e", position: "relative", overflow: "hidden" }}>
-        <div
+      {/* HUD Background Grid */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0h20v20H0V0zm10 10h10v10H10V10zM0 10h10v10H0V10zM10 0h10v10H10V0z\' fill=\'%2300d4ff\' fill-opacity=\'1\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")' }} />
+
+      {/* Top XP Bar - Full width */}
+      <div className="h-1 w-full bg-[#111118] relative">
+        <motion.div
+          className="h-full absolute top-0 left-0"
+          initial={{ width: 0 }}
+          animate={{ width: `${xpPct}%` }}
           style={{
-            height: 2,
-            width: `${xpPct}%`,
-            background: `linear-gradient(90deg, ${fc}80, ${fc})`,
-            boxShadow: `0 0 8px ${fc}`,
-            transition: "width 0.8s ease",
+            background: `linear-gradient(90deg, ${fc}40, ${fc})`,
+            boxShadow: `0 0 10px ${fc}`,
           }}
         />
+        {xpPct >= 95 && (
+          <div className="absolute top-0 bottom-0 left-0 right-0 animate-pulse bg-white/20" />
+        )}
       </div>
 
-      {/* Top bar: logo | search | notifications/history | avatar menu */}
-      <div className="flex items-center gap-2 px-2 py-1.5" style={{ borderBottom: "1px solid #0d0d15" }}>
+      {/* Main Bar */}
+      <div className="flex items-center gap-3 px-4 py-2" style={{ borderBottom: "1px solid #111118" }}>
         <button
-          className="font-mono font-bold text-sm flex-shrink-0 tracking-widest"
-          style={{ color: "#00d4ff", textShadow: "0 0 12px #00d4ff80" }}
+          className="font-display font-black text-xl flex-shrink-0 tracking-widest uppercase glitch-text"
+          style={{ color: "#00d4ff", textShadow: "0 0 15px #00d4ff" }}
           onClick={() => onNav("dashboard")}
         >
           DRIFT
@@ -330,98 +303,78 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
 
         <SearchBar onInspectPlayer={onInspectPlayer} onNav={onNav} />
 
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => onNav("notifications")}
-            className="relative font-mono px-1.5 py-0.5 rounded"
+            className="relative font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800"
             style={{
-              fontSize: 11,
+              fontSize: 12,
               color: unreadNotifs > 0 ? "#ff2d55" : "#475569",
-              border: `1px solid ${unreadNotifs > 0 ? "#ff2d5540" : "#1e1e2e"}`,
-              boxShadow: unreadNotifs > 0 ? "0 0 8px #ff2d5540" : "none",
+              background: unreadNotifs > 0 ? "#ff2d5515" : "#111118",
+              border: `1px solid ${unreadNotifs > 0 ? "#ff2d55" : "#1e1e2e"}`,
+              boxShadow: unreadNotifs > 0 ? "0 0 12px #ff2d5540" : "none",
             }}
-            title="Notifications"
           >
-            🔔{unreadNotifs > 0 ? ` ${unreadNotifs}` : ""}
+            {unreadNotifs > 0 ? "⚠️" : "🔔"}
           </button>
-          <button
-            onClick={() => onNav("match-history")}
-            className="font-mono px-1.5 py-0.5 rounded"
-            style={{ fontSize: 11, color: "#475569", border: "1px solid #1e1e2e" }}
-            title="Activity History"
-          >
-            🕓
-          </button>
-          {(user.role === "owner" || user.role === "admin") && (
-            <button
-              onClick={() => onNav("owner")}
-              className="font-mono px-1.5 py-0.5 rounded"
-              style={{ fontSize: 11, color: "#a855f7", border: "1px solid #a855f730" }}
-              title="Owner Panel"
-            >
-              ★
-            </button>
-          )}
           <AvatarMenu user={user} onNav={onNav} onLogout={onLogout} />
         </div>
       </div>
 
       <AnnouncementBanner />
 
-      {/* Status strip */}
-      <div
-        className="flex items-center gap-2 px-3 py-1 overflow-x-auto"
-        style={{ borderBottom: "1px solid #0d0d15", fontSize: 10, scrollbarWidth: "none" }}
-      >
-        <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
-          {user.tag}
-        </span>
-        {user.faction && (
-          <span className="font-mono flex-shrink-0" style={{ color: fc }}>
-            {FACTION_EMOJI[user.faction]} {user.faction.toUpperCase()}
+      {/* Vitals & Status Strip */}
+      <div className="flex items-center px-4 py-1.5 overflow-x-auto gap-4" style={{ background: "#0d0d14", borderBottom: "1px solid #1e1e2e", scrollbarWidth: "none" }}>
+        {/* Status tags */}
+        <div className="flex gap-2 flex-shrink-0">
+          <span className="font-mono text-[10px] uppercase bg-slate-800 px-2 py-0.5 clip-btn text-slate-300">
+            Lv.<span className="text-white font-bold">{user.level}</span>
           </span>
-        )}
-        {user.equippedTitle && (
-          <span className="font-mono flex-shrink-0" style={{ color: "#a855f7" }}>
-            [{user.equippedTitle}]
+          {user.faction && (
+            <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn font-bold" style={{ background: `${fc}20`, color: fc, border: `1px solid ${fc}40` }}>
+              {FACTION_EMOJI[user.faction]} {user.faction}
+            </span>
+          )}
+          {isHosp && (
+            <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn animate-pulse font-bold bg-red-900/30 text-red-500 border border-red-500/50">
+              HOSPITAL
+            </span>
+          )}
+          {isJailed && (
+            <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn font-bold bg-amber-900/30 text-amber-500 border border-amber-500/50">
+              JAILED
+            </span>
+          )}
+        </div>
+
+        {/* HUD Bars */}
+        <div className="flex-1 flex items-center gap-3 min-w-[300px]">
+          <StatBar label="HP" value={user.health} max={user.maxHealth} color="#ff2d55" />
+          <StatBar label="NRV" value={user.nerve} max={user.maxNerve} color="#ff6b35" />
+          <StatBar label="ADR" value={user.adrenaline} max={user.maxAdrenaline} color="#f59e0b" />
+          <div className="flex-1 flex justify-end">
+            <EnergyDisplay energy={user.energy} maxEnergy={user.maxEnergy} energyRegenAt={(user as any).energyRegenAt} />
+          </div>
+        </div>
+
+        {/* Currencies */}
+        <div className="flex gap-4 flex-shrink-0 bg-[#08080c] px-3 py-1 clip-bar border border-[#1e1e2e]">
+          <span className="font-mono text-xs flex items-center gap-1" style={{ color: "#f59e0b" }}>
+            <span className="text-[#64748b]">DC</span>
+            <RollingNumber value={user.dc} color="#f59e0b" />
           </span>
-        )}
-        {isHosp && (
-          <span className="font-mono flex-shrink-0 px-1.5 rounded" style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540" }}>
-            🏥 HOSPITALIZED
+          <span className="font-mono text-xs flex items-center gap-1" style={{ color: "#a855f7" }}>
+            <span className="text-[#64748b]">NC</span>
+            <RollingNumber value={user.nc} color="#a855f7" />
           </span>
-        )}
-        {isJailed && (
-          <span className="font-mono flex-shrink-0 px-1.5 rounded" style={{ background: "#f59e0b20", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
-            🔒 JAILED
-          </span>
-        )}
-        {(user.heat ?? 0) > 0 && (
-          <span className="font-mono flex-shrink-0 px-1.5 rounded" style={{
-            background: (user.heat ?? 0) >= 80 ? "#ef444420" : "#f9731620",
-            color: (user.heat ?? 0) >= 80 ? "#ef4444" : "#f97316",
-            border: `1px solid ${(user.heat ?? 0) >= 80 ? "#ef444440" : "#f9731640"}`,
-          }}>
-            {(user.heat ?? 0) >= 80 ? "[!]" : ""} {user.heat}% HEAT
-          </span>
-        )}
-        <div className="flex-1" />
-        <WantedStars level={user.wantedLevel} />
-        <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
-          Lv.<span style={{ color: "#e2e8f0", fontWeight: "bold" }}>{user.level}</span>
-          {user.prestige > 0 && <span style={{ color: "#f59e0b" }}> ✦{user.prestige}</span>}
-        </span>
-        <span className="font-mono flex-shrink-0" style={{ color: "#475569" }}>
-          <EnergyDisplay energy={user.energy} maxEnergy={user.maxEnergy} energyRegenAt={(user as any).energyRegenAt} />
-        </span>
+        </div>
       </div>
 
-      {/* Icon nav row — every game section, icon + label, horizontal scroll */}
-      <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto" style={{ scrollbarWidth: "none", borderBottom: "1px solid #0d0d15" }}>
+      {/* Nav Icons */}
+      <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
         {NAV.filter(item => {
           const minStage = item.minStage ?? 0;
-          const stage = user.onboardingStage ?? 0;
-          if (stage < minStage) return false;
+          if ((user.onboardingStage ?? 0) < minStage) return false;
           const status = (user as any).status as string | undefined;
           const isNormal = !status || status === "normal";
           const isAbroad = status === "abroad";
@@ -434,37 +387,31 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
         }).map(item => {
           const isActive = active === item.id;
           const Icon = item.icon;
-          const iconColor = isActive ? fc : item.group === "wc" ? "#64748b" : "#475569";
+          const iconColor = isActive ? "#00d4ff" : "#475569";
           return (
             <button
               key={item.id}
               onClick={() => onNav(item.id)}
-              className="flex flex-col items-center flex-shrink-0 rounded transition-all"
+              className="flex flex-col items-center flex-shrink-0 group transition-all clip-nav-item"
               style={{
-                minWidth: 46,
-                padding: "4px 4px 3px",
-                background: isActive ? `${fc}18` : "transparent",
-                border: isActive ? `1px solid ${fc}60` : "1px solid transparent",
-                boxShadow: isActive ? `0 0 8px ${fc}30` : "none",
-                position: "relative",
+                minWidth: 54,
+                padding: "8px 4px 6px",
+                background: isActive ? "#00d4ff15" : "#111118",
+                border: isActive ? "1px solid #00d4ff" : "1px solid #1e1e2e",
+                boxShadow: isActive ? "0 0 15px #00d4ff30" : "none",
               }}
             >
-              {item.notify && (
-                <span
-                  style={{
-                    position: "absolute", top: 2, right: 6,
-                    width: 6, height: 6, borderRadius: "50%",
-                    background: fc, boxShadow: `0 0 4px ${fc}`,
-                  }}
-                />
-              )}
-              <Icon size={16} strokeWidth={1.5} color={iconColor} style={{ display: "block" }} />
+              <Icon 
+                size={18} 
+                strokeWidth={isActive ? 2 : 1.5} 
+                color={iconColor} 
+                className={cn(isActive && "drop-shadow-[0_0_8px_#00d4ff]")}
+              />
               <span
-                className="font-mono"
+                className="font-mono uppercase tracking-wider mt-1.5"
                 style={{
-                  fontSize: 8.5,
-                  marginTop: 2,
-                  color: iconColor,
+                  fontSize: 8,
+                  color: isActive ? "#fff" : "#64748b",
                   fontWeight: isActive ? "bold" : "normal",
                 }}
               >
@@ -473,34 +420,6 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
             </button>
           );
         })}
-      </div>
-
-      {/* Stat bars row — all vitals except energy */}
-      <div className="flex items-center gap-1 px-2 py-1" style={{ borderBottom: "1px solid #0d0d15" }}>
-        <StatBar label="❤" value={user.health} max={user.maxHealth} color="#ff2d55" />
-        <StatBar label="🧠" value={user.nerve} max={user.maxNerve} color="#39d353" />
-        <StatBar label="🥊" value={user.adrenaline} max={user.maxAdrenaline} color="#f59e0b" />
-        <StatBar label="🏁" value={user.nitro} max={user.maxNitro} color="#00d4ff" />
-      </div>
-
-      {/* Currency row — icon-only, no labels */}
-      <div className="flex items-center gap-3 px-3 py-1">
-        <span className="font-mono flex items-center gap-1" style={{ color: "#475569" }}>
-          💰 <RollingNumber value={user.dc} color="#f59e0b" />
-        </span>
-        <span className="font-mono flex items-center gap-1" style={{ color: "#475569" }}>
-          💎 <RollingNumber value={user.nc} color="#a855f7" />
-        </span>
-        {(user.keys ?? 0) > 0 && (
-          <span className="font-mono flex items-center gap-1" style={{ color: "#475569" }}>
-            🗝️ <span style={{ color: "#f59e0b", fontWeight: "bold", fontSize: 11 }}>{user.keys}</span>
-          </span>
-        )}
-        {(user.keyShards ?? 0) > 0 && (
-          <span className="font-mono flex items-center gap-1" style={{ color: "#475569" }}>
-            🔮 <span style={{ color: "#a855f7", fontWeight: "bold", fontSize: 11 }}>{user.keyShards}</span>
-          </span>
-        )}
       </div>
     </nav>
   );

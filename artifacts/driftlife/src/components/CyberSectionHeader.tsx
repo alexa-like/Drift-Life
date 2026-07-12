@@ -3,9 +3,7 @@ import { cn } from "@/lib/utils";
 interface CyberSectionHeaderProps {
   title: string;
   accent?: string;
-  /** Show a blinking cursor after the title */
   cursor?: boolean;
-  /** Right-side slot (e.g. a badge or button) */
   right?: React.ReactNode;
   className?: string;
   size?: "sm" | "md" | "lg";
@@ -17,10 +15,6 @@ const SIZE: Record<NonNullable<CyberSectionHeaderProps["size"]>, string> = {
   lg: "text-base",
 };
 
-/**
- * Scanline-styled section header with optional blinking cursor.
- * Use at the top of cards and page sections.
- */
 export function CyberSectionHeader({
   title,
   accent = "#00d4ff",
@@ -31,29 +25,56 @@ export function CyberSectionHeader({
 }: CyberSectionHeaderProps) {
   return (
     <div
-      className={cn("flex items-center justify-between gap-3 mb-3", className)}
+      className={cn("flex items-center justify-between gap-3 mb-4 relative", className)}
     >
-      <div className="flex items-center gap-2 min-w-0">
-        {/* Accent line */}
-        <span
-          className="flex-shrink-0 w-0.5 rounded-full self-stretch"
-          style={{ background: accent, boxShadow: `0 0 6px ${accent}` }}
-        />
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        {/* Animated left block */}
+        <div className="flex flex-col gap-1 flex-shrink-0">
+          <span
+            className="w-1.5 h-3 animate-neon-flicker clip-btn"
+            style={{ background: accent, boxShadow: `0 0 8px ${accent}` }}
+          />
+          <span
+            className="w-1.5 h-1 clip-btn"
+            style={{ background: accent, opacity: 0.5 }}
+          />
+        </div>
 
         <span
-          className={cn("font-mono font-bold uppercase tracking-widest truncate", SIZE[size])}
-          style={{ color: accent, textShadow: `0 0 8px ${accent}60` }}
+          className={cn(
+            "font-display font-bold uppercase tracking-widest truncate glitch-text", 
+            SIZE[size]
+          )}
+          style={{ color: "#fff", textShadow: `0 0 10px ${accent}80` }}
         >
           {title}
           {cursor && (
             <span
-              className="ml-0.5 animate-[blink-cursor_1s_ease-in-out_infinite]"
+              className="ml-1 animate-[blink-cursor_1s_ease-in-out_infinite]"
               style={{ color: accent }}
             >
-              _
+              █
             </span>
           )}
         </span>
+
+        {/* Extending tech line */}
+        <div className="flex-1 h-px ml-2 relative overflow-hidden hidden sm:block">
+          <div 
+            className="absolute inset-0"
+            style={{ 
+              background: `linear-gradient(90deg, ${accent}80, transparent)`,
+              opacity: 0.5 
+            }} 
+          />
+          <div 
+            className="absolute top-0 bottom-0 w-8"
+            style={{ 
+              background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
+              animation: "shimmer 3s linear infinite"
+            }} 
+          />
+        </div>
       </div>
 
       {right && <div className="flex-shrink-0">{right}</div>}

@@ -8,7 +8,6 @@ import { MentionInput } from "../components/MentionInput";
 import { MentionText, GAME_EMOJIS } from "../components/MentionText";
 import { SubscriberNameBadge } from "../components/SubscriberNameBadge";
 
-/** Format an achievement ID like "first_blood" → "First Blood" */
 function fmtAchievementId(id: string): string {
   return id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -17,7 +16,6 @@ function handleLocNav(loc: string) {
   (window as any).__setPage?.(loc);
 }
 
-/** Small context menu shown on right-click / long-press of a message bubble. */
 function MessageContextMenu({ x, y, onReport, onMute, onClose }: {
   x: number; y: number;
   onReport: () => void;
@@ -40,36 +38,32 @@ function MessageContextMenu({ x, y, onReport, onMute, onClose }: {
   return (
     <div
       ref={ref}
+      className="clip-card"
       style={{
         position: "fixed",
         left: Math.min(x, window.innerWidth - 180),
         top: Math.min(y, window.innerHeight - 90),
         background: "#111118",
-        border: "1px solid #1e293b",
-        borderRadius: 8,
-        padding: 4,
+        border: "1px solid #00d4ff50",
+        padding: 8,
         zIndex: 200,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
         minWidth: 160,
       }}
     >
       <button
         onClick={onReport}
-        className="font-mono text-xs w-full text-left"
-        style={{ display: "block", padding: "8px 10px", background: "none", border: "none", color: "#e2e8f0", cursor: "pointer", borderRadius: 4 }}
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#1e293b"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+        className="font-mono text-xs w-full text-left uppercase tracking-widest clip-btn hover:bg-slate-800 transition-colors mb-2"
+        style={{ padding: "8px 10px", color: "#e2e8f0" }}
       >
-        🚩 Report message
+        🚩 REPORT
       </button>
       <button
         onClick={onMute}
-        className="font-mono text-xs w-full text-left"
-        style={{ display: "block", padding: "8px 10px", background: "none", border: "none", color: "#ff2d55", cursor: "pointer", borderRadius: 4 }}
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#1e293b"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+        className="font-mono text-xs w-full text-left uppercase tracking-widest clip-btn hover:bg-red-900/20 transition-colors"
+        style={{ padding: "8px 10px", color: "#ff2d55" }}
       >
-        🔇 Mute player
+        🔇 MUTE
       </button>
     </div>
   );
@@ -83,7 +77,7 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
   onMute?: (userId: string, username: string) => void;
 }) {
   const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
-  const fc = message.faction ? FACTION_COLOR[message.faction] || "#94a3b8" : "#94a3b8";
+  const fc = message.faction ? FACTION_COLOR[message.faction] || "#00d4ff" : "#00d4ff";
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -97,7 +91,7 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
   }
 
   function openMenuAt(x: number, y: number) {
-    if (isOwn || !onReport) return; // can't report/mute yourself
+    if (isOwn || !onReport) return;
     setMenuPos({ x, y });
   }
 
@@ -128,17 +122,19 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
   );
 
   return (
-    <div
-      className="flex flex-col mb-2"
+    <motion.div
+      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      className="flex flex-col mb-4 relative group"
       style={{ alignItems: isOwn ? "flex-end" : "flex-start" }}
       onContextMenu={handleContextMenu}
       onTouchStart={handleTouchStart}
       onTouchEnd={clearLongPress}
       onTouchMove={clearLongPress}
     >
-      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+      <div className="flex items-center gap-2 mb-1 flex-wrap pl-2">
         {message.title && (
-          <span className="font-mono" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
+          <span className="font-mono uppercase font-bold" style={{ fontSize: 9, color: "#a855f7", textShadow: "0 0 5px #a855f7" }}>[{message.title}]</span>
         )}
         <SubscriberNameBadge
           username={message.username}
@@ -146,50 +142,56 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
           fontSize={12}
           onClick={() => message.userId && onUsernameClick?.(message.userId)}
         />
-        {/* Pinned achievement badges */}
         {message.pinnedBadges && message.pinnedBadges.length > 0 && (
-          <span className="flex items-center gap-0.5">
+          <span className="flex items-center gap-1">
             {message.pinnedBadges.slice(0, 3).map(badgeId => (
               <span
                 key={badgeId}
                 title={fmtAchievementId(badgeId)}
+                className="clip-btn"
                 style={{
                   fontSize: 10, cursor: "default",
-                  background: "#39d35315",
-                  border: "1px solid #39d35335",
-                  borderRadius: 3,
-                  padding: "0 3px",
-                  color: "#39d353",
+                  background: "#f59e0b20",
+                  border: "1px solid #f59e0b50",
+                  padding: "2px 4px",
+                  color: "#f59e0b",
                   fontFamily: "monospace",
                 }}
               >
-                🏅
+                ✦
               </span>
             ))}
           </span>
         )}
-        <span className="font-mono" style={{ fontSize: 9, color: "#334155" }}>
+        <span className="font-mono ml-2 opacity-50 group-hover:opacity-100 transition-opacity" style={{ fontSize: 9, color: "#64748b" }}>
           {new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </span>
       </div>
+      
       <div
-        className="font-mono text-xs px-3 py-1.5 rounded"
+        className="font-mono text-sm px-4 py-2 clip-btn relative overflow-hidden"
         style={{
-          background: isOwn ? "#00d4ff12" : "#111118",
-          border: `1px solid ${isOwn ? "#00d4ff30" : "#1e1e2e"}`,
+          background: isOwn ? "#00d4ff10" : "#111118",
+          border: `1px solid ${isOwn ? "#00d4ff40" : "#1e1e2e"}`,
           color: "#e2e8f0",
           maxWidth: "85%",
           wordBreak: "break-word",
+          boxShadow: isOwn ? "0 0 15px rgba(0,212,255,0.05)" : "none"
         }}
       >
-        <MentionText
-          text={message.content}
-          onUserClick={handleMentionUser}
-          onLocationClick={handleLocNav}
-        />
+        {/* Subtle scanline on bubble */}
+        <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: "linear-gradient(transparent 50%, rgba(0,0,0,0.2) 50%)", backgroundSize: "100% 4px" }} />
+        
+        <div className="relative z-10">
+          <MentionText
+            text={message.content}
+            onUserClick={handleMentionUser}
+            onLocationClick={handleLocNav}
+          />
+        </div>
       </div>
       {menu}
-    </div>
+    </motion.div>
   );
 }
 
@@ -223,7 +225,6 @@ function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void;
     setShowPicker(false);
   }
 
-  // Close picker when clicking outside
   useEffect(() => {
     if (!showPicker) return;
     function handler(e: MouseEvent) {
@@ -236,24 +237,23 @@ function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void;
   }, [showPicker]);
 
   return (
-    <div className="flex gap-2 pt-2.5" style={{ position: "relative" }}>
-      {/* Emoji picker popover */}
+    <div className="flex gap-3 pt-4 border-t border-[#1e1e2e]" style={{ position: "relative" }}>
       {showPicker && (
         <div
           ref={pickerRef}
+          className="clip-card"
           style={{
             position: "absolute",
-            bottom: "calc(100% + 4px)",
+            bottom: "calc(100% + 10px)",
             left: 0,
             background: "#111118",
-            border: "1px solid #1e293b",
-            borderRadius: 8,
-            padding: 8,
+            border: "1px solid #00d4ff50",
+            padding: 12,
             zIndex: 50,
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 4,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+            gridTemplateColumns: "repeat(5, 1fr)",
+            gap: 8,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
           }}
         >
           {EMOJI_ORDER.map(([slug, def]) => (
@@ -261,18 +261,7 @@ function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void;
               key={slug}
               title={def.displayName}
               onClick={() => insertEmoji(slug)}
-              style={{
-                background: "transparent",
-                border: "1px solid transparent",
-                borderRadius: 4,
-                padding: "4px 6px",
-                cursor: "pointer",
-                fontSize: 18,
-                lineHeight: 1,
-                transition: "background 0.1s",
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#1e293b"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#334155"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}
+              className="clip-btn hover:bg-slate-800 transition-colors flex justify-center py-2 text-xl"
             >
               {def.emoji}
             </button>
@@ -280,36 +269,28 @@ function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void;
         </div>
       )}
 
-      {/* Emoji toggle button */}
       <button
         onClick={() => setShowPicker(p => !p)}
-        title="Insert game emoji"
-        style={{
-          background: showPicker ? "#1e293b" : "transparent",
-          border: `1px solid ${showPicker ? "#334155" : "#1e293b"}`,
-          borderRadius: 6,
-          padding: "0 8px",
-          cursor: "pointer",
-          fontSize: 16,
-          color: "#64748b",
-          flexShrink: 0,
-        }}
+        className="clip-btn bg-[#111118] border border-[#1e1e2e] hover:border-[#00d4ff50] transition-colors px-4 flex items-center text-lg"
       >
-        😀
+        ☻
       </button>
 
-      <div className="flex-1">
-        <MentionInput
-          value={text}
-          onChange={setText}
-          onSubmit={submit}
-          placeholder={placeholder || "Message... (@player /location :emoji:)"}
-          maxLength={256}
-          style={{ background: "#111118" }}
-        />
+      <div className="flex-1 relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[#00d4ff] font-bold animate-pulse">{">"}</span>
+        <div className="pl-8">
+          <MentionInput
+            value={text}
+            onChange={setText}
+            onSubmit={submit}
+            placeholder={placeholder || "TRANSMIT DATA..."}
+            maxLength={256}
+          />
+        </div>
       </div>
-      <CyberButton size="sm" variant="primary" onClick={submit}>
-        Send
+      
+      <CyberButton size="md" variant="primary" onClick={submit}>
+        SEND
       </CyberButton>
     </div>
   );
@@ -355,28 +336,31 @@ function GlobalTab({ user, onInspect, onReport, onMute, isMuted, muted, onToggle
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="font-mono text-xs" style={{ color: "#475569" }}>Global Chat</span>
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#1e1e2e]">
+        <div className="flex items-center gap-2">
+           <span className="w-2 h-2 rounded-full bg-[#00d4ff] animate-pulse shadow-[0_0_8px_#00d4ff]" />
+           <span className="font-display font-bold text-sm text-[#00d4ff] uppercase tracking-widest">Global Network</span>
+        </div>
         <button
           onClick={onToggleMute}
-          title={muted ? "Unmute global chat notifications" : "Mute global chat notifications"}
-          className="font-mono text-xs"
+          className="font-mono text-xs uppercase clip-btn px-3 py-1 border transition-colors"
           style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: muted ? "#ff2d55" : "#475569",
+            borderColor: muted ? "#ff2d5550" : "#39d35350",
+            color: muted ? "#ff2d55" : "#39d353",
+            background: muted ? "#ff2d5510" : "#39d35310"
           }}
         >
-          {muted ? "🔕 Muted" : "🔔 Notify"}
+          {muted ? "NOTIFS: OFF" : "NOTIFS: ON"}
         </button>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
-        {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
+      <div className="flex-1 overflow-y-auto pr-2 mb-4 scrollbar-hide">
+        {loading && <div className="font-mono text-sm text-center py-10 text-[#00d4ff] animate-pulse">CONNECTING...</div>}
         {visible.map(m => (
           <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} onReport={onReport} onMute={onMute} />
         ))}
         <div ref={bottomRef} />
       </div>
-      <MessageInput onSend={send} placeholder="Global chat..." />
+      <MessageInput onSend={send} placeholder="BROADCAST TO GLOBAL..." />
     </div>
   );
 }
@@ -415,18 +399,20 @@ function DistrictTab({ user, onInspect, onReport, onMute, isMuted }: { user: Use
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div className="font-mono text-xs mb-2" style={{ color: "#475569" }}>
-        District: <span style={{ color: "#00d4ff" }}>{district}</span>
-        <span style={{ color: "#334155", marginLeft: 8 }}>— visible while abroad</span>
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#1e1e2e]">
+        <div className="flex items-center gap-2">
+           <span className="w-2 h-2 rounded-full bg-[#f59e0b] animate-pulse shadow-[0_0_8px_#f59e0b]" />
+           <span className="font-display font-bold text-sm text-[#f59e0b] uppercase tracking-widest">Local: {district}</span>
+        </div>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
-        {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
+      <div className="flex-1 overflow-y-auto pr-2 mb-4 scrollbar-hide">
+        {loading && <div className="font-mono text-sm text-center py-10 text-[#f59e0b] animate-pulse">CONNECTING...</div>}
         {visible.map(m => (
           <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} onReport={onReport} onMute={onMute} />
         ))}
         <div ref={bottomRef} />
       </div>
-      <MessageInput onSend={send} placeholder={`${district} chat...`} />
+      <MessageInput onSend={send} placeholder="BROADCAST TO LOCAL..." />
     </div>
   );
 }
@@ -460,24 +446,26 @@ function FactionTab({ user, onInspect, onReport, onMute, isMuted }: { user: User
   }
 
   const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
-  const fc = user.faction ? FACTION_COLOR[user.faction] ?? "#00d4ff" : "#00d4ff";
+  const fc = user.faction ? FACTION_COLOR[user.faction] ?? "#a855f7" : "#a855f7";
   const visible = messages.filter(m => !isMuted(m.userId));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div className="font-mono text-xs mb-2" style={{ color: "#475569" }}>
-        Faction: <span style={{ color: fc }}>◈ {user.faction?.toUpperCase()}</span>
-        <span style={{ color: "#334155", marginLeft: 8 }}>— faction-only</span>
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#1e1e2e]">
+        <div className="flex items-center gap-2">
+           <span className="w-2 h-2 rounded-full animate-pulse shadow-[0_0_8px_currentColor]" style={{ background: fc, color: fc }} />
+           <span className="font-display font-bold text-sm uppercase tracking-widest" style={{ color: fc }}>Faction: {user.faction}</span>
+        </div>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
-        {loading && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
-        {error   && <div className="font-mono text-xs text-center py-5" style={{ color: "#ff2d55" }}>{error}</div>}
+      <div className="flex-1 overflow-y-auto pr-2 mb-4 scrollbar-hide">
+        {loading && <div className="font-mono text-sm text-center py-10 animate-pulse" style={{ color: fc }}>CONNECTING...</div>}
+        {error   && <div className="font-mono text-sm text-center py-10 text-[#ff2d55] border border-[#ff2d5550] bg-[#ff2d5510] clip-card">{error}</div>}
         {visible.map(m => (
           <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} onReport={onReport} onMute={onMute} />
         ))}
         <div ref={bottomRef} />
       </div>
-      {!error && <MessageInput onSend={send} placeholder={`${user.faction ?? "Faction"} chat...`} />}
+      {!error && <MessageInput onSend={send} placeholder="ENCRYPTED COMMS..." />}
     </div>
   );
 }
@@ -557,98 +545,95 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
   if (activeConv) {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <div className="flex items-center gap-3 mb-2">
-          <button
-            onClick={() => setActiveConv(null)}
-            className="font-mono text-xs"
-            style={{ color: "#475569", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-          >
-            &larr; Back
-          </button>
-          <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>
-            {activeConvData?.username || "DM"}
+        <div className="flex items-center gap-4 mb-4 pb-3 border-b border-[#1e1e2e]">
+          <CyberButton size="sm" variant="ghost" onClick={() => setActiveConv(null)}>
+            ◄ BACK
+          </CyberButton>
+          <span className="font-display font-bold text-lg text-white uppercase tracking-widest">
+            {activeConvData?.username || "SECURE_DM"}
           </span>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", paddingBottom: 4 }}>
-          {loadingMsgs && <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>}
+        <div className="flex-1 overflow-y-auto pr-2 mb-4 scrollbar-hide">
+          {loadingMsgs && <div className="font-mono text-sm text-center py-10 text-[#00d4ff] animate-pulse">CONNECTING...</div>}
           {messages.map(m => (
             <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} />
           ))}
           <div ref={bottomRef} />
         </div>
-        <MessageInput onSend={send} placeholder="Direct message..." />
+        <MessageInput onSend={send} placeholder="DIRECT TRANSMISSION..." />
       </div>
     );
   }
 
   return (
-    <div style={{ height: "100%", overflowY: "auto" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Search */}
-      <div className="mb-3">
-        <input
-          value={search}
-          onChange={e => { setSearch(e.target.value); doSearch(e.target.value); }}
-          placeholder="Search players to message..."
-          className="font-mono text-xs w-full px-3 py-2 rounded"
-          style={{ background: "#111118", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-        />
-        {searching && <div className="font-mono text-xs mt-1" style={{ color: "#475569" }}>Searching...</div>}
+      <div className="mb-6">
+        <div className="relative">
+           <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[#00d4ff] font-bold">{">"}</span>
+          <input
+            value={search}
+            onChange={e => { setSearch(e.target.value); doSearch(e.target.value); }}
+            placeholder="LOCATE OPERATIVE..."
+            className="font-mono text-sm w-full py-3 pl-8 bg-[#111118] uppercase tracking-wider"
+          />
+        </div>
+        {searching && <div className="font-mono text-xs mt-2 text-[#00d4ff] animate-pulse">SCANNING NETWORK...</div>}
         {searchResults.length > 0 && (
-          <div className="mt-1 rounded overflow-hidden" style={{ border: "1px solid #1e1e2e", background: "#111118" }}>
+          <div className="mt-2 clip-card border border-[#1e1e2e] bg-[#0d0d14] max-h-[200px] overflow-y-auto">
             {searchResults.map(r => (
               <button
                 key={r.id}
                 onClick={() => { setSearch(""); setSearchResults([]); openConversation(r.id); }}
-                className="font-mono text-xs w-full text-left px-3 py-2"
-                style={{ display: "block", background: "none", border: "none", borderBottom: "1px solid #1e1e2e", color: "#e2e8f0", cursor: "pointer" }}
+                className="font-mono text-sm w-full text-left px-4 py-3 border-b border-[#1e1e2e] hover:bg-[#1e1e2e] transition-colors flex justify-between uppercase"
+                style={{ color: "#e2e8f0" }}
               >
-                {r.username}
-                <span style={{ color: "#475569", marginLeft: 8 }}>Lv.{r.level}</span>
+                <span>{r.username}</span>
+                <span className="text-[#00d4ff]">LVL {r.level}</span>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Conversation list */}
-      {loadingConvs ? (
-        <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>Loading...</div>
-      ) : conversations.length === 0 ? (
-        <div className="font-mono text-xs text-center py-5" style={{ color: "#475569" }}>
-          No conversations. Search for a player above to start messaging.
-        </div>
-      ) : conversations.map(c => {
-        const statusColor = c.onlineStatus === "online" ? "#39d353" : c.onlineStatus === "away" ? "#f59e0b" : "#334155";
-        const statusLabel = c.onlineStatus === "online" ? "Online" : c.onlineStatus === "away" ? "Away" : "Offline";
-        return (
-          <motion.button
-            key={c.userId}
-            onClick={() => openConversation(c.userId)}
-            whileHover={{ x: 2, boxShadow: "0 0 0 1px #00d4ff20" }}
-            className="flex items-center gap-3 w-full text-left rounded mb-1"
-            style={{
-              padding: "10px 12px", background: "#111118",
-              border: "1px solid #1e1e2e", cursor: "pointer",
-            }}
-          >
-            <div
-              title={statusLabel}
-              style={{
-                width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                background: statusColor,
-                boxShadow: c.onlineStatus === "online" ? `0 0 6px ${statusColor}` : "none",
-              }}
-            />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="font-mono font-bold text-xs" style={{ color: "#e2e8f0" }}>{c.username}</div>
-              <div className="font-mono text-xs truncate" style={{ color: "#475569" }}>{c.lastMessage}</div>
-            </div>
-            <div className="font-mono flex-shrink-0" style={{ fontSize: 10, color: "#334155" }}>
-              {new Date(c.lastAt).toLocaleDateString()}
-            </div>
-          </motion.button>
-        );
-      })}
+      <div className="font-display font-bold text-[#64748b] text-xs uppercase tracking-widest mb-3">RECENT COMMS</div>
+
+      <div className="flex-1 overflow-y-auto pr-2 scrollbar-hide space-y-2">
+        {loadingConvs ? (
+          <div className="font-mono text-sm text-center py-10 text-[#00d4ff] animate-pulse">LOADING...</div>
+        ) : conversations.length === 0 ? (
+          <div className="font-mono text-sm text-center py-10 text-[#475569] border border-dashed border-[#1e1e2e] clip-card">
+            NO SECURE CHANNELS ESTABLISHED
+          </div>
+        ) : conversations.map(c => {
+          const statusColor = c.onlineStatus === "online" ? "#39d353" : c.onlineStatus === "away" ? "#f59e0b" : "#334155";
+          return (
+            <motion.button
+              key={c.userId}
+              onClick={() => openConversation(c.userId)}
+              whileHover={{ x: 4, borderColor: "#00d4ff" }}
+              className="flex items-center gap-4 w-full text-left clip-btn transition-colors group bg-[#111118]"
+              style={{ padding: "12px 16px", border: "1px solid #1e1e2e" }}
+            >
+              <div
+                style={{
+                  width: 10, height: 10, flexShrink: 0,
+                  background: statusColor,
+                  boxShadow: c.onlineStatus === "online" ? `0 0 10px ${statusColor}` : "none",
+                  clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" // Diamond status indicator
+                }}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="font-display font-bold text-sm text-white uppercase tracking-wider mb-1 group-hover:text-[#00d4ff] transition-colors">{c.username}</div>
+                <div className="font-mono text-xs text-[#64748b] truncate">{c.lastMessage}</div>
+              </div>
+              <div className="font-mono text-[10px] text-[#475569] uppercase flex-shrink-0">
+                {new Date(c.lastAt).toLocaleDateString()}
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -662,8 +647,6 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
     try { return localStorage.getItem(GLOBAL_MUTE_KEY) === "1"; } catch { return false; }
   });
 
-  // Re-sync from the server-provided user object (e.g. after a fresh /me refetch)
-  // so mutes made elsewhere or restored across sessions stay accurate.
   useEffect(() => {
     setMutedUserIds(user.mutedUsers ?? []);
   }, [user.mutedUsers]);
@@ -672,13 +655,12 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
   const district = user.currentLocation || user.district;
 
   const tabs = [
-    { id: "global"   as const, label: "Global"   },
-    ...(isAbroad ? [{ id: "district" as const, label: district.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ") }] : []),
-    ...(user.faction ? [{ id: "faction"  as const, label: user.faction.charAt(0).toUpperCase() + user.faction.slice(1) }] : []),
-    { id: "messages" as const, label: "DMs"      },
+    { id: "global"   as const, label: "GLOBAL"   },
+    ...(isAbroad ? [{ id: "district" as const, label: "LOCAL" }] : []),
+    ...(user.faction ? [{ id: "faction"  as const, label: "FACTION" }] : []),
+    { id: "messages" as const, label: "SECURE"      },
   ];
 
-  // If the player returns home while the district tab is active, fall back to Global.
   useEffect(() => {
     if (tab === "district" && !isAbroad) setTab("global");
   }, [tab, isAbroad]);
@@ -692,10 +674,10 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
     setMutedUserIds(prev => [...prev, userId]);
     try {
       await api.post<any>(`/chat/mute/${userId}`, {});
-      addToast(`Muted ${username}. Their messages are now hidden from your view.`, "info");
+      addToast(`Muted ${username}. Comms blocked.`, "info");
     } catch {
       setMutedUserIds(prev => prev.filter(id => id !== userId));
-      addToast("Failed to mute player", "error");
+      addToast("ERR: Mute failed", "error");
     }
   }
 
@@ -704,7 +686,7 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
       await api.post<any>("/chat/report", { messageId });
       addToast("Report submitted.", "success");
     } catch {
-      addToast("Failed to submit report", "error");
+      addToast("ERR: Report failed", "error");
     }
   }
 
@@ -719,24 +701,35 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
   const modProps = { onInspect: onInspectPlayer, onReport: handleReport, onMute: handleMute, isMuted };
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto", height: "calc(100vh - 120px)", display: "flex", flexDirection: "column" }}>
+    <div className="max-w-4xl mx-auto h-[calc(100vh-140px)] flex flex-col clip-card border border-[#1e1e2e] bg-[#08080c] relative overflow-hidden">
+      {/* Decorative background grid */}
+      <div className="absolute inset-0 opacity-5 pointer-events-none data-stream" />
+
       {/* Tab bar */}
-      <div className="flex gap-1.5 mb-3">
+      <div className="flex border-b border-[#1e1e2e] bg-[#0d0d14] relative z-10">
         {tabs.map(t => (
-          <CyberButton
+          <button
             key={t.id}
-            size="sm"
-            variant={tab === t.id ? "primary" : "ghost"}
-            glow={tab === t.id}
-            className="flex-1"
             onClick={() => setTab(t.id)}
+            className="flex-1 py-4 font-display font-bold text-sm tracking-widest uppercase transition-colors relative"
+            style={{ 
+              color: tab === t.id ? "#fff" : "#475569",
+              background: tab === t.id ? "#111118" : "transparent"
+            }}
           >
             {t.label}
-          </CyberButton>
+            {tab === t.id && (
+              <motion.div 
+                layoutId="chatTab" 
+                className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#00d4ff]" 
+                style={{ boxShadow: "0 0 10px #00d4ff" }}
+              />
+            )}
+          </button>
         ))}
       </div>
 
-      <div style={{ flex: 1, overflow: "hidden" }}>
+      <div className="flex-1 p-4 sm:p-6 overflow-hidden relative z-10">
         {tab === "global"   && <GlobalTab   user={user} {...modProps} muted={globalMuted} onToggleMute={toggleGlobalMute} />}
         {tab === "district" && isAbroad && <DistrictTab user={user} {...modProps} />}
         {tab === "faction"  && <FactionTab  user={user} {...modProps} />}

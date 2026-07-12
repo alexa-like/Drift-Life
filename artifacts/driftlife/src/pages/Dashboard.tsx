@@ -38,7 +38,7 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
   const [claimingDaily, setClaimingDaily] = useState(false);
 
   useEffect(() => {
-    api.get<FeedEvent[]>("/feed?limit=8").then(setFeed).catch(() => {});
+    api.get<FeedEvent[]>("/feed?limit=6").then(setFeed).catch(() => {});
     api.get<any>("/daily/status").then(setDailyStatus).catch(() => {});
   }, []);
 
@@ -58,9 +58,9 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
 
   const isHospitalized = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
-  const rankColor = RANK_COLORS[user.rank] ?? "#94a3b8";
+  const rankColor = RANK_COLORS[user.rank] ?? "#00d4ff";
 
-  // Contextual action
+  // Contextual action logic
   const jailed = user.jailUntil && new Date(user.jailUntil) > new Date();
   const hospitalized = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const dailyReady = dailyStatus && !dailyStatus.claimed;
@@ -69,342 +69,251 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
   const energyAvail = (user.energy ?? 0) > 0;
   const dirtyDcPending = (user.dirtyDc ?? 0) > 50_000;
 
-  let ctaCard: { label: string; desc: string; nav?: string; action?: string; color: string } | null = null;
-  if (jailed)            ctaCard = { label: "Fight the Charges", desc: "You're in jail. Go to court to plead or fight.", nav: "city", color: "#f59e0b" };
-  else if (hospitalized) ctaCard = { label: "Visit Hospital", desc: "You're hospitalized — pay to discharge early.", nav: "hospital", color: "#ff2d55" };
-  else if (dailyReady)   ctaCard = { label: "Claim Daily Reward", desc: `Day ${dailyStatus.streak} streak — +${dailyStatus.nextReward?.dc?.toLocaleString() ?? "?"} DC`, action: "daily", color: "#f59e0b" };
-  else if (heatCritical && dirtyDcPending) ctaCard = { label: "Launder Dirty DC", desc: "Heat is critical and you're sitting on dirty money.", nav: "city", color: "#ff2d55" };
-  else if (nerveAvail)   ctaCard = { label: "Run a Crime", desc: `${user.nerve}/${user.maxNerve} nerve ready — hit the streets.`, nav: "city", color: "#ff6b35" };
-  else if (energyAvail)  ctaCard = { label: "Work a Shift", desc: `${user.energy}/${user.maxEnergy} energy available — earn clean DC.`, nav: "jobs", color: "#39d353" };
-  else if (dirtyDcPending) ctaCard = { label: "Launder Dirty DC", desc: `${(user.dirtyDc ?? 0).toLocaleString()} dirty DC sitting idle — clean it.`, nav: "city", color: "#a855f7" };
-  else                   ctaCard = { label: "Train at the Gym", desc: "Low on resources — build your stats while you wait.", nav: "gym", color: "#00d4ff" };
+  let ctaCard: { label: string; desc: string; nav?: string; action?: string; color: string; icon: string } | null = null;
+  if (jailed)            ctaCard = { label: "FIGHT CHARGES", desc: "You're in jail. Go to court to plead or fight.", nav: "city", color: "#f59e0b", icon: "⚖️" };
+  else if (hospitalized) ctaCard = { label: "MEDICAL ATTENTION", desc: "You're hospitalized — pay to discharge early.", nav: "hospital", color: "#ff2d55", icon: "🏥" };
+  else if (dailyReady)   ctaCard = { label: "INCOMING DROP", desc: `Day ${dailyStatus.streak} streak — +${dailyStatus.nextReward?.dc?.toLocaleString() ?? "?"} DC available`, action: "daily", color: "#39d353", icon: "📦" };
+  else if (heatCritical && dirtyDcPending) ctaCard = { label: "LAUNDER FUNDS", desc: "Heat is critical and you're sitting on dirty money.", nav: "city", color: "#ff2d55", icon: "🔥" };
+  else if (nerveAvail)   ctaCard = { label: "HIT THE STREETS", desc: `${user.nerve}/${user.maxNerve} nerve ready — run a crime.`, nav: "crimes", color: "#ff6b35", icon: "🔫" };
+  else if (energyAvail)  ctaCard = { label: "WORK SHIFT", desc: `${user.energy}/${user.maxEnergy} energy available — earn clean DC.`, nav: "jobs", color: "#00d4ff", icon: "💼" };
+  else if (dirtyDcPending) ctaCard = { label: "LAUNDER FUNDS", desc: `${(user.dirtyDc ?? 0).toLocaleString()} dirty DC sitting idle — clean it.`, nav: "city", color: "#a855f7", icon: "💵" };
+  else                   ctaCard = { label: "TRAIN STATS", desc: "Low on resources — build your stats while you wait.", nav: "training", color: "#f59e0b", icon: "🏋️" };
+
+  // Helper for HUD vitals
+  const renderVital = (label: string, val: number, max: number, color: string) => (
+    <div className="flex-1">
+      <NeonProgressBar value={val} max={max} color={color} label={label} height={6} />
+    </div>
+  );
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-      {/* ── Left column ── */}
-      <div className="md:col-span-1 flex flex-col gap-4">
-
-        {/* Player ID card */}
-        <AnimatedCard accent={rankColor}>
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="font-mono font-bold text-lg" style={{ color: "#e2e8f0" }}>{user.username}</span>
-                <WantedStars level={user.wantedLevel} />
-              </div>
-              <span className="text-xs font-mono tracking-wider" style={{ color: rankColor, textShadow: `0 0 8px ${rankColor}60` }}>
-                {user.rank} · Lv.{user.level}
-              </span>
-            </div>
-            {/* Avatar */}
-            <div
-              className="w-14 h-14 rounded-lg flex items-center justify-center font-mono font-bold text-sm flex-shrink-0"
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      
+      {/* ── Left Column (Stats & Identity) ── */}
+      <div className="lg:col-span-4 flex flex-col gap-5">
+        
+        {/* ID Card */}
+        <AnimatedCard accent={rankColor} className="relative overflow-hidden">
+          <CyberSectionHeader title="OPERATIVE ID" accent={rankColor} size="sm" className="mb-2" />
+          
+          <div className="flex items-center gap-4 mb-4">
+            <div 
+              className="w-16 h-16 clip-nav-item flex items-center justify-center font-display font-bold text-xl relative"
               style={{
-                background: `${rankColor}10`,
-                border: `1px solid ${rankColor}40`,
+                background: `${rankColor}20`,
                 color: rankColor,
-                letterSpacing: "0.05em",
-                boxShadow: `0 0 12px ${rankColor}20`,
+                border: `1px solid ${rankColor}`,
+                boxShadow: `0 0 15px ${rankColor}40`
               }}
             >
               {user.username.slice(0, 2).toUpperCase()}
+              {/* Rotating ring */}
+              <div className="absolute inset-[-4px] border border-dashed rounded-full animate-spin-slow opacity-30" style={{ borderColor: rankColor }} />
+            </div>
+            
+            <div className="flex-1">
+              <div className="font-display font-bold text-xl uppercase tracking-wider text-white mb-1">
+                {user.username}
+              </div>
+              <div className="font-mono text-xs uppercase" style={{ color: rankColor }}>
+                [{user.rank}] // LVL {user.level}
+              </div>
+              <div className="mt-1">
+                <WantedStars level={user.wantedLevel} />
+              </div>
             </div>
           </div>
 
-          {/* XP */}
-          <div className="mb-4">
+          <div className="space-y-3">
             <NeonProgressBar
               value={user.xp}
               max={user.xpToNext}
               color="#a855f7"
-              label="XP"
-              height={5}
+              label="EXP TO NEXT LEVEL"
+              height={4}
             />
+            
+            {/* Vitals HUD row */}
+            <div className="flex gap-3 pt-2 border-t border-[#1e1e2e]">
+              {renderVital("HP", user.health, user.maxHealth, "#ff2d55")}
+              {renderVital("ENG", user.energy, user.maxEnergy, "#00d4ff")}
+              {renderVital("NRV", user.nerve, user.maxNerve, "#ff6b35")}
+            </div>
           </div>
-
-          {/* Vitals */}
-          <div className="flex flex-col gap-2.5">
-            <NeonProgressBar value={user.health}  max={user.maxHealth}  color="#39d353" label="HP"     />
-            <NeonProgressBar value={user.energy}  max={user.maxEnergy}  color="#00d4ff" label="Energy" />
-            <NeonProgressBar value={user.nerve}   max={user.maxNerve}   color="#ff6b35" label="Nerve"  />
-            {((user.heat ?? 0) > 0 || (user.stress ?? 0) > 0) && (
-              <>
-                <NeonProgressBar
-                  value={user.heat ?? 0} max={100}
-                  color={(user.heat ?? 0) >= 80 ? "#ff2d55" : (user.heat ?? 0) >= 50 ? "#ff6b35" : "#f59e0b"}
-                  label={(user.heat ?? 0) >= 80 ? "Heat [CRIT]" : "Heat"}
-                />
-                <NeonProgressBar value={user.stress ?? 0} max={100} color="#a855f7" label="Stress" />
-              </>
-            )}
-          </div>
-
-          {/* Status alerts */}
-          {isHospitalized && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-              className="mt-4 px-3 py-2 rounded text-xs font-mono flex items-center justify-between"
-              style={{ background: "#ff2d5510", border: "1px solid #ff2d5540", color: "#ff2d55" }}
-            >
-              <span>HOSPITALIZED</span>
-              <button onClick={() => onNav("hospital")} className="underline opacity-80 hover:opacity-100">visit hospital</button>
-            </motion.div>
-          )}
-          {isJailed && !isHospitalized && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-              className="mt-4 px-3 py-2 rounded text-xs font-mono"
-              style={{ background: "#f59e0b10", border: "1px solid #f59e0b40", color: "#f59e0b" }}
-            >
-              IN JAIL — wait for release or pay bail
-            </motion.div>
-          )}
         </AnimatedCard>
 
-        {/* Finances */}
+        {/* Financial Data */}
         <AnimatedCard accent="#f59e0b">
-          <CyberSectionHeader title="Finances" accent="#f59e0b" />
-          <div className="flex flex-col gap-2.5">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>Wallet</span>
-              <span className="text-sm font-mono font-bold" style={{ color: "#f59e0b" }}>
-                <StatCounter value={user.dc} format={formatDC} color="#f59e0b" suffix=" DC" />
+          <CyberSectionHeader title="ASSETS" accent="#f59e0b" cursor />
+          
+          <div className="space-y-3 font-mono text-sm">
+            <div className="flex justify-between items-center bg-[#0d0d14] p-2 clip-bar border border-[#1e1e2e]">
+              <span className="text-[#64748b]">WALLET</span>
+              <span className="font-bold text-[#f59e0b] drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]">
+                {formatDC(user.dc)} DC
+              </span>
+            </div>
+            <div className="flex justify-between items-center bg-[#0d0d14] p-2 clip-bar border border-[#1e1e2e]">
+              <span className="text-[#64748b]">BANK</span>
+              <span className="font-bold text-[#39d353] drop-shadow-[0_0_8px_rgba(57,211,83,0.5)]">
+                {formatDC(user.bankBalance)} DC
               </span>
             </div>
             {(user.dirtyDc ?? 0) > 0 && (
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>Dirty DC</span>
-                <span className="text-sm font-mono font-bold" style={{ color: "#f97316" }}>
-                  <StatCounter value={user.dirtyDc} format={formatDC} color="#f97316" suffix=" DC" />
+              <div className="flex justify-between items-center bg-[#1a0f0a] p-2 clip-bar border border-[#ff6b35] animate-pulse">
+                <span className="text-[#ff6b35]">DIRTY DC</span>
+                <span className="font-bold text-[#ff2d55]">
+                  {formatDC(user.dirtyDc)} DC
                 </span>
               </div>
             )}
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>Bank</span>
-              <span className="text-sm font-mono font-bold" style={{ color: "#39d353" }}>
-                <StatCounter value={user.bankBalance} format={formatDC} color="#39d353" suffix=" DC" />
-              </span>
-            </div>
-            {(user.sim ?? 0) > 0 && (
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>SIM</span>
-                <span className="text-sm font-mono font-bold" style={{ color: "#22d3ee" }}>
-                  <StatCounter value={user.sim} format={formatDC} color="#22d3ee" />
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>NC (Nova Credits)</span>
-              <span className="text-sm font-mono font-bold" style={{ color: "#a855f7" }}>
-                <StatCounter value={user.nc} format={formatDC} color="#a855f7" suffix=" NC" />
+            <div className="flex justify-between items-center bg-[#0d0d14] p-2 clip-bar border border-[#1e1e2e]">
+              <span className="text-[#64748b]">N-CREDITS</span>
+              <span className="font-bold text-[#a855f7] drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]">
+                {formatDC(user.nc)} NC
               </span>
             </div>
           </div>
-          <div className="mt-4 pt-3" style={{ borderTop: "1px solid #1e1e2e" }}>
-            <CyberButton variant="ghost" size="sm" className="w-full" onClick={() => onNav("bank")}>
-              Manage Bank
-            </CyberButton>
-          </div>
         </AnimatedCard>
 
-        {/* Combat stats */}
-        <AnimatedCard accent="#ff6b35">
-          <CyberSectionHeader title="Combat Record" accent="#ff6b35" />
-          <div className="grid grid-cols-4 gap-2 mb-3">
-            {[
-              { label: "STR", val: user.strength,    color: "#ff6b35" },
-              { label: "CHA", val: user.charisma,    color: "#a855f7" },
-              { label: "INT", val: user.intelligence, color: "#00d4ff" },
-              { label: "REP", val: user.streetCred,  color: "#f59e0b" },
-            ].map(s => (
-              <div key={s.label} className="text-center py-2 rounded" style={{ background: `${s.color}08`, border: `1px solid ${s.color}20` }}>
-                <div className="text-xs font-mono mb-1" style={{ color: s.color, opacity: 0.7 }}>{s.label}</div>
-                <div className="text-lg font-mono font-bold" style={{ color: s.color }}>{s.val}</div>
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between text-xs font-mono pt-2" style={{ borderTop: "1px solid #1e1e2e" }}>
-            <span style={{ color: "#39d353" }}>W: {user.wins}</span>
-            <span style={{ color: "#ff2d55" }}>L: {user.losses}</span>
-            <span style={{ color: "#94a3b8" }}>Crimes: {user.successfulCrimes}</span>
-          </div>
-        </AnimatedCard>
-
-        {/* Daily reward */}
-        {dailyStatus && (
-          <AnimatedCard accent="#f59e0b">
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <CyberSectionHeader title="Daily Reward" accent="#f59e0b" className="mb-0" />
-                <div className="text-xs font-mono mt-1" style={{ color: "#64748b" }}>
-                  Streak:{" "}
-                  <span style={{ color: "#f59e0b", textShadow: "0 0 8px #f59e0b60" }}>
-                    {dailyStatus.streak ?? 0} days
-                  </span>
-                </div>
-              </div>
-              {!dailyStatus.claimed ? (
-                <CyberButton
-                  variant="warning"
-                  size="sm"
-                  loading={claimingDaily}
-                  onClick={claimDaily}
-                  className="animate-pulse-glow"
-                >
-                  Claim
-                </CyberButton>
-              ) : (
-                <span className="text-xs font-mono" style={{ color: "#475569" }}>Claimed</span>
-              )}
-            </div>
-
-            {/* 7-day calendar */}
-            {(() => {
-              const schedule = dailyStatus.rewardSchedule ?? [1,2,3,4,5,6,7].map((d: number) => ({ day: d, dc: d * 50, xp: d * 10 }));
-              const streak = dailyStatus.streak ?? 0;
-              const posInCycle = streak % 7;
-              const todayDay = dailyStatus.claimed ? posInCycle : (posInCycle + 1);
-              return (
-                <div className="grid grid-cols-7 gap-1">
-                  {schedule.map((slot: any) => {
-                    const dayNum = slot.day;
-                    const isToday = dayNum === todayDay || (posInCycle === 0 && dayNum === 7 && !dailyStatus.claimed);
-                    const isPast = dayNum < todayDay || (dailyStatus.claimed && dayNum <= posInCycle) || (dailyStatus.claimed && dayNum === todayDay);
-                    const isMilestone = slot.itemRarity != null;
-                    return (
-                      <div key={dayNum} className="flex flex-col items-center gap-0.5 transition-all duration-200" style={{
-                        background: isToday ? "#f59e0b14" : isPast ? "#39d35308" : "#0a0a0f",
-                        border: `1px solid ${isToday ? "#f59e0b50" : isPast ? "#39d35330" : "#1e1e2e"}`,
-                        borderRadius: 4,
-                        padding: "4px 2px",
-                        boxShadow: isToday ? "0 0 8px #f59e0b20" : "none",
-                      }}>
-                        <div className="font-mono" style={{ fontSize: 8, color: isToday ? "#f59e0b" : isPast ? "#39d353" : "#334155" }}>D{dayNum}</div>
-                        <div style={{ fontSize: 8, color: isPast ? "#39d353" : isToday ? "#f59e0b" : isMilestone ? "#f59e0b" : "#64748b" }}>
-                          {isPast ? "✓" : isMilestone ? "*" : "+"}
-                        </div>
-                        <div className="font-mono" style={{ fontSize: 7, color: isPast ? "#39d35380" : isToday ? "#f59e0b" : "#334155", textAlign: "center", lineHeight: 1.2 }}>
-                          {(slot.dc / 1000).toFixed(slot.dc < 1000 ? 1 : 0)}k
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-
-            {!dailyStatus.claimed && dailyStatus.nextReward && (
-              <div className="text-xs font-mono mt-2" style={{ color: "#39d353" }}>
-                Today: +{dailyStatus.nextReward.dc?.toLocaleString()} DC / +{dailyStatus.nextReward.xp} XP
-                {dailyStatus.nextReward.bonus && <span style={{ color: "#f59e0b" }}> + {dailyStatus.nextReward.bonus}</span>}
-              </div>
-            )}
-          </AnimatedCard>
-        )}
       </div>
 
-      {/* ── Right column ── */}
-      <div className="md:col-span-2 flex flex-col gap-4">
-
-        {/* CTA banner */}
+      {/* ── Right Column (Action & Data) ── */}
+      <div className="lg:col-span-8 flex flex-col gap-5">
+        
+        {/* Command Directive (CTA) */}
         {ctaCard && (
-          <motion.button
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            whileHover={{ scale: 1.01, boxShadow: `0 0 20px ${ctaCard.color}20` }}
-            whileTap={{ scale: 0.99 }}
-            onClick={() => ctaCard!.action === "daily" ? claimDaily() : onNav(ctaCard!.nav!)}
-            disabled={ctaCard.action === "daily" && claimingDaily}
-            className="p-4 rounded-lg flex items-center justify-between gap-4 text-left w-full"
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="clip-card p-1 cursor-pointer group"
             style={{
-              background: `${ctaCard.color}0c`,
-              border: `1px solid ${ctaCard.color}30`,
-              boxShadow: `inset 0 0 20px ${ctaCard.color}05`,
+              background: `linear-gradient(45deg, ${ctaCard.color}40, transparent)`,
+              boxShadow: `0 0 20px ${ctaCard.color}20`
             }}
+            onClick={() => ctaCard!.action === "daily" ? claimDaily() : onNav(ctaCard!.nav!)}
           >
-            <div>
-              <div className="font-mono font-bold text-sm" style={{ color: ctaCard.color, letterSpacing: "0.05em" }}>{ctaCard.label}</div>
-              <div className="font-mono text-xs mt-0.5" style={{ color: "#64748b" }}>{ctaCard.desc}</div>
+            <div className="bg-[#111118] p-4 flex items-center justify-between clip-card h-full border border-transparent group-hover:border-current transition-colors" style={{ color: ctaCard.color }}>
+              <div className="flex items-center gap-4">
+                <div className="text-3xl animate-pulse">{ctaCard.icon}</div>
+                <div>
+                  <div className="font-display font-bold text-lg uppercase tracking-widest text-white flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-current shadow-[0_0_8px_currentColor]" />
+                    {ctaCard.label}
+                  </div>
+                  <div className="font-mono text-sm text-[#94a3b8] mt-1">{ctaCard.desc}</div>
+                </div>
+              </div>
+              <div className="font-mono font-bold text-xl opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
+                ►
+              </div>
             </div>
-            <span
-              className="font-mono text-xs flex-shrink-0 px-3 py-1.5 rounded font-bold uppercase"
-              style={{ background: `${ctaCard.color}20`, color: ctaCard.color, border: `1px solid ${ctaCard.color}30`, letterSpacing: "0.08em" }}
-            >
-              {ctaCard.action === "daily" && claimingDaily ? "..." : "→ Go"}
-            </span>
-          </motion.button>
+          </motion.div>
         )}
 
-        {/* Quick actions */}
+        {/* Quick Launch Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { id: "crimes",       label: "Commit Crime", variant: "danger"  as const },
-            { id: "jobs",         label: "Work a Job",   variant: "success" as const },
-            { id: "arena-combat", label: "Arena",        variant: "warning" as const },
-            { id: "market",       label: "Market",       variant: "primary" as const },
-          ].map(a => (
-            <CyberButton key={a.id} variant={a.variant} size="sm" className="w-full uppercase" onClick={() => onNav(a.id)}>
-              {a.label}
-            </CyberButton>
+            { id: "crimes", label: "CRIMES", color: "#ff2d55" },
+            { id: "jobs", label: "JOBS", color: "#39d353" },
+            { id: "arena-combat", label: "ARENA", color: "#f59e0b" },
+            { id: "market", label: "MARKET", color: "#00d4ff" },
+          ].map(action => (
+            <button
+              key={action.id}
+              onClick={() => onNav(action.id)}
+              className="clip-btn py-3 px-2 font-display font-bold text-sm tracking-wider uppercase transition-all duration-300 relative overflow-hidden group"
+              style={{
+                background: `${action.color}15`,
+                color: action.color,
+                border: `1px solid ${action.color}50`,
+              }}
+            >
+              <div className="absolute inset-0 bg-current opacity-0 group-hover:opacity-20 transition-opacity" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-current" />
+              <span className="relative z-10 group-hover:text-white transition-colors text-shadow-[0_0_8px_currentColor]">{action.label}</span>
+            </button>
           ))}
         </div>
 
-        {/* City Feed */}
-        <AnimatedCard accent="#00d4ff" className="flex-1" noPad>
-          <div className="p-4 pb-2 flex items-center justify-between">
-            <CyberSectionHeader title="City Feed" accent="#00d4ff" cursor className="mb-0 flex-1" />
-            <button onClick={() => onNav("feed")} className="text-xs font-mono ml-2 flex-shrink-0" style={{ color: "#475569" }}>
-              view all
-            </button>
-          </div>
-          <div className="flex flex-col">
-            {feed.length === 0 && (
-              <p className="text-xs font-mono text-center py-8" style={{ color: "#1e1e2e" }}>No activity yet. Be the first.</p>
-            )}
-            {feed.map((ev, idx) => {
-              const typeColor = FEED_COLORS[ev.type] ?? "#94a3b8";
-              return (
-                <motion.div
-                  key={ev.id}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.04, duration: 0.2 }}
-                  className="flex items-start gap-2 py-2 px-4"
-                  style={{
-                    borderLeft: `3px solid ${typeColor}60`,
-                    borderBottom: "1px solid #1e1e2e",
-                  }}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-mono" style={{ color: "#e2e8f0" }}>{ev.message}</p>
+        {/* Main Grid: Feed & Combat */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 flex-1">
+          
+          {/* Network Activity */}
+          <AnimatedCard accent="#00d4ff" className="flex flex-col h-full">
+            <CyberSectionHeader title="NETWORK LOG" accent="#00d4ff" cursor />
+            
+            <div className="flex-1 space-y-2 overflow-y-auto max-h-[300px] pr-2">
+              {feed.length === 0 ? (
+                <div className="font-mono text-sm text-[#475569] text-center py-8">AWAITING DATA...</div>
+              ) : (
+                feed.map((ev, i) => (
+                  <motion.div
+                    key={ev.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    className="p-3 bg-[#0d0d14] clip-bar border-l-2 relative"
+                    style={{ borderColor: FEED_COLORS[ev.type] || "#475569" }}
+                  >
+                    <div className="absolute top-0 right-0 p-1 font-mono text-[9px] text-[#475569]">
+                      {new Date(ev.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    <div className="font-mono text-xs text-[#e2e8f0] pr-8">{ev.message}</div>
                     {(ev.dc > 0 || ev.xp > 0) && (
-                      <div className="flex gap-3 mt-0.5">
-                        {ev.dc > 0 && <span className="text-xs font-mono" style={{ color: "#f59e0b" }}>+{ev.dc} DC</span>}
-                        {ev.xp > 0 && <span className="text-xs font-mono" style={{ color: "#a855f7" }}>+{ev.xp} XP</span>}
+                      <div className="flex gap-3 mt-1.5 text-[10px] font-mono font-bold">
+                        {ev.dc > 0 && <span className="text-[#f59e0b] drop-shadow-[0_0_5px_#f59e0b]">+{ev.dc} DC</span>}
+                        {ev.xp > 0 && <span className="text-[#a855f7] drop-shadow-[0_0_5px_#a855f7]">+{ev.xp} XP</span>}
                       </div>
                     )}
-                  </div>
-                  <span className="text-xs font-mono flex-shrink-0" style={{ color: "#334155" }}>
-                    {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                </motion.div>
-              );
-            })}
-          </div>
-        </AnimatedCard>
-
-        {/* District */}
-        <AnimatedCard accent="#00d4ff">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="text-xs font-mono uppercase tracking-widest mb-1" style={{ color: "#475569" }}>Current District</div>
-              <div className="text-sm font-mono font-bold" style={{ color: "#00d4ff", textShadow: "0 0 8px #00d4ff40" }}>
-                {user.district.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
-              </div>
+                  </motion.div>
+                ))
+              )}
             </div>
-            <CyberButton variant="ghost" size="sm" onClick={() => onNav("city")}>Travel</CyberButton>
-          </div>
-        </AnimatedCard>
+            
+            <div className="pt-3 mt-auto border-t border-[#1e1e2e] text-center">
+               <button onClick={() => onNav("feed")} className="font-mono text-xs text-[#00d4ff] hover:text-white transition-colors">
+                 [ VIEW_FULL_LOG ]
+               </button>
+            </div>
+          </AnimatedCard>
+
+          {/* Combat Rating */}
+          <AnimatedCard accent="#ff2d55" className="flex flex-col">
+            <CyberSectionHeader title="COMBAT RATING" accent="#ff2d55" />
+            
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {[
+                { label: "STR", val: user.strength, color: "#ff2d55" },
+                { label: "INT", val: user.intelligence, color: "#00d4ff" },
+                { label: "CHA", val: user.charisma, color: "#a855f7" },
+                { label: "REP", val: user.streetCred, color: "#f59e0b" },
+              ].map(stat => (
+                <div key={stat.label} className="bg-[#0d0d14] p-3 clip-bar border border-[#1e1e2e] relative overflow-hidden group">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-current opacity-50 group-hover:opacity-100 transition-opacity" style={{ color: stat.color }} />
+                  <div className="font-mono text-[10px] text-[#64748b] mb-1">{stat.label}</div>
+                  <div className="font-display text-xl font-bold text-white drop-shadow-[0_0_8px_currentColor]" style={{ color: stat.color }}>{stat.val}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-auto bg-[#1a0f12] p-3 clip-bar border border-[#ff2d55] flex justify-between items-center font-mono text-sm">
+               <div className="text-center">
+                 <div className="text-[#64748b] text-[10px]">WINS</div>
+                 <div className="text-[#39d353] font-bold">{user.wins}</div>
+               </div>
+               <div className="text-center">
+                 <div className="text-[#64748b] text-[10px]">LOSSES</div>
+                 <div className="text-[#ff2d55] font-bold">{user.losses}</div>
+               </div>
+               <div className="text-center">
+                 <div className="text-[#64748b] text-[10px]">HITS</div>
+                 <div className="text-[#00d4ff] font-bold">{user.successfulCrimes}</div>
+               </div>
+            </div>
+          </AnimatedCard>
+
+        </div>
       </div>
     </div>
   );
