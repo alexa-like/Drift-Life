@@ -228,7 +228,7 @@ export function SupportPage({ user, addToast }: Props) {
         ) : (
           <div className="space-y-2">
             {tickets.map(t => (
-              <AnimatedCard key={t.id} hover onClick={() => setOpenId(t.id)}>
+              <AnimatedCard key={t.id} onClick={() => setOpenId(t.id)}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="font-mono font-bold text-sm truncate" style={{ color: "#e2e8f0" }}>{t.subject}</div>

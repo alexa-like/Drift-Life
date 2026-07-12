@@ -51,7 +51,6 @@ import RaceMatchPage from "./pages/RaceMatchPage";
 import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
-import { FrameStore } from "./pages/FrameStore";
 import { StorePage } from "./pages/StorePage";
 import { ConnectionsPage } from "./pages/ConnectionsPage";
 import { NavBar } from "./components/NavBar";
@@ -283,7 +282,6 @@ function GameApp() {
       case "city":          return <CityPage user={user!} onUserUpdate={() => { refreshUser(); }} refreshUser={refreshUser} addToast={addToast} />;
       case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
-      case "chatframes":    return <FrameStore {...pageProps} />;
       case "store":         return <StorePage user={user!} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "connections":  return <ConnectionsPage user={user!} />;
       case "royale":        return royaleCategory

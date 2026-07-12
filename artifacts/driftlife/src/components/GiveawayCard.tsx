@@ -152,10 +152,7 @@ export function GiveawayCard({ giveaway, currentUserId, onInspectPlayer, onEnter
                 {pledge.items.map((it) => (
                   <PledgeLine key={it.itemId} label={it.name} value={`×${it.quantity}`} />
                 ))}
-                {pledge.frames.map((f) => (
-                  <PledgeLine key={f} label="🖼️ Chat Frame" value={f} />
-                ))}
-                {!hasCurrency && pledge.items.length === 0 && pledge.frames.length === 0 && (
+                {!hasCurrency && pledge.items.length === 0 && (
                   <div className="font-mono" style={{ fontSize: 11, color: "#475569" }}>Empty pledge</div>
                 )}
               </div>

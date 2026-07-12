@@ -30,7 +30,6 @@ interface DraftPledge {
   uc: number;
   keys: number;
   items: Array<{ itemId: string; name: string; quantity: number; iconUrl: string }>;
-  frames: string[];
 }
 
 interface DraftResponse {
@@ -51,7 +50,6 @@ interface DraftResponse {
 interface DraftError {
   message: string;
   itemErrors?: Array<{ itemId: string; reason: string }>;
-  frameErrors?: Array<{ frameId: string; reason: string }>;
 }
 
 const DURATIONS = [
@@ -74,8 +72,6 @@ const LABEL: React.CSSProperties = {
   fontFamily: "monospace", fontSize: 11, color: "#64748b", display: "block", marginBottom: 4,
 };
 
-interface FrameOwned { id: string; rarity: string }
-
 function PrizeLine({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "monospace", fontSize: 12, padding: "4px 0", borderBottom: "1px solid #0d0d1a" }}>
@@ -89,14 +85,12 @@ export function CreateGiveawayModal({ user, onClose, onCreated, addToast }: Prop
   const [step, setStep] = useState<"compose" | "review">("compose");
 
   const [items, setItems] = useState<Item[]>([]);
-  const [ownedFrames, setOwnedFrames] = useState<FrameOwned[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
 
   const [dc, setDc] = useState("0");
   const [uc, setUc] = useState("0");
   const [keys, setKeys] = useState("0");
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
-  const [selectedFrames, setSelectedFrames] = useState<string[]>([]);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [durationMs, setDurationMs] = useState(DURATIONS[3].ms);
   const [maxEntrants, setMaxEntrants] = useState("25");
@@ -104,24 +98,12 @@ export function CreateGiveawayModal({ user, onClose, onCreated, addToast }: Prop
   const [submitting, setSubmitting] = useState(false);
   const [draft, setDraft] = useState<DraftResponse | null>(null);
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
-  const [frameErrors, setFrameErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setLoadingAssets(true);
-    Promise.all([
-      api.get<Item[]>("/inventory"),
-      api.get<{ catalog: Array<{ id: string; rarity: string }>; owned: string[]; equipped: string | null }>("/chatframes"),
-    ])
-      .then(([inv, frames]) => {
-        setItems(inv.filter(i => !i.equipped && !i.marketListed));
-        const catalogById = new Map(frames.catalog.map(f => [f.id, f]));
-        setOwnedFrames(
-          frames.owned
-            .filter(id => id !== frames.equipped)
-            .map(id => ({ id, rarity: catalogById.get(id)?.rarity ?? "elite" })),
-        );
-      })
-      .catch(() => addToast("Failed to load your inventory/frames", "error"))
+    api.get<Item[]>("/inventory")
+      .then(inv => setItems(inv.filter(i => !i.equipped && !i.marketListed)))
+      .catch(() => addToast("Failed to load your inventory", "error"))
       .finally(() => setLoadingAssets(false));
   }, []);
 
@@ -139,12 +121,6 @@ export function CreateGiveawayModal({ user, onClose, onCreated, addToast }: Prop
     setSelectedItems(prev => ({ ...prev, [itemId]: clamped }));
   }
 
-  function toggleFrame(frameId: string) {
-    setSelectedFrames(prev =>
-      prev.includes(frameId) ? prev.filter(f => f !== frameId) : [...prev, frameId],
-    );
-  }
-
   const dcN = Math.max(0, Math.floor(Number(dc) || 0));
   const ucN = Math.max(0, Math.floor(Number(uc) || 0));
   const keysN = Math.max(0, Math.floor(Number(keys) || 0));
@@ -152,8 +128,7 @@ export function CreateGiveawayModal({ user, onClose, onCreated, addToast }: Prop
 
   const hasAnyPledge =
     dcN > 0 || ucN > 0 || keysN > 0 ||
-    Object.keys(selectedItems).length > 0 ||
-    selectedFrames.length > 0;
+    Object.keys(selectedItems).length > 0;
   const overBudget = dcN > user.dc || ucN > user.nc || keysN > user.keys;
 
   async function submitDraft() {
@@ -161,13 +136,12 @@ export function CreateGiveawayModal({ user, onClose, onCreated, addToast }: Prop
     if (overBudget)    { addToast("You don't have that much DC / UC / keys", "error"); return; }
     setSubmitting(true);
     setItemErrors({});
-    setFrameErrors({});
     try {
       const pledgeItems: DraftPledgeItem[] = Object.entries(selectedItems).map(
         ([itemId, quantity]) => ({ itemId, quantity }),
       );
       const res = await api.post<DraftResponse>("/giveaways/draft", {
-        pledge: { dc: dcN, uc: ucN, keys: keysN, items: pledgeItems, frames: selectedFrames },
+        pledge: { dc: dcN, uc: ucN, keys: keysN, items: pledgeItems, frames: [] },
         isAnonymous,
         durationMs,
         maxEntrants: maxEntrantsN,
@@ -178,9 +152,6 @@ export function CreateGiveawayModal({ user, onClose, onCreated, addToast }: Prop
       const data: DraftError | undefined = err.data;
       if (data?.itemErrors?.length) {
         setItemErrors(Object.fromEntries(data.itemErrors.map(e => [e.itemId, e.reason])));
-      }
-      if (data?.frameErrors?.length) {
-        setFrameErrors(Object.fromEntries(data.frameErrors.map(e => [e.frameId, e.reason])));
       }
       addToast(err.message ?? "Failed to create draft", "error");
     } finally {
@@ -329,39 +300,6 @@ export function CreateGiveawayModal({ user, onClose, onCreated, addToast }: Prop
                   )}
                 </div>
 
-                {/* Frames */}
-                <div>
-                  <label style={LABEL}>Chat Frames <span style={{ color: "#334155" }}>(owned, not equipped)</span></label>
-                  {ownedFrames.length === 0 ? (
-                    <div style={{ fontFamily: "monospace", fontSize: 11, color: "#334155" }}>
-                      No spare frames to give away.
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {ownedFrames.map(f => {
-                        const selected = selectedFrames.includes(f.id);
-                        const err = frameErrors[f.id];
-                        return (
-                          <label
-                            key={f.id}
-                            className="flex items-center gap-1.5"
-                            style={{
-                              fontFamily: "monospace", fontSize: 11, padding: "4px 8px", borderRadius: 6,
-                              border: `1px solid ${selected ? "#a855f7" : "#1e1e2e"}`,
-                              color: err ? "#ff2d55" : selected ? "#a855f7" : "#94a3b8",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <input type="checkbox" checked={selected} onChange={() => toggleFrame(f.id)} />
-                            {f.id}
-                            {err && <span> — {err}</span>}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
                 {/* Anonymous toggle */}
                 <label className="flex items-center gap-2" style={{ cursor: "pointer" }}>
                   <input
@@ -480,12 +418,8 @@ export function CreateGiveawayModal({ user, onClose, onCreated, addToast }: Prop
                     </span>
                   </div>
                 ))}
-                {reviewPledge.frames.map(f => (
-                  <PrizeLine key={f} label="🖼️ Chat Frame" value={f} accent="#a855f7" />
-                ))}
-
                 {reviewPledge.dc === 0 && reviewPledge.uc === 0 && reviewPledge.keys === 0 &&
-                 reviewPledge.items.length === 0 && reviewPledge.frames.length === 0 && (
+                 reviewPledge.items.length === 0 && (
                   <div style={{ fontFamily: "monospace", fontSize: 11, color: "#475569", textAlign: "center", padding: "6px 0" }}>
                     Empty pledge
                   </div>

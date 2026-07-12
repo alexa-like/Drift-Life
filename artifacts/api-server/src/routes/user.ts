@@ -258,7 +258,6 @@ router.get("/profile/:id", requireAuth, async (req: AuthRequest, res) => {
       successfulCrimes: user.successfulCrimes,
       equippedTitle: user.equippedTitle,
       titles: user.titles,
-      equippedChatFrame: user.equippedChatFrame || null,
       equippedItems,
       onlineStatus: (() => {
         if (user.appearOffline) return "offline";

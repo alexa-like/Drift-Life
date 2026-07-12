@@ -12,7 +12,6 @@ export interface IFeedEvent extends Document {
   xp: number;
   reactions: { like: number; laugh: number; shock: number; respect: number };
   comments: Array<{ username: string; content: string; at: Date }>;
-  actorChatFrame: string | null;
   actorLevel: number;
   pinned: boolean;
   createdAt: Date;
@@ -44,7 +43,6 @@ const FeedEventSchema = new Schema<IFeedEvent>(
       content: String,
       at: { type: Date, default: Date.now },
     }],
-    actorChatFrame: { type: String, default: null },
     actorLevel: { type: Number, default: 1 },
     pinned: { type: Boolean, default: false },
   },

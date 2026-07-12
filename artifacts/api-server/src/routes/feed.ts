@@ -46,7 +46,6 @@ router.get("/", requireAuth, async (req, res) => {
       type:           e.type,
       actor:          e.actor,
       actorId:        e.actorId,
-      actorChatFrame: (e as any).actorChatFrame ?? null,
       actorLevel:     (e as any).actorLevel ?? null,
       target:         e.target,
       message:        e.message,
@@ -81,23 +80,22 @@ router.post("/post", requireAuth, async (req: AuthRequest, res) => {
       return res.status(429).json({ message: "Slow down — you can post again in a few seconds" });
     }
 
-    const user = await User.findById(userId).select("username level equippedChatFrame").lean();
+    const user = await User.findById(userId).select("username level").lean();
     if (!user) return res.status(404).json({ message: "User not found" });
 
     lastPostAt.set(userId, now);
 
     const event = await FeedEvent.create({
-      type:           "post",
-      actor:          user.username,
-      actorId:        userId,
-      actorChatFrame: user.equippedChatFrame ?? null,
-      actorLevel:     user.level ?? 1,
-      message:        trimmed,
+      type:       "post",
+      actor:      user.username,
+      actorId:    userId,
+      actorLevel: user.level ?? 1,
+      message:    trimmed,
     });
 
     res.status(201).json({
       id: event._id, message: trimmed, createdAt: event.createdAt,
-      actor: user.username, actorChatFrame: user.equippedChatFrame ?? null, actorLevel: user.level ?? 1,
+      actor: user.username, actorLevel: user.level ?? 1,
     });
   } catch (err: any) {
     req.log.error({ err }, "player feed post error");

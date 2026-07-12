@@ -53,11 +53,10 @@ interface WinnerAccumulator {
   uc: number;
   keys: number;
   items: Map<string, { itemId: mongoose.Types.ObjectId; name: string; quantity: number }>;
-  frames: string[];
 }
 
 function newAccumulator(userId: mongoose.Types.ObjectId): WinnerAccumulator {
-  return { userId, dc: 0, uc: 0, keys: 0, items: new Map(), frames: [] };
+  return { userId, dc: 0, uc: 0, keys: 0, items: new Map() };
 }
 
 /**
@@ -120,9 +119,6 @@ async function applyWinnerShare(w: WinnerAccumulator, session: mongoose.ClientSe
   if (Object.keys(inc).length > 0) {
     await User.findByIdAndUpdate(w.userId, { $inc: inc }, { session });
   }
-  if (w.frames.length > 0) {
-    await User.findByIdAndUpdate(w.userId, { $addToSet: { ownedChatFrames: { $each: w.frames } } }, { session });
-  }
   for (const item of w.items.values()) {
     await grantItem(w.userId, item.itemId, item.name, item.quantity, session);
   }
@@ -142,9 +138,6 @@ async function refundToHost(giveaway: IGiveaway, session: mongoose.ClientSession
   if (Object.keys(inc).length > 0) {
     await User.findByIdAndUpdate(host, { $inc: inc }, { session });
   }
-  if (pledge.frames.length > 0) {
-    await User.findByIdAndUpdate(host, { $addToSet: { ownedChatFrames: { $each: [...pledge.frames] } } }, { session });
-  }
   for (const pi of pledge.items) {
     await grantItem(host, pi.itemId, pi.name, pi.quantity, session);
   }
@@ -156,7 +149,6 @@ interface WinnerOut {
   uc: number;
   keys: number;
   items: Array<{ itemId: mongoose.Types.ObjectId; quantity: number }>;
-  frames: string[];
 }
 
 /**
@@ -213,12 +205,10 @@ export async function resolveGiveaway(giveawayId: string | mongoose.Types.Object
         for (const pi of giveaway.pledge.items) {
           w.items.set(String(pi.itemId), { itemId: pi.itemId, name: pi.name, quantity: pi.quantity });
         }
-        w.frames = [...giveaway.pledge.frames];
         await applyWinnerShare(w, session);
         winnersOut = [{
           userId: w.userId, dc: w.dc, uc: w.uc, keys: w.keys,
           items: [...w.items.values()].map((i) => ({ itemId: i.itemId, quantity: i.quantity })),
-          frames: w.frames,
         }];
         return;
       }
@@ -253,19 +243,11 @@ export async function resolveGiveaway(giveawayId: string | mongoose.Types.Object
         }
       }
 
-      // Frames: one indivisible unit each, round-robin (same cursor convention as items)
-      for (const frameId of giveaway.pledge.frames) {
-        const uid = order[cursor % n];
-        cursor++;
-        winners.get(uid)!.frames.push(frameId);
-      }
-
       // ── Verify no currency/items were created or destroyed (§5.2) ────────
       const list = [...winners.values()];
       const totalDc     = list.reduce((s, w) => s + w.dc, 0);
       const totalUc     = list.reduce((s, w) => s + w.uc, 0);
       const totalKeys   = list.reduce((s, w) => s + w.keys, 0);
-      const totalFrames = list.reduce((s, w) => s + w.frames.length, 0);
       const totalItemUnits = list.reduce(
         (s, w) => s + [...w.items.values()].reduce((s2, i) => s2 + i.quantity, 0), 0,
       );
@@ -274,13 +256,12 @@ export async function resolveGiveaway(giveawayId: string | mongoose.Types.Object
         totalDc !== giveaway.pledge.dc ||
         totalUc !== giveaway.pledge.uc ||
         totalKeys !== giveaway.pledge.keys ||
-        totalFrames !== giveaway.pledge.frames.length ||
         totalItemUnits !== pledgeItemUnits
       ) {
         throw new Error(
           `resolveGiveaway distribution mismatch for ${giveaway._id}: ` +
           `dc ${totalDc}/${giveaway.pledge.dc}, uc ${totalUc}/${giveaway.pledge.uc}, ` +
-          `keys ${totalKeys}/${giveaway.pledge.keys}, frames ${totalFrames}/${giveaway.pledge.frames.length}, ` +
+          `keys ${totalKeys}/${giveaway.pledge.keys}, ` +
           `items ${totalItemUnits}/${pledgeItemUnits}`,
         );
       }
@@ -291,7 +272,6 @@ export async function resolveGiveaway(giveawayId: string | mongoose.Types.Object
       winnersOut = list.map((w) => ({
         userId: w.userId, dc: w.dc, uc: w.uc, keys: w.keys,
         items: [...w.items.values()].map((i) => ({ itemId: i.itemId, quantity: i.quantity })),
-        frames: w.frames,
       }));
     });
   } finally {

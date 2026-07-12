@@ -103,8 +103,6 @@ export function safeUser(user: InstanceType<typeof User>) {
     referralCode: user.referralCode,
     createdAt: user.createdAt,
     onboardingStage: user.onboardingStage ?? 0,
-    ownedChatFrames: (user as any).ownedChatFrames || [],
-    equippedChatFrame: (user as any).equippedChatFrame || null,
     // ── Monetization ───────────────────────────────────────────────────────
     subscriptionTier: (user as any).subscriptionTier ?? null,
     subscriptionExpiresAt: (user as any).subscriptionExpiresAt ?? null,

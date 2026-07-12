@@ -26,7 +26,6 @@ import Item from "../models/Item";
 import User from "../models/User";
 import {
   isItemGiveawayEligible,
-  isFrameGiveawayEligible,
 } from "../lib/giveawayEligibility";
 import {
   computePledgeValueDc,
@@ -61,20 +60,19 @@ async function resolveHostDisplay(
   hostId: mongoose.Types.ObjectId,
   isAnonymous: boolean,
   isOwnerHosted = false,
-): Promise<{ name: string; avatar: string | null; chatFrame: string | null; userId: string | null }> {
+): Promise<{ name: string; avatar: string | null; userId: string | null }> {
   if (isOwnerHosted) {
-    return { name: "System", avatar: null, chatFrame: null, userId: null };
+    return { name: "System", avatar: null, userId: null };
   }
   if (isAnonymous) {
-    return { name: "??? Anonymous Benefactor", avatar: null, chatFrame: null, userId: null };
+    return { name: "??? Anonymous Benefactor", avatar: null, userId: null };
   }
   const host = await User.findById(hostId)
-    .select("username avatar equippedChatFrame")
+    .select("username avatar")
     .lean();
   return {
     name: host?.username ?? "Unknown",
     avatar: host?.avatar ?? null,
-    chatFrame: (host as any)?.equippedChatFrame ?? null,
     userId: String(hostId),
   };
 }
@@ -159,26 +157,11 @@ router.post("/draft", requireAuth, async (req: AuthRequest, res) => {
       });
     }
 
-    // ── Process frames ────────────────────────────────────────────────────────
-    const frameInputs: string[] = Array.isArray(pledgeInput.frames) ? pledgeInput.frames : [];
-    const pledgeFrames: string[] = [];
-    const frameErrors: Array<{ frameId: string; reason: string }> = [];
-
-    for (const frameId of frameInputs) {
-      const elig = isFrameGiveawayEligible(host, String(frameId), false);
-      if (!elig.eligible) {
-        frameErrors.push({ frameId: String(frameId), reason: elig.reason! });
-      } else {
-        pledgeFrames.push(String(frameId));
-      }
-    }
-
     // All eligibility errors are returned together so the player can fix them all at once
-    if (itemErrors.length > 0 || frameErrors.length > 0) {
+    if (itemErrors.length > 0) {
       return res.status(400).json({
-        message: "Some pledge items or frames are not eligible to be listed",
+        message: "Some pledge items are not eligible to be listed",
         itemErrors,
-        frameErrors,
       });
     }
 
@@ -198,16 +181,8 @@ router.post("/draft", requireAuth, async (req: AuthRequest, res) => {
 
     // ── Coverage check ────────────────────────────────────────────────────────
     const coverage = await computeHostCoverage(host, {
-      dc, uc, keys, items: pledgeItems, frames: pledgeFrames,
+      dc, uc, keys, items: pledgeItems,
     });
-
-    // Frame shortfalls are hard blockers — UC top-up cannot substitute for unowned frames
-    if (coverage.shortfallFrames.length > 0) {
-      return res.status(400).json({
-        message: "You do not own the following frames and cannot pledge them",
-        shortfallFrames: coverage.shortfallFrames,
-      });
-    }
 
     // UC top-up cost: converts DC/keys/item shortfall value into NC cost (§2.2)
     const ucTopUpCost = computeUcTopUpCost(coverage.shortfallDcEquivalent);
@@ -226,8 +201,8 @@ router.post("/draft", requireAuth, async (req: AuthRequest, res) => {
         dc,
         uc,
         keys,
-        items:  pledgeItems.map(pi => ({ itemId: pi.itemId, name: pi.name, quantity: pi.quantity, iconUrl: pi.iconUrl })),
-        frames: pledgeFrames,
+        items: pledgeItems.map(pi => ({ itemId: pi.itemId, name: pi.name, quantity: pi.quantity, iconUrl: pi.iconUrl })),
+        frames: [],
       },
       pledgeValueDc,
       ucTopUpPaid:  0,
@@ -292,15 +267,10 @@ router.post("/:id/confirm", requireAuth, async (req: AuthRequest, res) => {
       const elig = await isItemGiveawayEligible(itemDoc, false);
       if (!elig.eligible) itemEligErrors.push(`"${pi.name}": ${elig.reason}`);
     }
-    const frameEligErrors: string[] = [];
-    for (const frameId of pledge.frames) {
-      const elig = isFrameGiveawayEligible(host, frameId, false);
-      if (!elig.eligible) frameEligErrors.push(`"${frameId}": ${elig.reason}`);
-    }
-    if (itemEligErrors.length > 0 || frameEligErrors.length > 0) {
+    if (itemEligErrors.length > 0) {
       return res.status(400).json({
         message: "Eligibility check failed — resolve these issues first",
-        itemErrors: itemEligErrors, frameErrors: frameEligErrors,
+        itemErrors: itemEligErrors,
       });
     }
 
@@ -316,11 +286,8 @@ router.post("/:id/confirm", requireAuth, async (req: AuthRequest, res) => {
     }
     const coverage = await computeHostCoverage(host, {
       dc: pledge.dc, uc: pledge.uc, keys: pledge.keys,
-      items: pledgeItemsForCoverage, frames: [...pledge.frames],
+      items: pledgeItemsForCoverage,
     });
-    if (coverage.shortfallFrames.length > 0) {
-      return res.status(400).json({ message: `Frames no longer owned: ${coverage.shortfallFrames.join(", ")}` });
-    }
 
     const ucTopUpCost      = computeUcTopUpCost(coverage.shortfallDcEquivalent);
     const totalNcDeduction = ucTopUpCost + pledge.uc;
@@ -420,14 +387,6 @@ router.post("/:id/confirm", requireAuth, async (req: AuthRequest, res) => {
           }
         }
 
-        // ⑥ Pull frames (fully owned — verified above).
-        if (pledge.frames.length > 0) {
-          await User.findOneAndUpdate(
-            { _id: req.userId },
-            { $pullAll: { ownedChatFrames: [...pledge.frames] } },
-            { session },
-          );
-        }
       });
     } catch (txErr: any) {
       // A thrown "BIZ_ERR" marker means the transaction aborted cleanly for a

@@ -54,7 +54,6 @@ router.get("/global", requireAuth, async (req: AuthRequest, res) => {
       username: m.senderName,
       faction: m.senderFaction,
       title: m.senderTitle,
-      chatFrame: (m as any).senderChatFrame || null,
       level: (m as any).senderLevel || 1,
       pinnedBadges: (m as any).senderPinnedBadges ?? [],
       content: m.content,
@@ -81,7 +80,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level subscriptionTier subscriptionExpiresAt pinnedBadges");
+      .select("username faction equippedTitle mutedUntil banned level subscriptionTier subscriptionExpiresAt pinnedBadges");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
@@ -109,7 +108,6 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
       senderName: user.username,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
-      senderChatFrame: (user as any).equippedChatFrame || null,
       senderLevel: user.level,
       senderPinnedBadges: senderBadges,
       content,
@@ -123,7 +121,6 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
         username: user.username,
         faction: user.faction,
         title: user.equippedTitle,
-        chatFrame: (user as any).equippedChatFrame || null,
         level: user.level,
         subscriptionTier: activeTierGlobal ? (user as any).subscriptionTier : null,
         pinnedBadges: senderBadges,
@@ -164,7 +161,6 @@ router.get("/district/:districtId", requireAuth, async (req: AuthRequest, res) =
       username: m.senderName,
       faction: m.senderFaction,
       title: m.senderTitle,
-      chatFrame: (m as any).senderChatFrame || null,
       level: (m as any).senderLevel || 1,
       pinnedBadges: (m as any).senderPinnedBadges ?? [],
       content: m.content,
@@ -193,7 +189,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned district equippedChatFrame level subscriptionTier subscriptionExpiresAt pinnedBadges");
+      .select("username faction equippedTitle mutedUntil banned district level subscriptionTier subscriptionExpiresAt pinnedBadges");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
@@ -222,7 +218,6 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
       senderName: user.username,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
-      senderChatFrame: (user as any).equippedChatFrame || null,
       senderLevel: user.level,
       senderPinnedBadges: districtBadges,
       content,
@@ -236,7 +231,6 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
         username: user.username,
         faction: user.faction,
         title: user.equippedTitle,
-        chatFrame: (user as any).equippedChatFrame || null,
         level: user.level,
         subscriptionTier: activeTierDistrict ? (user as any).subscriptionTier : null,
         pinnedBadges: districtBadges,
@@ -280,7 +274,6 @@ router.get("/faction", requireAuth, async (req: AuthRequest, res) => {
       username: m.senderName,
       faction: m.senderFaction,
       title: m.senderTitle,
-      chatFrame: (m as any).senderChatFrame || null,
       level: (m as any).senderLevel || 1,
       pinnedBadges: (m as any).senderPinnedBadges ?? [],
       content: m.content,
@@ -307,7 +300,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(`faction:${String(req.userId)}`, now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned equippedChatFrame level subscriptionTier subscriptionExpiresAt pinnedBadges");
+      .select("username faction equippedTitle mutedUntil banned level subscriptionTier subscriptionExpiresAt pinnedBadges");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (!user.faction) {
@@ -339,7 +332,6 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
       senderName: user.username,
       senderFaction: user.faction,
       senderTitle: user.equippedTitle,
-      senderChatFrame: (user as any).equippedChatFrame || null,
       senderLevel: user.level,
       senderPinnedBadges: factionBadges,
       content,
@@ -353,7 +345,6 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
         username: user.username,
         faction: user.faction,
         title: user.equippedTitle,
-        chatFrame: (user as any).equippedChatFrame || null,
         level: user.level,
         subscriptionTier: activeTierFaction ? (user as any).subscriptionTier : null,
         pinnedBadges: factionBadges,

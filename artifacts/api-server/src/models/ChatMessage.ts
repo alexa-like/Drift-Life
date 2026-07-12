@@ -9,7 +9,6 @@ export interface IChatMessage extends Document {
   senderName: string;
   senderFaction: string | null;
   senderTitle: string | null;
-  senderChatFrame: string | null;
   senderLevel: number;
   senderPinnedBadges: string[];
   content: string;
@@ -26,7 +25,6 @@ const ChatMessageSchema = new Schema<IChatMessage>(
     senderName:      { type: String, required: true },
     senderFaction:   { type: String, default: null },
     senderTitle:     { type: String, default: null },
-    senderChatFrame:      { type: String, default: null },
     senderLevel:          { type: Number, default: 1 },
     senderPinnedBadges:   [{ type: String }],
     content:              { type: String, required: true, maxlength: 256 },

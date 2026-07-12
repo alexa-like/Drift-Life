@@ -2,8 +2,6 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
-  ownedChatFrames: string[];
-  equippedChatFrame: string | null;
   username: string;
   tag: string;
   email: string;
@@ -344,8 +342,6 @@ const UserSchema = new Schema<IUser>(
     },
     lastNpcCombatAt: { type: Date, default: null },
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    ownedChatFrames: { type: [String], default: [] },
-    equippedChatFrame: { type: String, default: null },
     // ── Monetization ─────────────────────────────────────────────────────────
     subscriptionTier: {
       type: String,

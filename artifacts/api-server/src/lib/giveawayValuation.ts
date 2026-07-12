@@ -98,10 +98,9 @@ export interface CoverageResult {
    * A non-empty list is a hard blocker — frame ownership cannot be covered by
    * paying UC. The creation route must reject with a specific error per frame.
    */
-  shortfallFrames: string[];
   /**
    * Total DC-equivalent value of all shortfalls that CAN be covered by UC
-   * (dc + keys×DC_PER_KEY + missing item values). Frames are not included.
+   * (dc + keys×DC_PER_KEY + missing item values).
    * Pass this to computeUcTopUpCost() to get how much NC the host must pay.
    */
   shortfallDcEquivalent: number;
@@ -113,7 +112,7 @@ export interface CoverageResult {
  * Compare every pledge line against what the host actually owns right now.
  *
  * Items are looked up by _id in the Item collection to get the real live quantity.
- * Frames are checked against user.ownedChatFrames (already on the User doc).
+ * Items are looked up by _id in the Item collection to get the real live quantity.
  */
 export async function computeHostCoverage(
   host: IUser,
@@ -122,7 +121,6 @@ export async function computeHostCoverage(
     uc: number;
     keys: number;
     items: PledgeItemInput[];
-    frames: string[];
   },
 ): Promise<CoverageResult> {
   // DC shortfall
@@ -155,11 +153,6 @@ export async function computeHostCoverage(
     }
   }
 
-  // Frame shortfalls — hard blockers, cannot be covered by UC
-  const shortfallFrames = pledge.frames.filter(
-    (fid) => !host.ownedChatFrames.includes(fid),
-  );
-
   // DC-equivalent value of all coverable shortfalls
   const shortfallDcEquivalent =
     shortfallDc +
@@ -173,15 +166,14 @@ export async function computeHostCoverage(
     shortfallDc === 0 &&
     shortfallUc === 0 &&
     shortfallKeys === 0 &&
-    shortfallItems.length === 0 &&
-    shortfallFrames.length === 0;
+    shortfallItems.length === 0;
 
   return {
     shortfallDc,
     shortfallUc,
     shortfallKeys,
     shortfallItems,
-    shortfallFrames,
+    shortfallFrames: [],
     shortfallDcEquivalent,
     isCovered,
   };

@@ -13,7 +13,6 @@ import Item from "../models/Item";
 import PlayerReport from "../models/PlayerReport";
 import BanAppeal from "../models/BanAppeal";
 import VantaLog from "../models/VantaLog";
-import { FRAME_IDS } from "./chatframes";
 import { computePledgeValueDc } from "../lib/giveawayValuation";
 import { MAX_LIVE_DURATION_MS, MAX_ENTRANT_CAP } from "../lib/giveawayConstants";
 import { generateAndStoreCardImage } from "../lib/giveawayCardImage";
@@ -509,22 +508,11 @@ router.post("/giveaways", requireOwner as any, async (req: AuthRequest, res) => 
       });
     }
 
-    // ── Frames: conjured, not pulled from anyone's ownedChatFrames. Validated
-    // against the real catalog so payout/display data is meaningful.
-    const frameInputs: string[] = Array.isArray(pledgeInput.frames) ? pledgeInput.frames : [];
-    const pledgeFrames: string[] = [];
-    for (const frameId of frameInputs) {
-      if (!FRAME_IDS.includes(String(frameId))) {
-        return res.status(400).json({ message: `Unknown frame id: ${frameId}` });
-      }
-      pledgeFrames.push(String(frameId));
-    }
-
     const dc   = Math.max(0, Math.floor(Number(pledgeInput.dc)   || 0));
     const uc   = Math.max(0, Math.floor(Number(pledgeInput.uc)   || 0));
     const keys = Math.max(0, Math.floor(Number(pledgeInput.keys) || 0));
 
-    if (dc === 0 && uc === 0 && keys === 0 && pledgeItems.length === 0 && pledgeFrames.length === 0) {
+    if (dc === 0 && uc === 0 && keys === 0 && pledgeItems.length === 0) {
       return res.status(400).json({ message: "Pledge cannot be empty" });
     }
 
@@ -541,7 +529,7 @@ router.post("/giveaways", requireOwner as any, async (req: AuthRequest, res) => 
       isOwnerHosted: true,
       isAnonymous:   false, // owner-hosted always resolves to "System" — never anonymous-flavored
       status:        "live",
-      pledge: { dc, uc, keys, items: pledgeItems, frames: pledgeFrames },
+      pledge: { dc, uc, keys, items: pledgeItems, frames: [] },
       pledgeValueDc,
       ucTopUpPaid:   0,
       maxEntrants,
@@ -691,7 +679,6 @@ router.post("/grant-subscription", requireStaff, async (req: AuthRequest, res) =
       { _id: userId },
       {
         $set: { subscriptionTier: tier, subscriptionExpiresAt: expiresAt },
-        $addToSet: { ownedChatFrames: tierCfg.frameId },
       }
     );
     logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "grant-subscription", targetId: userId, targetUsername: "?", details: { tier, durationDays } });

@@ -172,10 +172,8 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [ownerGiveUc, setOwnerGiveUc] = useState("0");
   const [ownerGiveKeys, setOwnerGiveKeys] = useState("0");
   const [ownerGiveItems, setOwnerGiveItems] = useState<Array<{ itemId: string; quantity: number }>>([]);
-  const [ownerGiveFrames, setOwnerGiveFrames] = useState<string[]>([]);
   const [ownerGiveNewItemId, setOwnerGiveNewItemId] = useState("");
   const [ownerGiveNewItemQty, setOwnerGiveNewItemQty] = useState("1");
-  const [ownerGiveNewFrame, setOwnerGiveNewFrame] = useState("");
   const [ownerGiveDuration, setOwnerGiveDuration] = useState(24 * 60 * 60 * 1000);
   const [ownerGiveMax, setOwnerGiveMax] = useState("100");
   const [ownerGiveCreating, setOwnerGiveCreating] = useState(false);
@@ -205,20 +203,20 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     const uc   = Math.max(0, Math.floor(Number(ownerGiveUc)   || 0));
     const keys = Math.max(0, Math.floor(Number(ownerGiveKeys) || 0));
     const maxEntrants = Math.max(1, Math.floor(Number(ownerGiveMax) || 1));
-    if (dc === 0 && uc === 0 && keys === 0 && ownerGiveItems.length === 0 && ownerGiveFrames.length === 0) {
+    if (dc === 0 && uc === 0 && keys === 0 && ownerGiveItems.length === 0) {
       addToast("Pledge cannot be empty", "error"); return;
     }
     setOwnerGiveCreating(true);
     try {
       await api.post<any>("/owner/giveaways", {
-        pledge: { dc, uc, keys, items: ownerGiveItems, frames: ownerGiveFrames },
+        pledge: { dc, uc, keys, items: ownerGiveItems, frames: [] },
         durationMs: ownerGiveDuration,
         maxEntrants,
       });
       addToast("System giveaway is now live!", "success");
       // Reset form
       setOwnerGiveDc("0"); setOwnerGiveUc("0"); setOwnerGiveKeys("0");
-      setOwnerGiveItems([]); setOwnerGiveFrames([]);
+      setOwnerGiveItems([]);
       setOwnerGiveMax("100"); setOwnerGiveDuration(24 * 60 * 60 * 1000);
       loadOwnerGiveaways();
     } catch (e: any) { addToast(e.message, "error"); }
@@ -1639,39 +1637,6 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
               </div>
             </div>
 
-            {/* Frames */}
-            <div className="mb-4">
-              <div className="font-mono text-xs font-bold mb-2" style={{ color: "#64748b", letterSpacing: "0.05em" }}>CHAT FRAMES</div>
-              {ownerGiveFrames.map((f, i) => (
-                <div key={i} className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-xs flex-1" style={{ color: "#94a3b8" }}>{f}</span>
-                  <button
-                    onClick={() => setOwnerGiveFrames(prev => prev.filter((_, j) => j !== i))}
-                    className="font-mono text-xs px-2 py-1 rounded"
-                    style={{ color: "#ff2d55", border: "1px solid #ff2d5530" }}
-                  >✕</button>
-                </div>
-              ))}
-              <div className="flex gap-2 mt-2">
-                <input
-                  placeholder="Frame ID (e.g. neon_grid_elite)…"
-                  value={ownerGiveNewFrame} onChange={e => setOwnerGiveNewFrame(e.target.value)}
-                  className="font-mono text-xs px-2 py-1.5 rounded flex-1"
-                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0", outline: "none" }}
-                />
-                <button
-                  onClick={() => {
-                    const f = ownerGiveNewFrame.trim();
-                    if (!f) return;
-                    setOwnerGiveFrames(prev => [...prev, f]);
-                    setOwnerGiveNewFrame("");
-                  }}
-                  className="font-mono text-xs px-3 py-1.5 rounded"
-                  style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740" }}
-                >+ Add</button>
-              </div>
-            </div>
-
             {/* Duration & max entrants */}
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
@@ -1746,7 +1711,6 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                           {g.pledge?.uc > 0 && <span>💎 {g.pledge.uc.toLocaleString()} UC</span>}
                           {g.pledge?.keys > 0 && <span>🔑 {g.pledge.keys}</span>}
                           {g.pledge?.items?.length > 0 && <span>📦 {g.pledge.items.length} item(s)</span>}
-                          {g.pledge?.frames?.length > 0 && <span>🖼️ {g.pledge.frames.length} frame(s)</span>}
                         </div>
                       </div>
                     </div>

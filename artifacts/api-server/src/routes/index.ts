@@ -40,7 +40,6 @@ import cityRouter from "./city";
 import netRouter from "./net";
 import worldRouter from "./world";
 import cyberRouter from "./cyber";
-import chatframesRouter from "./chatframes";
 import storeRouter from "./store";
 import telegramRouter from "./telegram";
 // ── Mini-game foundation ─────────────────────────────────────────────────────
@@ -114,7 +113,6 @@ router.use("/city", cityRouter);
 router.use("/net", netRouter);
 router.use("/world", worldRouter);
 router.use("/cyber", cyberRouter);
-router.use("/chatframes", chatframesRouter);
 router.use("/store", storeRouter);
 router.use("/telegram", telegramRouter);
 // ── Mini-game foundation ─────────────────────────────────────────────────────

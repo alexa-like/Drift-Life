@@ -5,7 +5,6 @@ import { api } from "../lib/api";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { MentionText } from "../components/MentionText";
-import { ChatFrameRenderer } from "../components/ChatFrameRenderer";
 import { GiveawayCard } from "../components/GiveawayCard";
 import { CreateGiveawayModal } from "../components/CreateGiveawayModal";
 
@@ -283,18 +282,14 @@ export function FeedPage({ user, refreshUser, addToast, onInspectPlayer }: Props
                       onClick={() => ev.actorId && onInspectPlayer?.(ev.actorId)}
                       style={{ cursor: ev.actorId ? "pointer" : "default" }}
                     >
-                      <ChatFrameRenderer
-                        frameId={ev.actorChatFrame}
-                        username={ev.actor}
-                        level={ev.actorLevel}
-                        timestamp={ev.createdAt}
-                      >
+                      <div className="font-mono text-xs" style={{ color: "#94a3b8" }}>
+                        <span style={{ color: "#00d4ff", marginRight: 6 }}>{ev.actor}</span>
                         <MentionText
                           text={ev.message}
                           onUserClick={handleUserMention}
                           onLocationClick={handleLocationMention}
                         />
-                      </ChatFrameRenderer>
+                      </div>
                     </div>
                   </motion.div>
                 );

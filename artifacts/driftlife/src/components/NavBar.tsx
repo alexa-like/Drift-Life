@@ -43,7 +43,6 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "feed",         label: "Feed",     icon: Newspaper },
   { id: "chat",         label: "Chat",     icon: MessageCircle },
   { id: "inventory",    label: "Bag",      icon: Package },
-  { id: "chatframes",   label: "Frames",   icon: ImageIcon },
   { id: "store",        label: "Store",    icon: CreditCard },
   { id: "connections",  label: "Connect",  icon: LinkIcon },
   { id: "leaderboard",  label: "Board",    icon: BarChart2 },

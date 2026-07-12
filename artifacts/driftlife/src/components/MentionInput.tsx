@@ -23,7 +23,6 @@ const GAME_LOCATIONS: { id: string; label: string }[] = [
   { id: "properties",  label: "Properties"      },
   { id: "crafting",    label: "Crafting"        },
   { id: "races",       label: "Street Races"    },
-  { id: "chatframes",  label: "Frame Gallery"   },
 ];
 
 interface Suggestion {

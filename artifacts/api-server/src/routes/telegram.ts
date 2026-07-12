@@ -492,7 +492,7 @@ router.post("/webhook", async (req, res) => {
           });
 
           const user = await User.findById(pending.userId)
-            .select("ownedChatFrames nc subscriptionTier");
+            .select("nc subscriptionTier");
           if (!user) return;
 
           const setFields: any = {
@@ -503,11 +503,6 @@ router.post("/webhook", async (req, res) => {
             ncRolloverDays: 0,
           };
           const updateOp: any = { $set: setFields };
-
-          const ownedFrames: string[] = (user as any).ownedChatFrames || [];
-          if (!ownedFrames.includes(tierCfg.frameId)) {
-            updateOp.$addToSet = { ownedChatFrames: tierCfg.frameId };
-          }
           if (tierCfg.monthlyNc > 0) {
             updateOp.$inc = { nc: tierCfg.monthlyNc };
           }
@@ -520,7 +515,6 @@ router.post("/webhook", async (req, res) => {
               `🎉 <b>${tierCfg.name} activated!</b>\n\n` +
               `Your 30-day subscription is live:\n` +
               `• Daily NC claim: ${tierCfg.dailyNc} NC/day\n` +
-              `• Exclusive frame unlocked\n` +
               `• XP ×${tierCfg.jobXpMult} &amp; crime ×${tierCfg.crimeRewardMult} boosts active\n\n` +
               `Claim your daily NC in the DriftLife Store every day. Streak 7 days for a bonus! 🔥`,
             inlineKeyboard: [[{ text: "📊 View My Status", callback_data: "status" }]],

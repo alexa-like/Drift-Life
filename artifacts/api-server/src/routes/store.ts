@@ -249,8 +249,6 @@ router.post("/buy-subscription-nc", requireAuth, async (req: AuthRequest, res) =
 
     class InsufficientNcError extends Error { constructor() { super("NOT_ENOUGH_NC"); } }
 
-    let frameIsNew = false;
-
     await session.withTransaction(async () => {
       // Step 1 — atomic NC deduction
       const pre = await User.findOneAndUpdate(
@@ -261,9 +259,6 @@ router.post("/buy-subscription-nc", requireAuth, async (req: AuthRequest, res) =
       if (!pre) throw new InsufficientNcError();
 
       // Step 2 — grant subscription
-      const ownedFrames: string[] = (pre as any).ownedChatFrames ?? [];
-      frameIsNew = !ownedFrames.includes(tierCfg.frameId);
-
       const setFields: any = {
         subscriptionTier: tier,
         subscriptionExpiresAt: expiresAt,
@@ -272,20 +267,18 @@ router.post("/buy-subscription-nc", requireAuth, async (req: AuthRequest, res) =
         ncRolloverDays: 0,
       };
       const updateOp: any = { $set: setFields };
-      if (frameIsNew)           updateOp.$addToSet = { ownedChatFrames: tierCfg.frameId };
-      if (tierCfg.monthlyNc > 0) updateOp.$inc      = { nc: tierCfg.monthlyNc };
+      if (tierCfg.monthlyNc > 0) updateOp.$inc = { nc: tierCfg.monthlyNc };
 
       await User.updateOne({ _id: req.userId }, updateOp, { session });
 
       // Step 3 — audit log
       await UcPurchaseLog.create(
         [{
-          userId:       req.userId,
+          userId:    req.userId,
           tierId,
-          tierName:     tierCfg.name,
-          ncSpent:      ncCost,
-          frameGranted: frameIsNew ? tierCfg.frameId : null,
-          ncGranted:    tierCfg.monthlyNc,
+          tierName:  tierCfg.name,
+          ncSpent:   ncCost,
+          ncGranted: tierCfg.monthlyNc,
         }],
         { session },
       );
@@ -295,7 +288,6 @@ router.post("/buy-subscription-nc", requireAuth, async (req: AuthRequest, res) =
       subscriptionTier: tier,
       subscriptionExpiresAt: expiresAt,
       ncSpent: ncCost,
-      frameUnlocked: frameIsNew,
       ncGranted: tierCfg.monthlyNc,
       message: `🎉 ${tierCfg.name} activated for 30 days!`,
     });

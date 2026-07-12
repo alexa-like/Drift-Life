@@ -114,7 +114,7 @@ const VALID_LOCATIONS = new Set([
   "feed","chat","crimes","combat","jobs","market","bank","hospital",
   "garage","gym","faction","district","auction","leaderboard",
   "inventory","skills","profile","hack","properties","crafting",
-  "races","chatframes",
+  "races",
 ]);
 
 function tokenize(text: string): Token[] {

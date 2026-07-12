@@ -4,7 +4,6 @@ import { User, ChatMessage, Conversation } from "../lib/types";
 import { api } from "../lib/api";
 import { useSocket } from "../context/SocketContext";
 import { CyberButton } from "../components/CyberButton";
-import { ChatFrameRenderer } from "../components/ChatFrameRenderer";
 import { MentionInput } from "../components/MentionInput";
 import { MentionText, GAME_EMOJIS } from "../components/MentionText";
 import { SubscriberNameBadge } from "../components/SubscriberNameBadge";
@@ -127,40 +126,6 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
       onMute={() => { setMenuPos(null); message.userId && onMute?.(message.userId, message.username); }}
     />
   );
-
-  if (message.chatFrame) {
-    return (
-      <div
-        className="flex flex-col mb-2"
-        style={{ alignItems: isOwn ? "flex-end" : "flex-start" }}
-        onContextMenu={handleContextMenu}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={clearLongPress}
-        onTouchMove={clearLongPress}
-      >
-        <div onClick={() => message.userId && onUsernameClick?.(message.userId)}>
-          <ChatFrameRenderer
-            frameId={message.chatFrame}
-            username={message.username}
-            level={message.level}
-            timestamp={message.at}
-            isOwn={isOwn}
-            subscriptionTier={message.subscriptionTier}
-          >
-            {message.title && (
-              <span className="font-mono mr-1" style={{ fontSize: 9, color: "#a855f7" }}>[{message.title}]</span>
-            )}
-            <MentionText
-              text={message.content}
-              onUserClick={handleMentionUser}
-              onLocationClick={handleLocNav}
-            />
-          </ChatFrameRenderer>
-        </div>
-        {menu}
-      </div>
-    );
-  }
 
   return (
     <div

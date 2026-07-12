@@ -11,7 +11,6 @@ export interface IUcPurchaseLog extends Document {
   tierId: string;
   tierName: string;
   ncSpent: number;
-  frameGranted: string | null;
   ncGranted: number;
   purchasedAt: Date;
 }
@@ -22,7 +21,6 @@ const UcPurchaseLogSchema = new Schema<IUcPurchaseLog>(
     tierId:      { type: String, required: true },
     tierName:    { type: String, required: true },
     ncSpent:     { type: Number, required: true },
-    frameGranted:{ type: String, default: null },
     ncGranted:   { type: Number, default: 0 },
     purchasedAt: { type: Date,   default: Date.now },
   },

@@ -98,8 +98,6 @@ export interface User {
   cars?: string[];
   activeCar?: string | null;
   businesses?: string[];
-  ownedChatFrames: string[];
-  equippedChatFrame: string | null;
   // ── Monetization ──────────────────────────────────────────────────────────
   subscriptionTier: "street_runner" | "neon_syndicate" | "apex_sovereign" | null;
   subscriptionExpiresAt: string | null;
@@ -134,7 +132,6 @@ export interface GiveawayPledgeItem {
 export interface GiveawayHostDisplay {
   name: string;
   avatar: string | null;
-  chatFrame: string | null;
   userId: string | null;
 }
 
@@ -149,7 +146,6 @@ export interface LiveGiveaway {
     uc: number;
     keys: number;
     items: GiveawayPledgeItem[];
-    frames: string[];
   };
   pledgeValueDc: number;
   maxEntrants: number;
@@ -168,7 +164,6 @@ export interface FeedEvent {
   actor: string;
   actorId?: string;
   actorAvatarUrl?: string | null;
-  actorChatFrame?: string | null;
   actorLevel?: number;
   target: string | null;
   message: string;
@@ -286,7 +281,6 @@ export interface ChatMessage {
   at: string;
   channel?: string;
   districtId?: string;
-  chatFrame?: string | null;
   subscriptionTier?: "street_runner" | "neon_syndicate" | "apex_sovereign" | null;
   // ── 10.15 Pinned achievement badges ──────────────────────────────────────
   pinnedBadges?: string[];

@@ -13,7 +13,6 @@
 
 import MiniGameItem from "../models/MiniGameItem";
 import { IItem } from "../models/Item";
-import { IUser } from "../models/User";
 
 // ── Eligible normal-store item IDs ────────────────────────────────────────────
 // Source of truth: NORMAL_STORE_POOLS in routes/npcStores.ts.
@@ -104,32 +103,3 @@ export async function isItemGiveawayEligible(
   };
 }
 
-/**
- * Determine whether a player-owned chat frame may be pledged in a giveaway.
- *
- * Returns false with a specific reason if:
- *   - frameId === user.equippedChatFrame  → "this frame is currently equipped …"
- *   - frameId not in user.ownedChatFrames → "you do not own this frame"
- *
- * This check is synchronous (no DB query needed — ownership is on the User doc).
- */
-export function isFrameGiveawayEligible(
-  user: Pick<IUser, "ownedChatFrames" | "equippedChatFrame">,
-  frameId: string,
-  bypassForOwnerPanel = false,
-): EligibilityResult {
-  if (bypassForOwnerPanel) return { eligible: true };
-
-  if (frameId === user.equippedChatFrame) {
-    return {
-      eligible: false,
-      reason: "this frame is currently equipped — unequip it first, then list it",
-    };
-  }
-
-  if (!user.ownedChatFrames.includes(frameId)) {
-    return { eligible: false, reason: "you do not own this frame" };
-  }
-
-  return { eligible: true };
-}

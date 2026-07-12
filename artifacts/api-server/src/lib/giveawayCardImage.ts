@@ -82,7 +82,6 @@ export async function generateGiveawayCard(pledge: {
   uc: number;
   keys: number;
   items: Array<{ name: string; iconUrl?: string | null; quantity: number }>;
-  frames: string[];
 }): Promise<Buffer> {
   // Collect icon sources — items first (they have iconUrls), then currency placeholders
   const iconSources: Array<string | null> = [];
@@ -91,9 +90,9 @@ export async function generateGiveawayCard(pledge: {
     iconSources.push(item.iconUrl ?? null);
   }
 
-  // If fewer than MAX_ICONS from items, fill remaining slots for DC/keys/frames
+  // If fewer than MAX_ICONS from items, fill remaining slots for DC/keys
   const currencySlots = MAX_ICONS - iconSources.length;
-  for (let i = 0; i < currencySlots && i < (pledge.dc > 0 ? 1 : 0) + (pledge.keys > 0 ? 1 : 0) + pledge.frames.length; i++) {
+  for (let i = 0; i < currencySlots && i < (pledge.dc > 0 ? 1 : 0) + (pledge.keys > 0 ? 1 : 0); i++) {
     iconSources.push(null);
   }
 
@@ -145,15 +144,14 @@ export async function generateGiveawayCard(pledge: {
  */
 export async function generateAndStoreCardImage(
   giveawayId: string,
-  pledge: { dc: number; uc: number; keys: number; items: any[]; frames: any[] },
+  pledge: { dc: number; uc: number; keys: number; items: any[] },
 ): Promise<void> {
   try {
     const cardBuffer = await generateGiveawayCard({
-      dc:     pledge.dc,
-      uc:     pledge.uc,
-      keys:   pledge.keys,
-      items:  pledge.items.map((i: any) => ({ name: i.name, iconUrl: i.iconUrl ?? null, quantity: i.quantity })),
-      frames: [...pledge.frames],
+      dc:    pledge.dc,
+      uc:    pledge.uc,
+      keys:  pledge.keys,
+      items: pledge.items.map((i: any) => ({ name: i.name, iconUrl: i.iconUrl ?? null, quantity: i.quantity })),
     });
     await Giveaway.findByIdAndUpdate(giveawayId, {
       cardImageData: cardBuffer,
