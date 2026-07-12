@@ -5,6 +5,7 @@ import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { usePreferences, DEFAULT_SCALE, MIN_SCALE, MAX_SCALE } from "../context/PreferencesContext";
+import { ConnectionsPage } from "./ConnectionsPage";
 
 interface Props {
   user: User;
@@ -42,7 +43,7 @@ const INPUT = {
 };
 
 export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
-  const [tab,        setTab]      = useState<"account" | "appearance" | "privacy" | "notifications" | "password" | "reset">("account");
+  const [tab,        setTab]      = useState<"account" | "appearance" | "privacy" | "notifications" | "connect" | "password" | "reset">("account");
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("neonoir_sounds_enabled") === "true");
   const [current,   setCurrent]  = useState("");
   const [newPass,   setNewPass]  = useState("");
@@ -122,6 +123,7 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
     { id: "appearance"    as const, label: "Appearance" },
     { id: "privacy"       as const, label: "Privacy"    },
     { id: "notifications" as const, label: "Notifs"     },
+    { id: "connect"       as const, label: "Connect"    },
     { id: "password"      as const, label: "Password"   },
     { id: "reset"         as const, label: "Reset"      },
   ];
@@ -361,6 +363,13 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
             Save Notification Preferences
           </CyberButton>
         </AnimatedCard>
+      )}
+
+      {/* Connect (platform verification & linking) */}
+      {tab === "connect" && (
+        <div style={{ margin: "0 -16px" }}>
+          <ConnectionsPage user={user} />
+        </div>
       )}
 
       {/* Password */}

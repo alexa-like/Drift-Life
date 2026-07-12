@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard, Link as LinkIcon,
+  Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard,
   BarChart2, Gavel, Building2, Dumbbell, Briefcase, Car, Globe, Cpu, Shield, Swords, Crosshair,
   Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark, Warehouse,
   Wrench, Star, Trophy, Gift, PawPrint, Bell, Settings, type LucideIcon,
@@ -42,7 +42,6 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "chat",         label: "Chat",     icon: MessageCircle },
   { id: "inventory",    label: "Bag",      icon: Package },
   { id: "store",        label: "Store",    icon: CreditCard },
-  { id: "connections",  label: "Connect",  icon: LinkIcon },
   { id: "leaderboard",  label: "Board",    icon: BarChart2 },
   { id: "auction",      label: "Auction",  icon: Gavel },
   { id: "city",         label: "City",     icon: Building2,     group: "wc",  statusFilter: "normal" },

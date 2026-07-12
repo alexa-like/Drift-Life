@@ -2,7 +2,9 @@
  * StorePage — NC (Nova Credits) packs + subscription tier selection via Telegram Stars.
  *
  * Two tabs: NC Packs / Subscriptions
- * Handles: Telegram link flow (inline modal), daily claim widget, tier cards.
+ * Handles: daily claim widget, tier cards, NC purchases.
+ * Telegram account linking now lives in Settings → Connect — this page only
+ * shows link status and nudges the player there if unlinked.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -51,13 +53,6 @@ interface TierInfo {
   themes: string[];
 }
 
-interface LinkInitResponse {
-  code: string;
-  botDeepLink: string;
-  instructions: string;
-  expiresInMinutes: number;
-}
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TIER_ORDER = ["street_runner", "neon_syndicate", "apex_sovereign"];
@@ -93,10 +88,6 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
   const [claiming, setClaiming] = useState(false);
   const [claimResult, setClaimResult] = useState<string | null>(null);
 
-  // Telegram link modal state
-  const [linkData, setLinkData] = useState<LinkInitResponse | null>(null);
-  const [linkPollActive, setLinkPollActive] = useState(false);
-
   // NC subscription payment state
   // ncConfirm = tierId pending confirmation, ncBuying = tierId currently processing
   const [ncConfirm, setNcConfirm] = useState<string | null>(null);
@@ -106,10 +97,7 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
   // Invoice fallback (when window.open is blocked)
   const [invoiceFallbackUrl, setInvoiceFallbackUrl] = useState<string | null>(null);
   // Inline error messages
-  const [linkInitError, setLinkInitError] = useState<string | null>(null);
   const [buyError, setBuyError] = useState<string | null>(null);
-  // Telegram unlink inline confirm
-  const [telegramUnlinkConfirm, setTelegramUnlinkConfirm] = useState(false);
 
   // Gift NC modal
   const [giftModal, setGiftModal] = useState(false);
@@ -131,36 +119,9 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
-  // Poll for Telegram link completion
-  useEffect(() => {
-    if (!linkPollActive) return;
-    const interval = setInterval(async () => {
-      try {
-        const r = await api.get<{ linked: boolean }>("/telegram/status");
-        if (r.linked) {
-          setLinkPollActive(false);
-          setLinkData(null);
-          await loadStatus();
-        }
-      } catch {}
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [linkPollActive, loadStatus]);
-
-  async function handleLinkTelegram() {
-    setLinkInitError(null);
-    try {
-      const data = await api.post<LinkInitResponse>("/telegram/link-init");
-      setLinkData(data);
-      setLinkPollActive(true);
-    } catch (e: any) {
-      setLinkInitError(e.message || "Failed to generate link code");
-    }
-  }
-
   async function handleBuy(productId: string) {
     if (!status?.telegramLinked) {
-      handleLinkTelegram();
+      setBuyError("Link your Telegram account in Settings → Connect to pay with Telegram Stars.");
       return;
     }
     setBuying(productId);
@@ -259,63 +220,22 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
         </div>
       </div>
 
-      {/* ── Telegram not linked warning ─────────────────────────────────────── */}
+      {/* ── Telegram not linked notice ───────────────────────────────────────── */}
       {status && !status.telegramLinked && (
         <div style={{ background: "#0a0a14", border: "1px solid #FF4FA355", borderRadius: 10, padding: 14 }}>
           <div className="font-mono text-sm font-bold mb-1" style={{ color: "#FF4FA3" }}>
-            📱 Link Telegram to purchase
+            📱 Telegram not linked
           </div>
-          <div className="font-mono text-xs mb-3" style={{ color: "#64748b" }}>
-            Neonoir uses Telegram Stars for payments. Link your account to buy NC packs or subscribe.
+          <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+            Neonoir uses Telegram Stars for payments. Link your account from <b>Settings → Connect</b> to buy NC packs or subscribe with Stars — or use in-game NC below.
           </div>
           <button
-            onClick={handleLinkTelegram}
-            className="font-mono text-xs font-bold px-4 py-2 rounded"
+            onClick={() => onNavigate?.("settings")}
+            className="font-mono text-xs font-bold px-4 py-2 rounded mt-3"
             style={{ background: "#0088cc", color: "#fff" }}
           >
-            🔗 Link Telegram Account
+            Go to Settings
           </button>
-          {linkInitError && (
-            <div className="font-mono text-xs mt-2 p-2 rounded" style={{ background: "#ff2d5515", color: "#ff2d55", border: "1px solid #ff2d5530" }}>
-              {linkInitError}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Telegram link modal ──────────────────────────────────────────────── */}
-      {linkData && (
-        <div style={{ background: "#0a0a14", border: "1px solid #0088cc55", borderRadius: 10, padding: 16 }}>
-          <div className="font-mono text-sm font-bold mb-2" style={{ color: "#0088cc" }}>
-            📱 Link Your Telegram
-          </div>
-          <div className="font-mono text-xs mb-3" style={{ color: "#64748b" }}>
-            1. Tap the button below to open the bot<br/>
-            2. Send your code: <span className="font-bold" style={{ color: "#00E0FF", letterSpacing: 3 }}>{linkData.code}</span><br/>
-            3. Come back — this screen will update automatically
-          </div>
-          <div className="flex gap-2">
-            <a
-              href={linkData.botDeepLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-xs font-bold px-4 py-2 rounded"
-              style={{ background: "#0088cc", color: "#fff" }}
-            >
-              Open Telegram Bot ↗
-            </a>
-            <button
-              onClick={() => { setLinkData(null); setLinkPollActive(false); }}
-              className="font-mono text-xs px-3 py-2 rounded"
-              style={{ background: "#1e1e2e", color: "#475569", border: "1px solid #2a2a3e" }}
-            >
-              Cancel
-            </button>
-          </div>
-          <div className="flex items-center gap-2 mt-3">
-            <div className="w-2 h-2 rounded-full" style={{ background: "#00E0FF", animation: "pulse 1.5s ease-in-out infinite" }} />
-            <span className="font-mono text-xs" style={{ color: "#475569" }}>Waiting for confirmation…</span>
-          </div>
         </div>
       )}
 
@@ -728,31 +648,16 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
       {/* ── Telegram linked status ───────────────────────────────────────────── */}
       {status?.telegramLinked && (
         <div style={{ background: "#0a0a14", border: "1px solid #1e1e2e", borderRadius: 8, padding: 12 }}>
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="font-mono text-xs" style={{ color: "#22c55e" }}>
-              ✓ Telegram linked{status.telegramUsername ? ` (@${status.telegramUsername})` : ""}
-            </div>
-            {!telegramUnlinkConfirm ? (
-              <button onClick={() => setTelegramUnlinkConfirm(true)} className="font-mono text-xs"
-                style={{ color: "#475569", background: "none", border: "none", cursor: "pointer" }}>
-                Unlink
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-xs" style={{ color: "#ff6b35" }}>Unlink? You'll need to re-link to purchase.</span>
-                <button onClick={async () => { setTelegramUnlinkConfirm(false); await api.post("/telegram/unlink"); await loadStatus(); }}
-                  className="font-mono text-xs px-2 py-1 rounded"
-                  style={{ background: "#ff2d5520", color: "#ff2d55", border: "1px solid #ff2d5540", cursor: "pointer" }}>
-                  Yes
-                </button>
-                <button onClick={() => setTelegramUnlinkConfirm(false)}
-                  className="font-mono text-xs px-2 py-1 rounded"
-                  style={{ background: "#1e1e2e", color: "#475569", border: "1px solid #1e1e2e", cursor: "pointer" }}>
-                  No
-                </button>
-              </div>
-            )}
+          <div className="font-mono text-xs" style={{ color: "#22c55e" }}>
+            ✓ Telegram linked{status.telegramUsername ? ` (@${status.telegramUsername})` : ""}
           </div>
+          <button
+            onClick={() => onNavigate?.("settings")}
+            className="font-mono text-xs mt-1"
+            style={{ color: "#475569", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            Manage in Settings →
+          </button>
         </div>
       )}
     </div>

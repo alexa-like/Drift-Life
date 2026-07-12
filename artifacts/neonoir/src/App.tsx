@@ -54,7 +54,6 @@ import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
 import { StorePage } from "./pages/StorePage";
-import { ConnectionsPage } from "./pages/ConnectionsPage";
 import { NavBar } from "./components/NavBar";
 import { PageTransition } from "./components/PageTransition";
 import { ToastContainer } from "./components/ToastContainer";
@@ -306,7 +305,6 @@ function GameApp() {
       case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
       case "store":         return <StorePage user={user!} onUserUpdate={refreshUser} onNavigate={setPage} />;
-      case "connections":  return <ConnectionsPage user={user!} />;
       case "royale":        return royaleCategory
                               ? <RoyaleCategoryPage category={royaleCategory} onBack={() => setRoyaleCategory(null)} onUserUpdate={refreshUser} />
                               : <RoyaleHubPage onSelectCategory={(id) => setRoyaleCategory(id)} />;
