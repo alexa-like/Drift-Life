@@ -19,6 +19,7 @@ import type { Frame } from '../lib/chatFrames'
 import { RARITY_COLOR } from '../lib/chatFrames'
 import { BodyArtLayer } from './frame-art'
 import { SubscriberNameBadge, type SubscriberTier } from './SubscriberNameBadge'
+import { FrameBorderWrapper, FrameTagIcon } from './frame-borders'
 
 // ── CSS injected once for APEX shimmer + Sovereign weave ──────────────────────
 
@@ -100,7 +101,6 @@ function NameTag({ frame, username, subscriptionTier }: { frame: Frame; username
   }
 
   const hasBlinkCursor = frame.id === 'blackout_protocol'
-  const icon = frame.icon
 
   return (
     <div
@@ -110,7 +110,7 @@ function NameTag({ frame, username, subscriptionTier }: { frame: Frame; username
         clipPath: shape === 'pennant' ? PENNANT_CLIP : SQUARE_CLIP,
         height: TAG_HEIGHT,
         minHeight: TAG_HEIGHT,
-        padding: shape === 'pennant' ? '0 20px 0 10px' : '0 10px',
+        padding: shape === 'pennant' ? '0 20px 0 8px' : '0 10px',
         fontSize: 12,
         fontWeight: 'bold',
         color: textColor,
@@ -125,9 +125,8 @@ function NameTag({ frame, username, subscriptionTier }: { frame: Frame; username
         boxShadow: `0 2px 8px rgba(0,0,0,0.6), 0 0 12px ${frame.accentColor}55`,
       }}
     >
-      {icon && (
-        <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
-      )}
+      {/* SVG themed icon — replaces emoji */}
+      <FrameTagIcon frame={frame} textColor={textColor} />
       <SubscriberNameBadge username={username} tier={subscriptionTier} fontSize={12} />
       {hasBlinkCursor && (
         <span style={{ animation: 'blackoutBlink 0.8s step-start infinite', marginLeft: 2 }}>█</span>
@@ -231,22 +230,22 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
         <NameTag frame={frame} username={username} subscriptionTier={subscriptionTier} />
         <TierBadge frame={frame} />
 
-        {/* Body — tinted gradient so each frame looks distinct even before body art */}
-        <div style={{
-          background: `linear-gradient(160deg, ${frame.accentColor}22 0%, #060210 42%, ${frame.accentColor}14 100%)`,
-          border: `2px solid ${frame.accentColor}`,
-          boxShadow: bodyBoxShadow,
-          position: 'relative',
-          overflow: 'hidden',
-          minHeight: 36,
-          marginTop: TAG_HEIGHT / 2,
-          paddingTop: 4,
-        }}>
-          {/* Body art layer (behind message) */}
-          <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+        {/* Body — themed 3D border wrapper */}
+        <FrameBorderWrapper
+          frame={frame}
+          style={{
+            background: `linear-gradient(160deg, ${frame.accentColor}22 0%, #060210 42%, ${frame.accentColor}14 100%)`,
+            position: 'relative',
+            minHeight: 36,
+            marginTop: TAG_HEIGHT / 2,
+            paddingTop: 4,
+          }}
+        >
+          {/* Body art clipped inside the frame body */}
+          <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 0, pointerEvents: 'none' }}>
             <BodyArtLayer bodyArt={frame.bodyArt} accentColor={frame.accentColor} />
           </div>
-          {/* Message text — light overlay so body art shows through clearly */}
+          {/* Message text */}
           <div style={{
             position: 'relative', zIndex: 1,
             padding: size === 'preview' ? '7px 10px 6px' : '10px 12px 8px',
@@ -255,7 +254,6 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
             background: 'rgba(0,0,0,0.18)',
             textShadow: '0 1px 4px rgba(0,0,0,0.95)',
           }}>
-            {/* Only show level line in full (chat/feed) mode, not in store preview cards */}
             {size === 'full' && level !== undefined && (
               <span className="font-mono" style={{ display: 'block', fontSize: 9, opacity: 0.55, marginBottom: 2 }}>
                 Lv.{level}
@@ -263,7 +261,7 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
             )}
             {children}
           </div>
-        </div>
+        </FrameBorderWrapper>
       </div>
 
       {/* Footer — only in full mode (chat/feed) where timestamp context is meaningful */}
