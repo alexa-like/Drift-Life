@@ -30,3 +30,9 @@ id = "K63G6pMeOC_rMwK7iEQt8"
 uri = "file://attached_assets/generated_images/driftlife_frames_v2.png"
 type = "image"
 title = "5 DriftLife Frame Designs (v2)"
+
+[[outputs]]
+id = "uWPcf6g3wqIKr9H_AOO6T"
+uri = "file://attached_assets/generated_images/driftlife_frames_v3.png"
+type = "image"
+title = "5 DriftLife Frame Designs (v3)"
