@@ -3,7 +3,7 @@ import {
   Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard, Link as LinkIcon,
   BarChart2, Gavel, Building2, Dumbbell, Briefcase, Car, Globe, Cpu, Shield, Swords, Crosshair,
   Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark, Warehouse,
-  Wrench, Star, Trophy, Gift, PawPrint, Bell, type LucideIcon,
+  Wrench, Star, Trophy, Gift, PawPrint, Bell, Settings, type LucideIcon,
 } from "lucide-react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
@@ -269,7 +269,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
   return (
     <nav
       ref={navRef}
-      className="fixed top-0 left-0 right-0 z-40 relative"
+      className="fixed top-0 left-0 right-0 z-40"
       style={{ background: "#0a0a0f", borderBottom: "1px solid #1e1e2e" }}
     >
       {/* HUD Background Grid */}
