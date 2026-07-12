@@ -7,6 +7,7 @@ export interface AuthRequest extends Request {
   userId?: string;
   username?: string;
   role?: string;
+  banned?: boolean;
 }
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction): void {
@@ -28,16 +29,22 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   req.username = payload.username;
   req.role     = payload.role;
 
-  // Check banned status on every request — a banned user with a valid 15-min token must
-  // not be able to continue acting. Fail CLOSED on DB error: a transient Mongo hiccup
-  // must never let a banned (or unverifiable) user continue acting.
+  // Authenticate on every request. Ban enforcement itself now lives solely in the
+  // global `banGate` middleware (mounted ahead of routers), which allowlists a
+  // small set of paths — ban-appeal, logout, refresh, /user/me — so a banned user
+  // can still use those. requireAuth must NOT hard-block banned users, or those
+  // allowlisted routes would themselves reject them. We still surface `req.banned`
+  // for any route that wants to branch on it.
+  // Fail CLOSED on DB error: a transient Mongo hiccup must never let an
+  // unverifiable user continue acting.
   User.findById(payload.userId)
     .select("banned lastActiveAt status hospitalizedUntil jailedUntil jailUntil travelArrivesAt travelingTo currentLocation")
     .then(async (user) => {
-      if (!user || (user as any).banned) {
+      if (!user) {
         res.status(401).json({ message: "Account suspended" });
         return;
       }
+      req.banned = !!(user as any).banned;
 
       // ── Auto-status resolution ────────────────────────────────────────────
       const now = new Date();

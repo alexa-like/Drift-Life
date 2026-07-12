@@ -27,6 +27,7 @@ import auctionRouter from "./auction";
 import propertiesRouter from "./properties";
 import vantaRouter from "./vanta";
 import reportsRouter from "./reports";
+import banAppealRouter from "./ban-appeal";
 import supportRouter from "./support";
 import searchRouter from "./search";
 import craftingRouter from "./crafting";
@@ -145,6 +146,7 @@ router.use("/black-market", blackMarketRouter);
 router.use("/faction", factionBankRouter);
 // ── Community / Safety ─────────────────────────────────────────────────────
 router.use("/reports", reportsRouter);
+router.use("/ban-appeal", banAppealRouter);
 router.use("/support", supportRouter);
 router.use("/search", searchRouter);
 // ── Admin ─────────────────────────────────────────────────────────────────────

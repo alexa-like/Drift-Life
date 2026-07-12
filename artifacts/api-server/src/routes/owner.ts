@@ -10,6 +10,9 @@ import AdminAuditLog, { logAdminAction } from "../models/AdminAuditLog";
 import ChatReport from "../models/ChatReport";
 import Giveaway from "../models/Giveaway";
 import Item from "../models/Item";
+import PlayerReport from "../models/PlayerReport";
+import BanAppeal from "../models/BanAppeal";
+import VantaLog from "../models/VantaLog";
 import { FRAME_IDS } from "./chatframes";
 import { computePledgeValueDc } from "../lib/giveawayValuation";
 import { MAX_LIVE_DURATION_MS, MAX_ENTRANT_CAP } from "../lib/giveawayConstants";
@@ -102,6 +105,55 @@ router.post("/ban", async (req: AuthRequest, res) => {
     res.json({ message: `${user.username} banned` });
   } catch (err: any) {
     req.log.error({ err }, "ban error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/owner/notifications/summary — staff: counts to power the nav bell
+router.get("/notifications/summary", async (req: AuthRequest, res) => {
+  try {
+    const [openReports, openAppeals, vantaHigh, vantaCritical] = await Promise.all([
+      PlayerReport.countDocuments({ status: { $in: ["open", "under_review"] } }),
+      BanAppeal.countDocuments({ status: "open" }),
+      VantaLog.countDocuments({ dismissed: false, severity: "high" }),
+      VantaLog.countDocuments({ dismissed: false, severity: "critical" }),
+    ]);
+    const vantaFlags = vantaHigh + vantaCritical;
+    res.json({
+      openReports,
+      openAppeals,
+      vantaFlags,
+      vantaCritical,
+      total: openReports + openAppeals + vantaFlags,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "notifications summary error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// DELETE /api/owner/players/:id — owner only: permanently delete a player account
+router.delete("/players/:id", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const target = await User.findById(req.params.id);
+    if (!target) return res.status(404).json({ message: "User not found" });
+    if (target.role === "owner") return res.status(403).json({ message: "Cannot delete an owner account" });
+    if (String(target._id) === req.userId) return res.status(400).json({ message: "Cannot delete your own account" });
+
+    const { username, _id } = target;
+    await User.deleteOne({ _id });
+
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "delete-account",
+      targetId: String(_id),
+      targetUsername: username,
+    });
+
+    res.json({ message: `${username} permanently deleted` });
+  } catch (err: any) {
+    req.log.error({ err }, "delete account error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

@@ -7,6 +7,7 @@ import rateLimit from "express-rate-limit";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { allowedOrigins } from "./lib/cors";
+import { banGate } from "./middlewares/banGate";
 
 const app: Express = express();
 
@@ -116,6 +117,9 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
+// Global ban enforcement — banned users may only reach the ban-appeal flow
+// (and a few session-management routes). Must run before the API router.
+app.use("/api", banGate);
 app.use("/api", router);
 
 if (process.env["NODE_ENV"] === "production") {

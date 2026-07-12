@@ -12,6 +12,13 @@ export type ReportCategory =
 
 export type ReportStatus = "open" | "under_review" | "resolved" | "dismissed";
 
+export interface IPlayerReportMessage {
+  sender: "reporter" | "staff";
+  senderName: string;
+  text: string;
+  createdAt: Date;
+}
+
 export interface IPlayerReport extends Document {
   _id: mongoose.Types.ObjectId;
   reporterId: mongoose.Types.ObjectId;
@@ -24,9 +31,20 @@ export interface IPlayerReport extends Document {
   status: ReportStatus;
   reviewedBy: string | null;
   reviewNote: string | null;
+  messages: IPlayerReportMessage[];
   createdAt: Date;
   updatedAt: Date;
 }
+
+const PlayerReportMessageSchema = new Schema<IPlayerReportMessage>(
+  {
+    sender: { type: String, enum: ["reporter", "staff"], required: true },
+    senderName: { type: String, required: true },
+    text: { type: String, required: true, maxlength: 1000 },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
 
 const PlayerReportSchema = new Schema<IPlayerReport>(
   {
@@ -44,6 +62,7 @@ const PlayerReportSchema = new Schema<IPlayerReport>(
     status:      { type: String, enum: ["open", "under_review", "resolved", "dismissed"], default: "open" },
     reviewedBy:  { type: String, default: null },
     reviewNote:  { type: String, default: null, maxlength: 500 },
+    messages:    { type: [PlayerReportMessageSchema], default: [] },
   },
   { timestamps: true }
 );

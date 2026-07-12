@@ -6,6 +6,7 @@ import { signAccess, signRefresh, verifyRefresh } from "../lib/jwt";
 import { generateOtp, sendOtpEmail } from "../lib/mailer";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen } from "../lib/regen";
+import { isOwnerAssociatedIp } from "../lib/ownerIpAllowlist";
 
 const router = Router();
 
@@ -74,6 +75,8 @@ export function safeUser(user: InstanceType<typeof User>) {
     lastDailyReward: user.lastDailyReward,
     dailyStreak: user.dailyStreak,
     role: user.role,
+    banned: !!(user as any).banned,
+    banReason: (user as any).banReason ?? null,
     bankBalance: user.bankBalance,
     gang: user.gang,
     isEmailVerified: user.isEmailVerified,
@@ -338,7 +341,8 @@ router.post("/login", async (req, res) => {
     }
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) return res.status(401).json({ message: "Invalid credentials" });
-    if (user.banned) return res.status(403).json({ message: `Banned: ${user.banReason ?? "policy violation"}` });
+    // Banned users are still allowed to log in — the frontend gates their UI
+    // down to the ban-appeal page instead of blocking the session outright.
     if (!user.isEmailVerified) return res.status(403).json({ message: "Email not verified", needsVerification: true, email: user.email });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ message: "Invalid credentials" });
@@ -369,8 +373,13 @@ router.post("/login", async (req, res) => {
       { $set: { lastLogin: new Date(), lastLoginIp: rawIp, loginIpHistory: newHistory } },
     );
 
-    // Alt-account check: find another active user who recently logged in from same IP
-    if (rawIp !== "unknown" && rawIp !== "127.0.0.1" && rawIp !== "::1") {
+    // Alt-account check: find another active user who recently logged in from same IP.
+    // Skip entirely for IPs associated with an owner account — the owner
+    // legitimately runs multiple accounts from their own network.
+    if (
+      rawIp !== "unknown" && rawIp !== "127.0.0.1" && rawIp !== "::1" &&
+      !(await isOwnerAssociatedIp(rawIp))
+    ) {
       const altUser = await User.findOne({
         _id: { $ne: user._id },
         banned: { $ne: true },
@@ -412,7 +421,9 @@ router.post("/refresh", async (req, res) => {
     if (!refreshToken) return res.status(400).json({ message: "refreshToken required" });
     const payload = verifyRefresh(refreshToken);
     const user = await User.findById(payload.userId);
-    if (!user || user.banned) return res.status(401).json({ message: "Unauthorized" });
+    // Banned users may still refresh their session — banGate blocks everything
+    // except the ban-appeal flow, but they need a valid token to reach it.
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
     const newPayload = { userId: String(user._id), username: user.username, role: user.role };
     res.json({ accessToken: signAccess(newPayload), refreshToken: signRefresh(newPayload) });
   } catch {

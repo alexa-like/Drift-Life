@@ -12,6 +12,7 @@ import mongoose from "mongoose";
 import User from "../models/User";
 import GiveawayEntry from "../models/GiveawayEntry";
 import { fireVantaEvent } from "./vanta";
+import { isOwnerAssociatedIp } from "./ownerIpAllowlist";
 
 /** All IPs ever associated with a login for this user, deduped, "unknown" stripped. */
 function ipSet(user: { lastLoginIp?: string | null; loginIpHistory?: string[] }): Set<string> {
@@ -54,6 +55,10 @@ export async function checkGiveawayAltFarming(
       const theirIps = ipSet(other);
       const sharedIp = [...myIps].find((ip) => theirIps.has(ip));
       if (!sharedIp) continue;
+
+      // Never flag accounts sharing an IP the owner has logged in from — the
+      // owner legitimately runs multiple test/alt accounts on their own network.
+      if (await isOwnerAssociatedIp(sharedIp)) continue;
 
       const reason = `Shared login IP ${sharedIp} with account "${other.username}" while entering the same giveaway`;
       const otherReason = `Shared login IP ${sharedIp} with account "${enteringUser.username}" while entering the same giveaway`;

@@ -1,9 +1,12 @@
 /**
  * Player Reports
- * POST   /api/reports           — file a report against another player
- * GET    /api/reports/mine      — reporter: see my submitted reports
- * GET    /api/reports           — staff: list all reports (filterable)
- * POST   /api/reports/:id/status — staff: update status + review note
+ * POST   /api/reports              — file a report against another player
+ * GET    /api/reports/mine         — reporter: see my submitted reports (+ thread)
+ * POST   /api/reports/mine/:id/reply — reporter: reply on my own report's thread
+ * GET    /api/reports              — staff: list all reports (filterable)
+ * GET    /api/reports/:id          — staff: full report detail + thread
+ * POST   /api/reports/:id/reply    — staff: reply on a report's thread
+ * POST   /api/reports/:id/status   — staff: update status + review note
  */
 import { Router } from "express";
 import PlayerReport from "../models/PlayerReport";
@@ -78,10 +81,35 @@ router.get("/mine", requireAuth, async (req: AuthRequest, res) => {
       description: r.description,
       status: r.status,
       reviewNote: r.reviewNote,
+      messages: r.messages ?? [],
       createdAt: r.createdAt,
     })));
   } catch (err: any) {
     req.log.error({ err }, "get my reports error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/reports/mine/:id/reply — reporter replies on their own report thread
+router.post("/mine/:id/reply", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { text } = req.body as { text?: string };
+    if (!text || !text.trim()) return res.status(400).json({ message: "Message required" });
+    if (text.length > 1000) return res.status(400).json({ message: "Message too long (max 1000 chars)" });
+
+    const report = await PlayerReport.findOne({ _id: req.params.id, reporterId: req.userId });
+    if (!report) return res.status(404).json({ message: "Report not found" });
+
+    report.messages.push({
+      sender: "reporter",
+      senderName: req.username ?? "player",
+      text: text.trim(),
+      createdAt: new Date(),
+    } as any);
+    await report.save();
+    res.json({ message: "Reply sent" });
+  } catch (err: any) {
+    req.log.error({ err }, "reporter reply error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -120,6 +148,56 @@ router.get("/", requireAuth, requireStaff, async (req: AuthRequest, res) => {
     });
   } catch (err: any) {
     req.log.error({ err }, "list reports error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/reports/:id — staff: full report detail + thread
+router.get("/:id", requireAuth, requireStaff, async (req: AuthRequest, res) => {
+  try {
+    const r = await PlayerReport.findById(req.params.id).lean();
+    if (!r) return res.status(404).json({ message: "Report not found" });
+    res.json({
+      id: r._id,
+      reporter: { id: r.reporterId, name: r.reporterName },
+      target: { id: r.targetId, name: r.targetName },
+      category: r.category,
+      description: r.description,
+      evidence: r.evidence,
+      status: r.status,
+      reviewedBy: r.reviewedBy,
+      reviewNote: r.reviewNote,
+      messages: r.messages ?? [],
+      createdAt: r.createdAt,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "get report detail error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/reports/:id/reply — staff: reply on a report's thread (visible to reporter)
+router.post("/:id/reply", requireAuth, requireStaff, async (req: AuthRequest, res) => {
+  try {
+    const { text } = req.body as { text?: string };
+    if (!text || !text.trim()) return res.status(400).json({ message: "Message required" });
+    if (text.length > 1000) return res.status(400).json({ message: "Message too long (max 1000 chars)" });
+
+    const report = await PlayerReport.findById(req.params.id);
+    if (!report) return res.status(404).json({ message: "Report not found" });
+
+    report.messages.push({
+      sender: "staff",
+      senderName: req.username ?? "staff",
+      text: text.trim(),
+      createdAt: new Date(),
+    } as any);
+    if (report.status === "open") report.status = "under_review" as any;
+    report.reviewedBy = req.username ?? "staff";
+    await report.save();
+    res.json({ message: "Reply sent" });
+  } catch (err: any) {
+    req.log.error({ err }, "staff reply error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
