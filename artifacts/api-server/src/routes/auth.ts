@@ -111,6 +111,8 @@ export function safeUser(user: InstanceType<typeof User>) {
     telegramLinked: !!(user as any).telegramId,
     telegramUsername: (user as any).telegramUsername ?? null,
     gameTheme: (user as any).gameTheme ?? "default",
+    uiScale: (user as any).uiScale ?? 0.85,
+    uiTheme: (user as any).uiTheme ?? "dark",
     // ── 10.14 Mentor system ─────────────────────────────────────────────────
     isMentor:  (user as any).isMentor  ?? false,
     mentorId:  (user as any).mentorId  ? String((user as any).mentorId) : null,

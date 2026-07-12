@@ -17,6 +17,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       notificationPrefs: user.notificationPrefs,
       telegramNotifications: user.telegramNotifications,
       telegramId: user.telegramId,
+      uiScale: (user as any).uiScale ?? 0.85,
+      uiTheme: (user as any).uiTheme ?? "dark",
     });
   } catch (err: any) {
     req.log.error({ err }, "get settings error");
@@ -36,6 +38,8 @@ router.patch("/", requireAuth, async (req: AuthRequest, res) => {
       liteModeEnabled,
       telegramNotifications,
       notificationPrefs,
+      uiScale,
+      uiTheme,
     } = req.body;
 
     if (appearOffline !== undefined) user.appearOffline = Boolean(appearOffline);
@@ -52,6 +56,13 @@ router.patch("/", requireAuth, async (req: AuthRequest, res) => {
       if (notificationPrefs.dms !== undefined) prefs.dms = Boolean(notificationPrefs.dms);
       if (notificationPrefs.xpBoost !== undefined) prefs.xpBoost = Boolean(notificationPrefs.xpBoost);
       user.notificationPrefs = prefs;
+    }
+    if (uiScale !== undefined) {
+      const s = Number(uiScale);
+      if (!isNaN(s)) (user as any).uiScale = Math.min(1.2, Math.max(0.6, s));
+    }
+    if (uiTheme !== undefined && ["dark", "light"].includes(uiTheme)) {
+      (user as any).uiTheme = uiTheme;
     }
 
     await user.save();

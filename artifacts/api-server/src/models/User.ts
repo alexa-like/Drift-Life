@@ -163,6 +163,8 @@ export interface IUser extends Document {
   telegramLinkCode: string | null;     // one-time 6-char link code
   telegramLinkCodeExpiry: Date | null;
   gameTheme: string;                   // active UI theme id
+  uiScale: number;                     // Settings > Appearance UI zoom (0.6–1.2), synced per-account
+  uiTheme: 'dark' | 'light';           // Settings > Appearance color theme, synced per-account
   // ── System 1: Daily Login Reward & Streak ───────────────────────────────
   loginStreak: number;
   lastLoginDate: Date | null;
@@ -380,6 +382,8 @@ const UserSchema = new Schema<IUser>(
     trainingSessionsToday: { type: Schema.Types.Mixed, default: {} },
     trainingResetAt:       { type: Date, default: null },
     gameTheme: { type: String, default: "default" },
+    uiScale: { type: Number, default: 0.85 },
+    uiTheme: { type: String, enum: ["dark", "light"], default: "dark" },
     // ── System 1: Daily Login Reward & Streak ─────────────────────────────
     loginStreak: { type: Number, default: 0 },
     lastLoginDate: { type: Date, default: null },

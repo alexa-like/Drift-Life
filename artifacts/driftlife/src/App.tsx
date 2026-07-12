@@ -143,9 +143,15 @@ function setHash(page: string) {
 }
 
 function GameApp() {
-  const { theme } = usePreferences();
+  const { theme, hydrateFromAccount } = usePreferences();
   const { user, loading, login, logout, refreshUser } = useAuth();
   const { toasts, addToast, removeToast } = useToast();
+
+  // Pull UI scale / theme saved on the account once per login — lets a
+  // player's zoom + day/night choice follow them to a new device.
+  useEffect(() => {
+    if (user) hydrateFromAccount(String(user.id), user.uiScale, user.uiTheme);
+  }, [user?.id, hydrateFromAccount]);
 
   // ── Hash-based routing ──────────────────────────────────────────────────────
   const [page, setPageState] = useState(() => getPageFromHash());
@@ -355,7 +361,7 @@ function GameApp() {
       )}
       <div
         className={`scanlines dl-root${theme === "light" ? " dl-light" : ""}`}
-        style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e2e8f0" }}
+        style={{ minHeight: "calc(100dvh / var(--dl-scale, 1))", color: "#e2e8f0" }}
       >
         <NavBar
           user={user!}

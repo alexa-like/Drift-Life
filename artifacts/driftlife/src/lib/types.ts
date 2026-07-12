@@ -106,6 +106,8 @@ export interface User {
   telegramLinked: boolean;
   telegramUsername: string | null;
   gameTheme: string;
+  uiScale?: number;
+  uiTheme?: "dark" | "light";
   // ── Mini-game currencies (Tier 2+) ─────────────────────────────────────────
   keys: number;
   keyShards: number;

@@ -59,8 +59,23 @@ html, body {
   font-family: var(--font-mono);
   margin: 0;
   padding: 0;
+  /* --dl-scale is published by PreferencesContext whenever UI Scale changes.
+     `zoom` shrinks/grows the rendered page without changing how much layout
+     space it occupies, so at scale < 1 a dead strip of raw browser canvas
+     shows below the page. Inflating min-height by 1/scale here makes the
+     zoomed-down box exactly refill the real viewport again. */
+  min-height: calc(100dvh / var(--dl-scale, 1));
   scroll-behavior: smooth;
   overflow-x: hidden;
+}
+
+/* Day mode also recolors the raw <html>/<body> canvas, not just .dl-root —
+   otherwise any sliver of page taller than the app root (e.g. UI Scale
+   zoomed below 100%, or a shorter page) shows raw black through the gap. */
+html[data-theme="light"],
+html[data-theme="light"] body {
+  background: #eef1f8;
+  color: #10121a;
 }
 
 /* ── Shape Utilities ── */
@@ -287,14 +302,26 @@ button:not(:disabled):active { transform: scale(0.97); }
 /* ── Selection ── */
 ::selection { background: #00d4ff40; color: #fff; text-shadow: 0 0 8px #00d4ff; }
 
-/* ── Light mode ── */
+/* ── Light mode ──
+   Straight invert(1) hue-rotate(180deg) reads as a washed-out photo
+   negative: blacks become a flat grey-white and the neon accents lose
+   punch. Push contrast/saturation back up after the flip so surfaces read
+   as a crisp white/black-text UI and accent colors (cyan/orange/red/etc)
+   stay bold instead of pastel.
+
+   .dl-root itself is intentionally left with NO background of its own
+   (see App.tsx) — the invert filter is only reliable on the pixels the
+   zoomed viewport actually paints, and at UI Scale < 100% combined with
+   the `zoom` property, Chromium can leave a sliver of the filtered layer
+   unpainted below the real content. Because .dl-root has no background to
+   go missing there, <body>'s plain (already-correctly-themed, unfiltered)
+   background shows through as a reliable backdrop instead of raw black. */
 [data-theme="light"] .dl-root {
-  filter: invert(1) hue-rotate(180deg);
-  background: #fff;
+  filter: invert(1) hue-rotate(180deg) contrast(1.18) saturate(1.35) brightness(1.04);
 }
 [data-theme="light"] .dl-root img,
 [data-theme="light"] .dl-root video,
 [data-theme="light"] .dl-root canvas,
 [data-theme="light"] .dl-root .no-invert {
-  filter: invert(1) hue-rotate(180deg);
+  filter: invert(1) hue-rotate(180deg) contrast(1.18) saturate(1.35) brightness(1.04);
 }
