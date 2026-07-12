@@ -26,7 +26,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "pnpm --filter @workspace/driftlife run dev"
+args = "pnpm --filter @workspace/neonoir run dev"
 waitForPort = 5000
 
 [workflows.workflow.metadata]

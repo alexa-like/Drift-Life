@@ -1,6 +1,6 @@
-# DriftLife — Tier Audit Report (vs. update_tiers.md)
+# Neonoir — Tier Audit Report (vs. update_tiers.md)
 
-Audited by 10 parallel read-only subagents, one per tier, cross-checking every numbered sub-section in `update_tiers.md` against the actual code in `artifacts/api-server` and `artifacts/driftlife`. Consolidated below into Done / Partially Done / Not Done.
+Audited by 10 parallel read-only subagents, one per tier, cross-checking every numbered sub-section in `update_tiers.md` against the actual code in `artifacts/api-server` and `artifacts/neonoir`. Consolidated below into Done / Partially Done / Not Done.
 
 > **Correction pass (2026-07-10):** every item originally marked Partial/Not Done below was re-verified against live code before any fix was made. Most turned out to already be fully implemented — the original per-tier subagent sweep was reading against stale/earlier code. See "Correction pass notes" at the bottom for the full list of what was actually fixed vs. what was already working vs. what remains a genuine, deferred gap.
 

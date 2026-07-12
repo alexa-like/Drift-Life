@@ -104,37 +104,37 @@ export function LegalPage({ onNav }: Props) {
             <div style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 700, color: "#00d4ff", letterSpacing: "0.08em" }}>
               TERMS OF SERVICE
             </div>
-            <p style={P}>By accessing or playing DriftLife, you agree to these Terms. If you do not agree, do not use the service.</p>
+            <p style={P}>By accessing or playing Neonoir, you agree to these Terms. If you do not agree, do not use the service.</p>
 
             <div style={SECTION}>
               <div style={H2}>1. ELIGIBILITY</div>
-              <p style={P}>You must be at least 13 years old to use DriftLife. Players under 18 require parental consent. By creating an account, you confirm you meet the age requirement.</p>
+              <p style={P}>You must be at least 13 years old to use Neonoir. Players under 18 require parental consent. By creating an account, you confirm you meet the age requirement.</p>
             </div>
 
             <div style={SECTION}>
               <div style={H2}>2. ACCOUNTS</div>
-              <p style={P}>You are responsible for maintaining the security of your account credentials. DriftLife staff will never ask for your password. One player may hold only one account. We reserve the right to terminate accounts that violate our rules.</p>
+              <p style={P}>You are responsible for maintaining the security of your account credentials. Neonoir staff will never ask for your password. One player may hold only one account. We reserve the right to terminate accounts that violate our rules.</p>
             </div>
 
             <div style={SECTION}>
               <div style={H2}>3. VIRTUAL CURRENCY & ITEMS</div>
-              <p style={P}>DriftCoins (DC) and Nova Credits (NC) are virtual currencies with no real-world monetary value. Items, currencies, and progress are owned by DriftLife and licensed to you for use within the game. We reserve the right to modify, remove, or rebalance any in-game item or currency at any time.</p>
+              <p style={P}>DriftCoins (DC) and Nova Credits (NC) are virtual currencies with no real-world monetary value. Items, currencies, and progress are owned by Neonoir and licensed to you for use within the game. We reserve the right to modify, remove, or rebalance any in-game item or currency at any time.</p>
               <p style={P}>Nova Credits purchased via real-money transactions (Telegram Stars or subscription) are non-refundable once consumed. Unused NC may be subject to refund within 14 days as required by applicable law.</p>
             </div>
 
             <div style={SECTION}>
               <div style={H2}>4. PROHIBITED CONDUCT</div>
-              <p style={P}>You may not: reverse engineer, decompile, or disassemble any part of DriftLife; use automated tools, bots, or scripts; exploit bugs for game advantage; harass, stalk, or threaten other players; attempt to access systems or data beyond your account; impersonate DriftLife staff.</p>
+              <p style={P}>You may not: reverse engineer, decompile, or disassemble any part of Neonoir; use automated tools, bots, or scripts; exploit bugs for game advantage; harass, stalk, or threaten other players; attempt to access systems or data beyond your account; impersonate Neonoir staff.</p>
             </div>
 
             <div style={SECTION}>
               <div style={H2}>5. INTELLECTUAL PROPERTY</div>
-              <p style={P}>All DriftLife content — including art, music, code, characters, and lore — is owned by DriftLife. You may not reproduce or distribute it without written permission. You retain ownership of original content you create, but grant DriftLife a perpetual license to use it within the game.</p>
+              <p style={P}>All Neonoir content — including art, music, code, characters, and lore — is owned by Neonoir. You may not reproduce or distribute it without written permission. You retain ownership of original content you create, but grant Neonoir a perpetual license to use it within the game.</p>
             </div>
 
             <div style={SECTION}>
               <div style={H2}>6. LIMITATION OF LIABILITY</div>
-              <p style={P}>DriftLife is provided "as is." We are not liable for any indirect, incidental, or consequential damages arising from your use of the service. Our total liability is limited to the amount you paid in the last 3 months.</p>
+              <p style={P}>Neonoir is provided "as is." We are not liable for any indirect, incidental, or consequential damages arising from your use of the service. Our total liability is limited to the amount you paid in the last 3 months.</p>
             </div>
 
             <div style={SECTION}>
@@ -150,7 +150,7 @@ export function LegalPage({ onNav }: Props) {
             <div style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 700, color: "#00d4ff", letterSpacing: "0.08em" }}>
               PRIVACY POLICY
             </div>
-            <p style={P}>This policy describes how DriftLife collects, uses, and protects your data.</p>
+            <p style={P}>This policy describes how Neonoir collects, uses, and protects your data.</p>
 
             <div style={SECTION}>
               <div style={H2}>1. DATA WE COLLECT</div>

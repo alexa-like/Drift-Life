@@ -266,7 +266,7 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
             📱 Link Telegram to purchase
           </div>
           <div className="font-mono text-xs mb-3" style={{ color: "#64748b" }}>
-            DriftLife uses Telegram Stars for payments. Link your account to buy NC packs or subscribe.
+            Neonoir uses Telegram Stars for payments. Link your account to buy NC packs or subscribe.
           </div>
           <button
             onClick={handleLinkTelegram}

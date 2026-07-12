@@ -25,7 +25,7 @@ export async function seed() {
     ]);
     logger.info(
       { userCount, itemCount },
-      "DriftLife database ready"
+      "Neonoir database ready"
     );
   } catch (err) {
     logger.error({ err }, "Seed check error");

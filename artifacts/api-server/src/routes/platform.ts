@@ -43,14 +43,14 @@ import User from "../models/User";
 const router = Router();
 
 function botUsername(): string {
-  return process.env["TELEGRAM_BOT_USERNAME"] || "DriftLifeBot";
+  return process.env["TELEGRAM_BOT_USERNAME"] || "NeonoirBot";
 }
 
 /** The message text sent to the player's bot chat / Discord DM containing the code. */
 function codeMessage(playerName: string, code: string): string {
   return (
     `Hey ${playerName},\n` +
-    `Here's your DriftLife verification code:\n\n` +
+    `Here's your Neonoir verification code:\n\n` +
     `<code>${code}</code>\n\n` +
     `Expires in 30 seconds.`
   );
@@ -266,14 +266,14 @@ router.post("/link-submit", requireAuth, async (req: AuthRequest, res) => {
       const conflict = await User.findOne({ telegramId: chatId }).lean();
       if (conflict && String((conflict as any)._id) !== entry.userId) {
         return res.status(409).json({
-          message: "This Telegram account is already linked to a different DriftLife account",
+          message: "This Telegram account is already linked to a different Neonoir account",
         });
       }
       await User.updateOne({ _id: entry.userId }, { $set: { telegramId: chatId } });
       // Notify via bot (non-blocking)
       sendTelegramMessage(
         chatId,
-        `✅ <b>DriftLife linked!</b>\n\nYour Telegram account is now connected. You can buy NC packs and subscriptions directly here.`,
+        `✅ <b>Neonoir linked!</b>\n\nYour Telegram account is now connected. You can buy NC packs and subscriptions directly here.`,
       ).catch(() => {});
       return res.json({ success: true, platform: "telegram" });
     }
@@ -287,7 +287,7 @@ router.post("/link-submit", requireAuth, async (req: AuthRequest, res) => {
       const conflict = await User.findOne({ discordId: discordUserId }).lean();
       if (conflict && String((conflict as any)._id) !== entry.userId) {
         return res.status(409).json({
-          message: "This Discord account is already linked to a different DriftLife account",
+          message: "This Discord account is already linked to a different Neonoir account",
         });
       }
       await User.updateOne(

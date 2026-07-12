@@ -1,6 +1,6 @@
-# DriftLife — Audit Report vs. update_tiers.md
+# Neonoir — Audit Report vs. update_tiers.md
 
-Consolidated findings from a 10-tier parallel codebase audit (one sub-agent per tier), comparing the actual implementation in `artifacts/api-server` and `artifacts/driftlife` against the spec in `update_tiers.md`. Read-only audit — no code was changed.
+Consolidated findings from a 10-tier parallel codebase audit (one sub-agent per tier), comparing the actual implementation in `artifacts/api-server` and `artifacts/neonoir` against the spec in `update_tiers.md`. Read-only audit — no code was changed.
 
 ---
 

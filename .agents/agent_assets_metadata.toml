@@ -9,9 +9,9 @@ title = "render.yaml — Render Deployment Config"
 
 [[outputs]]
 id = "-ssArru0eIrDzmPk0ISkC"
-uri = "file://DRIFTLIFE_FRAME_BUILD_PROMPT.md"
+uri = "file://NEONOIR_FRAME_BUILD_PROMPT.md"
 type = "text"
-title = "DriftLife Frame System — Complete Build Prompt"
+title = "Neonoir Frame System — Complete Build Prompt"
 
 [[outputs]]
 id = "GCfav8NMsFRpGu5QfBxZ7"
@@ -21,18 +21,18 @@ title = "CyberDragon Frame — Design Preview"
 
 [[outputs]]
 id = "hDjAOeFdLrK7RiccnYX9X"
-uri = "file://attached_assets/generated_images/driftlife_frame_designs.png"
+uri = "file://attached_assets/generated_images/neonoir_frame_designs.png"
 type = "image"
-title = "5 DriftLife Frame Designs"
+title = "5 Neonoir Frame Designs"
 
 [[outputs]]
 id = "K63G6pMeOC_rMwK7iEQt8"
-uri = "file://attached_assets/generated_images/driftlife_frames_v2.png"
+uri = "file://attached_assets/generated_images/neonoir_frames_v2.png"
 type = "image"
-title = "5 DriftLife Frame Designs (v2)"
+title = "5 Neonoir Frame Designs (v2)"
 
 [[outputs]]
 id = "uWPcf6g3wqIKr9H_AOO6T"
-uri = "file://attached_assets/generated_images/driftlife_frames_v3.png"
+uri = "file://attached_assets/generated_images/neonoir_frames_v3.png"
 type = "image"
-title = "5 DriftLife Frame Designs (v3)"
+title = "5 Neonoir Frame Designs (v3)"

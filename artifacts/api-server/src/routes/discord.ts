@@ -95,7 +95,7 @@ router.post("/interactions", async (req: Request & { rawBody?: string }, res: Re
     if (!token) {
       return ephemeralError(
         `Please provide your session token: \`/${commandName} <your-token>\`\n` +
-        `Get a token from the DriftLife game under Profile → Connections.`,
+        `Get a token from the Neonoir game under Profile → Connections.`,
       );
     }
 
@@ -105,13 +105,13 @@ router.post("/interactions", async (req: Request & { rawBody?: string }, res: Re
 
     if (!tokenEntry) {
       return ephemeralError(
-        `❌ Token not found or expired. Please go back to DriftLife and start a new session.`,
+        `❌ Token not found or expired. Please go back to Neonoir and start a new session.`,
       );
     }
 
     if (tokenEntry.platform !== "discord") {
       return ephemeralError(
-        `❌ This token is for Telegram, not Discord. Use the correct verification method in DriftLife.`,
+        `❌ This token is for Telegram, not Discord. Use the correct verification method in Neonoir.`,
       );
     }
 
@@ -139,9 +139,9 @@ router.post("/interactions", async (req: Request & { rawBody?: string }, res: Re
 
     const responseText =
       `Hey ${playerName},\n` +
-      `Here's your DriftLife ${flowType === "verify" ? "verification" : "linking"} code:\n\n` +
+      `Here's your Neonoir ${flowType === "verify" ? "verification" : "linking"} code:\n\n` +
       `\`\`\`\n${code}\n\`\`\`\n\n` +
-      `Enter this in the DriftLife game within **30 seconds**.\n` +
+      `Enter this in the Neonoir game within **30 seconds**.\n` +
       `_Only you can see this message._`;
 
     return res.json({

@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: driftlife
+    name: neonoir
     env: node
     region: oregon
     plan: free
-    buildCommand: pnpm install && PORT=3000 BASE_PATH=/ pnpm --filter @workspace/driftlife run build && pnpm --filter @workspace/api-server run build
+    buildCommand: pnpm install && PORT=3000 BASE_PATH=/ pnpm --filter @workspace/neonoir run build && pnpm --filter @workspace/api-server run build
     startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
     healthCheckPath: /api/healthz
     envVars:

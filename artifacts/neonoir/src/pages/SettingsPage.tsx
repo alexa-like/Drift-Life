@@ -43,7 +43,7 @@ const INPUT = {
 
 export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
   const [tab,        setTab]      = useState<"account" | "appearance" | "privacy" | "notifications" | "password" | "reset">("account");
-  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("driftlife_sounds_enabled") === "true");
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("neonoir_sounds_enabled") === "true");
   const [current,   setCurrent]  = useState("");
   const [newPass,   setNewPass]  = useState("");
   const [newPass2,  setNewPass2] = useState("");
@@ -354,7 +354,7 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
             </div>
             <Toggle
               checked={soundEnabled}
-              onChange={v => { setSoundEnabled(v); localStorage.setItem("driftlife_sounds_enabled", v ? "true" : "false"); }}
+              onChange={v => { setSoundEnabled(v); localStorage.setItem("neonoir_sounds_enabled", v ? "true" : "false"); }}
             />
           </div>
           <CyberButton variant="primary" loading={saving} onClick={saveNotifications}>

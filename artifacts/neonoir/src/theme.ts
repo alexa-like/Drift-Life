@@ -1,4 +1,4 @@
-/** DriftLife design tokens — JS side. Always prefer CSS variables in components;
+/** Neonoir design tokens — JS side. Always prefer CSS variables in components;
  *  use these only for canvas/svg or places where inline style strings are required. */
 
 export const DL = {

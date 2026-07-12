@@ -1,4 +1,4 @@
-# DriftLife — Player & Owner Giveaway System
+# Neonoir — Player & Owner Giveaway System
 ## Agent Build Guide: Step-by-Step Tier System
 
 ---
@@ -30,7 +30,7 @@ Mark status by editing only the one status line at the top of a tier section —
 ## CODEBASE OVERVIEW (confirmed by exploration before this plan was written)
 
 - **Backend**: `artifacts/api-server/src/` — Express 5, MongoDB/Mongoose, TypeScript
-- **Frontend**: `artifacts/driftlife/src/` — React, Vite, TypeScript
+- **Frontend**: `artifacts/neonoir/src/` — React, Vite, TypeScript
 - **Routes registered in**: `artifacts/api-server/src/routes/index.ts`
 - **Models in**: `artifacts/api-server/src/models/`
 - **User currencies**: `dc` (cash), `nc` (Neon/premium — this plan calls it "UC"), `dirtyDc`, `sim`, `bankBalance`, `merit`, `keys`, `keyShards`, `spinTokens`, `energy`, `adrenaline`, `nitro`

@@ -1,5 +1,5 @@
 /**
- * CardArt — Programmatic SVG card art for all DriftLife item types.
+ * CardArt — Programmatic SVG card art for all Neonoir item types.
  * Generates visually distinct, tier-appropriate card illustrations.
  * Used in place of missing imageCard assets across Royale, Arena, and Garage.
  */

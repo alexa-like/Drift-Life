@@ -223,7 +223,7 @@ function GameApp() {
             className="font-display font-black text-4xl tracking-widest mb-8 uppercase glitch-text"
             style={{ color: "#00d4ff", textShadow: "0 0 20px #00d4ff" }}
           >
-            DRIFTLIFE_OS
+            NEONOIR_OS
           </div>
           
           <div className="font-mono text-sm text-[#39d353] flex flex-col gap-2 w-full">

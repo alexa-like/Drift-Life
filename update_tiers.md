@@ -1,11 +1,11 @@
-# DriftLife — Full Feature Update Plan
+# Neonoir — Full Feature Update Plan
 ## Agent Build Guide: Step-by-Step Tier System
 
 ---
 
 ## HOW YOU SHOULD WORK — READ THIS FIRST
 
-You are building a large feature set for DriftLife, a cyberpunk browser game. The work is broken into **8 tiers**. You must:
+You are building a large feature set for Neonoir, a cyberpunk browser game. The work is broken into **8 tiers**. You must:
 
 1. **Complete one tier fully before moving to the next.** Do not skip ahead or start the next tier until the current tier is working and verified.
 2. **Read the relevant model and route files before editing them.** Never guess at field names — check the actual schema first.
@@ -25,13 +25,13 @@ You are building a large feature set for DriftLife, a cyberpunk browser game. Th
 ## CODEBASE OVERVIEW
 
 - **Backend**: `artifacts/api-server/src/` — Express 5, MongoDB/Mongoose, TypeScript
-- **Frontend**: `artifacts/driftlife/src/` — React, Vite, TypeScript
+- **Frontend**: `artifacts/neonoir/src/` — React, Vite, TypeScript
 - **Routes registered in**: `artifacts/api-server/src/routes/index.ts`
 - **Models in**: `artifacts/api-server/src/models/`
 - **Routes in**: `artifacts/api-server/src/routes/`
-- **Frontend pages in**: `artifacts/driftlife/src/pages/`
-- **Frontend components in**: `artifacts/driftlife/src/components/`
-- Always pass `{ dbName: "driftlife" }` to mongoose.connect for DB isolation
+- **Frontend pages in**: `artifacts/neonoir/src/pages/`
+- **Frontend components in**: `artifacts/neonoir/src/components/`
+- Always pass `{ dbName: "neonoir" }` to mongoose.connect for DB isolation
 - tsconfig needs `noImplicitReturns: false` to avoid TS7030 on Express handlers
 - Use `/{*splat}` for Express 5 wildcard routes — bare `*` crashes on startup
 - Roles: `player | admin | staff | owner`. `requireStaff` checks all three elevated roles.
@@ -1942,7 +1942,7 @@ router.post("/gym/train", requireAuth, async (req, res) => {
 
 ### 9.3 — Districts
 
-DriftLife is a single cyberpunk city divided into **7 districts**. Downtown is the home base — every player starts there and returns there after travel. The other 6 districts can be visited; each has a danger level, a minimum player level to enter, unique shops, and district-specific crime tables.
+Neonoir is a single cyberpunk city divided into **7 districts**. Downtown is the home base — every player starts there and returns there after travel. The other 6 districts can be visited; each has a danger level, a minimum player level to enter, unique shops, and district-specific crime tables.
 
 | # | District | Slug | Min Level | Danger | Flavor |
 |---|---|---|---|---|---|
@@ -2420,7 +2420,7 @@ Call this helper from every relevant route handler at the moment the event occur
 
 ### 10.1a — Custom Game Emojis
 
-DriftLife ships its own animated emoji set, themed around the game's systems, for use in global chat, faction chat, and system feed posts. These are NOT static Unicode emoji — each one is a short looping animation (spinning wheels, flickering flames, pulsing glows) so the chat and feed feel alive.
+Neonoir ships its own animated emoji set, themed around the game's systems, for use in global chat, faction chat, and system feed posts. These are NOT static Unicode emoji — each one is a short looping animation (spinning wheels, flickering flames, pulsing glows) so the chat and feed feel alive.
 
 **Each emoji has:**
 - `slug` — unique ID used as the shortcode, e.g. `driftcar`

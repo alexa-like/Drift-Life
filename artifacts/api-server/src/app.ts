@@ -123,7 +123,7 @@ app.use("/api", banGate);
 app.use("/api", router);
 
 if (process.env["NODE_ENV"] === "production") {
-  const clientBuild = path.resolve(process.cwd(), "artifacts/driftlife/dist/public");
+  const clientBuild = path.resolve(process.cwd(), "artifacts/neonoir/dist/public");
   // Static assets — long cache (they are content-hashed by Vite)
   app.use(express.static(clientBuild, { maxAge: "1y", immutable: true }));
   // SPA fallback — never cache index.html so browsers always get fresh asset URLs

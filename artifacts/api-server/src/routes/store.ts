@@ -120,7 +120,7 @@ router.post("/create-invoice", requireAuth, async (req: AuthRequest, res) => {
       ? `${ncPack!.nc.toLocaleString()} Nova Credits`
       : `${subTierEntry![1].name} — 30 days`;
     const description = isNcPack
-      ? `${ncPack!.nc.toLocaleString()} NC${ncPack!.bonusPct > 0 ? ` (+${ncPack!.bonusPct}% bonus)` : ""} for DriftLife`
+      ? `${ncPack!.nc.toLocaleString()} NC${ncPack!.bonusPct > 0 ? ` (+${ncPack!.bonusPct}% bonus)` : ""} for Neonoir`
       : `${subTierEntry![1].name} subscription: daily NC, exclusive frame, XP & crime boosts`;
 
     const nonce = crypto.randomBytes(8).toString("hex");

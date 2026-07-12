@@ -49,7 +49,7 @@ export async function generateNpcDialogue(npc: { name: string; description: stri
         messages: [
           {
             role: "system",
-            content: "You write single-line, in-character dialogue for NPCs in a gritty cyberpunk crime RPG called DriftLife set in New Vanta, 2047. Respond with ONLY one short quoted line of dialogue (under 20 words), no narration, no quotes formatting beyond the line itself.",
+            content: "You write single-line, in-character dialogue for NPCs in a gritty cyberpunk crime RPG called Neonoir set in New Vanta, 2047. Respond with ONLY one short quoted line of dialogue (under 20 words), no narration, no quotes formatting beyond the line itself.",
           },
           {
             role: "user",

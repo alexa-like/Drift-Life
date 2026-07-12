@@ -318,7 +318,7 @@ async function start() {
     //
     // Required env vars (set in Render dashboard):
     //   TELEGRAM_WEBHOOK_URL    — full public URL of this server, e.g.
-    //                             https://driftlife.onrender.com/api/telegram/webhook
+    //                             https://neonoir.onrender.com/api/telegram/webhook
     //   TELEGRAM_WEBHOOK_SECRET — an arbitrary secret shared between Render and
     //                             Telegram; used to validate every incoming webhook
     //                             request. MUST be set — without it the webhook
@@ -331,7 +331,7 @@ async function start() {
       });
       // Register bot command menu shown in the Telegram "/" picker
       setMyCommands([
-        { command: "start",     description: "Open the DriftLife menu" },
+        { command: "start",     description: "Open the Neonoir menu" },
         { command: "status",    description: "View your NC balance & subscription" },
         { command: "buy",       description: "Browse & buy NC packs" },
         { command: "subscribe", description: "View & purchase subscription tiers" },
@@ -351,20 +351,20 @@ async function start() {
       registerGuildCommands(discordGuildId, [
         {
           name:        "verify",
-          description: "One-time identity verification with your DriftLife account",
+          description: "One-time identity verification with your Neonoir account",
           options: [{
             name:        "token",
-            description: "Session token from the DriftLife Connections page",
+            description: "Session token from the Neonoir Connections page",
             type:        3,       // STRING
             required:    true,
           }],
         },
         {
           name:        "link",
-          description: "Permanently link your Discord account to DriftLife",
+          description: "Permanently link your Discord account to Neonoir",
           options: [{
             name:        "token",
-            description: "Session token from the DriftLife Connections page",
+            description: "Session token from the Neonoir Connections page",
             type:        3,       // STRING
             required:    true,
           }],

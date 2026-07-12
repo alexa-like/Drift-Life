@@ -23,7 +23,7 @@ export function generateOtp(): string {
 function buildHtml(otp: string, subject: string): string {
   return `
     <div style="background:#0a0a0f;color:#e2e8f0;font-family:monospace;padding:32px;border-radius:8px;max-width:400px">
-      <h2 style="color:#00d4ff;margin:0 0 8px">DRIFTLIFE</h2>
+      <h2 style="color:#00d4ff;margin:0 0 8px">NEONOIR</h2>
       <p style="margin:0 0 4px;color:#94a3b8;font-size:11px">NEW VANTA / 2047</p>
       <hr style="border:none;border-top:1px solid #1e1e2e;margin:16px 0"/>
       <p style="margin:0 0 24px;color:#94a3b8">${subject === "Password Reset" ? "Your password reset code:" : "Your verification code:"}</p>
@@ -39,10 +39,10 @@ function buildHtml(otp: string, subject: string): string {
 // Preferred path whenever BREVO_API_KEY is configured.
 async function sendViaBrevo(to: string, otp: string, subject: string): Promise<void> {
   const apiKey = process.env["BREVO_API_KEY"];
-  const fromEmail = process.env["GMAIL_USER"] || "no-reply@driftlife.app";
+  const fromEmail = process.env["GMAIL_USER"] || "no-reply@neonoir.app";
   const subjectLine = subject === "Password Reset"
-    ? "DriftLife — Password Reset Code"
-    : "DriftLife — Your verification code";
+    ? "Neonoir — Password Reset Code"
+    : "Neonoir — Your verification code";
 
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
@@ -52,7 +52,7 @@ async function sendViaBrevo(to: string, otp: string, subject: string): Promise<v
       "api-key": apiKey as string,
     },
     body: JSON.stringify({
-      sender: { name: "DriftLife", email: fromEmail },
+      sender: { name: "Neonoir", email: fromEmail },
       to: [{ email: to }],
       subject: subjectLine,
       htmlContent: buildHtml(otp, subject),
@@ -69,10 +69,10 @@ async function sendViaBrevo(to: string, otp: string, subject: string): Promise<v
 async function sendViaGmail(to: string, otp: string, subject: string): Promise<void> {
   const from = process.env["GMAIL_USER"];
   const subjectLine = subject === "Password Reset"
-    ? "DriftLife — Password Reset Code"
-    : "DriftLife — Your verification code";
+    ? "Neonoir — Password Reset Code"
+    : "Neonoir — Your verification code";
   await getTransporter().sendMail({
-    from: `"DriftLife" <${from}>`,
+    from: `"Neonoir" <${from}>`,
     to,
     subject: subjectLine,
     html: buildHtml(otp, subject),

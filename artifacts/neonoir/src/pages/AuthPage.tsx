@@ -98,7 +98,7 @@ export function AuthPage({ onLogin }: Props) {
             color: "#00d4ff",
             textShadow: "0 0 20px #00d4ff, 0 0 40px #00d4ff60",
           }}>
-            DRIFTLIFE
+            NEONOIR
           </h1>
           <div className="font-mono text-sm tracking-[0.3em] font-bold text-[#ff2d55] animate-pulse">
             SYSTEM ACCESS // TERMINAL

@@ -74,7 +74,7 @@ const TIER_EMOJI: Record<string, string> = {
 
 async function showMainMenu(chatId: string, editMsgId?: number): Promise<void> {
   const text =
-    `<b>🏙 DriftLife Bot</b>\n\n` +
+    `<b>🏙 Neonoir Bot</b>\n\n` +
     `Use the buttons below to manage your account, buy NC packs, or subscribe.\n\n` +
     `<i>Tip: Link your account in-game first if you haven't already.</i>`;
 
@@ -195,7 +195,7 @@ async function sendPackInvoice(chatId: string, userId: string, packId: string): 
   await sendInvoice({
     chatId,
     title: `${pack.nc.toLocaleString()} Nova Credits`,
-    description: `${pack.nc.toLocaleString()} NC${pack.bonusPct > 0 ? ` (+${pack.bonusPct}% bonus)` : ""} for DriftLife · ${pack.label}`,
+    description: `${pack.nc.toLocaleString()} NC${pack.bonusPct > 0 ? ` (+${pack.bonusPct}% bonus)` : ""} for Neonoir · ${pack.label}`,
     payload,
     currency: "XTR",
     amount: pack.stars,
@@ -278,7 +278,7 @@ router.post("/link-init", requireAuth, async (req: AuthRequest, res) => {
     }
     _linkCodes.set(code, { userId: String(req.userId), expiresAt });
 
-    const botUsername = process.env["TELEGRAM_BOT_USERNAME"] || "DriftLifeBot";
+    const botUsername = process.env["TELEGRAM_BOT_USERNAME"] || "NeonoirBot";
     res.json({
       code,
       expiresInMinutes: 10,
@@ -332,7 +332,7 @@ router.post("/webhook", async (req, res) => {
       let errorMessage: string | undefined;
 
       if (!peeked) {
-        errorMessage = "Invoice expired or not found. Please create a new invoice in DriftLife.";
+        errorMessage = "Invoice expired or not found. Please create a new invoice in Neonoir.";
       } else {
         const ncPackPrecheck = NC_PACKS.find(p => p.id === peeked.productId);
         const subEntry = Object.entries(TIER_CONFIG).find(([id]) => id === peeked.productId);
@@ -358,7 +358,7 @@ router.post("/webhook", async (req, res) => {
       // Acknowledge immediately (removes loading spinner on button)
       await answerCallbackQuery(cq.id);
 
-      // Look up linked DriftLife user for all actions
+      // Look up linked Neonoir user for all actions
       const linkedUser = await User.findOne({ telegramId: chatId })
         .select("_id uc username subscriptionTier subscriptionExpiresAt ucDailyClaimedAt")
         .lean();
@@ -371,7 +371,7 @@ router.post("/webhook", async (req, res) => {
       if (data === "status") {
         if (!linkedUser) {
           await sendTelegramMessage(chatId,
-            `❌ No DriftLife account linked to this Telegram.\n\nGo to <b>DriftLife → Store → Link Telegram</b>.`);
+            `❌ No Neonoir account linked to this Telegram.\n\nGo to <b>Neonoir → Store → Link Telegram</b>.`);
           return;
         }
         await showStatus(chatId, linkedUser, msgId);
@@ -391,7 +391,7 @@ router.post("/webhook", async (req, res) => {
       if (data.startsWith("buy:")) {
         if (!linkedUser) {
           await sendTelegramMessage(chatId,
-            `❌ No DriftLife account linked.\n\nGo to <b>DriftLife → Store → Link Telegram</b> first.`);
+            `❌ No Neonoir account linked.\n\nGo to <b>Neonoir → Store → Link Telegram</b> first.`);
           return;
         }
         if (!checkInvoiceRate(chatId)) {
@@ -406,7 +406,7 @@ router.post("/webhook", async (req, res) => {
       if (data.startsWith("sub:")) {
         if (!linkedUser) {
           await sendTelegramMessage(chatId,
-            `❌ No DriftLife account linked.\n\nGo to <b>DriftLife → Store → Link Telegram</b> first.`);
+            `❌ No Neonoir account linked.\n\nGo to <b>Neonoir → Store → Link Telegram</b> first.`);
           return;
         }
         if (!checkInvoiceRate(chatId)) {
@@ -476,7 +476,7 @@ router.post("/webhook", async (req, res) => {
           await User.updateOne({ _id: pending.userId }, { $inc: { nc: ncPack.nc } });
           await sendMessageWithKeyboard({
             chatId,
-            text: `✅ <b>${ncPack.nc.toLocaleString()} NC credited!</b>\n\nYour Nova Credits balance has been updated in DriftLife. Enjoy!`,
+            text: `✅ <b>${ncPack.nc.toLocaleString()} NC credited!</b>\n\nYour Nova Credits balance has been updated in Neonoir. Enjoy!`,
             inlineKeyboard: MAIN_MENU_KB,
           });
 
@@ -516,7 +516,7 @@ router.post("/webhook", async (req, res) => {
               `Your 30-day subscription is live:\n` +
               `• Daily NC claim: ${tierCfg.dailyNc} NC/day\n` +
               `• XP ×${tierCfg.jobXpMult} &amp; crime ×${tierCfg.crimeRewardMult} boosts active\n\n` +
-              `Claim your daily NC in the DriftLife Store every day. Streak 7 days for a bonus! 🔥`,
+              `Claim your daily NC in the Neonoir Store every day. Streak 7 days for a bonus! 🔥`,
             inlineKeyboard: [[{ text: "📊 View My Status", callback_data: "status" }]],
           });
         }
@@ -545,7 +545,7 @@ router.post("/webhook", async (req, res) => {
           if (!tokenEntry) {
             await sendTelegramMessage(
               chatId,
-              `❌ Session token expired or not found.\n\nGo back to DriftLife and start a new ${flowType} session.`,
+              `❌ Session token expired or not found.\n\nGo back to Neonoir and start a new ${flowType} session.`,
             );
             return;
           }
@@ -567,9 +567,9 @@ router.post("/webhook", async (req, res) => {
           await sendTelegramMessage(
             chatId,
             `Hey ${playerName},\n` +
-            `Here's your DriftLife ${flowType === "verify" ? "verification" : "linking"} code:\n\n` +
+            `Here's your Neonoir ${flowType === "verify" ? "verification" : "linking"} code:\n\n` +
             `<code>${code}</code>\n\n` +
-            `Enter it in the DriftLife game within <b>30 seconds</b>.`,
+            `Enter it in the Neonoir game within <b>30 seconds</b>.`,
           );
           return;
         }
@@ -579,13 +579,13 @@ router.post("/webhook", async (req, res) => {
         if (/^[0-9A-F]{6}$/.test(legacyCode)) {
           const entry = _linkCodes.get(legacyCode);
           if (!entry || Date.now() > entry.expiresAt) {
-            await sendTelegramMessage(chatId, "❌ Code expired or invalid. Generate a new one in DriftLife → Store.");
+            await sendTelegramMessage(chatId, "❌ Code expired or invalid. Generate a new one in Neonoir → Store.");
             _linkCodes.delete(legacyCode);
             return;
           }
           const existingLink = await User.findOne({ telegramId: chatId }).lean();
           if (existingLink && String((existingLink as any)._id) !== entry.userId) {
-            await sendTelegramMessage(chatId, "⚠️ This Telegram account is already linked to a different DriftLife account.");
+            await sendTelegramMessage(chatId, "⚠️ This Telegram account is already linked to a different Neonoir account.");
             return;
           }
           await User.updateOne(
@@ -596,7 +596,7 @@ router.post("/webhook", async (req, res) => {
           await sendMessageWithKeyboard({
             chatId,
             text:
-              `✅ <b>DriftLife linked!</b>\n\n` +
+              `✅ <b>Neonoir linked!</b>\n\n` +
               `Your Telegram account is now connected.\n\n` +
               `You can now buy NC packs and subscriptions directly here using the menu below.`,
             inlineKeyboard: MAIN_MENU_KB,
@@ -614,13 +614,13 @@ router.post("/webhook", async (req, res) => {
         const code = text.toUpperCase();
         const entry = _linkCodes.get(code);
         if (!entry || Date.now() > entry.expiresAt) {
-          await sendTelegramMessage(chatId, "❌ Code expired or invalid. Generate a new one in DriftLife → Store.");
+          await sendTelegramMessage(chatId, "❌ Code expired or invalid. Generate a new one in Neonoir → Store.");
           _linkCodes.delete(code);
           return;
         }
         const existingLink = await User.findOne({ telegramId: chatId }).lean();
         if (existingLink && String((existingLink as any)._id) !== entry.userId) {
-          await sendTelegramMessage(chatId, "⚠️ This Telegram account is already linked to a different DriftLife account.");
+          await sendTelegramMessage(chatId, "⚠️ This Telegram account is already linked to a different Neonoir account.");
           return;
         }
         await User.updateOne(
@@ -631,7 +631,7 @@ router.post("/webhook", async (req, res) => {
         await sendMessageWithKeyboard({
           chatId,
           text:
-            `✅ <b>DriftLife linked!</b>\n\n` +
+            `✅ <b>Neonoir linked!</b>\n\n` +
             `Your Telegram account is now connected.\n\n` +
             `You can now buy NC packs and subscriptions directly here using the menu below.`,
           inlineKeyboard: MAIN_MENU_KB,
@@ -653,7 +653,7 @@ router.post("/webhook", async (req, res) => {
         if (!linkedUser) {
           await sendMessageWithKeyboard({
             chatId,
-            text: `❌ No DriftLife account linked.\n\nLink your account in-game under <b>Store → Link Telegram</b>.`,
+            text: `❌ No Neonoir account linked.\n\nLink your account in-game under <b>Store → Link Telegram</b>.`,
             inlineKeyboard: [[{ text: "ℹ️ How to link", callback_data: "menu" }]],
           });
           return;
@@ -664,7 +664,7 @@ router.post("/webhook", async (req, res) => {
 
       if (text === "/buy" || text.startsWith("/buy ")) {
         if (!linkedUser) {
-          await sendTelegramMessage(chatId, `❌ No DriftLife account linked.\n\nLink in-game under Store → Link Telegram first.`);
+          await sendTelegramMessage(chatId, `❌ No Neonoir account linked.\n\nLink in-game under Store → Link Telegram first.`);
           return;
         }
         const packArg = text.slice(4).trim().toLowerCase();
@@ -682,7 +682,7 @@ router.post("/webhook", async (req, res) => {
 
       if (text === "/subscribe" || text === "/sub" || text.startsWith("/subscribe ") || text.startsWith("/sub ")) {
         if (!linkedUser) {
-          await sendTelegramMessage(chatId, `❌ No DriftLife account linked.\n\nLink in-game under Store → Link Telegram first.`);
+          await sendTelegramMessage(chatId, `❌ No Neonoir account linked.\n\nLink in-game under Store → Link Telegram first.`);
           return;
         }
         const tierArg = text.replace(/^\/(subscribe|sub)\s*/, "").trim().toLowerCase();

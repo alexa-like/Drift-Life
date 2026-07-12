@@ -638,7 +638,7 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
   );
 }
 
-const GLOBAL_MUTE_KEY = "driftlife:globalChatMuted";
+const GLOBAL_MUTE_KEY = "neonoir:globalChatMuted";
 
 export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
   const [tab, setTab] = useState<"global" | "district" | "faction" | "messages">("global");
