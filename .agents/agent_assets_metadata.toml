@@ -12,3 +12,9 @@ id = "-ssArru0eIrDzmPk0ISkC"
 uri = "file://DRIFTLIFE_FRAME_BUILD_PROMPT.md"
 type = "text"
 title = "DriftLife Frame System — Complete Build Prompt"
+
+[[outputs]]
+id = "GCfav8NMsFRpGu5QfBxZ7"
+uri = "file://attached_assets/generated_images/cyberdragon-frame-preview.png"
+type = "image"
+title = "CyberDragon Frame — Design Preview"
