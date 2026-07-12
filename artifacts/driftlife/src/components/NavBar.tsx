@@ -37,7 +37,7 @@ function RollingNumber({ value, color }: { value: number; color: string }) {
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
-const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minStage?: number; group?: string; statusFilter?: string }[] = [
+const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minStage?: number; group?: string; statusFilter?: string; roles?: string[] }[] = [
   { id: "dashboard",    label: "Home",     icon: Home },
   { id: "feed",         label: "Feed",     icon: Newspaper },
   { id: "chat",         label: "Chat",     icon: MessageCircle },
@@ -69,6 +69,7 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "achievements", label: "Achiev",   icon: Trophy },
   { id: "daily",        label: "Daily",    icon: Gift },
   { id: "companions",   label: "Allies",   icon: PawPrint,      statusFilter: "normal" },
+  { id: "staff-portal", label: "Staff",    icon: Shield,        roles: ["staff", "admin", "owner"] },
 ];
 
 function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; maxEnergy: number; energyRegenAt?: string | null }) {
@@ -375,6 +376,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
         {NAV.filter(item => {
           const minStage = item.minStage ?? 0;
           if ((user.onboardingStage ?? 0) < minStage) return false;
+          if (item.roles && !item.roles.includes(user.role)) return false;
           const status = (user as any).status as string | undefined;
           const isNormal = !status || status === "normal";
           const isAbroad = status === "abroad";

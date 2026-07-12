@@ -189,6 +189,13 @@ export interface IUser extends Document {
   // ── Giveaway system ───────────────────────────────────────────────────────
   underReview: boolean;
   underReviewReason: string | null;
+  // ── Staff system ──────────────────────────────────────────────────────────
+  staffTier: 1 | 2 | 3 | 4 | 5 | null;
+  staffTierAssignedAt: Date | null;
+  staffEarningsLastClaimedAt: Date | null;
+  staffEarningsTotalDc: number;
+  staffTaskProgress: Record<string, number>;
+  staffTaskResetAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   getEffectiveStats(): EffectiveStats;
@@ -407,6 +414,13 @@ const UserSchema = new Schema<IUser>(
     // ── Giveaway system ────────────────────────────────────────────────────
     underReview:       { type: Boolean, default: false },
     underReviewReason: { type: String, default: null },
+    // ── Staff system ───────────────────────────────────────────────────────
+    staffTier:                  { type: Number, enum: [1, 2, 3, 4, 5, null], default: null },
+    staffTierAssignedAt:        { type: Date, default: null },
+    staffEarningsLastClaimedAt: { type: Date, default: null },
+    staffEarningsTotalDc:       { type: Number, default: 0 },
+    staffTaskProgress:          { type: Schema.Types.Mixed, default: {} },
+    staffTaskResetAt:           { type: Date, default: null },
   },
   { timestamps: true }
 );

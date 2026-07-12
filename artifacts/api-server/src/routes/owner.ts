@@ -16,6 +16,7 @@ import VantaLog from "../models/VantaLog";
 import { computePledgeValueDc } from "../lib/giveawayValuation";
 import { MAX_LIVE_DURATION_MS, MAX_ENTRANT_CAP } from "../lib/giveawayConstants";
 import { generateAndStoreCardImage } from "../lib/giveawayCardImage";
+import { STAFF_TIERS, STAFF_TASKS, getSubscriptionExpiry } from "../lib/staffTiers";
 
 const router = Router();
 router.use(requireStaff as any);
@@ -1074,6 +1075,216 @@ router.patch("/chat-reports/:id", async (req: AuthRequest, res) => {
     res.json({ message: "Report updated", report });
   } catch (err: any) {
     req.log.error({ err }, "update chat report error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STAFF TIER SYSTEM
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/owner/staff — list all staff members with their tiers
+router.get("/staff", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const staffUsers = await User.find({
+      role: { $in: ["staff", "admin", "owner"] },
+    })
+      .select("_id username email role staffTier staffTierAssignedAt staffEarningsLastClaimedAt staffEarningsTotalDc staffTaskProgress staffTaskResetAt lastLogin subscriptionTier")
+      .sort({ staffTier: -1, createdAt: 1 })
+      .lean();
+    res.json({ staff: staffUsers });
+  } catch (err: any) {
+    req.log.error({ err }, "get-staff error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/staff/set-tier — assign or remove staff tier
+router.post("/staff/set-tier", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { userId, tier } = req.body;
+    if (!userId) return res.status(400).json({ message: "userId required" });
+    const t = tier === null || tier === 0 ? null : Math.min(5, Math.max(1, Number(tier)));
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.staffTier = t as any;
+    user.staffTierAssignedAt = t ? new Date() : null;
+    user.staffTaskProgress = {};
+    user.staffTaskResetAt = null;
+
+    if (t) {
+      const tierDef = STAFF_TIERS[t];
+      const expiry = getSubscriptionExpiry(1);
+      user.subscriptionTier = tierDef.subscription as any;
+      user.subscriptionExpiresAt = expiry;
+      if ((user as any).role === "player") user.role = "staff";
+    } else {
+      if ((user as any).role === "staff") user.role = "player";
+    }
+
+    await user.save();
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "set-staff-tier",
+      targetId: user.id,
+      targetUsername: user.username,
+      details: { tier: t, subscription: t ? STAFF_TIERS[t].subscription : null },
+    });
+    res.json({ message: `${user.username} staff tier set to ${t ?? "none"}`, user: { id: user.id, staffTier: t } });
+  } catch (err: any) {
+    req.log.error({ err }, "set-staff-tier error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/owner/staff/logs — audit logs filtered by optional staffId/tier
+router.get("/staff/logs", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { actorId, limit: lim = 50, page: pg = 1 } = req.query;
+    const limit  = Math.min(100, Number(lim));
+    const skip   = (Number(pg) - 1) * limit;
+    const filter: Record<string, unknown> = {};
+    if (actorId) filter.actorId = actorId;
+    const [logs, total] = await Promise.all([
+      AdminAuditLog.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      AdminAuditLog.countDocuments(filter),
+    ]);
+    const actorIds = [...new Set(logs.map((l: any) => l.actorId))];
+    const actors = await User.find({ _id: { $in: actorIds } })
+      .select("_id username staffTier role")
+      .lean();
+    const actorMap = Object.fromEntries(actors.map(a => [String(a._id), a]));
+    const enriched = logs.map((l: any) => ({
+      ...l,
+      actorTier: actorMap[l.actorId]?.staffTier ?? null,
+      actorRole: actorMap[l.actorId]?.role ?? "player",
+    }));
+    res.json({ logs: enriched, total, pages: Math.ceil(total / limit) });
+  } catch (err: any) {
+    req.log.error({ err }, "staff-logs error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/owner/staff/me — staff member views their own tier + earnings + tasks
+router.get("/staff/me", async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const tier = (user as any).staffTier as number | null;
+    if (!tier) return res.status(403).json({ message: "You are not a staff member" });
+    const tierDef = STAFF_TIERS[tier];
+    const tasks   = STAFF_TASKS[tier] ?? [];
+    const progress = (user as any).staffTaskProgress ?? {};
+    const now = new Date();
+    const lastClaim = (user as any).staffEarningsLastClaimedAt
+      ? new Date((user as any).staffEarningsLastClaimedAt)
+      : null;
+    const canClaim = !lastClaim || (now.getTime() - lastClaim.getTime()) >= 24 * 60 * 60 * 1000;
+    res.json({
+      tier,
+      tierDef: { ...tierDef },
+      tasks: tasks.map(t => ({ ...t, progress: progress[t.id] ?? 0 })),
+      totalEarned: (user as any).staffEarningsTotalDc ?? 0,
+      lastClaimedAt: lastClaim,
+      canClaimNow: canClaim,
+      nextClaimAt: lastClaim ? new Date(lastClaim.getTime() + 24 * 60 * 60 * 1000) : null,
+      subscription: (user as any).subscriptionTier,
+      subscriptionExpiresAt: (user as any).subscriptionExpiresAt,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "staff-me error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/staff/earnings/claim — claim today's DC earnings
+router.post("/staff/earnings/claim", async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const tier = (user as any).staffTier as number | null;
+    if (!tier) return res.status(403).json({ message: "You are not a staff member" });
+    const now = new Date();
+    const lastClaim = (user as any).staffEarningsLastClaimedAt
+      ? new Date((user as any).staffEarningsLastClaimedAt)
+      : null;
+    if (lastClaim && (now.getTime() - lastClaim.getTime()) < 24 * 60 * 60 * 1000) {
+      const nextAt = new Date(lastClaim.getTime() + 24 * 60 * 60 * 1000);
+      return res.status(400).json({ message: "Already claimed today", nextClaimAt: nextAt });
+    }
+    const dc = STAFF_TIERS[tier].dailyDc;
+    (user as any).staffEarningsLastClaimedAt = now;
+    (user as any).staffEarningsTotalDc = ((user as any).staffEarningsTotalDc ?? 0) + dc;
+    user.dc += dc;
+    await user.save();
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "staff-earnings-claim",
+      details: { tier, dc },
+    });
+    res.json({ message: `+${dc.toLocaleString()} DC claimed`, dc: user.dc, totalEarned: (user as any).staffEarningsTotalDc });
+  } catch (err: any) {
+    req.log.error({ err }, "staff-earnings-claim error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/staff/tasks/complete — increment task progress
+router.post("/staff/tasks/complete", async (req: AuthRequest, res) => {
+  try {
+    const { taskId, increment = 1 } = req.body;
+    if (!taskId) return res.status(400).json({ message: "taskId required" });
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const tier = (user as any).staffTier as number | null;
+    if (!tier) return res.status(403).json({ message: "Not a staff member" });
+    const tasks = STAFF_TASKS[tier] ?? [];
+    const task  = tasks.find(t => t.id === taskId);
+    if (!task) return res.status(400).json({ message: "Invalid task for your tier" });
+    const progress = (user as any).staffTaskProgress ?? {};
+    progress[taskId] = Math.min(task.target, (progress[taskId] ?? 0) + Number(increment));
+    (user as any).staffTaskProgress = progress;
+    user.markModified("staffTaskProgress");
+    await user.save();
+    res.json({ taskId, progress: progress[taskId], target: task.target });
+  } catch (err: any) {
+    req.log.error({ err }, "staff-tasks-complete error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/mass-grant — broadcast DC / NC / keys to ALL active players
+router.post("/mass-grant", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { dc = 0, nc = 0, keys = 0, reason = "" } = req.body;
+    const dDc   = Math.floor(Number(dc));
+    const dNc   = Math.floor(Number(nc));
+    const dKeys = Math.floor(Number(keys));
+    if (dDc === 0 && dNc === 0 && dKeys === 0) {
+      return res.status(400).json({ message: "At least one of dc / nc / keys must be non-zero" });
+    }
+    const inc: Record<string, number> = {};
+    if (dDc   !== 0) inc["dc"]   = dDc;
+    if (dNc   !== 0) inc["nc"]   = dNc;
+    if (dKeys !== 0) inc["keys"] = dKeys;
+    const result = await User.updateMany({ banned: false, role: "player" }, { $inc: inc });
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "mass-grant",
+      details: { dc: dDc, nc: dNc, keys: dKeys, reason, affected: result.modifiedCount },
+    });
+    res.json({
+      message: `Mass grant applied to ${result.modifiedCount} players`,
+      affected: result.modifiedCount,
+      granted: { dc: dDc, nc: dNc, keys: dKeys },
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "mass-grant error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

@@ -48,6 +48,7 @@ import { SupportPage } from "./pages/SupportPage";
 import NpcStorePage from "./pages/NpcStorePage";
 import RaceHubPage from "./pages/RaceHubPage";
 import RaceMatchPage from "./pages/RaceMatchPage";
+import { StaffPortalPage } from "./pages/StaffPortalPage";
 import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
@@ -302,6 +303,10 @@ function GameApp() {
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />
+          : <Dashboard {...pageProps} onNav={setPage} />;
+      case "staff-portal":
+        return (user!.role === "staff" || user!.role === "admin" || user!.role === "owner")
+          ? <StaffPortalPage user={user!} addToast={addToast} />
           : <Dashboard {...pageProps} onNav={setPage} />;
       default:             return <Dashboard {...pageProps} onNav={setPage} />;
     }

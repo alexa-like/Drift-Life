@@ -70,7 +70,7 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements" | "giveaways";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements" | "giveaways" | "staff" | "mass-actions";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -167,6 +167,21 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [announcementText, setAnnouncementText] = useState("");
   const [announcementHours, setAnnouncementHours] = useState("");
   const [savingAnnouncement, setSavingAnnouncement] = useState(false);
+  // Staff management tab
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffLogs, setStaffLogs] = useState<any[]>([]);
+  const [staffLogsLoading, setStaffLogsLoading] = useState(false);
+  const [staffLogFilter, setStaffLogFilter] = useState("");
+  const [staffTierTarget, setStaffTierTarget] = useState<string | null>(null);
+  const [staffTierValue, setStaffTierValue] = useState("1");
+  const [settingStaffTier, setSettingStaffTier] = useState(false);
+  // Mass actions tab
+  const [massDc, setMassDc] = useState("0");
+  const [massNc, setMassNc] = useState("0");
+  const [massKeys, setMassKeys] = useState("0");
+  const [massReason, setMassReason] = useState("");
+  const [massGranting, setMassGranting] = useState(false);
   // Giveaways tab
   const [ownerGiveDc, setOwnerGiveDc] = useState("0");
   const [ownerGiveUc, setOwnerGiveUc] = useState("0");
@@ -347,7 +362,50 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         .catch(() => {})
         .finally(() => setAnnouncementLoading(false));
     }
+    if (tab === "staff") {
+      setStaffLoading(true);
+      api.get<{ staff: any[] }>("/owner/staff")
+        .then(r => setStaffList(r.staff))
+        .catch(() => {})
+        .finally(() => setStaffLoading(false));
+      setStaffLogsLoading(true);
+      api.get<{ logs: any[] }>("/owner/staff/logs?limit=30")
+        .then(r => setStaffLogs(r.logs))
+        .catch(() => {})
+        .finally(() => setStaffLogsLoading(false));
+    }
   }, [tab]);
+
+  async function setStaffTier(userId: string) {
+    setSettingStaffTier(true);
+    try {
+      const t = staffTierValue === "0" ? 0 : Number(staffTierValue);
+      const res = await api.post<{ message: string }>("/owner/staff/set-tier", { userId, tier: t });
+      addToast(res.message, "success");
+      setStaffTierTarget(null);
+      setStaffLoading(true);
+      api.get<{ staff: any[] }>("/owner/staff")
+        .then(r => setStaffList(r.staff))
+        .catch(() => {})
+        .finally(() => setStaffLoading(false));
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setSettingStaffTier(false); }
+  }
+
+  async function massGrant() {
+    const dc   = Number(massDc)   || 0;
+    const nc   = Number(massNc)   || 0;
+    const keys = Number(massKeys) || 0;
+    if (dc === 0 && nc === 0 && keys === 0) { addToast("Enter at least one amount", "error"); return; }
+    if (!window.confirm(`Send DC:${dc} NC:${nc} Keys:${keys} to ALL players? This cannot be undone.`)) return;
+    setMassGranting(true);
+    try {
+      const res = await api.post<{ message: string; affected: number }>("/owner/mass-grant", { dc, nc, keys, reason: massReason });
+      addToast(res.message, "success");
+      setMassDc("0"); setMassNc("0"); setMassKeys("0"); setMassReason("");
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setMassGranting(false); }
+  }
 
   async function banUser(userId: string) {
     if (!banReason.trim()) { addToast("Enter a ban reason", "error"); return; }
@@ -571,6 +629,14 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         <button className="px-4 py-2 rounded font-mono text-xs opacity-40 cursor-not-allowed"
           style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Coming soon — Phase 2">
           Economy
+        </button>
+        <button onClick={() => setTab("staff")} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "staff" ? "#00d4ff18" : "#111118", color: tab === "staff" ? "#00d4ff" : "#475569", border: `1px solid ${tab === "staff" ? "#00d4ff40" : "#1e1e2e"}` }}>
+          👥 Staff
+        </button>
+        <button onClick={() => setTab("mass-actions")} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "mass-actions" ? "#ff6b3518" : "#111118", color: tab === "mass-actions" ? "#ff6b35" : "#475569", border: `1px solid ${tab === "mass-actions" ? "#ff6b3540" : "#1e1e2e"}` }}>
+          📢 Mass Actions
         </button>
       </div>
 
@@ -1718,6 +1784,238 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* STAFF MANAGEMENT TAB */}
+      {tab === "staff" && (
+        <div className="space-y-4">
+          {/* Staff list */}
+          <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 16 }}>
+            <div className="font-mono font-bold text-sm mb-3" style={{ color: "#00d4ff" }}>STAFF MEMBERS</div>
+            {staffLoading ? (
+              <div className="font-mono text-xs" style={{ color: "#64748b" }}>Loading…</div>
+            ) : staffList.length === 0 ? (
+              <div className="font-mono text-xs" style={{ color: "#64748b" }}>No staff members assigned yet.</div>
+            ) : (
+              <div className="space-y-2">
+                {staffList.map(s => {
+                  const tierColors: Record<number, string> = { 1: "#64748b", 2: "#39d353", 3: "#00d4ff", 4: "#a855f7", 5: "#ff6b35" };
+                  const tierNames: Record<number, string> = { 1: "Watcher", 2: "Moderator", 3: "Enforcer", 4: "Commander", 5: "Director" };
+                  const tc = tierColors[s.staffTier] ?? "#64748b";
+                  return (
+                    <div key={s._id} className="flex items-center justify-between rounded p-3" style={{ background: "#0a0a0f", border: "1px solid #1e293b" }}>
+                      <div>
+                        <span className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{s.username}</span>
+                        <span className="ml-2 font-mono text-xs px-1.5 py-0.5 rounded" style={{ background: `${tc}18`, color: tc, border: `1px solid ${tc}30` }}>
+                          {s.staffTier ? `T${s.staffTier}: ${tierNames[s.staffTier]}` : "No Tier"}
+                        </span>
+                        <span className="ml-2 font-mono text-xs" style={{ color: "#475569" }}>{s.role}</span>
+                        <div className="font-mono text-xs mt-0.5" style={{ color: "#475569" }}>
+                          Sub: {s.subscriptionTier?.replace(/_/g, " ") ?? "none"} · Earned: {(s.staffEarningsTotalDc ?? 0).toLocaleString()} DC
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {staffTierTarget === s._id ? (
+                          <div className="flex gap-2 items-center">
+                            <select
+                              value={staffTierValue}
+                              onChange={e => setStaffTierValue(e.target.value)}
+                              className="font-mono text-xs rounded px-2 py-1"
+                              style={{ background: "#111118", color: "#e2e8f0", border: "1px solid #1e293b" }}
+                            >
+                              <option value="0">Remove Tier</option>
+                              <option value="1">T1: Watcher</option>
+                              <option value="2">T2: Moderator</option>
+                              <option value="3">T3: Enforcer</option>
+                              <option value="4">T4: Commander</option>
+                              <option value="5">T5: Director</option>
+                            </select>
+                            <button
+                              onClick={() => setStaffTier(s._id)}
+                              disabled={settingStaffTier}
+                              className="font-mono text-xs px-3 py-1 rounded"
+                              style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340", cursor: "pointer" }}
+                            >
+                              {settingStaffTier ? "…" : "Save"}
+                            </button>
+                            <button
+                              onClick={() => setStaffTierTarget(null)}
+                              className="font-mono text-xs px-3 py-1 rounded"
+                              style={{ background: "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5540", cursor: "pointer" }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setStaffTierTarget(s._id); setStaffTierValue(String(s.staffTier ?? 1)); }}
+                            className="font-mono text-xs px-3 py-1.5 rounded"
+                            style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740", cursor: "pointer" }}
+                          >
+                            Set Tier
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Task progress per staff */}
+          {staffList.filter(s => s.staffTier).length > 0 && (
+            <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 16 }}>
+              <div className="font-mono font-bold text-sm mb-3" style={{ color: "#f59e0b" }}>TASK PROGRESS</div>
+              <div className="space-y-3">
+                {staffList.filter(s => s.staffTier).map(s => {
+                  const taskDefs: Record<number, { id: string; label: string; target: number }[]> = {
+                    1: [{ id: "reports_viewed", label: "Review reports", target: 10 }, { id: "chat_warnings", label: "Issue warnings", target: 5 }],
+                    2: [{ id: "bans_processed", label: "Process bans", target: 5 }, { id: "chat_resolved", label: "Resolve chat", target: 10 }],
+                    3: [{ id: "tickets_closed", label: "Close tickets", target: 10 }, { id: "appeals_handled", label: "Handle appeals", target: 5 }],
+                    4: [{ id: "resources_granted", label: "Grant resources", target: 10 }, { id: "accounts_managed", label: "Manage accounts", target: 5 }],
+                    5: [{ id: "incidents_reviewed", label: "Review incidents", target: 5 }, { id: "maintenance_complete", label: "Maintenance tasks", target: 3 }],
+                  };
+                  const tasks = taskDefs[s.staffTier] ?? [];
+                  const progress = s.staffTaskProgress ?? {};
+                  return (
+                    <div key={s._id} className="rounded p-3" style={{ background: "#0a0a0f", border: "1px solid #1e293b" }}>
+                      <div className="font-mono text-xs font-bold mb-2" style={{ color: "#e2e8f0" }}>{s.username}</div>
+                      {tasks.map(t => {
+                        const prog = progress[t.id] ?? 0;
+                        const pct = Math.min(100, Math.round((prog / t.target) * 100));
+                        return (
+                          <div key={t.id} className="mb-1.5">
+                            <div className="flex justify-between font-mono text-xs mb-0.5" style={{ color: "#64748b" }}>
+                              <span>{t.label}</span>
+                              <span>{prog}/{t.target}</span>
+                            </div>
+                            <div className="rounded-full overflow-hidden" style={{ background: "#1e293b", height: 3 }}>
+                              <div style={{ width: `${pct}%`, background: prog >= t.target ? "#39d353" : "#00d4ff", height: "100%" }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Staff activity log */}
+          <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 16 }}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="font-mono font-bold text-sm" style={{ color: "#a855f7" }}>STAFF ACTIVITY LOG</div>
+              <div className="flex gap-2">
+                <input
+                  placeholder="Filter by staff ID…"
+                  value={staffLogFilter}
+                  onChange={e => setStaffLogFilter(e.target.value)}
+                  className="font-mono text-xs px-2 py-1 rounded"
+                  style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e293b", width: 180 }}
+                />
+                <button
+                  onClick={() => {
+                    setStaffLogsLoading(true);
+                    const qs = staffLogFilter ? `?actorId=${staffLogFilter}&limit=30` : "?limit=30";
+                    api.get<{ logs: any[] }>(`/owner/staff/logs${qs}`)
+                      .then(r => setStaffLogs(r.logs))
+                      .catch(() => {})
+                      .finally(() => setStaffLogsLoading(false));
+                  }}
+                  className="font-mono text-xs px-3 py-1 rounded"
+                  style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740", cursor: "pointer" }}
+                >
+                  Filter
+                </button>
+              </div>
+            </div>
+            {staffLogsLoading ? (
+              <div className="font-mono text-xs" style={{ color: "#64748b" }}>Loading logs…</div>
+            ) : staffLogs.length === 0 ? (
+              <div className="font-mono text-xs" style={{ color: "#64748b" }}>No activity yet.</div>
+            ) : (
+              <div className="space-y-1 max-h-80 overflow-y-auto">
+                {staffLogs.map((log: any) => {
+                  const tierColors: Record<number, string> = { 1: "#64748b", 2: "#39d353", 3: "#00d4ff", 4: "#a855f7", 5: "#ff6b35" };
+                  const tc = log.actorTier ? tierColors[log.actorTier] : "#64748b";
+                  return (
+                    <div key={log._id} className="flex items-start gap-2 py-1.5 border-b" style={{ borderColor: "#1e293b" }}>
+                      <div style={{ flex: "0 0 auto" }}>
+                        {log.actorTier && (
+                          <span className="font-mono text-xs px-1 rounded" style={{ background: `${tc}18`, color: tc, border: `1px solid ${tc}30` }}>
+                            T{log.actorTier}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{log.actorUsername}</span>
+                        <span className="font-mono text-xs ml-2" style={{ color: "#a855f7" }}>{log.action}</span>
+                        {log.targetUsername && (
+                          <span className="font-mono text-xs ml-2" style={{ color: "#64748b" }}>→ {log.targetUsername}</span>
+                        )}
+                        <span className="font-mono text-xs ml-2" style={{ color: "#334155" }}>
+                          {new Date(log.createdAt).toLocaleDateString()} {new Date(log.createdAt).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MASS ACTIONS TAB */}
+      {tab === "mass-actions" && (
+        <div className="space-y-4 max-w-lg">
+          <div style={{ background: "#ff6b3512", border: "1px solid #ff6b3530", borderRadius: 8, padding: 12 }} className="font-mono text-xs">
+            <span style={{ color: "#ff6b35", fontWeight: "bold" }}>⚠ WARNING:</span>
+            <span style={{ color: "#94a3b8" }}> Mass grants are applied to ALL non-banned player accounts instantly and cannot be undone.</span>
+          </div>
+          <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 }}>
+            <div className="font-mono font-bold text-sm mb-4" style={{ color: "#ff6b35" }}>BROADCAST TO ALL PLAYERS</div>
+            <div className="space-y-3">
+              {[
+                { label: "DataCredits (DC)", key: "dc", val: massDc, set: setMassDc, color: "#39d353" },
+                { label: "Nova Credits (NC)", key: "nc", val: massNc, set: setMassNc, color: "#a855f7" },
+                { label: "Keys", key: "keys", val: massKeys, set: setMassKeys, color: "#f59e0b" },
+              ].map(row => (
+                <div key={row.key} className="flex items-center gap-3">
+                  <label className="font-mono text-xs w-40" style={{ color: row.color }}>{row.label}</label>
+                  <input
+                    type="number"
+                    value={row.val}
+                    onChange={e => row.set(e.target.value)}
+                    className="font-mono text-xs rounded px-3 py-2 flex-1"
+                    style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e293b" }}
+                    min="0"
+                  />
+                </div>
+              ))}
+              <div className="flex items-center gap-3">
+                <label className="font-mono text-xs w-40" style={{ color: "#64748b" }}>Reason / Note</label>
+                <input
+                  value={massReason}
+                  onChange={e => setMassReason(e.target.value)}
+                  placeholder="e.g. Weekend event bonus"
+                  className="font-mono text-xs rounded px-3 py-2 flex-1"
+                  style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e293b" }}
+                />
+              </div>
+            </div>
+            <button
+              onClick={massGrant}
+              disabled={massGranting}
+              className="font-mono text-xs px-6 py-2.5 rounded mt-4 w-full"
+              style={{ background: massGranting ? "#1e293b" : "#ff6b3518", color: massGranting ? "#475569" : "#ff6b35", border: "1px solid #ff6b3540", cursor: massGranting ? "not-allowed" : "pointer", fontWeight: "bold" }}
+            >
+              {massGranting ? "Sending…" : "📢 BROADCAST TO ALL PLAYERS"}
+            </button>
           </div>
         </div>
       )}
