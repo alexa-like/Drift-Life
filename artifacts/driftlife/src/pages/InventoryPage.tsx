@@ -92,7 +92,9 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
   const inputStyle: React.CSSProperties = { background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#e2e8f0" };
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+    <div className="max-w-2xl mx-auto flex flex-col gap-4 relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
 
       {/* Header */}
       <div className="flex justify-between items-center flex-wrap gap-2">

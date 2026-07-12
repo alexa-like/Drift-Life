@@ -237,7 +237,9 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
   const nc = status?.nc ?? (user?.nc ?? 0);
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto p-4">
+    <div className="space-y-4 max-w-2xl mx-auto p-4 relative z-10">
+      <div className="dl-page-bg bg-market" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">

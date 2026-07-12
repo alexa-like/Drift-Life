@@ -134,7 +134,9 @@ export default function NpcStorePage({ storeId, onBack }: Props) {
     : Object.entries(localAnswers).map(([q, a]) => ({ q, a }));
 
   return (
-    <div style={{ maxWidth: 780, margin: "0 auto", padding: "0 0 40px" }}>
+    <div style={{ maxWidth: 780, margin: "0 auto", padding: "0 0 40px" }} className="relative z-10">
+      <div className="dl-page-bg bg-market" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       {/* Back */}
       <button
         onClick={onBack}

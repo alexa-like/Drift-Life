@@ -301,7 +301,9 @@ export function LeaderboardPage() {
   const restEntries = entries.slice(3);
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto relative z-10">
+      <div className="dl-page-bg bg-city" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       {/* Header */}
       <div className="mb-4 flex justify-between items-end flex-wrap gap-3">
         <div>

@@ -114,7 +114,10 @@ export function FeedPage({ user, refreshUser, addToast, onInspectPlayer }: Props
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-3">
+    <div className="max-w-2xl mx-auto space-y-3 relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
+      
       <CyberSectionHeader
         title="CITY FEED"
         accent="#00d4ff"

@@ -66,7 +66,9 @@ export default function RoyaleCategoryPage({ category, onBack, onUserUpdate }: P
   const spinColor = spinType === "dc_spin" ? "#00E0FF" : "#f59e0b";
 
   return (
-    <div style={{ padding: "1rem", maxWidth: "700px", margin: "0 auto" }}>
+    <div style={{ padding: "1rem", maxWidth: "700px", margin: "0 auto" }} className="relative z-10">
+      <div className="dl-page-bg bg-market" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <button
         onClick={onBack}
         style={{ background: "none", border: "none", color: "#00E0FF", cursor: "pointer", marginBottom: "1rem", fontFamily: "monospace" }}

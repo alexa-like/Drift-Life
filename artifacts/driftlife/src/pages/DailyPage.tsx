@@ -71,7 +71,10 @@ export function DailyPage({ user, refreshUser, addToast, onNav }: Props) {
   const nextReward = DAILY_REWARDS.find(r => r.day === (dayInCycle % 7) + 1) ?? DAILY_REWARDS[0];
 
   return (
-    <div className="max-w-lg mx-auto space-y-5">
+    <div className="max-w-lg mx-auto space-y-5 relative z-10">
+      <div className="dl-page-bg bg-vault" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
+
       <div>
         <h1 className="font-mono font-bold text-lg" style={{ color: "#f59e0b" }}>DAILY REWARD</h1>
         <p className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>Return every 24 hours to keep your streak alive.</p>

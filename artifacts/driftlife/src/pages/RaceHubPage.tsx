@@ -134,7 +134,9 @@ export default function RaceHubPage({ user, addToast, onNavigate }: Props) {
   const canEnterRace = canAfford && !carSidelined;
 
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto", padding: 16 }}>
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: 16 }} className="relative z-10">
+      <div className="dl-page-bg bg-race" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <style>{RACE_CSS}</style>
 
       {/* Header */}

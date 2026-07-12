@@ -101,7 +101,10 @@ export function JobsPage({ user, refreshUser, addToast }: Props) {
   const fc = user.faction ? FACTION_COLOR[user.faction] : "#94a3b8";
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="max-w-2xl mx-auto space-y-4 relative z-10">
+      <div className="dl-page-bg bg-hack" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
+
       {miniGame && (
         <MiniGameModal
           type={miniGame.type}

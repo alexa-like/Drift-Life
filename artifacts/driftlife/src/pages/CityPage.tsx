@@ -270,7 +270,10 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative z-10">
+      <div className="dl-page-bg bg-city" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-30 fixed" />
+
       {/* Header */}
       <AnimatedCard accent="#ff6b35">
         <CyberSectionHeader

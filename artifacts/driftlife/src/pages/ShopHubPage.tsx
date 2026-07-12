@@ -13,7 +13,9 @@ const STORES = [
 
 export default function ShopHubPage({ onSelectStore }: Props) {
   return (
-    <div style={{ padding: "1rem", maxWidth: "900px", margin: "0 auto" }}>
+    <div style={{ padding: "1rem", maxWidth: "900px", margin: "0 auto" }} className="relative z-10">
+      <div className="dl-page-bg bg-market" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <h1 style={{ color: "#00E0FF", fontFamily: "monospace", marginBottom: "0.5rem" }}>CITY SHOPS</h1>
       <p style={{ color: "#aaa", marginBottom: "2rem" }}>Six specialty vendors. Restocks every 6 hours.</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px,1fr))", gap: "1rem" }}>

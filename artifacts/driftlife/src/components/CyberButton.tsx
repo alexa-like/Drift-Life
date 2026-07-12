@@ -1,4 +1,4 @@
-import { forwardRef, ReactNode, useState } from "react";
+import { forwardRef, ReactNode, useState, useEffect } from "react";
 import { motion, HTMLMotionProps } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +62,11 @@ export const CyberButton = forwardRef<HTMLButtonElement, CyberButtonProps>(
     const v = VARIANT_STYLES[variant];
     const isDisabled = disabled || loading;
     const [isHovered, setIsHovered] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+      setMounted(true);
+    }, []);
 
     return (
       <motion.button
@@ -78,14 +83,17 @@ export const CyberButton = forwardRef<HTMLButtonElement, CyberButtonProps>(
           "disabled:opacity-40 disabled:cursor-not-allowed",
           SIZE_CLASSES[size],
           variant === "primary" && !isDisabled && !isHovered && "animate-pulse-glow",
+          mounted && "animate-neon-flicker", // Power on flicker on mount
           className,
         )}
         style={{
           background: isHovered && !isDisabled ? v.color : v.bg,
           color: isHovered && !isDisabled ? "#000" : v.color,
           boxShadow: isHovered && !isDisabled && glow ? v.glow : "none",
-          border: "none", // Reset border as we use pseudo element for gradient border
+          border: "none",
           letterSpacing: "0.08em",
+          animationDuration: "0.5s", // specific to power-on flicker
+          animationIterationCount: 1, // specific to power-on flicker
           ...style,
         }}
         {...props}
@@ -116,10 +124,10 @@ export const CyberButton = forwardRef<HTMLButtonElement, CyberButtonProps>(
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-10">
             <motion.div
-              animate={{ x: ["-100%", "100%"] }}
-              transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}
-              className="h-1 w-1/3"
-              style={{ background: v.color, boxShadow: `0 0 8px ${v.color}` }}
+              animate={{ width: ["0%", "100%", "0%"], left: ["0%", "0%", "100%"] }}
+              transition={{ repeat: Infinity, duration: 1, ease: "easeInOut" }}
+              className="absolute h-1 top-1/2 -translate-y-1/2"
+              style={{ background: v.color, boxShadow: `0 0 12px ${v.color}` }}
             />
           </div>
         )}

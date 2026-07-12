@@ -3,7 +3,7 @@ import {
   Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard, Link as LinkIcon,
   BarChart2, Gavel, Building2, Dumbbell, Briefcase, Car, Globe, Cpu, Shield, Swords, Crosshair,
   Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark, Warehouse,
-  Wrench, Star, Trophy, Gift, PawPrint, type LucideIcon,
+  Wrench, Star, Trophy, Gift, PawPrint, Bell, type LucideIcon,
 } from "lucide-react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
@@ -34,7 +34,6 @@ function RollingNumber({ value, color }: { value: number; color: string }) {
   return <span className="font-mono tabular-nums" style={{ color, fontSize: 12, fontWeight: "bold", textShadow: `0 0 8px ${color}60` }}>{formatDC(display)}</span>;
 }
 
-const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
 
 const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minStage?: number; group?: string; statusFilter?: string; roles?: string[] }[] = [
@@ -89,7 +88,7 @@ function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; m
   const color = isFull ? "#39d353" : "#00d4ff";
   return (
     <span className="font-mono flex items-center gap-1" style={{ color, fontWeight: "bold", fontSize: 11, textShadow: `0 0 8px ${color}60` }}>
-      ⚡{energy}/{maxEnergy}
+      ENG:{energy}/{maxEnergy}
       {!isFull && secsLeft !== null && secsLeft > 0 && (
         <span style={{ color: "#475569", fontWeight: "normal", fontSize: 10, textShadow: "none" }}>
           +{secsLeft}s
@@ -277,7 +276,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
       <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0h20v20H0V0zm10 10h10v10H10V10zM0 10h10v10H0V10zM10 0h10v10H10V0z\' fill=\'%2300d4ff\' fill-opacity=\'1\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")' }} />
 
       {/* Top XP Bar - Full width */}
-      <div className="h-1 w-full bg-[#111118] relative">
+      <div className="h-1 w-full bg-[#111118] relative overflow-hidden">
         <motion.div
           className="h-full absolute top-0 left-0"
           initial={{ width: 0 }}
@@ -286,7 +285,15 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
             background: `linear-gradient(90deg, ${fc}40, ${fc})`,
             boxShadow: `0 0 10px ${fc}`,
           }}
-        />
+        >
+          {/* Sweeping highlight on XP bar */}
+          <motion.div
+            animate={{ x: ["-100%", "200%"] }}
+            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+            className="absolute top-0 bottom-0 w-20"
+            style={{ background: `linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)`, transform: "skewX(-20deg)" }}
+          />
+        </motion.div>
         {xpPct >= 95 && (
           <div className="absolute top-0 bottom-0 left-0 right-0 animate-pulse bg-white/20" />
         )}
@@ -307,7 +314,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => onNav("notifications")}
-            className="relative font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800"
+            className="relative font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800 flex items-center justify-center"
             style={{
               fontSize: 12,
               color: unreadNotifs > 0 ? "#ff2d55" : "#475569",
@@ -316,7 +323,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
               boxShadow: unreadNotifs > 0 ? "0 0 12px #ff2d5540" : "none",
             }}
           >
-            {unreadNotifs > 0 ? "⚠️" : "🔔"}
+            <Bell size={16} strokeWidth={2} />
           </button>
           <AvatarMenu user={user} onNav={onNav} onLogout={onLogout} />
         </div>
@@ -324,8 +331,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
 
       <AnnouncementBanner />
 
-      {/* Vitals & Status Strip */}
-      <div className="flex items-center px-4 py-1.5 overflow-x-auto gap-4" style={{ background: "#0d0d14", borderBottom: "1px solid #1e1e2e", scrollbarWidth: "none" }}>
+      {/* Vitals & Status Strip - HUD overlay feel */}
+      <div className="flex items-center px-4 py-1.5 overflow-x-auto gap-4" style={{ background: "rgba(13, 13, 20, 0.8)", backdropFilter: "blur(4px)", borderBottom: "1px solid #1e1e2e", scrollbarWidth: "none", boxShadow: "inset 0 -10px 20px rgba(0,0,0,0.5)" }}>
         {/* Status tags */}
         <div className="flex gap-2 flex-shrink-0">
           <span className="font-mono text-[10px] uppercase bg-slate-800 px-2 py-0.5 clip-btn text-slate-300">
@@ -333,7 +340,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
           </span>
           {user.faction && (
             <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn font-bold" style={{ background: `${fc}20`, color: fc, border: `1px solid ${fc}40` }}>
-              {FACTION_EMOJI[user.faction]} {user.faction}
+              {user.faction}
             </span>
           )}
           {isHosp && (
@@ -398,23 +405,24 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
               style={{
                 minWidth: 54,
                 padding: "8px 4px 6px",
-                background: isActive ? "#00d4ff15" : "#111118",
+                background: isActive ? "#00d4ff20" : "#111118",
                 border: isActive ? "1px solid #00d4ff" : "1px solid #1e1e2e",
-                boxShadow: isActive ? "0 0 15px #00d4ff30" : "none",
+                boxShadow: isActive ? "0 0 20px #00d4ff40" : "none",
               }}
             >
               <Icon 
                 size={18} 
                 strokeWidth={isActive ? 2 : 1.5} 
                 color={iconColor} 
-                className={cn(isActive && "drop-shadow-[0_0_8px_#00d4ff]")}
+                className={cn(isActive && "drop-shadow-[0_0_12px_#00d4ff]")}
               />
               <span
-                className="font-mono uppercase tracking-wider mt-1.5"
+                className={cn("font-mono uppercase tracking-wider mt-1.5", isActive && "glitch-text")}
                 style={{
                   fontSize: 8,
                   color: isActive ? "#fff" : "#64748b",
                   fontWeight: isActive ? "bold" : "normal",
+                  textShadow: isActive ? "0 0 5px #00d4ff" : "none",
                 }}
               >
                 {item.label}

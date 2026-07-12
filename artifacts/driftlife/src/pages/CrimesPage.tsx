@@ -95,7 +95,9 @@ export function CrimesPage({ user, refreshUser, addToast }: Props) {
   const resultDetail = lastResult?.narrative;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6 relative z-10">
+      <div className="dl-page-bg bg-combat" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
 
       {/* PURSUIT MODAL */}
       <AnimatePresence>

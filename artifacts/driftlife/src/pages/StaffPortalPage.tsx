@@ -104,7 +104,9 @@ export function StaffPortalPage({ user, addToast }: Props) {
   const { tier, tierDef, tasks, totalEarned, canClaimNow, nextClaimAt } = data;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="max-w-2xl mx-auto space-y-4 relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       {/* Header */}
       <div style={{ ...s, borderColor: `${tierDef.color}40` }}>
         <div className="flex items-start justify-between">

@@ -34,7 +34,10 @@ export function DistrictPage({ user, refreshUser, addToast }: Props) {
   const DANGER_COLORS = ["", "#39d353", "#f59e0b", "#ff6b35", "#ff2d55", "#ff0000"];
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+    <div className="max-w-2xl mx-auto flex flex-col gap-4 relative z-10">
+      <div className="dl-page-bg bg-city" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
+
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-mono font-bold" style={{ color: "#a855f7" }}>Districts of New Vanta</h2>
         <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>

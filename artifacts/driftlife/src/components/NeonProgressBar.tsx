@@ -49,14 +49,17 @@ export function NeonProgressBar({
 
       {/* Track */}
       <div
-        className="clip-bar relative w-full"
+        className="clip-bar relative w-full overflow-hidden"
         style={{ background: "#161622", height, border: "1px solid #1e1e2e" }}
       >
+        {/* Subtle scanline overlay on track */}
+        <div className="absolute inset-0 pointer-events-none opacity-20" style={{ background: "repeating-linear-gradient(90deg, transparent, transparent 2px, #000 2px, #000 4px)", zIndex: 5 }} />
+
         {/* Tick marks */}
         <div className="absolute inset-0 z-10 flex justify-between px-[25%] pointer-events-none">
-          <div className="w-px h-full bg-black/50" />
-          <div className="w-px h-full bg-black/50" />
-          <div className="w-px h-full bg-black/50" />
+          <div className="w-px h-full bg-black/80" />
+          <div className="w-px h-full bg-black/80" />
+          <div className="w-px h-full bg-black/80" />
         </div>
 
         {/* Fill */}
@@ -70,12 +73,12 @@ export function NeonProgressBar({
             boxShadow: `0 0 10px ${activeColor}60`,
           }}
         >
-          {/* Bright leading edge */}
+          {/* Brighter leading edge */}
           <div 
-            className="absolute right-0 top-0 bottom-0 w-2 bg-white" 
+            className="absolute right-0 top-0 bottom-0 w-3 bg-white" 
             style={{ 
-              boxShadow: `0 0 10px #fff, 0 0 20px ${activeColor}`,
-              opacity: isFull ? 0.5 : 1
+              boxShadow: `0 0 15px #fff, 0 0 25px ${activeColor}`,
+              opacity: isFull ? 0.3 : 1
             }} 
           />
         </motion.div>
@@ -84,7 +87,7 @@ export function NeonProgressBar({
         {isFull && (
           <motion.div 
             className="absolute inset-0 bg-white mix-blend-overlay clip-bar"
-            animate={{ opacity: [0, 0.3, 0] }}
+            animate={{ opacity: [0, 0.4, 0] }}
             transition={{ duration: 1.5, repeat: Infinity }}
           />
         )}

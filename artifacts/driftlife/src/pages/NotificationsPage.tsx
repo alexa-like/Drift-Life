@@ -95,7 +95,14 @@ export function NotificationsPage({ onUnreadChange, onInspectPlayer }: Props) {
   const unreadCount = notifs.filter(n => !n.read).length;
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+    <div className="max-w-2xl mx-auto flex flex-col gap-4 relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      
+      {/* Radar scanning background pattern */}
+      <div className="absolute inset-0 pointer-events-none opacity-10 fixed" style={{
+        backgroundImage: "radial-gradient(circle at 50% 50%, rgba(0, 212, 255, 0.1) 0%, transparent 60%), repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent 20px, rgba(0, 212, 255, 0.05) 20px, rgba(0, 212, 255, 0.05) 21px)"
+      }} />
+
       <CyberSectionHeader
         title={unreadCount > 0 ? `NOTIFICATIONS — ${unreadCount} UNREAD` : "NOTIFICATIONS"}
         accent="#a855f7"

@@ -90,7 +90,14 @@ export function HospitalPage({ user, refreshUser, addToast }: Props) {
   );
 
   return (
-    <div className="max-w-md mx-auto flex flex-col gap-4">
+    <div className="max-w-md mx-auto flex flex-col gap-4 relative z-10">
+      <div className="dl-page-bg bg-combat" />
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03] fixed" style={{
+        backgroundImage: "linear-gradient(rgba(255, 45, 85, 0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 45, 85, 0.5) 1px, transparent 1px)",
+        backgroundSize: "20px 20px"
+      }} />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
+
       <h2 className="text-lg font-mono font-bold" style={{ color: "#ff2d55" }}>New Vanta Hospital</h2>
 
       <div className="rounded-lg p-6" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>

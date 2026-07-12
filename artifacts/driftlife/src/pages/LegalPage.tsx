@@ -22,7 +22,9 @@ export function LegalPage({ onNav }: Props) {
   const [tab, setTab] = useState<LegalTab>("rules");
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="max-w-2xl mx-auto space-y-4 relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       {/* Header */}
       <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 8, padding: "16px 20px" }}>
         <div style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 700, color: "#e2e8f0", letterSpacing: "0.05em" }}>

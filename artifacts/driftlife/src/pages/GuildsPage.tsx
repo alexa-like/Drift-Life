@@ -165,7 +165,9 @@ export function GuildsPage({ user, addToast }: Props) {
     : (["mine", "browse", "create", "turf"] as const);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative z-10">
+      <div className="dl-page-bg bg-city" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <AnimatedCard accent="#a855f7">
         <CyberSectionHeader title="GUILDS" accent="#a855f7" cursor />
         <p className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>

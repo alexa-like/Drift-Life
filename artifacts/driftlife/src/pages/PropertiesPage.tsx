@@ -78,7 +78,9 @@ export function PropertiesPage({ user, refreshUser, addToast }: Props) {
   const totalPending = catalog.flatMap((e) => e.owned).reduce((s, p) => s + p.pendingIncome, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative z-10">
+      <div className="dl-page-bg bg-city" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <div className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
         <h2 className="font-mono font-bold text-lg" style={{ color: "#39d353" }}>PROPERTIES</h2>
         <p className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>

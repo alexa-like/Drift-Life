@@ -127,7 +127,9 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
   ];
 
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto" }} className="space-y-4">
+    <div style={{ maxWidth: 480, margin: "0 auto" }} className="space-y-4 relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <CyberSectionHeader title="SETTINGS" accent="#00d4ff" cursor />
 
       {/* Tab bar */}

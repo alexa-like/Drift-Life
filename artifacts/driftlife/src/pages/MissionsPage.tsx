@@ -106,7 +106,9 @@ export function MissionsPage({ user, refreshUser, addToast }: Props) {
   const claimed   = data?.missions.filter(m => m.claimed).length ?? 0;
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto" }}>
+    <div style={{ maxWidth: 640, margin: "0 auto" }} className="relative z-10">
+      <div className="dl-page-bg bg-city" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>

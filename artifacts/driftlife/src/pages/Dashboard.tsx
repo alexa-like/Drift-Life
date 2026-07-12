@@ -87,7 +87,8 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 relative z-0">
+      <div className="dl-page-bg bg-city" />
       
       {/* ── Left Column (Stats & Identity) ── */}
       <div className="lg:col-span-4 flex flex-col gap-5">

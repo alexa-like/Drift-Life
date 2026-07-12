@@ -55,7 +55,9 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+    <div className="max-w-2xl mx-auto flex flex-col gap-4 relative z-10">
+      <div className="dl-page-bg bg-market" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
 
       {/* Header */}
       <div className="flex justify-between items-center">

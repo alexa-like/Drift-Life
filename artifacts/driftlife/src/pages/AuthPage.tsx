@@ -68,6 +68,8 @@ export function AuthPage({ onLogin }: Props) {
 
   return (
     <div className="min-h-[100dvh] flex items-center justify-center p-4 relative overflow-hidden" style={{ background: "#050505" }}>
+      <div className="dl-page-bg bg-terminal" />
+      
       {/* 3D Perspective Grid Background */}
       <div className="absolute inset-0 perspective-[1000px] overflow-hidden pointer-events-none">
         <motion.div 

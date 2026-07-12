@@ -581,7 +581,9 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const s = { background: "#111118", border: "1px solid #1e1e2e", borderRadius: 8, padding: 20 };
 
   return (
-    <div className="space-y-5 max-w-5xl mx-auto">
+    <div className="space-y-5 max-w-5xl mx-auto relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       {/* Header */}
       <div style={{ ...s, borderColor: "#a855f730" }}>
         <div className="flex items-center justify-between">

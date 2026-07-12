@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { PreferencesProvider, usePreferences } from "./context/PreferencesContext";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -207,16 +208,31 @@ function GameApp() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a0a0f" }}>
-        <div style={{ textAlign: "center" }}>
+      <div className="min-h-[100dvh] flex items-center justify-center bg-terminal relative overflow-hidden" style={{ background: "#05050a" }}>
+        <div className="scanlines absolute inset-0 pointer-events-none" />
+        <div className="absolute inset-0 pointer-events-none opacity-20 data-stream" />
+        
+        <div className="relative z-10 flex flex-col items-start w-full max-w-lg p-8">
           <div
-            className="font-mono font-bold text-2xl tracking-widest mb-4"
+            className="font-display font-black text-4xl tracking-widest mb-8 uppercase glitch-text"
             style={{ color: "#00d4ff", textShadow: "0 0 20px #00d4ff" }}
           >
-            DRIFTLIFE
+            DRIFTLIFE_OS
           </div>
-          <div className="font-mono text-xs" style={{ color: "#334155" }}>
-            Connecting to New Vanta...
+          
+          <div className="font-mono text-sm text-[#39d353] flex flex-col gap-2 w-full">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>{">"} INITIALIZING CORE...</motion.div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>{">"} LOADING DISTRICT DATA...</motion.div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}>{">"} ESTABLISHING SECURE CHANNEL...</motion.div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}>{">"} SYNCING OPERATIVE PROFILE...</motion.div>
+            
+            <motion.div 
+              initial={{ width: 0 }} 
+              animate={{ width: "100%" }} 
+              transition={{ delay: 1.5, duration: 1 }}
+              className="h-2 bg-[#00d4ff] mt-4 clip-bar"
+              style={{ boxShadow: "0 0 15px #00d4ff" }}
+            />
           </div>
         </div>
       </div>
@@ -318,28 +334,20 @@ function GameApp() {
       {/* Update banner — shown when a new deployment is detected */}
       {updateAvailable && !updateDismissed && (
         <div
-          style={{
-            position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
-            background: "#00d4ff", color: "#0a0a0f",
-            fontFamily: "monospace", fontSize: 13, fontWeight: "bold",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-            padding: "10px 16px",
-          }}
+          className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-4 py-2 bg-[#0d0d14] border-b border-[#00d4ff] shadow-[0_0_20px_rgba(0,212,255,0.3)]"
         >
-          <span>⚡ New update available</span>
+          <span className="font-mono text-sm font-bold text-[#00d4ff] tracking-widest animate-pulse">
+            ⚡ NEW UPDATE AVAILABLE
+          </span>
           <button
             onClick={() => window.location.reload()}
-            style={{
-              background: "#0a0a0f", color: "#00d4ff", border: "none",
-              borderRadius: 6, padding: "4px 14px", fontFamily: "monospace",
-              fontWeight: "bold", fontSize: 12, cursor: "pointer",
-            }}
+            className="px-4 py-1 text-xs font-mono font-bold text-[#0d0d14] bg-[#00d4ff] clip-btn hover:bg-white transition-colors"
           >
-            Refresh
+            REBOOT SYSTEM
           </button>
           <button
             onClick={() => setUpdateDismissed(true)}
-            style={{ background: "none", border: "none", color: "#0a0a0f", cursor: "pointer", fontSize: 16 }}
+            className="text-[#64748b] hover:text-white transition-colors"
           >
             ✕
           </button>

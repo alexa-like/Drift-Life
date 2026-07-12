@@ -245,7 +245,9 @@ export default function GaragePage({ user, onUserUpdate }: Props) {
   const dirty = activeCarObj && JSON.stringify(pendingParts) !== JSON.stringify(activeCarObj.equippedParts);
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto" }}>
+    <div style={{ maxWidth: 720, margin: "0 auto" }} className="relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontFamily: "monospace", fontSize: 20, color: "#00d4ff", fontWeight: "bold", letterSpacing: 2 }}>🏎 GARAGE</h1>

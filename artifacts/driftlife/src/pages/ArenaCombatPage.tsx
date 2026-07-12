@@ -398,7 +398,9 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
   // ── Render: Idle ───────────────────────────────────────────────────────────
   if (phase === "idle") {
     return (
-      <div style={{ maxWidth: 500, margin: "0 auto", paddingTop: 32 }}>
+      <div style={{ maxWidth: 500, margin: "0 auto", paddingTop: 32 }} className="relative z-10">
+        <div className="dl-page-bg bg-arena" />
+        <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
         <style>{COMBAT_CSS}</style>
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 28 }}>
@@ -484,7 +486,9 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
   // ── Render: Queuing ────────────────────────────────────────────────────────
   if (phase === "queuing") {
     return (
-      <div style={{ maxWidth: 400, margin: "0 auto", textAlign: "center", paddingTop: 70 }}>
+      <div style={{ maxWidth: 400, margin: "0 auto", textAlign: "center", paddingTop: 70 }} className="relative z-10">
+        <div className="dl-page-bg bg-arena" />
+        <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
         <style>{COMBAT_CSS}</style>
         <div style={{ animation: "queuePulse 1.6s ease-in-out infinite" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
@@ -512,7 +516,9 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
   if (phase === "found" && match) {
     const oppName = match.isPlayer2AI ? match.aiName : "Opponent";
     return (
-      <div style={{ maxWidth: 440, margin: "0 auto", textAlign: "center", paddingTop: 60 }}>
+      <div style={{ maxWidth: 440, margin: "0 auto", textAlign: "center", paddingTop: 60 }} className="relative z-10">
+        <div className="dl-page-bg bg-arena" />
+        <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
         <style>{COMBAT_CSS}</style>
         <div style={{ animation: "foundSlide 0.4s ease" }}>
           <div style={{ fontFamily: "monospace", fontSize: 11, color: "#22c55e", letterSpacing: 3, marginBottom: 8 }}>MATCH FOUND</div>
@@ -564,7 +570,9 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
     const consumablesUsed = (isP1 ? match.player1ConsumablesUsed : match.player2ConsumablesUsed)?.length ?? 0;
 
     return (
-      <>
+      <div className="relative z-10">
+        <div className="dl-page-bg bg-arena" />
+        <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
         <style>{COMBAT_CSS}</style>
         {/* Show idle/queuing backdrop so there's something behind the modal */}
         <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center", paddingTop: 32, opacity: 0.2 }}>
@@ -579,7 +587,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
           gearStatus={gearStatus}
           onContinue={() => { onNavigate("arena"); }}
         />
-      </>
+      </div>
     );
   }
 

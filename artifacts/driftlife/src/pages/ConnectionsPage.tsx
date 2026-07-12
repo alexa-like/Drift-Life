@@ -209,7 +209,9 @@ export function ConnectionsPage({ user }: Props) {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: "16px 12px", maxWidth: 520, margin: "0 auto" }}>
+    <div style={{ padding: "16px 12px", maxWidth: 520, margin: "0 auto" }} className="relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <h2 style={{ color: "#00d4ff", fontFamily: "monospace", fontSize: 16, letterSpacing: 2, marginBottom: 4 }}>
         CONNECTIONS_
       </h2>

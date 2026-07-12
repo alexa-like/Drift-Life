@@ -109,7 +109,14 @@ export function TravelPage({ user, refreshUser, addToast, onNavigate }: Props) {
   const currentLoc = user.currentLocation || user.district || "downtown";
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <div className="max-w-3xl mx-auto space-y-4 relative z-10">
+      <div className="dl-page-bg" style={{ background: "radial-gradient(circle at center, #001a33 0%, #08080c 100%)" }} />
+      {/* Coordinate grid */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.05] fixed" style={{
+        backgroundImage: "linear-gradient(rgba(56, 189, 248, 0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(56, 189, 248, 0.8) 1px, transparent 1px)",
+        backgroundSize: "40px 40px"
+      }} />
+
       <CyberSectionHeader title="TRAVEL" accent="#38bdf8" cursor />
 
       {/* Status banner */}

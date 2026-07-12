@@ -34,12 +34,11 @@ export const AnimatedCard = forwardRef<HTMLDivElement, AnimatedCardProps>(
         }}
         {...props}
       >
-        {/* Subtle grid background */}
+        {/* Very subtle scanline texture inside card */}
         <div 
-          className="absolute inset-0 pointer-events-none opacity-20"
+          className="absolute inset-0 pointer-events-none opacity-[0.03]"
           style={{
-            backgroundImage: `linear-gradient(${accent}10 1px, transparent 1px), linear-gradient(90deg, ${accent}10 1px, transparent 1px)`,
-            backgroundSize: "10px 10px"
+            backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, #00d4ff 2px, #00d4ff 4px)"
           }}
         />
 
@@ -55,22 +54,24 @@ export const AnimatedCard = forwardRef<HTMLDivElement, AnimatedCardProps>(
 
         {/* Corner cut accent fill */}
         <div 
-          className="absolute bottom-0 right-0 pointer-events-none transition-all duration-300"
+          className={cn("absolute bottom-0 right-0 pointer-events-none transition-all duration-300", isHovered && "animate-pulse-glow")}
           style={{
             width: 16, height: 16,
             background: isHovered ? accent : `${accent}40`,
             clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
-            boxShadow: isHovered ? `0 0 20px ${accent}` : "none"
+            boxShadow: isHovered ? `0 0 20px ${accent}` : "none",
+            color: accent
           }}
         />
 
         {/* Top left small accent */}
         <div 
-          className="absolute top-0 left-0 pointer-events-none transition-all duration-300"
+          className={cn("absolute top-0 left-0 pointer-events-none transition-all duration-300", isHovered && "animate-pulse-glow")}
           style={{
             width: 8, height: 2,
             background: isHovered ? accent : `${accent}40`,
-            boxShadow: isHovered ? `0 0 10px ${accent}` : "none"
+            boxShadow: isHovered ? `0 0 10px ${accent}` : "none",
+            color: accent
           }}
         />
 

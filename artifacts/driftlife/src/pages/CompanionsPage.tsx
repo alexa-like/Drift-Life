@@ -110,7 +110,9 @@ export function CompanionsPage({ user, refreshUser, addToast }: Props) {
   const maxReached = owned.length >= 3;
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto">
+    <div className="space-y-4 max-w-2xl mx-auto relative z-10">
+      <div className="dl-page-bg bg-city" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
 
       <AnimatedCard accent="#f59e0b">
         <CyberSectionHeader title="COMPANIONS" accent="#f59e0b" cursor />

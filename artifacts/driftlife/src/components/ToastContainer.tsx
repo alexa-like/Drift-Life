@@ -22,7 +22,7 @@ interface Props {
 
 export function ToastContainer({ toasts, removeToast }: Props) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
       <AnimatePresence>
         {toasts.map(t => (
           <motion.div
@@ -30,20 +30,23 @@ export function ToastContainer({ toasts, removeToast }: Props) {
             initial={{ opacity: 0, x: 50, scale: 0.95, filter: "hue-rotate(90deg)" }}
             animate={{ opacity: 1, x: 0, scale: 1, filter: "hue-rotate(0deg)" }}
             exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
-            className="pointer-events-auto flex items-start gap-0 clip-card cursor-pointer overflow-hidden group"
+            className="pointer-events-auto flex items-start gap-0 clip-card cursor-pointer overflow-hidden group animate-glitch"
             style={{
               background: "#08080c",
               border: `1px solid ${COLORS[t.type]}40`,
               boxShadow: `0 0 20px ${COLORS[t.type]}15`,
+              animationIterationCount: 1,
+              animationDuration: "0.2s"
             }}
             onClick={() => removeToast(t.id)}
           >
-            {/* Left color bar */}
+            {/* Left color bar glows */}
             <div 
-              className="w-1.5 self-stretch flex-shrink-0"
+              className="w-2 self-stretch flex-shrink-0 animate-pulse-glow"
               style={{ 
                 background: COLORS[t.type],
-                boxShadow: `0 0 10px ${COLORS[t.type]}`
+                boxShadow: `0 0 15px ${COLORS[t.type]}`,
+                color: COLORS[t.type]
               }}
             />
             

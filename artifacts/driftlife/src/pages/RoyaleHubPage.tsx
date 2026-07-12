@@ -18,7 +18,9 @@ interface Props {
 
 export default function RoyaleHubPage({ onSelectCategory }: Props) {
   return (
-    <div style={{ padding: "1rem", maxWidth: "900px", margin: "0 auto" }}>
+    <div style={{ padding: "1rem", maxWidth: "900px", margin: "0 auto" }} className="relative z-10">
+      <div className="dl-page-bg bg-market" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <h1 style={{ color: "#00E0FF", fontFamily: "monospace", fontSize: "1.5rem", marginBottom: "1rem" }}>
         ★ MASTER ROYALE
       </h1>

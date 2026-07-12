@@ -150,7 +150,9 @@ export default function NetPage({ user, onUserUpdate }: Props) {
   const nextFirewallCost = FIREWALL_COSTS[(user.firewallLevel ?? 1)] ?? null;
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">The Net</h1>

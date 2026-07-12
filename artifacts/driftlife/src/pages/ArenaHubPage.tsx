@@ -119,7 +119,9 @@ function ArenaCard({ title, subtitle, glowColor, barLabel, barValue, barMax, onC
 
 export default function ArenaHubPage({ user, onNavigate }: Props) {
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8 relative z-10">
+      <div className="dl-page-bg bg-arena" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       
       <div className="text-center py-8 relative">
         {/* Background glow for header */}

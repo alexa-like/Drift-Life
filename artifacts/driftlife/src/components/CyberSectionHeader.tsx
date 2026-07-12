@@ -38,6 +38,10 @@ export function CyberSectionHeader({
             className="w-1.5 h-1 clip-btn"
             style={{ background: accent, opacity: 0.5 }}
           />
+          <span
+            className="w-2 h-1 clip-btn ml-[-2px] mt-[1px]"
+            style={{ background: accent, opacity: 0.8 }}
+          />
         </div>
 
         <span
@@ -68,10 +72,10 @@ export function CyberSectionHeader({
             }} 
           />
           <div 
-            className="absolute top-0 bottom-0 w-8"
+            className="absolute top-0 bottom-0 w-16"
             style={{ 
               background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
-              animation: "shimmer 3s linear infinite"
+              animation: "shimmer 1.5s linear infinite"
             }} 
           />
         </div>

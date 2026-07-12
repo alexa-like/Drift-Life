@@ -110,7 +110,9 @@ export function SupportPage({ user, addToast }: Props) {
   const openTicket = tickets.find(t => t.id === openId);
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto">
+    <div className="space-y-4 max-w-2xl mx-auto relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
 
       <AnimatedCard accent="#00d4ff">
         <CyberSectionHeader title="SUPPORT CENTER" accent="#00d4ff" cursor />

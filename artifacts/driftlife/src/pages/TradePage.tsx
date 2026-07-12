@@ -107,7 +107,9 @@ export function TradePage({ user, addToast }: Props) {
   const outgoing = trades.filter((t) => t.isMine);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative z-10">
+      <div className="dl-page-bg bg-market" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <div className="rounded-lg p-4" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
         <div className="flex items-center justify-between">
           <div>

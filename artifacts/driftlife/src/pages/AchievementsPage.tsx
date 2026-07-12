@@ -99,7 +99,9 @@ export function AchievementsPage({ user, refreshUser, addToast }: Props) {
   const totalDC = achievements.filter(a => a.completed).reduce((s, a) => s + (a.dcReward ?? 0), 0);
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto" }}>
+    <div style={{ maxWidth: 640, margin: "0 auto" }} className="relative z-10">
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
           <h1 className="font-mono font-bold" style={{ color: "#00d4ff", fontSize: 18, letterSpacing: "0.1em", textTransform: "uppercase" }}>

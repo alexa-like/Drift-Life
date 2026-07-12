@@ -147,7 +147,9 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
   ];
 
   return (
-    <div className="space-y-4" style={{ maxWidth: 640, margin: "0 auto" }}>
+    <div className="space-y-4 relative z-10" style={{ maxWidth: 640, margin: "0 auto" }}>
+      <div className="dl-page-bg bg-terminal" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       {/* Header */}
       <AnimatedCard accent="#00d4ff">
         <CyberSectionHeader title="CREW NETWORK" accent="#00d4ff" cursor />

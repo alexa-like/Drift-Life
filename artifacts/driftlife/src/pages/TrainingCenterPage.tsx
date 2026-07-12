@@ -177,7 +177,9 @@ export default function TrainingCenterPage({ user, refreshUser, addToast }: Prop
   }
 
   return (
-    <div style={{ maxWidth: 680, margin: "0 auto" }}>
+    <div style={{ maxWidth: 680, margin: "0 auto" }} className="relative z-10">
+      <div className="dl-page-bg bg-arena" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       {/* ── Header ───────────────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>

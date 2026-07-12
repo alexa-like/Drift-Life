@@ -130,6 +130,22 @@ html, body {
   0%   { transform: translateY(-100%); }
   100% { transform: translateY(100vh); }
 }
+@keyframes horizontal-scan-sweep {
+  0% { transform: translateY(-100vh); }
+  100% { transform: translateY(100vh); }
+}
+@keyframes glitch-shift {
+  0% { transform: translateX(0) skewX(0); }
+  20% { transform: translateX(-5px) skewX(10deg); filter: drop-shadow(-2px 0 red) drop-shadow(2px 0 cyan); }
+  40% { transform: translateX(5px) skewX(-10deg); filter: drop-shadow(2px 0 red) drop-shadow(-2px 0 cyan); }
+  60% { transform: translateX(-2px) skewX(5deg); filter: drop-shadow(-1px 0 red) drop-shadow(1px 0 cyan); }
+  80% { transform: translateX(2px) skewX(-5deg); filter: drop-shadow(1px 0 red) drop-shadow(-1px 0 cyan); }
+  100% { transform: translateX(0) skewX(0); filter: none; }
+}
+
+@media (prefers-reduced-motion) { 
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } 
+}
 
 /* ── Utility animation classes ── */
 .animate-fade-in-up  { animation: fade-in-up  0.3s ease both; }
@@ -172,6 +188,27 @@ html, body {
   mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
   pointer-events: none;
 }
+
+/* ── Page Atmospheric Backgrounds ── */
+.dl-page-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background-image: 
+    linear-gradient(to right, rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.bg-combat { background: radial-gradient(circle at 50% 50%, #2a0008 0%, #08080c 100%); }
+.bg-race { background: linear-gradient(180deg, #08080c 0%, #001a22 100%); }
+.bg-arena { background: radial-gradient(circle at top, #2a0818 0%, #08080c 100%); }
+.bg-city { background: linear-gradient(0deg, #08080c 0%, #0d1b2a 100%); }
+.bg-hack { background: radial-gradient(circle at center, #001811 0%, #08080c 100%); }
+.bg-market { background: radial-gradient(circle at bottom, #1a0822 0%, #08080c 100%); }
+.bg-vault { background: radial-gradient(circle at center, #1a1500 0%, #08080c 100%); }
+.bg-terminal { background: linear-gradient(to bottom, #08080c 0%, #050a0f 100%); }
+.bg-faction { background: linear-gradient(45deg, #08080c 0%, #0a0a0f 100%); }
 
 /* ── Scan-line overlay ── */
 .scanlines {

@@ -390,7 +390,9 @@ export function AuctionPage({ user, refreshUser, addToast }: Props) {
   const [tab, setTab] = useState<Tab>("auction");
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+    <div className="max-w-2xl mx-auto flex flex-col gap-4 relative z-10">
+      <div className="dl-page-bg bg-market" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <div className="flex gap-2 flex-wrap">
         {(["auction", "listings", "trade", "black-market"] as Tab[]).map(t => (
           <CyberButton key={t} variant={tab === t ? (t === "black-market" ? "danger" : "primary") : "ghost"} size="sm" onClick={() => setTab(t)}>

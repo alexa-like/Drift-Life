@@ -653,7 +653,9 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 620, margin: "0 auto", padding: "8px 8px 24px" }}>
+    <div style={{ maxWidth: 620, margin: "0 auto", padding: "8px 8px 24px" }} className="relative z-10">
+      <div className="dl-page-bg bg-race" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       <style>{RACE_CSS}</style>
 
       {/* Loading */}

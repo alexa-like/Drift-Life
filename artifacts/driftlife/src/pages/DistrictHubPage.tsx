@@ -142,7 +142,10 @@ export function DistrictHubPage({ user, refreshUser, addToast }: Props) {
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 relative z-10">
+      <div className="dl-page-bg bg-city" />
+      <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
+
       {/* Header Banner */}
       <div 
         className="relative overflow-hidden rounded-xl p-8 border"
