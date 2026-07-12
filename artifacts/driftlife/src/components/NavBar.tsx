@@ -69,6 +69,7 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "daily",        label: "Daily",    icon: Gift },
   { id: "companions",   label: "Allies",   icon: PawPrint,      statusFilter: "normal" },
   { id: "staff-portal", label: "Staff",    icon: Shield,        roles: ["staff", "admin", "owner"] },
+  { id: "owner",        label: "Owner",    icon: Settings,      roles: ["admin", "owner"] },
 ];
 
 function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; maxEnergy: number; energyRegenAt?: string | null }) {
