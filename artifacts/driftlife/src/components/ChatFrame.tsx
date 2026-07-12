@@ -220,11 +220,9 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
   }
 
   // All frames get a glow — stronger for legendary/mythic
-  const glowStrength = frame.rarity === 'mythic' ? '14px' : frame.rarity === 'legendary' ? '10px' : '6px'
-  const glowOpacity = frame.rarity === 'elite' ? '55' : '88'
-  const bodyBoxShadow = frame.id === 'void_signal'
-    ? `0 0 10px #3030CC88, inset 0 0 20px rgba(48,48,204,0.08)`
-    : `0 0 ${glowStrength} ${frame.accentColor}${glowOpacity}`
+  const glowStrength = frame.rarity === 'mythic' ? '18px' : frame.rarity === 'legendary' ? '14px' : '8px'
+  const glowOpacity = frame.rarity === 'elite' ? '77' : '99'
+  const bodyBoxShadow = `0 0 ${glowStrength} ${frame.accentColor}${glowOpacity}, inset 0 0 30px ${frame.accentColor}18`
 
   return (
     <div style={{ maxWidth: size === 'full' ? '85%' : '100%', wordBreak: 'break-word' }}>
@@ -233,9 +231,9 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
         <NameTag frame={frame} username={username} subscriptionTier={subscriptionTier} />
         <TierBadge frame={frame} />
 
-        {/* Body */}
+        {/* Body — tinted gradient so each frame looks distinct even before body art */}
         <div style={{
-          background: '#0A0008',
+          background: `linear-gradient(160deg, ${frame.accentColor}22 0%, #060210 42%, ${frame.accentColor}14 100%)`,
           border: `2px solid ${frame.accentColor}`,
           boxShadow: bodyBoxShadow,
           position: 'relative',
@@ -248,13 +246,14 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
           <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
             <BodyArtLayer bodyArt={frame.bodyArt} accentColor={frame.accentColor} />
           </div>
-          {/* Message text */}
+          {/* Message text — light overlay so body art shows through clearly */}
           <div style={{
             position: 'relative', zIndex: 1,
             padding: '10px 12px 8px',
             fontSize: 12,
             color: '#e2e8f0',
-            background: 'rgba(0,0,0,0.45)',
+            background: 'rgba(0,0,0,0.18)',
+            textShadow: '0 1px 4px rgba(0,0,0,0.95)',
           }}>
             {level !== undefined && (
               <span className="font-mono" style={{ display: 'block', fontSize: 9, opacity: 0.55, marginBottom: 2 }}>
