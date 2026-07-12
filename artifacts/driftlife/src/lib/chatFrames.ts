@@ -23,6 +23,10 @@ export type BodyArt =
   | 'petal-drift'
   | 'frost-shimmer'
   | 'circuit-pulse'
+  | 'paw-drift'
+  | 'snowflake-field'
+  | 'christmas-spirits'
+  | 'ember-sparks'
 
 // Shape of the name tag that overlaps the top-left corner of the frame body.
 // 'pennant' = chevron-cut tag (default). 'square' = hard-edged tag (Netrunner/terminal themes).
@@ -42,6 +46,7 @@ export interface Frame {
   accentColor: string
   textOnHeader: 'white' | 'dark'
   bodyArt: BodyArt
+  icon?: string   // emoji/symbol shown in name tag badge
 
   // Profile card
   logoComponent: string
@@ -190,12 +195,13 @@ export const FRAMES: Frame[] = [
     rarity: 'elite',
     description: 'Neon paws and pastel static. Cute with teeth.',
     headerVariant: 'solid',
-    headerColor: '#FF6FB0',
-    accentColor: '#FF6FB0',
+    headerColor: '#00C8D4',
+    accentColor: '#00C8D4',
     textOnHeader: 'dark',
-    bodyArt: 'petal-drift',
+    bodyArt: 'paw-drift',
+    icon: '🐾',
     logoComponent: 'CyberKittyLogo',
-    profileBgAnimation: 'petal-drift',
+    profileBgAnimation: 'paw-drift',
     tagShape: 'pennant',
     priceNC: 900,
     availableVia: ['nc-purchase'],
@@ -206,12 +212,13 @@ export const FRAMES: Frame[] = [
     rarity: 'elite',
     description: 'Sub-zero circuitry. Every message ships with frostbite.',
     headerVariant: 'solid',
-    headerColor: '#7FDBFF',
-    accentColor: '#7FDBFF',
+    headerColor: '#5BC8F5',
+    accentColor: '#5BC8F5',
     textOnHeader: 'dark',
-    bodyArt: 'frost-shimmer',
+    bodyArt: 'snowflake-field',
+    icon: '❄️',
     logoComponent: 'CyberFrostLogo',
-    profileBgAnimation: 'frost-shimmer',
+    profileBgAnimation: 'snowflake-field',
     priceNC: 900,
     availableVia: ['nc-purchase'],
   },
@@ -236,10 +243,11 @@ export const FRAMES: Frame[] = [
     rarity: 'elite',
     description: 'Digital cherry blossoms drift across the interface.',
     headerVariant: 'solid',
-    headerColor: '#FFB7C5',
+    headerColor: '#FF8FAB',
     accentColor: '#FFB7C5',
     textOnHeader: 'dark',
     bodyArt: 'petal-drift',
+    icon: '🌸',
     logoComponent: 'SakuraLogo',
     profileBgAnimation: 'petal-drift',
     priceNC: 900,
@@ -255,6 +263,7 @@ export const FRAMES: Frame[] = [
     accentColor: '#FF7518',
     textOnHeader: 'dark',
     bodyArt: 'glitch-tears',
+    icon: '🎃',
     logoComponent: 'HalloweenLogo',
     profileBgAnimation: 'glitch-tears',
     priceNC: 900,
@@ -270,6 +279,7 @@ export const FRAMES: Frame[] = [
     accentColor: '#39FF14',
     textOnHeader: 'dark',
     bodyArt: 'petal-drift',
+    icon: '🌺',
     logoComponent: 'CyberbloomLogo',
     profileBgAnimation: 'petal-drift',
     priceNC: 900,
@@ -344,13 +354,14 @@ export const FRAMES: Frame[] = [
     name: 'CyberSanta',
     rarity: 'legendary',
     description: 'Holiday firmware update. Ho ho — access granted.',
-    headerVariant: 'solid',
+    headerVariant: 'textured-weave',  // overridden to candy-stripe via CSS class
     headerColor: '#C41E3A',
-    accentColor: '#FFD24D',
-    textOnHeader: 'dark',
-    bodyArt: 'frost-shimmer',
+    accentColor: '#FF4444',
+    textOnHeader: 'white',
+    bodyArt: 'christmas-spirits',
+    icon: '🎅',
     logoComponent: 'CyberSantaLogo',
-    profileBgAnimation: 'frost-shimmer',
+    profileBgAnimation: 'christmas-spirits',
     priceNC: 3500,
     availableVia: ['nc-purchase'],
   },
@@ -360,12 +371,13 @@ export const FRAMES: Frame[] = [
     rarity: 'legendary',
     description: 'Molten alloy scales. The city burns when it speaks.',
     headerVariant: 'solid',
-    headerColor: '#E63900',
-    accentColor: '#FFAA00',
-    textOnHeader: 'dark',
-    bodyArt: 'thermal-heat',
+    headerColor: '#C41400',
+    accentColor: '#FF4400',
+    textOnHeader: 'white',
+    bodyArt: 'ember-sparks',
+    icon: '🐉',
     logoComponent: 'CyberDragonLogo',
-    profileBgAnimation: 'thermal-heat',
+    profileBgAnimation: 'ember-sparks',
     priceNC: 3500,
     availableVia: ['nc-purchase'],
   },
@@ -375,12 +387,12 @@ export const FRAMES: Frame[] = [
     rarity: 'legendary',
     description: 'Deep in the wire. Circuits pulse under every word.',
     headerVariant: 'solid',
-    headerColor: '#0D0D0D',
+    headerColor: '#0D1F0D',
     accentColor: '#00FF9F',
     textOnHeader: 'white',
-    bodyArt: 'circuit-pulse',
+    bodyArt: 'code-rain',
     logoComponent: 'NetrunnerLogo',
-    profileBgAnimation: 'circuit-pulse',
+    profileBgAnimation: 'code-rain',
     tagShape: 'square',
     priceNC: 3500,
     availableVia: ['nc-purchase'],
@@ -395,6 +407,7 @@ export const FRAMES: Frame[] = [
     accentColor: '#FFD700',
     textOnHeader: 'dark',
     bodyArt: 'gold-sparkles',
+    icon: '🎆',
     logoComponent: 'GoldenNewYearLogo',
     profileBgAnimation: 'gold-sparkles',
     priceNC: 3500,

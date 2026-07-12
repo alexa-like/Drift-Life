@@ -53,6 +53,15 @@ const GLOBAL_FRAME_CSS = `
     transparent 6px
   );
 }
+.frame-header-santa {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #C41E3A 0px,
+    #C41E3A 9px,
+    #1e6e1e 9px,
+    #1e6e1e 18px
+  );
+}
 `
 
 let cssInjected = false
@@ -66,10 +75,10 @@ function ensureCss() {
 
 // ── Tag clip-paths ─────────────────────────────────────────────────────────────
 
-const PENNANT_CLIP = 'polygon(0 0, calc(100% - 10px) 0, 100% 100%, 0 100%)'
+const PENNANT_CLIP = 'polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)'
 const SQUARE_CLIP = 'none'
 
-const TAG_HEIGHT = 24
+const TAG_HEIGHT = 28
 
 // ── Name tag (overlaps the top-left of the body box) ──────────────────────────
 
@@ -85,22 +94,24 @@ function NameTag({ frame, username, subscriptionTier }: { frame: Frame; username
     headerClass = 'frame-header-apex'
     headerStyle = {}
   } else if (frame.headerVariant === 'textured-weave') {
-    headerClass = 'frame-header-sovereign'
+    // CyberSanta gets candy-stripe, others get sovereign weave
+    headerClass = frame.id === 'cybersanta' ? 'frame-header-santa' : 'frame-header-sovereign'
     headerStyle = {}
   }
 
   const hasBlinkCursor = frame.id === 'blackout_protocol'
+  const icon = frame.icon
 
   return (
     <div
-      className={`font-mono inline-flex items-center ${headerClass}`}
+      className={`font-mono inline-flex items-center gap-1 ${headerClass}`}
       style={{
         ...headerStyle,
         clipPath: shape === 'pennant' ? PENNANT_CLIP : SQUARE_CLIP,
         height: TAG_HEIGHT,
         minHeight: TAG_HEIGHT,
-        padding: shape === 'pennant' ? '0 16px 0 10px' : '0 10px',
-        fontSize: 11,
+        padding: shape === 'pennant' ? '0 20px 0 10px' : '0 10px',
+        fontSize: 12,
         fontWeight: 'bold',
         color: textColor,
         position: 'absolute',
@@ -108,13 +119,16 @@ function NameTag({ frame, username, subscriptionTier }: { frame: Frame; username
         left: 0,
         zIndex: 3,
         whiteSpace: 'nowrap',
-        maxWidth: 'calc(100% - 60px)',
+        maxWidth: 'calc(100% - 64px)',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+        boxShadow: `0 2px 8px rgba(0,0,0,0.6), 0 0 12px ${frame.accentColor}55`,
       }}
     >
-      <SubscriberNameBadge username={username} tier={subscriptionTier} fontSize={11} />
+      {icon && (
+        <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
+      )}
+      <SubscriberNameBadge username={username} tier={subscriptionTier} fontSize={12} />
       {hasBlinkCursor && (
         <span style={{ animation: 'blackoutBlink 0.8s step-start infinite', marginLeft: 2 }}>█</span>
       )}
@@ -205,13 +219,12 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
     return <NullFrame username={username} level={level} timestamp={timestamp} size={size} subscriptionTier={subscriptionTier}>{children}</NullFrame>
   }
 
-  const accentGlow = frame.rarity !== 'elite'
-    ? `0 0 10px ${frame.accentColor}66`
-    : undefined
-
+  // All frames get a glow — stronger for legendary/mythic
+  const glowStrength = frame.rarity === 'mythic' ? '14px' : frame.rarity === 'legendary' ? '10px' : '6px'
+  const glowOpacity = frame.rarity === 'elite' ? '55' : '88'
   const bodyBoxShadow = frame.id === 'void_signal'
-    ? '0 0 8px #3030CC66'
-    : accentGlow
+    ? `0 0 10px #3030CC88, inset 0 0 20px rgba(48,48,204,0.08)`
+    : `0 0 ${glowStrength} ${frame.accentColor}${glowOpacity}`
 
   return (
     <div style={{ maxWidth: size === 'full' ? '85%' : '100%', wordBreak: 'break-word' }}>
@@ -223,7 +236,7 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
         {/* Body */}
         <div style={{
           background: '#0A0008',
-          border: `1px solid ${frame.accentColor}`,
+          border: `2px solid ${frame.accentColor}`,
           boxShadow: bodyBoxShadow,
           position: 'relative',
           overflow: 'hidden',

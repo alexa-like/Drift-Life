@@ -540,6 +540,242 @@ const NovaBurst = memo(function NovaBurst() {
   return <canvas ref={ref} style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none' }} />
 })
 
+// ── Paw Drift (CyberKitty) ────────────────────────────────────────────────────
+
+function PawDrift({ accent }: { accent: string }) {
+  const css = `
+@keyframes pawDrift {
+  0%   { transform: translateX(110%) translateY(0px) rotate(-15deg); opacity: 0; }
+  8%   { opacity: 0.75; }
+  92%  { opacity: 0.55; }
+  100% { transform: translateX(-110%) translateY(6px) rotate(-15deg); opacity: 0; }
+}
+`
+  const paws = [
+    { top: '12%', delay: '0s',   dur: '10s',  scale: 0.9 },
+    { top: '48%', delay: '3.5s', dur: '13s',  scale: 0.65 },
+    { top: '68%', delay: '1s',   dur: '11.5s',scale: 0.75 },
+    { top: '28%', delay: '5.5s', dur: '9.5s', scale: 0.55 },
+    { top: '78%', delay: '7.2s', dur: '14s',  scale: 0.8 },
+    { top: '55%', delay: '2.4s', dur: '12s',  scale: 0.6 },
+  ]
+  return (
+    <>
+      <style>{css}</style>
+      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none' }}>
+        {paws.map((p, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            top: p.top,
+            right: '-8%',
+            transform: `scale(${p.scale})`,
+            animation: `pawDrift ${p.dur} linear ${p.delay} infinite`,
+          }}>
+            <svg width="22" height="20" viewBox="0 0 22 20" fill={accent} opacity="0.85">
+              {/* Main pad */}
+              <ellipse cx="11" cy="15" rx="5.5" ry="4" />
+              {/* Four toes */}
+              <ellipse cx="3.5"  cy="8.5" rx="2.4" ry="2.8" />
+              <ellipse cx="8.2"  cy="5.5" rx="2.3" ry="2.7" />
+              <ellipse cx="13.8" cy="5.5" rx="2.3" ry="2.7" />
+              <ellipse cx="18.5" cy="8.5" rx="2.4" ry="2.8" />
+            </svg>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// ── Snowflake Field (CyberFrost) ──────────────────────────────────────────────
+
+function SnowflakeField({ accent }: { accent: string }) {
+  const css = `
+@keyframes snowFall {
+  0%   { transform: translateY(-24px) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.88; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(120%) rotate(180deg); opacity: 0; }
+}
+@keyframes snowSway {
+  0%, 100% { transform: translateX(0); }
+  33%       { transform: translateX(6px); }
+  66%       { transform: translateX(-4px); }
+}
+`
+  const flakes = [
+    { left: '4%',  delay: '0s',   dur: '9s',  size: 16 },
+    { left: '14%', delay: '2.2s', dur: '12s', size: 10 },
+    { left: '27%', delay: '0.5s', dur: '10s', size: 20 },
+    { left: '40%', delay: '3.5s', dur: '11s', size: 12 },
+    { left: '54%', delay: '1.2s', dur: '9.5s',size: 18 },
+    { left: '67%', delay: '4.2s', dur: '13s', size: 10 },
+    { left: '78%', delay: '1.8s', dur: '10.5s',size:14 },
+    { left: '90%', delay: '5.5s', dur: '11.5s',size:12 },
+  ]
+  return (
+    <>
+      <style>{css}</style>
+      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none' }}>
+        {flakes.map((f, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            top: '-24px',
+            left: f.left,
+            animation: `snowFall ${f.dur} linear ${f.delay} infinite`,
+          }}>
+            <div style={{ animation: `snowSway ${f.dur} ease-in-out ${f.delay} infinite` }}>
+              <svg width={f.size} height={f.size} viewBox="0 0 24 24" opacity="0.82">
+                <line x1="12" y1="1"  x2="12" y2="23" stroke={accent} strokeWidth="2.2" strokeLinecap="round"/>
+                <line x1="1"  y1="12" x2="23" y2="12" stroke={accent} strokeWidth="2.2" strokeLinecap="round"/>
+                <line x1="4.5" y1="4.5"  x2="19.5" y2="19.5" stroke={accent} strokeWidth="2.2" strokeLinecap="round"/>
+                <line x1="19.5" y1="4.5" x2="4.5" y2="19.5" stroke={accent} strokeWidth="2.2" strokeLinecap="round"/>
+                {/* arm tips */}
+                <line x1="12" y1="1"  x2="9"  y2="4"  stroke={accent} strokeWidth="1.6" strokeLinecap="round"/>
+                <line x1="12" y1="1"  x2="15" y2="4"  stroke={accent} strokeWidth="1.6" strokeLinecap="round"/>
+                <line x1="12" y1="23" x2="9"  y2="20" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/>
+                <line x1="12" y1="23" x2="15" y2="20" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/>
+                <line x1="1"  y1="12" x2="4"  y2="9"  stroke={accent} strokeWidth="1.6" strokeLinecap="round"/>
+                <line x1="1"  y1="12" x2="4"  y2="15" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/>
+                <line x1="23" y1="12" x2="20" y2="9"  stroke={accent} strokeWidth="1.6" strokeLinecap="round"/>
+                <line x1="23" y1="12" x2="20" y2="15" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/>
+                <circle cx="12" cy="12" r="2.5" fill={accent}/>
+              </svg>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// ── Christmas Spirits (CyberSanta) ────────────────────────────────────────────
+
+function ChristmasSpirits() {
+  const css = `
+@keyframes xmasRise {
+  0%   { transform: translateY(0) rotate(-3deg); opacity: 0; }
+  8%   { opacity: 0.85; }
+  92%  { opacity: 0.65; }
+  100% { transform: translateY(-140%) rotate(3deg); opacity: 0; }
+}
+@keyframes xmasSway {
+  0%, 100% { transform: translateX(0); }
+  50%       { transform: translateX(5px); }
+}
+`
+  type XmasItem = { type: 'tree' | 'flake' | 'candy'; left: string; delay: string; dur: string; size: number }
+  const items: XmasItem[] = [
+    { type: 'tree',  left: '4%',  delay: '0s',   dur: '12s', size: 18 },
+    { type: 'flake', left: '16%', delay: '2s',   dur: '9s',  size: 14 },
+    { type: 'candy', left: '29%', delay: '0.8s', dur: '13s', size: 15 },
+    { type: 'tree',  left: '44%', delay: '3.5s', dur: '11s', size: 14 },
+    { type: 'flake', left: '58%', delay: '1.4s', dur: '10s', size: 16 },
+    { type: 'candy', left: '72%', delay: '4s',   dur: '12.5s',size:14 },
+    { type: 'tree',  left: '86%', delay: '0.4s', dur: '14s', size: 12 },
+  ]
+  const renderItem = (type: XmasItem['type'], size: number) => {
+    const s = size
+    if (type === 'tree') return (
+      <svg width={s} height={s} viewBox="0 0 24 24">
+        <polygon points="12,2 19,16 5,16" fill="#2d8c2d" stroke="#39ff14" strokeWidth="0.8"/>
+        <polygon points="12,8 17,19 7,19" fill="#1a5e1a" stroke="#39ff14" strokeWidth="0.8"/>
+        <rect x="10" y="19" width="4" height="3" fill="#8B4513"/>
+        <circle cx="9"  cy="11" r="1.2" fill="#FFD700"/>
+        <circle cx="15" cy="13" r="1.2" fill="#FF4444"/>
+        <circle cx="12" cy="15" r="1.2" fill="#FFD700"/>
+      </svg>
+    )
+    if (type === 'flake') return (
+      <svg width={s} height={s} viewBox="0 0 24 24">
+        <line x1="12" y1="2"  x2="12" y2="22" stroke="#AADDFF" strokeWidth="2" strokeLinecap="round"/>
+        <line x1="2"  y1="12" x2="22" y2="12" stroke="#AADDFF" strokeWidth="2" strokeLinecap="round"/>
+        <line x1="5"  y1="5"  x2="19" y2="19" stroke="#AADDFF" strokeWidth="2" strokeLinecap="round"/>
+        <line x1="19" y1="5"  x2="5"  y2="19" stroke="#AADDFF" strokeWidth="2" strokeLinecap="round"/>
+        <circle cx="12" cy="12" r="2" fill="#FFFFFF"/>
+      </svg>
+    )
+    // candy cane
+    return (
+      <svg width={s * 0.7} height={s} viewBox="0 0 16 24">
+        <path d="M8 2 Q14 2 14 8 Q14 14 8 14 L8 22" fill="none" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round"/>
+        <path d="M8 2 Q14 2 14 8 Q14 14 8 14 L8 22" fill="none" stroke="#C41E3A"
+          strokeWidth="4" strokeLinecap="round" strokeDasharray="4 4" strokeDashoffset="0"/>
+      </svg>
+    )
+  }
+  return (
+    <>
+      <style>{css}</style>
+      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none' }}>
+        {items.map((item, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            bottom: '-10%',
+            left: item.left,
+            animation: `xmasRise ${item.dur} ease-in-out ${item.delay} infinite`,
+          }}>
+            <div style={{ animation: `xmasSway ${item.dur} ease-in-out ${item.delay} infinite` }}>
+              {renderItem(item.type, item.size)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// ── Ember Sparks (CyberDragon) ────────────────────────────────────────────────
+
+const EmberSparks = memo(function EmberSparks() {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = ref.current; if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+    let af: number
+    const W = canvas.offsetWidth || 220, H = canvas.offsetHeight || 60
+    canvas.width = W; canvas.height = H
+    type Ember = { x:number; y:number; vx:number; vy:number; life:number; maxLife:number; size:number; hue:number }
+    const embers: Ember[] = []
+    const spawn = () => embers.push({
+      x: W * (0.05 + Math.random() * 0.9),
+      y: H * (0.5 + Math.random() * 0.5),
+      vx: (Math.random() - 0.5) * 1.0,
+      vy: -(0.6 + Math.random() * 1.8),
+      life: 0, maxLife: 45 + Math.random() * 45,
+      size: 1.4 + Math.random() * 2.8,
+      hue: 10 + Math.random() * 40,   // 10–50 = red-orange-yellow
+    })
+    let frame = 0
+    const draw = () => {
+      af = requestAnimationFrame(draw)
+      ctx.clearRect(0, 0, W, H)
+      if (frame++ % 3 === 0 && embers.length < 22) spawn()
+      for (let i = embers.length - 1; i >= 0; i--) {
+        const e = embers[i]
+        e.life++; e.x += e.vx; e.y += e.vy
+        e.vx *= 0.98
+        if (e.life > e.maxLife) { embers.splice(i, 1); continue }
+        const t = e.life / e.maxLife
+        const alpha = t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85
+        const size = e.size * (1 - t * 0.4)
+        // outer glow
+        const grad = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, size * 3)
+        grad.addColorStop(0, `hsla(${e.hue},100%,65%,${alpha * 0.7})`)
+        grad.addColorStop(1, `hsla(${e.hue},100%,30%,0)`)
+        ctx.beginPath(); ctx.arc(e.x, e.y, size * 3, 0, Math.PI * 2)
+        ctx.fillStyle = grad; ctx.fill()
+        // bright core
+        ctx.beginPath(); ctx.arc(e.x, e.y, size * 0.6, 0, Math.PI * 2)
+        ctx.fillStyle = `hsla(${e.hue + 30},100%,90%,${alpha})`; ctx.fill()
+      }
+    }
+    draw()
+    return () => cancelAnimationFrame(af)
+  }, [])
+  return <canvas ref={ref} style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none' }} />
+})
+
 // ─── BodyArtLayer ─────────────────────────────────────────────────────────────
 
 interface BodyArtLayerProps {
@@ -549,21 +785,25 @@ interface BodyArtLayerProps {
 
 export function BodyArtLayer({ bodyArt, accentColor }: BodyArtLayerProps) {
   switch (bodyArt) {
-    case 'speed-lines':     return <SpeedLines />
-    case 'data-grid':       return <DataGrid />
-    case 'smoke-particles': return <SmokeParticles accent={accentColor} />
-    case 'thermal-heat':    return <ThermalHeat />
-    case 'glitch-tears':    return <GlitchTears />
-    case 'lantern-drift':   return <LanternDrift />
-    case 'chrome-shimmer':  return <ChromeShimmer />
-    case 'void-stars':      return <VoidStars />
-    case 'gold-sparkles':   return <GoldSparkles />
-    case 'code-rain':       return <CodeRain />
-    case 'nova-burst':      return <NovaBurst />
-    case 'aurora-sovereign':return <AuroraSovereign />
-    case 'petal-drift':     return <PetalDrift accent={accentColor} />
-    case 'frost-shimmer':   return <FrostShimmer accent={accentColor} />
-    case 'circuit-pulse':   return <CircuitPulse accent={accentColor} />
-    default:                return null
+    case 'speed-lines':       return <SpeedLines />
+    case 'data-grid':         return <DataGrid />
+    case 'smoke-particles':   return <SmokeParticles accent={accentColor} />
+    case 'thermal-heat':      return <ThermalHeat />
+    case 'glitch-tears':      return <GlitchTears />
+    case 'lantern-drift':     return <LanternDrift />
+    case 'chrome-shimmer':    return <ChromeShimmer />
+    case 'void-stars':        return <VoidStars />
+    case 'gold-sparkles':     return <GoldSparkles />
+    case 'code-rain':         return <CodeRain />
+    case 'nova-burst':        return <NovaBurst />
+    case 'aurora-sovereign':  return <AuroraSovereign />
+    case 'petal-drift':       return <PetalDrift accent={accentColor} />
+    case 'frost-shimmer':     return <FrostShimmer accent={accentColor} />
+    case 'circuit-pulse':     return <CircuitPulse accent={accentColor} />
+    case 'paw-drift':         return <PawDrift accent={accentColor} />
+    case 'snowflake-field':   return <SnowflakeField accent={accentColor} />
+    case 'christmas-spirits': return <ChristmasSpirits />
+    case 'ember-sparks':      return <EmberSparks />
+    default:                  return null
   }
 }
