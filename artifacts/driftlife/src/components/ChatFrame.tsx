@@ -171,7 +171,7 @@ function NullFrame({ username, level, timestamp, children, size, subscriptionTie
   username: string; level?: number; timestamp?: string; children: React.ReactNode; size: 'full' | 'preview'; subscriptionTier?: SubscriberTier
 }) {
   return (
-    <div style={{ maxWidth: size === 'full' ? '85%' : '100%' }}>
+    <div style={{ width: size === 'full' ? '85%' : '100%' }}>
       <div className="font-mono" style={{
         background: '#1A1A24',
         height: 33,
@@ -225,7 +225,7 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
   const bodyBoxShadow = `0 0 ${glowStrength} ${frame.accentColor}${glowOpacity}, inset 0 0 30px ${frame.accentColor}18`
 
   return (
-    <div style={{ maxWidth: size === 'full' ? '85%' : '100%', wordBreak: 'break-word' }}>
+    <div style={{ width: size === 'full' ? '85%' : '100%', wordBreak: 'break-word' }}>
       {/* Overlap zone: name tag + tier badge float above/over the body box */}
       <div style={{ position: 'relative', paddingTop: TAG_HEIGHT / 2 }}>
         <NameTag frame={frame} username={username} subscriptionTier={subscriptionTier} />
@@ -249,13 +249,14 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
           {/* Message text — light overlay so body art shows through clearly */}
           <div style={{
             position: 'relative', zIndex: 1,
-            padding: '10px 12px 8px',
+            padding: size === 'preview' ? '7px 10px 6px' : '10px 12px 8px',
             fontSize: 12,
             color: '#e2e8f0',
             background: 'rgba(0,0,0,0.18)',
             textShadow: '0 1px 4px rgba(0,0,0,0.95)',
           }}>
-            {level !== undefined && (
+            {/* Only show level line in full (chat/feed) mode, not in store preview cards */}
+            {size === 'full' && level !== undefined && (
               <span className="font-mono" style={{ display: 'block', fontSize: 9, opacity: 0.55, marginBottom: 2 }}>
                 Lv.{level}
               </span>
@@ -265,13 +266,15 @@ export function ChatFrame({ frame, username, level, timestamp, size = 'full', su
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="font-mono flex justify-between" style={{
-        fontSize: 10, color: '#555', marginTop: 2, paddingLeft: 2, paddingRight: 4,
-      }}>
-        {level !== undefined && <span>LEVEL {level}</span>}
-        {timestamp && <span>{new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-      </div>
+      {/* Footer — only in full mode (chat/feed) where timestamp context is meaningful */}
+      {size === 'full' && (
+        <div className="font-mono flex justify-between" style={{
+          fontSize: 10, color: '#555', marginTop: 2, paddingLeft: 2, paddingRight: 4,
+        }}>
+          {level !== undefined && <span>LEVEL {level}</span>}
+          {timestamp && <span>{new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+        </div>
+      )}
     </div>
   )
 }
