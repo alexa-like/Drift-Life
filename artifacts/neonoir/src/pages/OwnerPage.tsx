@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
 import { formatDC } from "../lib/format";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 interface Props {
   user: User;
@@ -182,6 +183,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [massKeys, setMassKeys] = useState("0");
   const [massReason, setMassReason] = useState("");
   const [massGranting, setMassGranting] = useState(false);
+  const [massGrantConfirm, setMassGrantConfirm] = useState(false);
   // Giveaways tab
   const [ownerGiveDc, setOwnerGiveDc] = useState("0");
   const [ownerGiveUc, setOwnerGiveUc] = useState("0");
@@ -397,7 +399,6 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     const nc   = Number(massNc)   || 0;
     const keys = Number(massKeys) || 0;
     if (dc === 0 && nc === 0 && keys === 0) { addToast("Enter at least one amount", "error"); return; }
-    if (!window.confirm(`Send DC:${dc} NC:${nc} Keys:${keys} to ALL players? This cannot be undone.`)) return;
     setMassGranting(true);
     try {
       const res = await api.post<{ message: string; affected: number }>("/owner/mass-grant", { dc, nc, keys, reason: massReason });
@@ -2011,7 +2012,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
               </div>
             </div>
             <button
-              onClick={massGrant}
+              onClick={() => setMassGrantConfirm(true)}
               disabled={massGranting}
               className="font-mono text-xs px-6 py-2.5 rounded mt-4 w-full"
               style={{ background: massGranting ? "#1e293b" : "#ff6b3518", color: massGranting ? "#475569" : "#ff6b35", border: "1px solid #ff6b3540", cursor: massGranting ? "not-allowed" : "pointer", fontWeight: "bold" }}
@@ -2022,6 +2023,17 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         </div>
       )}
 
+      {massGrantConfirm && (
+        <ConfirmDialog
+          title="Broadcast to all players?"
+          message={`Send DC:${Number(massDc) || 0} NC:${Number(massNc) || 0} Keys:${Number(massKeys) || 0} to ALL players? This cannot be undone.`}
+          confirmLabel="Send to All"
+          danger
+          busy={massGranting}
+          onConfirm={() => { setMassGrantConfirm(false); massGrant(); }}
+          onCancel={() => setMassGrantConfirm(false)}
+        />
+      )}
     </div>
   );
 }

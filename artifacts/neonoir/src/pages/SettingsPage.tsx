@@ -6,6 +6,7 @@ import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { usePreferences, DEFAULT_SCALE, MIN_SCALE, MAX_SCALE } from "../context/PreferencesContext";
 import { ConnectionsPage } from "./ConnectionsPage";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 interface Props {
   user: User;
@@ -44,6 +45,7 @@ const INPUT = {
 
 export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
   const [tab,        setTab]      = useState<"account" | "appearance" | "privacy" | "notifications" | "connect" | "password" | "reset">("account");
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("neonoir_sounds_enabled") === "true");
   const [current,   setCurrent]  = useState("");
   const [newPass,   setNewPass]  = useState("");
@@ -286,11 +288,22 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
                 <span className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{f.value}</span>
               </div>
             ))}
-            <CyberButton variant="danger" size="sm" onClick={onLogout} className="mt-1">
+            <CyberButton variant="danger" size="sm" onClick={() => setLogoutConfirm(true)} className="mt-1">
               Log Out
             </CyberButton>
           </div>
         </AnimatedCard>
+      )}
+
+      {logoutConfirm && (
+        <ConfirmDialog
+          title="Log out?"
+          message="You'll need to sign in again to keep playing."
+          confirmLabel="Log Out"
+          danger
+          onConfirm={onLogout}
+          onCancel={() => setLogoutConfirm(false)}
+        />
       )}
 
       {/* Privacy */}

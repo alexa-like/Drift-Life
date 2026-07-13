@@ -5,6 +5,7 @@ import type { User } from "../lib/types";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { AnimatedCard } from "../components/AnimatedCard";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 interface Props {
   user: User;
@@ -40,6 +41,7 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
   const [searchResults, setSearchResults] = useState<Friend[]>([]);
   const [searching,     setSearching]     = useState(false);
   const [requestId,     setRequestId]     = useState("");
+  const [removeConfirm, setRemoveConfirm] = useState<Friend | null>(null);
 
   async function loadFriends() {
     try {
@@ -83,7 +85,6 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
   }
 
   async function removeFriend(friendId: string) {
-    if (!confirm("Remove this friend?")) return;
     try {
       const r = await api.delete<{ message: string }>(`/friends/${friendId}`);
       addToast(r.message, "info");
@@ -132,7 +133,7 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
               View
             </CyberButton>
           )}
-          <CyberButton size="sm" variant="danger" onClick={() => removeFriend(f._id)}>
+          <CyberButton size="sm" variant="danger" onClick={() => setRemoveConfirm(f)}>
             Remove
           </CyberButton>
         </div>
@@ -338,6 +339,17 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
             )}
           </AnimatedCard>
         </div>
+      )}
+
+      {removeConfirm && (
+        <ConfirmDialog
+          title="Remove friend?"
+          message={`Remove ${removeConfirm.username} from your friends list?`}
+          confirmLabel="Remove"
+          danger
+          onConfirm={() => { const f = removeConfirm; setRemoveConfirm(null); removeFriend(f._id); }}
+          onCancel={() => setRemoveConfirm(null)}
+        />
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ItemImage } from "../components/ItemImage";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { api } from "../lib/api";
 
 const TIER_COLORS: Record<string, string> = {
@@ -73,6 +74,7 @@ export default function NpcStorePage({ storeId, onBack }: Props) {
   const [loading, setLoading] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
+  const [buyConfirm, setBuyConfirm] = useState<Listing | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState("");
   const [npcImgFailed, setNpcImgFailed] = useState(false);
@@ -331,7 +333,7 @@ export default function NpcStorePage({ storeId, onBack }: Props) {
 
                 {/* Buy button */}
                 <button
-                  onClick={() => handleBuy(listing.itemId)}
+                  onClick={() => setBuyConfirm(listing)}
                   disabled={buying === listing.itemId || listing.quantity === 0}
                   style={{
                     width: "100%", padding: "8px 0",
@@ -351,6 +353,17 @@ export default function NpcStorePage({ storeId, onBack }: Props) {
             );
           })}
         </div>
+      )}
+
+      {buyConfirm && (
+        <ConfirmDialog
+          title="Confirm purchase"
+          message={`Buy ${buyConfirm.itemName} for ${buyConfirm.price.toLocaleString()} DC?`}
+          confirmLabel="Buy"
+          busy={buying === buyConfirm.itemId}
+          onConfirm={() => { const l = buyConfirm; setBuyConfirm(null); handleBuy(l.itemId); }}
+          onCancel={() => setBuyConfirm(null)}
+        />
       )}
     </div>
   );

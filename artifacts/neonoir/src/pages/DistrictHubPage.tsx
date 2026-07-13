@@ -7,6 +7,7 @@ import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { CyberButton } from "../components/CyberButton";
 import { ActionResult } from "../components/ActionResult";
 import { ItemImage, nameToArenaItemId } from "../components/ItemImage";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
@@ -61,6 +62,7 @@ export function DistrictHubPage({ user, refreshUser, addToast }: Props) {
   const [crimes, setCrimes] = useState<DistrictCrime[]>([]);
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState<string | null>(null);
+  const [buyConfirm, setBuyConfirm] = useState<DistrictShopItem | null>(null);
   const [committing, setCommitting] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<any>(null);
   const [timeLeft, setTimeLeft] = useState("");
@@ -217,7 +219,7 @@ export function DistrictHubPage({ user, refreshUser, addToast }: Props) {
                         <CyberButton 
                           size="sm" 
                           variant="primary" 
-                          onClick={() => handleBuy(item.id)}
+                          onClick={() => setBuyConfirm(item)}
                           loading={buying === item.id}
                           disabled={user.dc < item.price || !!buying}
                         >
@@ -302,6 +304,17 @@ export function DistrictHubPage({ user, refreshUser, addToast }: Props) {
         detail={lastResult?.narrative}
         onDismiss={() => setLastResult(null)}
       />
+
+      {buyConfirm && (
+        <ConfirmDialog
+          title="Confirm purchase"
+          message={`Buy ${buyConfirm.name} for ${buyConfirm.price.toLocaleString()} DC?`}
+          confirmLabel="Buy"
+          busy={buying === buyConfirm.id}
+          onConfirm={() => { const item = buyConfirm; setBuyConfirm(null); handleBuy(item.id); }}
+          onCancel={() => setBuyConfirm(null)}
+        />
+      )}
     </div>
   );
 }

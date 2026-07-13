@@ -8,6 +8,7 @@ import {
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
 import { formatDC } from "../lib/format";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { AnnouncementBanner } from "./AnnouncementBanner";
 import { api } from "../lib/api";
 import { motion } from "framer-motion";
@@ -175,6 +176,7 @@ function SearchBar({ onInspectPlayer, onNav }: { onInspectPlayer?: (id: string) 
 
 function AvatarMenu({ user, onNav, onLogout }: { user: User; onNav: (id: string) => void; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -220,13 +222,23 @@ function AvatarMenu({ user, onNav, onLogout }: { user: User; onNav: (id: string)
             </button>
           ))}
           <button
-            onClick={() => { onLogout(); setOpen(false); }}
+            onClick={() => { setLogoutConfirm(true); setOpen(false); }}
             className="w-full text-left font-mono px-4 py-2.5 hover:bg-red-900/20 transition-colors uppercase text-xs tracking-widest"
             style={{ color: "#ff2d55", borderTop: "1px solid #1e1e2e" }}
           >
             DISCONNECT
           </button>
         </div>
+      )}
+      {logoutConfirm && (
+        <ConfirmDialog
+          title="Log out?"
+          message="You'll need to sign in again to keep playing."
+          confirmLabel="Log Out"
+          danger
+          onConfirm={() => { setLogoutConfirm(false); onLogout(); }}
+          onCancel={() => setLogoutConfirm(false)}
+        />
       )}
     </div>
   );

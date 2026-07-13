@@ -6,6 +6,7 @@ import { ItemImage, nameToArenaItemId } from "../components/ItemImage";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { CyberButton } from "../components/CyberButton";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 interface Props {
   user: User;
@@ -36,6 +37,8 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
   const [listItemId, setListItemId] = useState<string>("");
   const [listPrice, setListPrice] = useState<string>("");
   const [listing, setListing] = useState(false);
+  const [salvageConfirm, setSalvageConfirm] = useState<{ itemId: string; name: string } | null>(null);
+  const [salvageAllConfirm, setSalvageAllConfirm] = useState(false);
 
   const loadInventory = () => api.get<Item[]>("/inventory").then(setItems).catch(() => {});
   useEffect(() => { loadInventory(); }, []);
@@ -56,7 +59,6 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
     catch (err: any) { addToast(err.message, "error"); } finally { setActing(null); }
   }
   async function salvage(itemId: string, name: string) {
-    if (!confirm(`Salvage ${name}? This cannot be undone.`)) return;
     setActing(itemId);
     try { const data = await api.post<any>(`/inventory/${itemId}/salvage`, { confirm: true }); addToast(data.message, "success"); await loadInventory(); }
     catch (err: any) { addToast(err.message, "error"); } finally { setActing(null); }
@@ -64,7 +66,6 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
   async function salvageAllCommons() {
     const commons = items.filter(i => i.rarity === "common" && !i.equipped && !i.marketListed);
     if (!commons.length) { addToast("No common items to salvage", "info"); return; }
-    if (!confirm(`Salvage all ${commons.length} common items?`)) return;
     setSalvagingAll(true);
     try { const data = await api.post<any>("/inventory/salvage-all-commons"); addToast(data.message, "success"); await loadInventory(); }
     catch (err: any) { addToast(err.message, "error"); } finally { setSalvagingAll(false); }
@@ -106,7 +107,7 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
             <span style={{ color: "#00d4ff" }}>INT: {user.intelligence}</span>
           </div>
           {commonCount > 0 && (
-            <CyberButton variant="ghost" size="sm" loading={salvagingAll} onClick={salvageAllCommons}>
+            <CyberButton variant="ghost" size="sm" loading={salvagingAll} onClick={() => setSalvageAllConfirm(true)}>
               Salvage Commons ({commonCount})
             </CyberButton>
           )}
@@ -227,7 +228,7 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
                           </CyberButton>
                         )}
                         {!item.equipped && !item.marketListed && item.type !== "consumable" && (
-                          <CyberButton variant="ghost" size="sm" className="flex-1" loading={acting === item.id} disabled={acting === item.id} onClick={() => salvage(item.id, item.name)}>
+                          <CyberButton variant="ghost" size="sm" className="flex-1" loading={acting === item.id} disabled={acting === item.id} onClick={() => setSalvageConfirm({ itemId: item.id, name: item.name })}>
                             Salvage
                           </CyberButton>
                         )}
@@ -239,6 +240,30 @@ export function InventoryPage({ user, refreshUser, addToast }: Props) {
             })}
           </div>
         )
+      )}
+
+      {salvageConfirm && (
+        <ConfirmDialog
+          title="Salvage item?"
+          message={`Salvage ${salvageConfirm.name}? This cannot be undone.`}
+          confirmLabel="Salvage"
+          danger
+          busy={acting === salvageConfirm.itemId}
+          onConfirm={() => { const s = salvageConfirm; setSalvageConfirm(null); salvage(s.itemId, s.name); }}
+          onCancel={() => setSalvageConfirm(null)}
+        />
+      )}
+
+      {salvageAllConfirm && (
+        <ConfirmDialog
+          title="Salvage all commons?"
+          message={`Salvage all ${commonCount} common items? This cannot be undone.`}
+          confirmLabel="Salvage All"
+          danger
+          busy={salvagingAll}
+          onConfirm={() => { setSalvageAllConfirm(false); salvageAllCommons(); }}
+          onCancel={() => setSalvageAllConfirm(false)}
+        />
       )}
     </div>
   );
