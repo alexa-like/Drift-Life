@@ -103,7 +103,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
           [`jobCooldowns.${job.id}`]: cooldownUntil,
         },
       }),
-      { new: true },
+      { new: true, updatePipeline: true },
     );
 
     if (!gated) {
@@ -120,7 +120,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
         xp:           { $add: ["$xp",           xpGained] },
         seasonPoints: { $add: ["$seasonPoints", jobSeasonPts] },
       } }],
-      { new: true },
+      { new: true, updatePipeline: true },
     );
     if (!rewarded) return res.status(500).json({ message: "Internal server error" });
 

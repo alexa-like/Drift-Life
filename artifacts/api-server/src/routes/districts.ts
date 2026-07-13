@@ -216,7 +216,7 @@ router.post("/:id/travel", requireAuth, async (req: AuthRequest, res) => {
           currentLocation: user.currentLocation ?? "downtown",
         },
       }),
-      { new: true },
+      { new: true, updatePipeline: true },
     );
 
     if (!updated) {

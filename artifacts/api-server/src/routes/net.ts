@@ -72,7 +72,7 @@ router.post("/hack/initiate", requireAuth, validateBody(netHackInitiateSchema), 
     await User.findOneAndUpdate(
       { _id: req.userId, ...energySufficientExpr(3) },
       buildRegenPipeline({ energyCost: 3 }),
-      { new: true },
+      { new: true, updatePipeline: true },
     );
 
     // Generate sequence (difficulty based on target's firewall)

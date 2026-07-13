@@ -133,7 +133,7 @@ router.post("/:gymId/train", requireAuth, async (req: AuthRequest, res) => {
     const gated = await User.findOneAndUpdate(
       { _id: req.userId, ...energySufficientExpr(gym.energyCostPerTrain) },
       buildRegenPipeline({ energyCost: gym.energyCostPerTrain }),
-      { new: true },
+      { new: true, updatePipeline: true },
     );
     if (!gated) return res.status(400).json({ message: `Not enough energy (need ${gym.energyCostPerTrain})` });
 

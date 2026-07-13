@@ -420,7 +420,7 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
         energyCost: run.energyCost,
         extraSet: { totalCrimes: { $add: ["$totalCrimes", 1] } },
       }),
-      { new: true },
+      { new: true, updatePipeline: true },
     );
     if (!gated) return res.status(400).json({ message: `Not enough energy (need ${run.energyCost})` });
 
