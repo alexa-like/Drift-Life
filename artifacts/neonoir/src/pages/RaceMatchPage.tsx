@@ -12,8 +12,11 @@ interface Props {
 interface RacePlayer {
   userId: string | null; isAI: boolean; aiName: string | null;
   placement: number | null; finishTime: number | null;
-  distancePct: number; nitroUsed: number; crashCount: number;
-  carSnapshot: { carId: string; topSpeed: number; accel: number; handling: number; nitro: number };
+  distancePct: number; nitroUsed: number; crashCount: number; hitCount?: number;
+  carSnapshot: {
+    carId: string; topSpeed: number; accel: number; handling: number; nitro: number;
+    paint?: string | null; underglow?: string | null;
+  };
 }
 interface RaceMatch {
   matchId: string; mode: "2player" | "4player"; status: string;
@@ -63,15 +66,6 @@ const RACE_CSS = `
 @keyframes burnout { 0%,100%{transform:rotate(-1deg)} 50%{transform:rotate(1deg)} }
 `;
 
-// ── Tier color by car top-speed ───────────────────────────────────────────────
-function carTierColor(topSpeed: number): string {
-  if (topSpeed <= 40) return "#6b7280"; // common — grey
-  if (topSpeed <= 60) return "#22c55e"; // uncommon — green
-  if (topSpeed <= 75) return "#3b82f6"; // rare — blue
-  if (topSpeed <= 92) return "#a855f7"; // epic — purple
-  return "#f59e0b";                      // legendary — gold
-}
-
 // ── Canvas renderer ───────────────────────────────────────────────────────────
 function renderFrame(
   ctx: CanvasRenderingContext2D,
@@ -85,6 +79,9 @@ function renderFrame(
   crashAlpha: number,  // 0–1 red flash on crash
   swerveOffset: number, // lateral crash offset (px)
   sparks: Spark[],     // crash spark particles
+  carImage: HTMLImageElement | null, // player's actual customized car art, once loaded
+  paintColor: string,      // player's paint color (hex)
+  underglowColor: string,  // player's underglow color (hex)
 ) {
   ctx.clearRect(0, 0, W, H);
   const horizonY = H * 0.38;
@@ -195,27 +192,12 @@ function renderFrame(
     ctx.fillRect(vpX - dashW / 2, cy - dashH / 2, dashW, dashH);
   }
 
-  // AI cars on road
+  // Each racer runs their own parallel lane (no other racers rendered here — see
+  // the mini-leaderboard for live standings). Only decorative traffic obstacles
+  // and the player's own car appear on the road.
   if (match) {
     const me = match.players.find(p => p.userId?.toString() === userId);
     const myPct = me?.distancePct ?? 0;
-    const others = match.players.filter(p => p.userId?.toString() !== userId && !p.isAI);
-    const aiPlayers = match.players.filter(p => p.isAI);
-    const allOthers = [...others, ...aiPlayers].slice(0, 3);
-
-    allOthers.forEach((opp, idx) => {
-      const relPct = opp.distancePct - myPct;
-      // Only show cars within ±30% of player
-      if (relPct > 35 || relPct < -5) return;
-      // Convert relPct to road Y position
-      // relPct = 0 means same position as player (at bottom), positive = ahead (higher up road)
-      const t = Math.min(1, Math.max(0.05, relPct / 30 * 0.7 + 0.05));
-      const persp = Math.pow(t, 1.2);
-      const carY = horizonY + (H - horizonY) * (1 - persp);
-      const carScale = (1 - persp * 0.8);
-      const oppColor = carTierColor(opp.carSnapshot?.topSpeed ?? 45);
-      drawCar(ctx, vpX + (idx - 1) * 30 * carScale, carY, carScale * 28, carScale * 16, oppColor, false);
-    });
 
     // ── Obstacle (traffic) cars — deterministic positions from trackSeed ─────
     if (match.trackSeed != null) {
@@ -252,9 +234,10 @@ function renderFrame(
     ctx.fill();
   }
 
-  // Player car (bottom-center) — body bobbing based on animTime
+  // Player car (bottom-center) — body bobbing based on animTime, rendered with
+  // the player's actual car art + their garage paint/underglow customization.
   const bobY = Math.sin(animTime * 0.006) * 2;
-  drawCar(ctx, vpX + swerveOffset, H - 24 + bobY, 44, 24, "#00d4ff", true, animTime);
+  drawCar(ctx, vpX + swerveOffset, H - 24 + bobY, 52, 30, paintColor, true, animTime, carImage, underglowColor);
 
   // ── Crash flash overlay ────────────────────────────────────────────────────
   if (crashAlpha > 0) {
@@ -331,8 +314,39 @@ function drawCar(
   color: string,
   isPlayer: boolean,
   animTime = 0,
+  carImage: HTMLImageElement | null = null,
+  underglowColor?: string,
 ) {
   const hw = w / 2, hh = h / 2;
+
+  // ── Real car art path (player only, once their garage image has loaded) ────
+  if (isPlayer && carImage && carImage.complete && carImage.naturalWidth > 0) {
+    const glow = underglowColor || color;
+    // Underglow — a soft colored pool beneath the car, from the player's garage customization
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + hh * 0.75, hw * 1.05, hh * 0.4, 0, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 16;
+    ctx.fill();
+    ctx.restore();
+
+    // Fit the actual car image (its own art/paint baked in) into the bounding box,
+    // preserving aspect ratio, anchored so the wheels sit near cy.
+    const ratio = carImage.naturalWidth / carImage.naturalHeight;
+    let drawW = w * 1.6, drawH = drawW / ratio;
+    if (drawH > h * 2.2) { drawH = h * 2.2; drawW = drawH * ratio; }
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+    ctx.drawImage(carImage, cx - drawW / 2, cy - drawH * 0.68, drawW, drawH);
+    ctx.restore();
+    return;
+  }
+
+  // ── Fallback schematic car (used until the image loads, or for traffic) ────
   // Body
   ctx.fillStyle = isPlayer ? "#0d1a2e" : "#0a0a14";
   ctx.beginPath();
@@ -393,10 +407,12 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
   const needleRef = useRef<HTMLDivElement>(null);
   const matchRef = useRef<RaceMatch | null>(null);
   const scrollRef = useRef(0);
-  const prevPctRef = useRef(0);
-  const speedRef = useRef(0);
+  const speedRef = useRef(0);      // 0–1 current visual speed — only changes via player actions
+  const gearRef = useRef(1);       // current gear — only advances on a successful (hit) shift
   const sweepStartRef = useRef(Date.now());
   const sweepDurRef = useRef(2400); // ms for one sweep
+  const carImageRef = useRef<HTMLImageElement | null>(null);
+  const carImageIdRef = useRef<string | null>(null);
   const animTimeRef = useRef(0);     // accumulated animation time for wheel spin + bob
   const crashAlphaRef = useRef(0);   // 0–1 crash flash intensity, decays each frame
   const swerveRef = useRef(0);       // lateral crash offset (px), decays each frame
@@ -409,6 +425,17 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
 
   // Update matchRef whenever match state changes
   useEffect(() => { matchRef.current = match; }, [match]);
+
+  // ── Load the player's actual customized car art whenever their car changes ─
+  const myCarId = match?.players.find(p => p.userId?.toString() === user.id)?.carSnapshot?.carId ?? null;
+  useEffect(() => {
+    if (!myCarId || carImageIdRef.current === myCarId) return;
+    carImageIdRef.current = myCarId;
+    const img = new Image();
+    img.onload = () => { carImageRef.current = img; };
+    img.onerror = () => { carImageRef.current = null; };
+    img.src = `/assets/cars/${myCarId}.png`;
+  }, [myCarId]);
 
   // ── Canvas animation loop ──────────────────────────────────────────────────
   useEffect(() => {
@@ -423,16 +450,13 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
       const dt = Math.min(50, ts - lastTs);
       lastTs = ts;
 
-      // Update road scroll speed based on distancePct delta
+      // Speed only changes via explicit player actions (shift/crash/finish) — it never
+      // drifts on its own. It ramps gradually toward the current gear's target speed,
+      // like a real car accelerating, rather than jumping instantly.
       const me = matchRef.current?.players.find(p => p.userId?.toString() === user.id);
-      const curPct = me?.distancePct ?? 0;
-      const delta = curPct - prevPctRef.current;
-      if (delta > 0) {
-        speedRef.current = Math.min(0.8, speedRef.current + delta * 0.5);
-        prevPctRef.current = curPct;
-      }
-      // Decay speed
-      speedRef.current = Math.max(0.03, speedRef.current * 0.97);
+      const finished = me?.finishTime != null;
+      const targetSpeed = finished ? 0 : gearRef.current / 6;
+      speedRef.current += (targetSpeed - speedRef.current) * (finished ? 0.02 : 0.035);
       scrollRef.current = (scrollRef.current + speedRef.current * dt * 0.006) % 1;
 
       // Needle position (direct DOM write, no state)
@@ -463,8 +487,10 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
       }
 
       const W = canvas!.width, H = canvas!.height;
+      const myCarSnap = me?.carSnapshot;
       renderFrame(ctx!, W, H, scrollRef.current, matchRef.current, user.id, nitroActiveRef.current,
-        animTimeRef.current, speedRef.current, crashAlphaRef.current, swerveRef.current, sparksRef.current);
+        animTimeRef.current, speedRef.current, crashAlphaRef.current, swerveRef.current, sparksRef.current,
+        carImageRef.current, myCarSnap?.paint || "#00d4ff", myCarSnap?.underglow || "#00d4ff");
 
       animRef.current = requestAnimationFrame(loop);
     }
@@ -514,6 +540,8 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
         if (!cancelled) {
           // Reset all per-race UI state so a second race starts clean
           setGear(1);
+          gearRef.current = 1;
+          speedRef.current = 0;
           sweepStartRef.current = Date.now();
           sweepDurRef.current = 2400;
           animTimeRef.current = 0;
@@ -539,28 +567,21 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
   }, []); // eslint-disable-line
 
   // ── Shift action ───────────────────────────────────────────────────────────
+  // Speed/gear only change on the server's authoritative result:
+  //  - Hit (green zone): speed increases and the gear advances — the sweep resets
+  //    so the next gear's timing cycle starts fresh from zero.
+  //  - Miss: speed and gear stay exactly as they are; the sweep keeps running
+  //    uninterrupted (no reset, no penalty).
+  //  - Crash: a genuine driving mistake — separate from a plain miss — knocks the
+  //    car down a gear.
   const handleShift = useCallback(async () => {
-    if (acting || !matchIdRef.current || phase !== "racing") return;
-
-    // Optimistic visual feedback using local timing estimate
-    const elapsed = Date.now() - sweepStartRef.current;
-    const sweep = sweepDurRef.current;
-    const raw = (elapsed % (sweep * 2)) / sweep;
-    const pos = raw > 1 ? 2 - raw : raw;
-    const optimisticHit = pos >= 0.35 && pos <= 0.65;
-
-    // Reset sweep, speed up per gear
-    sweepStartRef.current = Date.now();
-    sweepDurRef.current = Math.max(900, sweepDurRef.current - 150);
-    setGear(g => Math.min(6, g + 1));
-    setLastShift(optimisticHit ? "hit" : "miss");
-    setTimeout(() => setLastShift(null), 600);
+    const meNow = matchRef.current?.players.find(p => p.userId?.toString() === user.id);
+    if (acting || !matchIdRef.current || phase !== "racing" || meNow?.finishTime != null) return;
 
     setActing(true);
     try {
       // Server determines hit/miss/crash authoritatively — client sends no hit value
       const data = await api.post<{ match: RaceMatch; hit: boolean; crashed: boolean }>(`/race/match/${matchIdRef.current}/shift`, {});
-      // Correct feedback with authoritative server result
       if (data.crashed) {
         setLastShift("crash");
         crashAlphaRef.current = 1.0;  // trigger red flash on canvas
@@ -577,9 +598,19 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
           life: 0.6 + Math.random() * 0.5,
           color: Math.random() > 0.5 ? "#f59e0b" : "#ff6b35",
         }));
+        gearRef.current = Math.max(1, gearRef.current - 1);
+        setGear(gearRef.current);
         setTimeout(() => setLastShift(null), 800);
+      } else if (data.hit) {
+        gearRef.current = Math.min(6, gearRef.current + 1);
+        setGear(gearRef.current);
+        sweepStartRef.current = Date.now();
+        sweepDurRef.current = Math.max(900, 2400 - (gearRef.current - 1) * 150);
+        setLastShift("hit");
+        setTimeout(() => setLastShift(null), 600);
       } else {
-        setLastShift(data.hit ? "hit" : "miss");
+        // Missed the shift zone — speed/gear unchanged, sweep keeps running as-is
+        setLastShift("miss");
         setTimeout(() => setLastShift(null), 600);
       }
       setMatch(data.match);
@@ -599,7 +630,8 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
 
   // ── Nitro action ───────────────────────────────────────────────────────────
   const handleNitro = useCallback(async () => {
-    if (acting || !matchIdRef.current || phase !== "racing" || nitroCount <= 0) return;
+    const meNow = matchRef.current?.players.find(p => p.userId?.toString() === user.id);
+    if (acting || !matchIdRef.current || phase !== "racing" || nitroCount <= 0 || meNow?.finishTime != null) return;
     nitroActiveRef.current = true;
     setNitroFlash(true);
     if (nitroTimerRef.current) clearTimeout(nitroTimerRef.current);
@@ -624,7 +656,7 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
     } finally {
       setActing(false);
     }
-  }, [acting, phase, nitroCount, addToast, onUserUpdate]);
+  }, [acting, phase, nitroCount, user.id, addToast, onUserUpdate]);
 
   // Keyboard SHIFT = spacebar, NITRO = N
   useEffect(() => {
@@ -641,6 +673,8 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
   const me = match?.players.find(p => p.userId?.toString() === user.id);
   const myPct = me?.distancePct ?? 0;
   const myPlacement = me?.placement ?? null;
+  // Player crossed the finish line, but the match isn't complete yet (others still racing)
+  const myFinished = me?.finishTime != null;
 
   const leaderboard = match ? [...match.players].sort((a, b) => {
     if (a.placement !== null && b.placement !== null) return a.placement - b.placement;
@@ -672,7 +706,7 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
           {/* Header row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontFamily: "monospace", fontSize: 13, color: "#00d4ff", fontWeight: "bold" }}>
-              GEAR {gear} &nbsp;
+              {myFinished ? "🏁 FINISHED" : `GEAR ${gear}`} &nbsp;
               <span style={{ fontSize: 10, color: "#334155" }}>
                 {match?.mode === "4player" ? "4-PLAYER RACE" : "2-PLAYER RACE"}
               </span>
@@ -731,7 +765,21 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
             })}
           </div>
 
-          {/* Shift panel */}
+          {/* Waiting-for-others panel — shown once the player finishes but the match hasn't ended */}
+          {myFinished ? (
+            <div style={{
+              marginTop: 14, background: "#0a0a14", border: "1px solid #22c55e40",
+              borderRadius: 10, padding: "20px 16px", textAlign: "center",
+            }}>
+              <div style={{ fontSize: 26, marginBottom: 6 }}>🏁</div>
+              <div style={{ fontFamily: "monospace", fontSize: 13, color: "#22c55e", fontWeight: "bold" }}>
+                You finished{me?.finishTime != null ? ` in ${(me.finishTime / 1000).toFixed(2)}s` : ""}!
+              </div>
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#475569", marginTop: 4 }}>
+                Waiting for the other racers to cross the line…
+              </div>
+            </div>
+          ) : (
           <div style={{
             marginTop: 14, background: "#0a0a14",
             border: `1px solid ${lastShift === "crash" ? "#ef444460" : "#1e293b"}`,
@@ -816,6 +864,7 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
               SPACE = shift &nbsp;·&nbsp; N = nitro &nbsp;·&nbsp; Hit the green zone for maximum boost
             </div>
           </div>
+          )}
         </>
       )}
 

@@ -48,11 +48,13 @@ interface RaceQueueEntry {
 }
 
 interface CarSnap {
-  carId:    string;
-  topSpeed: number;
-  accel:    number;
-  handling: number;
-  nitro:    number;
+  carId:      string;
+  topSpeed:   number;
+  accel:      number;
+  handling:   number;
+  nitro:      number;
+  paint?:     string | null;
+  underglow?: string | null;
 }
 
 const queue2p = new Map<string, RaceQueueEntry>();
@@ -95,9 +97,12 @@ async function getPlayerCarSnap(userId: string): Promise<CarSnap> {
   const ownedCar = garage.cars.find((c: any) => c.carId === garage.activeCar);
   const condition: number = (ownedCar as any)?.condition ?? 100;
   const mult = getConditionMultiplier(condition);
+  const customization = (ownedCar as any)?.customization ?? null;
   return {
     ...base,
     topSpeed: Math.floor(base.topSpeed * mult),
+    paint: customization?.paint ?? null,
+    underglow: customization?.underglow ?? null,
   };
 }
 
@@ -237,6 +242,7 @@ async function tryFillRace(mode: "2player" | "4player"): Promise<string | null> 
     crashCount:  0,
     lastShiftAt: null,
     shiftCount:  0,
+    hitCount:    0,
     carSnapshot: e.carSnap,
   }));
 
@@ -349,6 +355,7 @@ setInterval(async () => {
         crashCount:  0,
         lastShiftAt: null as number | null,
         shiftCount:  0,
+        hitCount:    0,
         carSnapshot: e.carSnap,
       }));
 
@@ -366,6 +373,7 @@ setInterval(async () => {
           crashCount:  0,
           lastShiftAt: null as number | null,
           shiftCount:  0,
+          hitCount:    0,
           carSnapshot: carSnap,
         };
       });
@@ -448,9 +456,12 @@ router.post("/match/:matchId/shift", requireAuth, async (req: AuthRequest, res) 
     player.shiftCount  = (player.shiftCount ?? 0) + 1;
 
     // ── Server-side timing window: green zone is 35–65% of a sweep cycle ─────
-    // Sweep duration decreases as gear increases (same logic as frontend)
-    const gear        = Math.min(6, player.shiftCount);
-    const sweepDur    = Math.max(900, 2400 - (gear - 1) * 150);
+    // Gear/sweep-speed only progresses on successful (hit) shifts — a miss keeps
+    // the car in the same gear and the sweep cycle keeps running uninterrupted,
+    // it does not reset to gear 1.
+    const priorHits    = player.hitCount ?? 0;
+    const gear         = Math.min(6, priorHits + 1);
+    const sweepDur      = Math.max(900, 2400 - (gear - 1) * 150);
     const raceStart   = match.startedAt?.getTime() ?? now;
     const elapsed     = (now - raceStart) % (sweepDur * 2);
     const raw         = elapsed / sweepDur;          // 0→2 bounce
@@ -461,11 +472,12 @@ router.post("/match/:matchId/shift", requireAuth, async (req: AuthRequest, res) 
     const halfWindow  = 0.15 + gearBonus * 0.5;
     const hit         = pos >= (0.5 - halfWindow) && pos <= (0.5 + halfWindow);
 
-    // Progress increment: good shift = 8–12%, missed shift = 3–6%
+    // Speed/progress only builds up on a successful (green-zone) shift — like a real
+    // car's gear change. Missing the zone leaves speed exactly where it was: no gain,
+    // no loss, and the current gear/cycle keeps running rather than resetting.
     const carSnap = player.carSnapshot;
     const speedFactor = (carSnap.topSpeed + carSnap.accel) / 200;
-    const baseGain = hit ? (0.08 + Math.random() * 0.04) : (0.03 + Math.random() * 0.03);
-    const progress = baseGain * (0.8 + speedFactor * 0.4);
+    const progress = hit ? (0.08 + Math.random() * 0.04) * (0.8 + speedFactor * 0.4) : 0;
 
     // ── Crash mechanic: obstacle chance ───────────────────────────────────────
     // Perfect shifts have lower crash chance (skilled drivers dodge); misses are more likely to crash
@@ -476,9 +488,11 @@ router.post("/match/:matchId/shift", requireAuth, async (req: AuthRequest, res) 
       // Crash penalty: lose 3–6% distance (net negative vs normal gain)
       const penalty = 3 + Math.random() * 3;
       player.distancePct = Math.max(0, player.distancePct - penalty);
-    } else {
+    } else if (hit) {
       player.distancePct = Math.min(100, player.distancePct + progress * 100);
+      player.hitCount = priorHits + 1;
     }
+    // miss, no crash: distancePct and hitCount both stay exactly the same
 
     if (player.distancePct >= 100) {
       const finishTime = Date.now() - (match.startedAt?.getTime() ?? Date.now());

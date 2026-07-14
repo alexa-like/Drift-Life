@@ -19,13 +19,16 @@ export interface RacePlayer {
   nitroUsed:    number;             // total nitro boosts used
   crashCount:   number;             // total crashes this race
   lastShiftAt:  number | null;      // ms timestamp of last shift (anti-cheat: reject impossible cadences)
-  shiftCount:   number;             // total shifts submitted (anti-cheat: cap max shifts)
+  shiftCount:   number;             // total shift attempts submitted (anti-cheat: cap max attempts)
+  hitCount:     number;             // total successful (green-zone) shifts — drives gear/speed progression
   carSnapshot: {
     carId:     string;
     topSpeed:  number;
     accel:     number;
     handling:  number;
     nitro:     number;
+    paint:      string | null;   // hex color, for rendering the player's actual car
+    underglow:  string | null;   // hex color, for rendering the player's actual car
   };
 }
 
@@ -58,12 +61,15 @@ const RacePlayerSchema = new Schema<RacePlayer>(
     crashCount:  { type: Number, default: 0 },
     lastShiftAt: { type: Number, default: null },
     shiftCount:  { type: Number, default: 0 },
+    hitCount:    { type: Number, default: 0 },
     carSnapshot: {
-      carId:    { type: String, default: "rustbucket_common" },
-      topSpeed: { type: Number, default: 40 },
-      accel:    { type: Number, default: 30 },
-      handling: { type: Number, default: 30 },
-      nitro:    { type: Number, default: 20 },
+      carId:     { type: String, default: "rustbucket_common" },
+      topSpeed:  { type: Number, default: 40 },
+      accel:     { type: Number, default: 30 },
+      handling:  { type: Number, default: 30 },
+      nitro:     { type: Number, default: 20 },
+      paint:     { type: String, default: null },
+      underglow: { type: String, default: null },
     },
   },
   { _id: false },
