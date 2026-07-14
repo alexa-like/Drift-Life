@@ -557,7 +557,7 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
           xp:           { $add: ["$xp",           xpGained] },
           seasonPoints: { $add: ["$seasonPoints", crimeSeasonPts] },
         } }],
-        { new: true },
+        { new: true, updatePipeline: true },
       );
       if (r) {
         rewarded = r;

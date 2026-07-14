@@ -193,7 +193,7 @@ router.post("/minigame/complete", requireAuth, validateBody(jobsMinigameComplete
         dc: { $min: [{ $add: ["$dc", bonus] }, 100_000_000] },
         pendingMinigame: null,
       } }],
-      { new: true },
+      { new: true, updatePipeline: true },
     );
     if (!rewarded) return res.status(500).json({ message: "Internal server error" });
 

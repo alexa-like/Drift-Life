@@ -312,7 +312,7 @@ router.post("/dark-market/buy/:listingId", requireAuth, async (req: AuthRequest,
       const u = await User.findOneAndUpdate(
         { _id: req.userId },
         [{ $set: { heat: { $min: [100, { $add: ["$heat", 20] }] } } }],
-        { new: true },
+        { new: true, updatePipeline: true },
       ).select("heat").lean();
       return res.json({ success: false, stung: true, message: "STING OPERATION. Item confiscated. Heat +20.", heat: u?.heat ?? 0 });
     }

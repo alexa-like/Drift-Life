@@ -110,9 +110,11 @@ router.post("/transfer", requireAuth, validateBody(bankTransferSchema), async (r
     if (!sender) return res.status(400).json({ message: `Insufficient funds — transfer costs ${totalCost.toLocaleString()} DC (${amount.toLocaleString()} + ${fee.toLocaleString()} wire fee)` });
 
     // Credit recipient — aggregation pipeline enforces wallet cap atomically
-    await User.findByIdAndUpdate(recipient._id, [
-      { $set: { dc: { $min: [{ $add: ["$dc", amount] }, WALLET_CAP] } } },
-    ]);
+    await User.findByIdAndUpdate(
+      recipient._id,
+      [{ $set: { dc: { $min: [{ $add: ["$dc", amount] }, WALLET_CAP] } } }],
+      { updatePipeline: true },
+    );
 
     res.json({
       wallet: sender.dc,
