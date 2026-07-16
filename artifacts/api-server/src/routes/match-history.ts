@@ -35,7 +35,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       const isP1 = m.player1Id?.toString() === userId;
       const opponentId   = isP1 ? m.player2Id?.toString()   : m.player1Id?.toString();
       const opponentName = m.isPlayer2AI
-        ? (m.aiName ?? "AI Opponent")
+        ? (m.aiName || "Opponent")
         : (isP1 ? "Opponent" : "Opponent");
       const winnerId = m.winnerId?.toString();
       const result = !winnerId ? "draw" : winnerId === userId ? "win" : "loss";

@@ -223,7 +223,7 @@ export default function RaceHubPage({ user, addToast, onNavigate }: Props) {
                     ⚡ {cost} energy
                   </div>
                   <div style={{ fontSize: 9, color: "#334155", marginTop: 2 }}>
-                    {mode === "2player" ? "1v1 vs AI/opponent" : "4-way race"}
+                    {mode === "2player" ? "1v1 race" : "4-way race"}
                   </div>
                 </button>
               );
@@ -297,7 +297,7 @@ export default function RaceHubPage({ user, addToast, onNavigate }: Props) {
             <span style={{ animation: "dotBlink 1.4s infinite 0s" }}>.</span>
             <span style={{ animation: "dotBlink 1.4s infinite 0.2s" }}>.</span>
             <span style={{ animation: "dotBlink 1.4s infinite 0.4s" }}>.</span>
-            {" "}(fills with AI after 30s)
+            {" "}(fills automatically after 30s)
           </div>
 
           <button

@@ -86,9 +86,6 @@ function CombatRow({ m }: { m: CombatEntry }) {
           <span className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 13 }}>
             vs {m.opponentName}
           </span>
-          {m.isAI && (
-            <span className="font-mono" style={{ fontSize: 9, color: "#475569", border: "1px solid #1e1e2e", padding: "1px 4px", borderRadius: 3 }}>AI</span>
-          )}
         </div>
         <div className="font-mono" style={{ color: "#475569", fontSize: 10, marginTop: 2 }}>
           {m.turns} turns · ⚡{m.energyCost} · {timeAgo(m.createdAt)}
@@ -116,9 +113,6 @@ function RaceRow({ m }: { m: RaceEntry }) {
           <span className="font-mono font-bold" style={{ color: "#e2e8f0", fontSize: 13 }}>
             {m.mode === "2player" ? "2-Player Race" : "4-Player Race"}
           </span>
-          {m.hasAI && (
-            <span className="font-mono" style={{ fontSize: 9, color: "#475569", border: "1px solid #1e1e2e", padding: "1px 4px", borderRadius: 3 }}>vs AI</span>
-          )}
         </div>
         <div className="font-mono" style={{ color: "#475569", fontSize: 10, marginTop: 2 }}>
           {m.finishTime ? `${formatTime(m.finishTime)} finish` : "DNF"} · ⚡{m.energyCost} · {timeAgo(m.createdAt)}

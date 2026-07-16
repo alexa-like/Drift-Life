@@ -57,6 +57,47 @@ const BLDG_R_WINDOWS = BUILDINGS_RIGHT.map((b, i) => makeWindowGrid(b.w, b.h, i 
 const PLACEMENT_COLORS: Record<number, string> = { 1: "#f59e0b", 2: "#94a3b8", 3: "#b45309", 4: "#475569" };
 const PLACEMENT_LABELS: Record<number, string> = { 1: "🥇 1ST PLACE", 2: "🥈 2ND PLACE", 3: "🥉 3RD PLACE", 4: "4TH PLACE" };
 
+// ── Speedometer dial geometry (shared by the animation loop + static JSX) ─────
+// 270° sweep from lower-left, up through the top, to lower-right — same
+// convention as a real analog speedometer.
+const GAUGE_SIZE = 190;
+const GAUGE_CX = GAUGE_SIZE / 2;
+const GAUGE_CY = GAUGE_SIZE / 2;
+const GAUGE_R = 82;
+const GAUGE_START = Math.PI * 0.75;
+const GAUGE_END = Math.PI * 2.25;
+const GAUGE_ARC = GAUGE_END - GAUGE_START;
+const GAUGE_NEEDLE_LEN = GAUGE_R - 20;
+const GAUGE_DOT_R = GAUGE_R - 6;
+// Fixed shift-zone wedge — matches the server's default 35%–65% hit window
+const SHIFT_ZONE_LO = 0.35, SHIFT_ZONE_HI = 0.65;
+
+function polar(angle: number, r: number) {
+  return { x: GAUGE_CX + Math.cos(angle) * r, y: GAUGE_CY + Math.sin(angle) * r };
+}
+function arcPath(r: number, t0: number, t1: number): string {
+  const a0 = GAUGE_START + t0 * GAUGE_ARC, a1 = GAUGE_START + t1 * GAUGE_ARC;
+  const p0 = polar(a0, r), p1 = polar(a1, r);
+  const largeArc = (a1 - a0) > Math.PI ? 1 : 0;
+  return `M ${p0.x} ${p0.y} A ${r} ${r} 0 ${largeArc} 1 ${p1.x} ${p1.y}`;
+}
+// Major speed ticks (0, 20, 40 … 140) with numbers, plus minor unlabeled ticks
+const GAUGE_MAJOR_TICKS = Array.from({ length: 8 }, (_, i) => {
+  const t = i / 7;
+  const angle = GAUGE_START + t * GAUGE_ARC;
+  const outer = polar(angle, GAUGE_R);
+  const inner = polar(angle, GAUGE_R - 10);
+  const label = polar(angle, GAUGE_R - 22);
+  return { t, x1: outer.x, y1: outer.y, x2: inner.x, y2: inner.y, lx: label.x, ly: label.y, value: i * 20 };
+});
+const GAUGE_MINOR_TICKS = Array.from({ length: 29 }, (_, i) => {
+  const t = i / 28;
+  const angle = GAUGE_START + t * GAUGE_ARC;
+  const outer = polar(angle, GAUGE_R);
+  const inner = polar(angle, GAUGE_R - 5);
+  return { t, x1: outer.x, y1: outer.y, x2: inner.x, y2: inner.y };
+});
+
 const RACE_CSS = `
 @keyframes nitroFlare { 0%{opacity:1;transform:scaleX(1)} 100%{opacity:0;transform:scaleX(1.4)} }
 @keyframes shiftHit  { 0%{background:#22c55e40} 50%{background:#22c55e60} 100%{background:transparent} }
@@ -64,6 +105,8 @@ const RACE_CSS = `
 @keyframes placeBanner { 0%{opacity:0;transform:scale(0.6)} 60%{transform:scale(1.08)} 100%{opacity:1;transform:scale(1)} }
 @keyframes carBob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
 @keyframes burnout { 0%,100%{transform:rotate(-1deg)} 50%{transform:rotate(1deg)} }
+@keyframes arrowUp { 0%{opacity:0;transform:translate(-50%,4px)} 30%{opacity:1;transform:translate(-50%,-2px)} 100%{opacity:0;transform:translate(-50%,-10px)} }
+@keyframes arrowDown { 0%{opacity:0;transform:translate(-50%,-4px)} 30%{opacity:1;transform:translate(-50%,2px)} 100%{opacity:0;transform:translate(-50%,10px)} }
 `;
 
 // ── Canvas renderer ───────────────────────────────────────────────────────────
@@ -75,7 +118,6 @@ function renderFrame(
   userId: string,
   nitroActive: boolean,
   animTime: number,    // accumulated ms — drives wheel spin + body bob
-  speed: number,       // 0–1 for speed gauge needle
   crashAlpha: number,  // 0–1 red flash on crash
   swerveOffset: number, // lateral crash offset (px)
   sparks: Spark[],     // crash spark particles
@@ -192,32 +234,9 @@ function renderFrame(
     ctx.fillRect(vpX - dashW / 2, cy - dashH / 2, dashW, dashH);
   }
 
-  // Each racer runs their own parallel lane (no other racers rendered here — see
-  // the mini-leaderboard for live standings). Only decorative traffic obstacles
-  // and the player's own car appear on the road.
-  if (match) {
-    const me = match.players.find(p => p.userId?.toString() === userId);
-    const myPct = me?.distancePct ?? 0;
-
-    // ── Obstacle (traffic) cars — deterministic positions from trackSeed ─────
-    if (match.trackSeed != null) {
-      const seed = match.trackSeed;
-      for (let i = 0; i < 8; i++) {
-        // Simple LCG — generates a stable pct and lane offset per obstacle
-        const pctRaw = ((seed * (i * 1664525 + 1013904223) + i * 22695477 + 1) >>> 0) / 0xFFFFFFFF;
-        const obsPct = 5 + pctRaw * 88; // 5–93% of track
-        const laneRaw = ((seed * (i * 22695477 + 1013904223) + i * 6364136 + 1) >>> 0) / 0xFFFFFFFF;
-        const laneOffset = (laneRaw - 0.5) * 52;
-        const relPct = obsPct - myPct;
-        if (relPct > 35 || relPct < -2) continue; // only visible range
-        const t = Math.min(1, Math.max(0.05, relPct / 30 * 0.7 + 0.05));
-        const persp = Math.pow(t, 1.2);
-        const carY = horizonY + (H - horizonY) * (1 - persp);
-        const carScale = 1 - persp * 0.8;
-        drawCar(ctx, vpX + laneOffset * carScale, carY, carScale * 22, carScale * 12, "#334155", false);
-      }
-    }
-  }
+  // Each racer runs their own parallel lane — no other racers or obstacles are
+  // rendered on the road, only the player's own car (see the position bar in
+  // the HUD for live standings against everyone else).
 
   // Nitro trail
   if (nitroActive) {
@@ -260,51 +279,8 @@ function renderFrame(
     ctx.restore();
   }
 
-  // ── Analog speed gauge (bottom-right) ─────────────────────────────────────
-  const gCx = W - 50, gCy = H - 30, gR = 26;
-  const gaugeStart = Math.PI * 0.75;
-  const gaugeEnd   = Math.PI * 2.25;
-  const gaugeArc   = gaugeEnd - gaugeStart;
-  const spd = Math.min(1, Math.max(0, speed));
-
-  // Background arc
-  ctx.beginPath();
-  ctx.arc(gCx, gCy, gR, gaugeStart, gaugeEnd, false);
-  ctx.strokeStyle = "#1e293b";
-  ctx.lineWidth = 4;
-  ctx.stroke();
-
-  // Colored speed arc
-  if (spd > 0) {
-    const spdColor = spd > 0.75 ? "#ef4444" : spd > 0.45 ? "#f59e0b" : "#22c55e";
-    ctx.beginPath();
-    ctx.arc(gCx, gCy, gR, gaugeStart, gaugeStart + spd * gaugeArc, false);
-    ctx.strokeStyle = spdColor;
-    ctx.lineWidth = 4;
-    ctx.stroke();
-  }
-
-  // Needle
-  const needleAng = gaugeStart + spd * gaugeArc;
-  ctx.beginPath();
-  ctx.moveTo(gCx, gCy);
-  ctx.lineTo(gCx + Math.cos(needleAng) * (gR - 6), gCy + Math.sin(needleAng) * (gR - 6));
-  ctx.strokeStyle = "#e2e8f0";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Center dot
-  ctx.beginPath();
-  ctx.arc(gCx, gCy, 3, 0, Math.PI * 2);
-  ctx.fillStyle = "#475569";
-  ctx.fill();
-
-  // "KPH" label
-  ctx.font = "bold 7px monospace";
-  ctx.fillStyle = "#475569";
-  ctx.textAlign = "center";
-  ctx.fillText("KPH", gCx, gCy + gR + 8);
-  ctx.textAlign = "left";
+  // Speed is now shown on the big interactive speedometer dial in the HUD below
+  // the canvas, not as a decorative gauge here.
 }
 
 function drawCar(
@@ -397,18 +373,21 @@ function drawCar(
 export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate }: Props) {
   const [phase, setPhase] = useState<"loading" | "racing" | "finished">("loading");
   const [match, setMatch] = useState<RaceMatch | null>(null);
-  const [gear, setGear] = useState(1);
+  const [gear, setGear] = useState(0);
   const [lastShift, setLastShift] = useState<"hit" | "miss" | "crash" | null>(null);
   const [nitroCount, setNitroCount] = useState(3);
   const [nitroFlash, setNitroFlash] = useState(false);
   const [acting, setActing] = useState(false);
+  const [rankFlash, setRankFlash] = useState<Record<string, "up" | "down">>({});
+  const prevRanksRef = useRef<Record<string, number>>({});
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const needleRef = useRef<HTMLDivElement>(null);
+  const speedNeedleRef = useRef<SVGLineElement>(null);   // big dial needle — reflects actual car speed
+  const timingDotRef = useRef<SVGCircleElement>(null);   // fast-sweeping shift-timing indicator
   const matchRef = useRef<RaceMatch | null>(null);
   const scrollRef = useRef(0);
   const speedRef = useRef(0);      // 0–1 current visual speed — only changes via player actions
-  const gearRef = useRef(1);       // current gear — only advances on a successful (hit) shift
+  const gearRef = useRef(0);       // current gear (0-indexed) — only advances on a successful (hit) shift
   const sweepStartRef = useRef(Date.now());
   const sweepDurRef = useRef(2400); // ms for one sweep
   const carImageRef = useRef<HTMLImageElement | null>(null);
@@ -459,15 +438,6 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
       speedRef.current += (targetSpeed - speedRef.current) * (finished ? 0.02 : 0.035);
       scrollRef.current = (scrollRef.current + speedRef.current * dt * 0.006) % 1;
 
-      // Needle position (direct DOM write, no state)
-      if (needleRef.current) {
-        const elapsed = Date.now() - sweepStartRef.current;
-        const sweep = sweepDurRef.current;
-        const raw = (elapsed % (sweep * 2)) / sweep; // 0→1→0 bounce
-        const pos = raw > 1 ? 2 - raw : raw;
-        needleRef.current.style.left = `${pos * 100}%`;
-      }
-
       // Accumulate animation time (for wheel spin + body bob)
       animTimeRef.current += dt;
       // Decay crash flash
@@ -489,8 +459,25 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
       const W = canvas!.width, H = canvas!.height;
       const myCarSnap = me?.carSnapshot;
       renderFrame(ctx!, W, H, scrollRef.current, matchRef.current, user.id, nitroActiveRef.current,
-        animTimeRef.current, speedRef.current, crashAlphaRef.current, swerveRef.current, sparksRef.current,
+        animTimeRef.current, crashAlphaRef.current, swerveRef.current, sparksRef.current,
         carImageRef.current, myCarSnap?.paint || "#00d4ff", myCarSnap?.underglow || "#00d4ff");
+
+      // ── Drive the interactive speedometer dial (DOM refs, no re-render) ──────
+      const speedFrac = Math.min(1, Math.max(0, speedRef.current));
+      const speedAngle = GAUGE_START + speedFrac * GAUGE_ARC;
+      if (speedNeedleRef.current) {
+        speedNeedleRef.current.setAttribute("x2", String(GAUGE_CX + Math.cos(speedAngle) * GAUGE_NEEDLE_LEN));
+        speedNeedleRef.current.setAttribute("y2", String(GAUGE_CY + Math.sin(speedAngle) * GAUGE_NEEDLE_LEN));
+      }
+      const elapsed = Date.now() - sweepStartRef.current;
+      const sweep = sweepDurRef.current;
+      const raw = (elapsed % (sweep * 2)) / sweep; // 0→1→0 bounce
+      const posFrac = raw > 1 ? 2 - raw : raw;
+      const dotAngle = GAUGE_START + posFrac * GAUGE_ARC;
+      if (timingDotRef.current) {
+        timingDotRef.current.setAttribute("cx", String(GAUGE_CX + Math.cos(dotAngle) * GAUGE_DOT_R));
+        timingDotRef.current.setAttribute("cy", String(GAUGE_CY + Math.sin(dotAngle) * GAUGE_DOT_R));
+      }
 
       animRef.current = requestAnimationFrame(loop);
     }
@@ -539,8 +526,8 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
         await fetchMatch(status.activeMatch.matchId);
         if (!cancelled) {
           // Reset all per-race UI state so a second race starts clean
-          setGear(1);
-          gearRef.current = 1;
+          setGear(0);
+          gearRef.current = 0;
           speedRef.current = 0;
           sweepStartRef.current = Date.now();
           sweepDurRef.current = 2400;
@@ -598,14 +585,14 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
           life: 0.6 + Math.random() * 0.5,
           color: Math.random() > 0.5 ? "#f59e0b" : "#ff6b35",
         }));
-        gearRef.current = Math.max(1, gearRef.current - 1);
+        gearRef.current = Math.max(0, gearRef.current - 1);
         setGear(gearRef.current);
         setTimeout(() => setLastShift(null), 800);
       } else if (data.hit) {
         gearRef.current = Math.min(6, gearRef.current + 1);
         setGear(gearRef.current);
         sweepStartRef.current = Date.now();
-        sweepDurRef.current = Math.max(900, 2400 - (gearRef.current - 1) * 150);
+        sweepDurRef.current = Math.max(900, 2400 - gearRef.current * 150);
         setLastShift("hit");
         setTimeout(() => setLastShift(null), 600);
       } else {
@@ -685,6 +672,35 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
 
   const myRank = leaderboard.findIndex(p => p.userId?.toString() === user.id) + 1;
 
+  // Stable per-player key + display name. Opponents never reveal whether they're
+  // an AI or a human — everyone just shows their (human-sounding) name.
+  const playerKey = (p: RacePlayer) => p.userId?.toString() ?? p.aiName ?? "racer";
+  const displayName = (p: RacePlayer) => {
+    const isMe = p.userId?.toString() === user.id;
+    if (isMe) return user.username;
+    return p.aiName || "Racer";
+  };
+
+  // ── Track rank changes between polls to flash an overtake arrow ──────────────
+  useEffect(() => {
+    if (!match) return undefined;
+    const next: Record<string, number> = {};
+    const flashes: Record<string, "up" | "down"> = {};
+    leaderboard.forEach((p, i) => {
+      const key = playerKey(p);
+      next[key] = i;
+      const prev = prevRanksRef.current[key];
+      if (prev !== undefined && prev !== i) flashes[key] = i < prev ? "up" : "down";
+    });
+    prevRanksRef.current = next;
+    if (Object.keys(flashes).length > 0) {
+      setRankFlash(flashes);
+      const t = setTimeout(() => setRankFlash({}), 1000);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [match]); // eslint-disable-line
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{ maxWidth: 620, margin: "0 auto", padding: "8px 8px 24px" }} className="relative z-10">
@@ -743,23 +759,55 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
             }} />
           </div>
 
-          {/* Mini leaderboard */}
+          {/* Position bar — live standings, badges slide to their new slot on overtakes */}
           <div style={{
-            display: "flex", gap: 6, marginTop: 6, overflowX: "auto",
-            paddingBottom: 2, scrollbarWidth: "none",
+            position: "relative", marginTop: 8,
+            height: 54, width: leaderboard.length * 66,
           }}>
             {leaderboard.map((p, i) => {
+              const key = playerKey(p);
               const isMe = p.userId?.toString() === user.id;
-              const name = p.isAI ? (p.aiName ?? "AI") : (isMe ? user.username : "Opp");
-              const pct  = p.distancePct.toFixed(0);
+              const name = displayName(p);
+              const pct = p.distancePct.toFixed(0);
+              const color = PLACEMENT_COLORS[i + 1] ?? "#475569";
+              const flash = rankFlash[key];
               return (
-                <div key={i} style={{
-                  fontFamily: "monospace", fontSize: 9, padding: "3px 7px", borderRadius: 5, flexShrink: 0,
-                  background: isMe ? "#00d4ff15" : "#0a0a14",
-                  border: `1px solid ${isMe ? "#00d4ff40" : "#1e293b"}`,
-                  color: isMe ? "#00d4ff" : "#475569",
+                <div key={key} style={{
+                  position: "absolute", top: 0, left: 0, width: 58,
+                  transform: `translateX(${i * 66}px)`,
+                  transition: "transform 0.5s cubic-bezier(0.22,1,0.36,1)",
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
                 }}>
-                  {i + 1}. {name} <span style={{ color: isMe ? "#00d4ffaa" : "#334155" }}>{pct}%</span>
+                  <div style={{ position: "relative" }}>
+                    <div style={{
+                      width: 34, height: 34, borderRadius: "50%",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: isMe ? "#00d4ff20" : "#0a0a14",
+                      border: `2px solid ${isMe ? "#00d4ff" : color}`,
+                      boxShadow: isMe ? "0 0 10px #00d4ff60" : "none",
+                      fontFamily: "monospace", fontWeight: "bold", fontSize: 12,
+                      color: isMe ? "#00d4ff" : color,
+                    }}>
+                      {i + 1}
+                    </div>
+                    {flash && (
+                      <span style={{
+                        position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)",
+                        fontSize: 11, color: flash === "up" ? "#22c55e" : "#ef4444",
+                        animation: flash === "up" ? "arrowUp 1s ease forwards" : "arrowDown 1s ease forwards",
+                      }}>
+                        {flash === "up" ? "▲" : "▼"}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{
+                    fontFamily: "monospace", fontSize: 8, maxWidth: 58, overflow: "hidden",
+                    textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    color: isMe ? "#00d4ff" : "#64748b",
+                  }}>
+                    {name}
+                  </div>
+                  <div style={{ fontFamily: "monospace", fontSize: 8, color: "#334155" }}>{pct}%</div>
                 </div>
               );
             })}
@@ -786,68 +834,68 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
             borderRadius: 10, padding: "14px 14px 12px",
             animation: lastShift === "hit" ? "shiftHit 0.6s ease" : lastShift === "miss" ? "shiftMiss 0.6s ease" : lastShift === "crash" ? "shiftMiss 0.8s ease" : "none",
           }}>
-            {/* Timing strip */}
-            <div style={{
-              position: "relative", height: 22, borderRadius: 4, marginBottom: 12, overflow: "hidden",
-              background: "linear-gradient(90deg, #1e293b 0%, #1e293b 30%, #15532a 35%, #16a34a 45%, #15803d 55%, #15532a 65%, #1e293b 70%, #1e293b 100%)",
-            }}>
-              {/* Green zone label */}
-              <div style={{
-                position: "absolute", left: "35%", right: "35%", top: 0, bottom: 0,
-                border: "1px solid #22c55e50", borderRadius: 2,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <span style={{ fontFamily: "monospace", fontSize: 8, color: "#22c55e90" }}>SHIFT ZONE</span>
-              </div>
-              {/* Needle */}
+            {/* Controls: speedometer dial (click = shift) + NITRO */}
+            <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center" }}>
+              {/* Speedometer dial */}
               <div
-                ref={needleRef}
-                style={{
-                  position: "absolute", top: 0, bottom: 0, width: 3,
-                  background: "#ffffff", borderRadius: 2,
-                  boxShadow: "0 0 6px #fff",
-                  transform: "translateX(-50%)",
-                  transition: "none",
-                }}
-              />
-            </div>
-
-            {/* Controls */}
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              {/* Gear indicator */}
-              <div style={{
-                width: 40, height: 40, borderRadius: 8, flexShrink: 0,
-                background: "#0d1a2e", border: "1px solid #00d4ff40",
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              }}>
-                <div style={{ fontFamily: "monospace", fontSize: 8, color: "#334155" }}>GEAR</div>
-                <div style={{ fontFamily: "monospace", fontSize: 16, fontWeight: "bold", color: "#00d4ff" }}>{gear}</div>
-              </div>
-
-              {/* SHIFT button */}
-              <button
                 onClick={handleShift}
-                disabled={acting}
+                role="button"
+                aria-label="Shift gear"
                 style={{
-                  flex: 1, height: 48, borderRadius: 8, cursor: "pointer",
-                  fontFamily: "monospace", fontSize: 15, fontWeight: "bold", letterSpacing: 2,
-                  background: lastShift === "hit" ? "#22c55e20" : lastShift === "crash" ? "#ef444430" : lastShift === "miss" ? "#ef444420" : "linear-gradient(135deg, #00d4ff18, #00d4ff08)",
-                  border: `2px solid ${lastShift === "hit" ? "#22c55e" : (lastShift === "miss" || lastShift === "crash") ? "#ef4444" : "#00d4ff60"}`,
-                  color: lastShift === "hit" ? "#22c55e" : (lastShift === "miss" || lastShift === "crash") ? "#ef4444" : "#00d4ff",
-                  boxShadow: lastShift === "hit" ? "0 0 16px #22c55e40" : (lastShift === "miss" || lastShift === "crash") ? "0 0 12px #ef444430" : "0 0 12px #00d4ff20",
-                  transition: "all 0.15s",
+                  position: "relative", width: GAUGE_SIZE, height: GAUGE_SIZE, flexShrink: 0,
+                  cursor: acting ? "default" : "pointer",
+                  filter: lastShift === "hit" ? "drop-shadow(0 0 10px #22c55e80)"
+                    : (lastShift === "miss" || lastShift === "crash") ? "drop-shadow(0 0 10px #ef444480)" : "none",
+                  transition: "filter 0.15s",
                 }}
               >
-                {lastShift === "hit" ? "✓ PERFECT" : lastShift === "crash" ? "💥 CRASH!" : lastShift === "miss" ? "✗ MISS" : "⚡ SHIFT"}
-              </button>
+                <svg width={GAUGE_SIZE} height={GAUGE_SIZE} viewBox={`0 0 ${GAUGE_SIZE} ${GAUGE_SIZE}`}>
+                  {/* Dial face */}
+                  <circle cx={GAUGE_CX} cy={GAUGE_CY} r={GAUGE_R + 6} fill="#0a0a14" stroke="#1e293b" strokeWidth={1} />
+                  {/* Fixed green shift-zone wedge */}
+                  <path d={arcPath(GAUGE_R - 2, SHIFT_ZONE_LO, SHIFT_ZONE_HI)} stroke="#22c55e" strokeWidth={6} fill="none" strokeLinecap="round" opacity={0.85} />
+                  {/* Minor ticks */}
+                  {GAUGE_MINOR_TICKS.map((t, i) => (
+                    <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke="#334155" strokeWidth={1} />
+                  ))}
+                  {/* Major ticks + numbers */}
+                  {GAUGE_MAJOR_TICKS.map((t, i) => (
+                    <g key={i}>
+                      <line x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke="#94a3b8" strokeWidth={1.5} />
+                      <text x={t.lx} y={t.ly} fill="#64748b" fontSize={9} fontFamily="monospace" textAnchor="middle" dominantBaseline="middle">{t.value}</text>
+                    </g>
+                  ))}
+                  {/* Fast-sweeping shift-timing dot */}
+                  <circle ref={timingDotRef} cx={GAUGE_CX} cy={GAUGE_CY - GAUGE_DOT_R} r={4} fill="#ffffff">
+                    <title>Shift timing</title>
+                  </circle>
+                  {/* Big speed needle */}
+                  <line ref={speedNeedleRef} x1={GAUGE_CX} y1={GAUGE_CY} x2={GAUGE_CX} y2={GAUGE_CY - GAUGE_NEEDLE_LEN} stroke="#e2e8f0" strokeWidth={2.5} strokeLinecap="round" />
+                  <circle cx={GAUGE_CX} cy={GAUGE_CY} r={5} fill="#475569" />
+                </svg>
+                {/* Digital gear readout, LCD-style */}
+                <div style={{
+                  position: "absolute", left: "50%", bottom: 14, transform: "translateX(-50%)",
+                  background: "#020204", border: "1px solid #1e293b", borderRadius: 4,
+                  padding: "2px 10px", textAlign: "center",
+                }}>
+                  <div style={{ fontFamily: "monospace", fontSize: 7, color: "#334155", letterSpacing: 1 }}>GEAR</div>
+                  <div style={{
+                    fontFamily: "monospace", fontSize: 18, fontWeight: "bold", lineHeight: 1,
+                    color: lastShift === "hit" ? "#22c55e" : (lastShift === "miss" || lastShift === "crash") ? "#ef4444" : "#00d4ff",
+                  }}>
+                    {gear}
+                  </div>
+                </div>
+              </div>
 
               {/* NITRO button */}
               <button
                 onClick={handleNitro}
                 disabled={acting || nitroCount <= 0}
                 style={{
-                  width: 64, height: 48, borderRadius: 8, cursor: nitroCount > 0 ? "pointer" : "not-allowed",
-                  fontFamily: "monospace", fontSize: 10, fontWeight: "bold",
+                  width: 64, height: 64, borderRadius: 8, cursor: nitroCount > 0 ? "pointer" : "not-allowed",
+                  fontFamily: "monospace", fontSize: 10, fontWeight: "bold", flexShrink: 0,
                   background: nitroFlash ? "#ff6b3520" : nitroCount > 0 ? "linear-gradient(135deg, #ff6b3518, #ff6b3508)" : "#0a0a14",
                   border: `2px solid ${nitroFlash ? "#ff6b35" : nitroCount > 0 ? "#ff6b3560" : "#1e293b"}`,
                   color: nitroCount > 0 ? "#ff6b35" : "#334155",
@@ -855,13 +903,13 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
                 }}
               >
-                <span style={{ fontSize: 16 }}>🔥</span>
+                <span style={{ fontSize: 18 }}>🔥</span>
                 <span>×{nitroCount}</span>
               </button>
             </div>
 
-            <div style={{ fontFamily: "monospace", fontSize: 9, color: "#334155", marginTop: 8, textAlign: "center" }}>
-              SPACE = shift &nbsp;·&nbsp; N = nitro &nbsp;·&nbsp; Hit the green zone for maximum boost
+            <div style={{ fontFamily: "monospace", fontSize: 9, color: "#334155", marginTop: 10, textAlign: "center" }}>
+              SPACE = shift &nbsp;·&nbsp; N = nitro &nbsp;·&nbsp; Tap the dial when the pointer lights up the green zone
             </div>
           </div>
           )}
@@ -915,7 +963,7 @@ export default function RaceMatchPage({ user, addToast, onUserUpdate, onNavigate
             <div style={{ fontFamily: "monospace", fontSize: 11, color: "#475569", marginBottom: 10 }}>FINAL STANDINGS</div>
             {leaderboard.map((p, i) => {
               const isMe = p.userId?.toString() === user.id;
-              const name = p.isAI ? (p.aiName ?? "AI") : (isMe ? user.username : "Opponent");
+              const name = displayName(p);
               const pl = p.placement ?? (i + 1);
               const plColor = PLACEMENT_COLORS[pl] ?? "#475569";
               return (

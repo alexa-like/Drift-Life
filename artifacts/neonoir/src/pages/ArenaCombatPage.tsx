@@ -493,7 +493,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
         <div style={{ animation: "queuePulse 1.6s ease-in-out infinite" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
           <div style={{ fontFamily: "monospace", fontSize: 16, color: "#ff6b35", marginBottom: 6, letterSpacing: 2 }}>SEARCHING…</div>
-          <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", marginBottom: 32 }}>AI opponent fills in after 30 seconds</div>
+          <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", marginBottom: 32 }}>An opponent joins automatically after 30 seconds</div>
         </div>
         {[0, 1, 2].map(i => (
           <span key={i} style={{
@@ -533,7 +533,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 36, marginBottom: 6 }}>🥷</div>
                 <div style={{ fontFamily: "monospace", fontSize: 12, color: "#ff6b35", fontWeight: "bold" }}>{oppName}</div>
-                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569" }}>{match.isPlayer2AI ? "AI Opponent" : "Player"}</div>
+                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569" }}>Opponent</div>
               </div>
             </div>
             <div style={{ marginTop: 16, fontFamily: "monospace", fontSize: 10, color: "#475569" }}>
@@ -556,7 +556,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
     const xpReward  = draw ? 100 : won ? 200 : 60;
     const shardReward = won ? 1 : 0;
 
-    const oppName = match.isPlayer2AI ? (match.aiName ?? "AI") : "Opponent";
+    const oppName = match.isPlayer2AI ? (match.aiName || "Opponent") : "Opponent";
 
     // Build gear status from loadout snapshots (durability not tracked per-turn in client,
     // so we show current HP proxy — backend enriches this in a real impl)
@@ -601,7 +601,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
     const myArmorMax  = isP1 ? (match.player1Loadout.armorHp ?? 0) : (match.player2Loadout.armorHp ?? 0);
     const oppArmorCur = isP1 ? (match.player2CurrentArmorHp ?? match.player2Loadout.armorHp ?? 0) : (match.player1CurrentArmorHp ?? match.player1Loadout.armorHp ?? 0);
     const oppArmorMax = isP1 ? (match.player2Loadout.armorHp ?? 0) : (match.player1Loadout.armorHp ?? 0);
-    const oppName = match.isPlayer2AI ? (match.aiName ?? "AI") : "Opponent";
+    const oppName = match.isPlayer2AI ? (match.aiName || "Opponent") : "Opponent";
 
     const leftAnim  = isP1 ? p1Anim : p2Anim;
     const rightAnim = isP1 ? p2Anim : p1Anim;
@@ -701,7 +701,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
         <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 8, padding: "6px 14px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontFamily: "monospace", fontSize: 10, color: "#475569" }}>Turn {match.currentTurn}</span>
           <span style={{ fontFamily: "monospace", fontSize: 10, color: "#475569" }}>
-            {match.isPlayer2AI ? "vs AI" : "vs Player"}
+            vs {oppName}
           </span>
           <span style={{ fontFamily: "monospace", fontSize: 10, color: timerDanger ? "#ef4444" : "#475569" }}>
             {acting ? "…" : "Your turn"}

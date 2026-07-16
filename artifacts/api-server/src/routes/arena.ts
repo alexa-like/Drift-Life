@@ -808,7 +808,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
 
     const [p1User, p2NameResolved] = await Promise.all([
       User.findById(match.player1Id).select("username").lean(),
-      match.isPlayer2AI ? Promise.resolve(match.aiName ?? "AI") : User.findById(match.player2Id).select("username").lean().then(u => (u as any)?.username ?? "Opponent"),
+      match.isPlayer2AI ? Promise.resolve(match.aiName || "Opponent") : User.findById(match.player2Id).select("username").lean().then(u => (u as any)?.username ?? "Opponent"),
     ]);
     const p1Name = (p1User as any)?.username ?? "Player";
     const p2Name = p2NameResolved;
@@ -938,7 +938,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
       const strength = (userDoc as any)?.strength ?? 10;
       const meleeDmg = Math.floor(Math.random() * 7) + 8 + Math.floor(strength * 0.05);
       const attackerName = isP1 ? p1Name : p2Name;
-      const defenderName = isP1 ? (match.isPlayer2AI ? match.aiName ?? "AI" : p2Name) : p1Name;
+      const defenderName = isP1 ? (match.isPlayer2AI ? (match.aiName || "Opponent") : p2Name) : p1Name;
       if (isP1) {
         p2HPAfter = Math.max(0, p2HPAfter - meleeDmg);
         player2Effect = "hit";
@@ -950,8 +950,8 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
 
     } else {
       // fire_primary / fire_secondary / reload / special
-      const attackerName = isP1 ? p1Name : (match.isPlayer2AI ? match.aiName ?? "AI" : p2Name);
-      const defenderName = isP1 ? (match.isPlayer2AI ? match.aiName ?? "AI" : p2Name) : p1Name;
+      const attackerName = isP1 ? p1Name : (match.isPlayer2AI ? (match.aiName || "Opponent") : p2Name);
+      const defenderName = isP1 ? (match.isPlayer2AI ? (match.aiName || "Opponent") : p2Name) : p1Name;
       const attackerLoadout = isP1 ? match.player1Loadout : match.player2Loadout;
       const defenderArmorHp = isP1 ? p2ArmorHp : p1ArmorHp;
       const defenderArmorEffect = isP1 ? (match.player2Loadout.armorEffect ?? null) : (match.player1Loadout.armorEffect ?? null);
@@ -1201,7 +1201,7 @@ router.post("/match/:matchId/action", requireAuth, async (req: AuthRequest, res)
         const aiStrBonus: number = (aiLoadout as any).strengthBonus ?? 0;
 
         const aiResult = fireWeapon(
-          match.aiName ?? "AI", p1Name, aiWeaponName,
+          (match.aiName || "Opponent"), p1Name, aiWeaponName,
           aiDmgMin, aiDmgMax, aiAccuracy,
           aiSpecialEffect, aiSpecialChance, aiStrBonus,
           p1ArmorHp,
@@ -1452,7 +1452,7 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
   const p2Effects: ActiveEffect[] = ((match as any).player2ActiveEffects ?? []) as ActiveEffect[];
 
   const p1Name = "Player";
-  const p2Name = match.isPlayer2AI ? (match.aiName ?? "AI") : "Opponent";
+  const p2Name = match.isPlayer2AI ? (match.aiName || "Opponent") : "Opponent";
 
   const efx = applyActiveEffects(
     match.player1HP, match.player2HP,
@@ -1505,7 +1505,7 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
     if (aiAction !== "defend" && aiAction !== "use_consumable" && aiAction !== "use_item") {
       const l = match.player2Loadout;
       const aiR = fireWeapon(
-        match.aiName ?? "AI", p1Name, "Auto",
+        (match.aiName || "Opponent"), p1Name, "Auto",
         (l as any).damageMin ?? 10, (l as any).damageMax ?? 20, (l as any).weaponAccuracy ?? 75,
         null, 0, (l as any).strengthBonus ?? 0,
         p1ArmorHp,
