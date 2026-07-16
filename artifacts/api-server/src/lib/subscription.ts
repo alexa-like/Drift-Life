@@ -30,11 +30,11 @@ export const TIER_CONFIG: Record<SubscriptionTier, TierConfig> = {
   street_runner: {
     name: 'Street Runner',
     starsPerMonth: 250,
-    ncPrice: 1500,   // 250 Stars × 6 NC/Star
+    ncPrice: 1500,
     dailyNc: 60,
-    jobXpMult: 1.15,
-    crimeRewardMult: 1.10,
-    extraCrimeSlots: 1,
+    jobXpMult: 1.0,       // cosmetic only — no gameplay advantage
+    crimeRewardMult: 1.0,
+    extraCrimeSlots: 0,
     hospitalSpeedPct: 0,
     extraGymSessions: 0,
     bankInterestBonus: 0,
@@ -47,14 +47,14 @@ export const TIER_CONFIG: Record<SubscriptionTier, TierConfig> = {
   neon_syndicate: {
     name: 'Neon Syndicate',
     starsPerMonth: 500,
-    ncPrice: 3000,   // 500 Stars × 6 NC/Star
+    ncPrice: 3000,
     dailyNc: 130,
-    jobXpMult: 1.25,
-    crimeRewardMult: 1.25,
-    extraCrimeSlots: 2,
-    hospitalSpeedPct: 10,
-    extraGymSessions: 2,
-    bankInterestBonus: 1,
+    jobXpMult: 1.0,       // cosmetic only — no gameplay advantage
+    crimeRewardMult: 1.0,
+    extraCrimeSlots: 0,
+    hospitalSpeedPct: 0,
+    extraGymSessions: 0,
+    bankInterestBonus: 0,
     monthlyNc: 0,
     frameId: 'sub_neon_syndicate',
     chatColor: '#FF4FA3',
@@ -64,14 +64,14 @@ export const TIER_CONFIG: Record<SubscriptionTier, TierConfig> = {
   apex_sovereign: {
     name: 'Apex Sovereign',
     starsPerMonth: 1000,
-    ncPrice: 6000,   // 1000 Stars × 6 NC/Star
+    ncPrice: 6000,
     dailyNc: 275,
-    jobXpMult: 1.50,
-    crimeRewardMult: 1.50,
-    extraCrimeSlots: 3,
-    hospitalSpeedPct: 25,
-    extraGymSessions: 3,
-    bankInterestBonus: 3,
+    jobXpMult: 1.0,       // cosmetic only — no gameplay advantage
+    crimeRewardMult: 1.0,
+    extraCrimeSlots: 0,
+    hospitalSpeedPct: 0,
+    extraGymSessions: 0,
+    bankInterestBonus: 0,
     monthlyNc: 200,
     frameId: 'sub_apex_sovereign',
     chatColor: '#FFD700',

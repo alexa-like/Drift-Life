@@ -80,7 +80,7 @@ export function StatusBanner({ user, refreshUser, addToast, onNav }: Props) {
   async function payHospital() {
     setBusy(true);
     try {
-      const data = await api.post<any>("/user/hospital/pay-release");
+      const data = await api.post<any>("/hospital/release-early");
       await refreshUser();
       addToast(`Released! Cost: ${formatDC(data.cost)} DC`, "success");
     } catch (err: any) {
@@ -91,7 +91,7 @@ export function StatusBanner({ user, refreshUser, addToast, onNav }: Props) {
   async function payBail() {
     setBusy(true);
     try {
-      const data = await api.post<any>("/user/jail/pay-bail");
+      const data = await api.post<any>("/hospital/pay-bail");
       await refreshUser();
       addToast(`Bail posted! Cost: ${formatDC(data.cost)} DC`, "success");
     } catch (err: any) {

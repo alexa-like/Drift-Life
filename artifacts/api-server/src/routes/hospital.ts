@@ -217,6 +217,31 @@ router.post("/heal", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/hospital/pay-bail — pay DC to leave jail early
+router.post("/pay-bail", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "Not found" });
+    const jailUntil: Date | null = (user as any).jailedUntil ?? null;
+    if (!jailUntil || jailUntil <= new Date()) return res.status(400).json({ message: "You are not jailed" });
+
+    const timeLeftMs = jailUntil.getTime() - Date.now();
+    const minsLeft = Math.ceil(timeLeftMs / 60000);
+    const cost = Math.max(80, minsLeft * 80);
+
+    if (user.dc < cost) return res.status(400).json({ message: `Bail costs ${cost} DC` });
+
+    user.dc -= cost;
+    (user as any).jailedUntil = null;
+    await user.save();
+
+    res.json({ message: `Bail posted for ${cost} DC.`, cost, dc: user.dc });
+  } catch (err: any) {
+    req.log.error({ err }, "pay-bail error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // POST /api/hospital/release-early — alias for discharge
 router.post("/release-early", requireAuth, async (req: AuthRequest, res) => {
   try {

@@ -54,7 +54,7 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "guilds",       label: "Crew",     icon: Shield,        group: "wc",  minStage: 2, statusFilter: "normal" },
   { id: "arena",        label: "Arena",    icon: Swords,        statusFilter: "normal" },
   { id: "loadout",      label: "Loadout",  icon: Crosshair,     statusFilter: "normal" },
-  { id: "royale",       label: "Royale",   icon: Crown,         statusFilter: "normal" },
+  // { id: "royale",    label: "Royale",   icon: Crown,         statusFilter: "normal" }, // frozen
   { id: "missions",     label: "Missions", icon: ClipboardList },
   { id: "crimes",       label: "Crimes",   icon: Skull,         statusFilter: "normal|abroad" },
   { id: "travel",       label: "Travel",   icon: Plane,         statusFilter: "normal|abroad" },
@@ -63,11 +63,11 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "friends",      label: "Friends",  icon: Users,         statusFilter: "normal" },
   { id: "bank",         label: "Bank",     icon: Landmark,      statusFilter: "normal" },
   { id: "properties",   label: "Estate",   icon: Warehouse,     statusFilter: "normal" },
-  { id: "crafting",     label: "Craft",    icon: Wrench,        statusFilter: "normal" },
+  // { id: "crafting",  label: "Craft",    icon: Wrench,        statusFilter: "normal" }, // frozen
   { id: "skills",       label: "Skills",   icon: Star,          statusFilter: "normal" },
   { id: "achievements", label: "Achiev",   icon: Trophy },
   { id: "daily",        label: "Daily",    icon: Gift },
-  { id: "companions",   label: "Allies",   icon: PawPrint,      statusFilter: "normal" },
+  // { id: "companions", label: "Allies",  icon: PawPrint,      statusFilter: "normal" }, // frozen
   { id: "staff-portal", label: "Staff",    icon: Shield,        roles: ["staff", "admin", "owner"] },
   { id: "owner",        label: "Owner",    icon: Settings,      roles: ["admin", "owner"] },
 ];

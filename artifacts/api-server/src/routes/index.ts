@@ -30,7 +30,7 @@ import reportsRouter from "./reports";
 import banAppealRouter from "./ban-appeal";
 import supportRouter from "./support";
 import searchRouter from "./search";
-import craftingRouter from "./crafting";
+// import craftingRouter from "./crafting"; // frozen
 import tradeRouter from "./trade";
 // ── Wire Cartel additions ────────────────────────────────────────────────────
 import gymRouter from "./gym";
@@ -45,8 +45,8 @@ import telegramRouter from "./telegram";
 // ── Mini-game foundation ─────────────────────────────────────────────────────
 import energyRouter from "./energy";
 import migrationAdminRouter from "./migration-admin";
-// ── Royale (Tier 2) ───────────────────────────────────────────────────────────
-import royaleRouter from "./royale";
+// ── Royale (Tier 2) — frozen ──────────────────────────────────────────────────
+// import royaleRouter from "./royale";
 // ── Arena / Combat System (Tier 4) ───────────────────────────────────────────
 import arenaRouter from "./arena";
 // ── Racing System (Tier 5) ────────────────────────────────────────────────────
@@ -64,17 +64,16 @@ import platformRouter from "./platform";
 import discordRouter from "./discord";
 // ── Game Emojis (Tier 10.1a) ──────────────────────────────────────────────────
 import emojisRouter from "./emojis";
-// ── Mentor System (Tier 10.14) ─────────────────────────────────────────────────
-import mentorRouter from "./mentor";
+// ── Mentor System — frozen ────────────────────────────────────────────────────
+// import mentorRouter from "./mentor";
 // ── Previously unregistered routes ────────────────────────────────────────────
 import npcStoresRouter from "./npcStores";
-import blackMarketRouter from "./blackMarket";
+// import blackMarketRouter from "./blackMarket"; // frozen
 import factionBankRouter from "./factionBank";
-// ── Giveaway System (Tier 3+) ──────────────────────────────────────────────────
-// Models are imported for side-effect registration; router added below.
-import "../models/Giveaway";
-import "../models/GiveawayEntry";
-import giveawaysRouter from "./giveaways";
+// ── Giveaway System — frozen ───────────────────────────────────────────────────
+// import "../models/Giveaway";
+// import "../models/GiveawayEntry";
+// import giveawaysRouter from "./giveaways";
 
 const router: IRouter = Router();
 
@@ -103,7 +102,7 @@ router.use("/guilds", guildsRouter);
 router.use("/auction", auctionRouter);
 router.use("/properties", propertiesRouter);
 router.use("/vanta", vantaRouter);
-router.use("/crafting", craftingRouter);
+// router.use("/crafting", craftingRouter); // frozen
 router.use("/trade", tradeRouter);
 // ── Wire Cartel ──────────────────────────────────────────────────────────────
 router.use("/gym", gymRouter);
@@ -117,8 +116,8 @@ router.use("/store", storeRouter);
 router.use("/telegram", telegramRouter);
 // ── Mini-game foundation ─────────────────────────────────────────────────────
 router.use("/energy", energyRouter);
-// ── Royale (Tier 2) ───────────────────────────────────────────────────────────
-router.use("/royale", royaleRouter);
+// ── Royale (Tier 2) — frozen ──────────────────────────────────────────────────
+// router.use("/royale", royaleRouter);
 // ── Arena / Combat System (Tier 4) ───────────────────────────────────────────
 router.use("/arena", arenaRouter);
 // ── Racing System (Tier 5) ────────────────────────────────────────────────────
@@ -136,11 +135,11 @@ router.use("/platform", platformRouter);
 router.use("/discord", discordRouter);
 // ── Game Emojis (Tier 10.1a) ──────────────────────────────────────────────────
 router.use("/emojis", emojisRouter);
-// ── Mentor System (Tier 10.14) ─────────────────────────────────────────────────
-router.use("/mentor", mentorRouter);
+// ── Mentor System — frozen ────────────────────────────────────────────────────
+// router.use("/mentor", mentorRouter);
 // ── Previously unregistered routes ────────────────────────────────────────────
 router.use("/npc-stores", npcStoresRouter);
-router.use("/black-market", blackMarketRouter);
+// router.use("/black-market", blackMarketRouter); // frozen
 router.use("/faction", factionBankRouter);
 // ── Community / Safety ─────────────────────────────────────────────────────
 router.use("/reports", reportsRouter);
@@ -151,7 +150,7 @@ router.use("/search", searchRouter);
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);
 router.use("/admin/migration", migrationAdminRouter);
-// ── Giveaway System (Tier 3+) ──────────────────────────────────────────────────
-router.use("/giveaways", giveawaysRouter);
+// ── Giveaway System — frozen ───────────────────────────────────────────────────
+// router.use("/giveaways", giveawaysRouter);
 
 export default router;
