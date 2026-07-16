@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import { logger } from "./logger";
 import { seedRaceCars } from "../seeds/raceCars";
-import { seedRoyaleItems } from "../seeds/royaleItems";
 
 // NOTE: Arena/combat MiniGameItem definitions (weapons, armor, consumables, ammo) are
 // seeded exclusively by `lib/arenaItemSeed.ts` (invoked from `lib/seed.ts` at boot).
@@ -44,7 +43,6 @@ export async function connectDB() {
   // Seed catalogs (no-ops if already seeded; errors are logged, not thrown).
   // Arena combat items are seeded separately by seed() → seedArenaItems() at boot.
   seedRaceCars().catch(err => logger.warn({ err }, "seed: raceCars failed"));
-  seedRoyaleItems().catch(err => logger.warn({ err }, "seed: royaleItems failed"));
 
   mongoose.connection.on("error", (err) => {
     logger.error({ err }, "MongoDB error");

@@ -1,17 +1,15 @@
 /**
- * World — Wire Cartel Section 9
- * Weather/time-of-day, seasons, world events, companions, district modifiers.
+ * World — weather/time-of-day, seasons, world events, district modifiers.
  */
 import { Router } from "express";
 import User from "../models/User";
-import Companion, { COMPANION_CATALOG, CompanionType } from "../models/Companion";
 import { requireAuth, requireStaff, AuthRequest } from "../middlewares/auth";
 import { getWorldState } from "../models/WorldState";
 import ServerConfig from "../models/ServerConfig";
 
 const router = Router();
 
-// District modifiers table (Section 9)
+// District modifiers table
 const DISTRICT_MODIFIERS: Record<string, {
   crimePayoutMod: number; raceTypeBonus: string; itemPriceMod: number;
 }> = {
@@ -23,7 +21,7 @@ const DISTRICT_MODIFIERS: Record<string, {
   "outskirts":  { crimePayoutMod: 1.5,  raceTypeBonus: "drag",    itemPriceMod: 0.8 },
 };
 
-// ── GET /api/world/state — current world state ───────────────────────────────
+// ── GET /api/world/state ─────────────────────────────────────────────────────
 router.get("/state", requireAuth, async (req: AuthRequest, res) => {
   try {
     const world = await getWorldState();
@@ -39,7 +37,6 @@ router.get("/state", requireAuth, async (req: AuthRequest, res) => {
       seasonEndsAt: world.seasonEndsAt,
       simPrice: world.simPrice,
       activeEvents,
-      // Derived modifiers for display
       nightBonus: world.timeOfDay === "night" ? { runPayout: "+15%", heatGain: "+10%" } : null,
       rainPenalty: world.weather === "rain" ? { grip: "-10%" } : null,
     });
@@ -49,12 +46,12 @@ router.get("/state", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// ── GET /api/world/districts — district modifiers ────────────────────────────
+// ── GET /api/world/districts ─────────────────────────────────────────────────
 router.get("/districts", requireAuth, (_req, res) => {
   res.json(DISTRICT_MODIFIERS);
 });
 
-// ── GET /api/world/announcement — public banner for the top HUD ──────────────
+// ── GET /api/world/announcement ──────────────────────────────────────────────
 router.get("/announcement", requireAuth, async (_req, res) => {
   try {
     const cfg = await ServerConfig.findOne({ key: "announcement" }).lean();
@@ -70,7 +67,7 @@ router.get("/announcement", requireAuth, async (_req, res) => {
   }
 });
 
-// ── GET /api/world/season/leaderboard — season ladder ────────────────────────
+// ── GET /api/world/season/leaderboard ────────────────────────────────────────
 router.get("/season/leaderboard", requireAuth, async (_req, res) => {
   try {
     const top = await User.find({ seasonPoints: { $gt: 0 } })
@@ -96,94 +93,7 @@ router.get("/season/leaderboard", requireAuth, async (_req, res) => {
   }
 });
 
-// ── GET /api/world/companions/catalog ────────────────────────────────────────
-router.get("/companions/catalog", requireAuth, (_req, res) => {
-  res.json(Object.entries(COMPANION_CATALOG).map(([type, c]) => ({ type, ...c })));
-});
-
-// ── GET /api/world/companions/mine ───────────────────────────────────────────
-router.get("/companions/mine", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const comps = await Companion.find({ ownerId: req.userId }).lean();
-    res.json(comps.map(c => ({ ...c, id: c._id })));
-  } catch (err: any) {
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// ── POST /api/world/companions/hire ──────────────────────────────────────────
-router.post("/companions/hire", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { type } = req.body as { type: CompanionType };
-    const bp = COMPANION_CATALOG[type];
-    if (!bp) return res.status(400).json({ message: "Invalid companion type" });
-
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.dc < bp.baseCost) return res.status(400).json({ message: `Costs ${bp.baseCost.toLocaleString()} DC` });
-    if (user.companions.length >= 3) return res.status(400).json({ message: "Max 3 companions" });
-
-    // Check no duplicate type
-    const existing = await Companion.findOne({ ownerId: req.userId, type });
-    if (existing) return res.status(400).json({ message: `Already have a ${bp.name}` });
-
-    user.dc -= bp.baseCost;
-
-    const effectMap: Partial<Record<string, number>> = {
-      driver:       type === "driver"      ? 0.3 : 0,
-      hacking_bot:  type === "hacking_bot" ? 3   : 0,
-      guard_dog:    type === "guard_dog"   ? 0.2 : 0,
-      lawyer:       type === "lawyer"      ? 0.2 : 0,
-      informant:    0,
-    };
-
-    const comp = await Companion.create({
-      ownerId: user._id, type, name: bp.name, upkeepPerDay: bp.upkeepPerDay,
-      raceTimingBonus: type === "driver" ? 0.3 : 0,
-      hackAutoCompleteLevel: type === "hacking_bot" ? 3 : 0,
-      raiderReduction: type === "guard_dog" ? 0.2 : 0,
-      sentenceReduction: type === "lawyer" ? 0.2 : 0,
-    });
-    user.companions.push(comp._id);
-    await user.save();
-
-    res.status(201).json({ message: `Hired ${bp.name}!`, companion: comp });
-  } catch (err: any) {
-    req.log.error({ err }, "hire companion error");
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// ── POST /api/world/companions/:compId/upkeep — pay daily upkeep ─────────────
-router.post("/companions/:compId/upkeep", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const comp = await Companion.findOne({ _id: req.params.compId, ownerId: req.userId });
-    if (!comp) return res.status(404).json({ message: "Companion not found" });
-
-    const daysSince = (Date.now() - comp.lastUpkeepAt.getTime()) / (24 * 60 * 60 * 1000);
-    if (daysSince < 1) return res.status(400).json({ message: "Upkeep already paid today" });
-
-    const daysOwed = Math.ceil(daysSince);
-    const cost = comp.upkeepPerDay * daysOwed;
-
-    const user = await User.findOneAndUpdate(
-      { _id: req.userId, dc: { $gte: cost } },
-      { $inc: { dc: -cost } },
-      { new: true },
-    );
-    if (!user) return res.status(400).json({ message: `Upkeep costs ${cost.toLocaleString()} DC`, cost });
-
-    comp.lastUpkeepAt = new Date();
-    comp.isActive = true;
-    await comp.save();
-
-    res.json({ message: `Paid ${cost.toLocaleString()} DC upkeep for ${comp.name}.`, cost, dc: user.dc });
-  } catch (err: any) {
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// ── POST /api/world/cycle — advance time-of-day/weather (staff-triggered) ────
+// ── POST /api/world/cycle — advance time-of-day/weather (staff only) ─────────
 router.post("/cycle", requireStaff, async (req: AuthRequest, res) => {
   try {
     const world = await getWorldState();
@@ -191,7 +101,6 @@ router.post("/cycle", requireStaff, async (req: AuthRequest, res) => {
     world.timeOfDay = (hr >= 6 && hr < 20) ? "day" : "night";
     world.weather = Math.random() < 0.25 ? "rain" : "clear";
     world.lastCycledAt = new Date();
-    // Recalculate SIM price hourly
     const oldPrice = world.simPrice;
     world.simPrice = Math.round(world.simPrice * (0.95 + Math.random() * 0.10));
     world.simPriceHistory.push({ price: world.simPrice, at: new Date() });
@@ -219,7 +128,6 @@ router.post("/events", requireStaff, async (req: AuthRequest, res) => {
       effectModifiers,
     };
     world.activeEvents.push(ev);
-    // Prune expired events
     world.activeEvents = world.activeEvents.filter(e => e.endsAt > new Date());
     await world.save();
     res.status(201).json({ message: `World event "${name}" started.`, event: ev });

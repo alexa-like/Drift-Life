@@ -26,13 +26,10 @@ import { SkillsPage } from "./pages/SkillsPage";
 import { GuildsPage } from "./pages/GuildsPage";
 import { AuctionPage } from "./pages/AuctionPage";
 import { PropertiesPage } from "./pages/PropertiesPage";
-import { CraftingPage } from "./pages/CraftingPage";
 import { TradePage } from "./pages/TradePage";
 import { FriendsPage } from "./pages/FriendsPage";
 import TrainingCenterPage from "./pages/TrainingCenterPage";
 import MatchHistoryPage from "./pages/MatchHistoryPage";
-import RoyaleHubPage from "./pages/RoyaleHubPage";
-import RoyaleCategoryPage from "./pages/RoyaleCategoryPage";
 import GaragePage from "./pages/GaragePage";
 import ArenaHubPage from "./pages/ArenaHubPage";
 import ArenaCombatPage from "./pages/ArenaCombatPage";
@@ -43,7 +40,6 @@ import { DistrictHubPage } from "./pages/DistrictHubPage";
 import { TravelPage } from "./pages/TravelPage";
 import { DailyPage } from "./pages/DailyPage";
 import { DistrictPage } from "./pages/DistrictPage";
-import { CompanionsPage } from "./pages/CompanionsPage";
 import { LegalPage } from "./pages/LegalPage";
 import { SupportPage } from "./pages/SupportPage";
 import NpcStorePage from "./pages/NpcStorePage";
@@ -179,9 +175,8 @@ function GameApp() {
   const [navHeight, setNavHeight] = useState(210);
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
   const [shopStoreId, setShopStoreId] = useState<string | null>(null);
-  const [royaleCategory, setRoyaleCategory] = useState<string | null>(null);
+
   const navTo = useCallback((p: string) => {
-    setRoyaleCategory(null);
     setPage(p);
   }, [setPage]);
 
@@ -294,7 +289,6 @@ function GameApp() {
       case "auction":       return <AuctionPage {...pageProps} />;
       case "loadout":       return <LoadoutPage user={user!} addToast={addToast} />;
       case "properties":    return <PropertiesPage {...pageProps} />;
-      case "crafting":      return <CraftingPage {...pageProps} />;
       case "trade":         return <TradePage user={user!} addToast={addToast} />;
       case "friends":       return <FriendsPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       // Wire Cartel pages
@@ -305,16 +299,12 @@ function GameApp() {
       case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
       case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
       case "store":         return <StorePage user={user!} onUserUpdate={refreshUser} onNavigate={setPage} />;
-      case "royale":        return royaleCategory
-                              ? <RoyaleCategoryPage category={royaleCategory} onBack={() => setRoyaleCategory(null)} onUserUpdate={refreshUser} />
-                              : <RoyaleHubPage onSelectCategory={(id) => setRoyaleCategory(id)} />;
       case "arena":         return <ArenaHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "arena-combat":  return <ArenaCombatPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "race-hub":      return <RaceHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "race-match":    return <RaceMatchPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "daily":         return <DailyPage {...pageProps} onNav={setPage} />;
       case "district":      return <DistrictPage {...pageProps} />;
-      case "companions":    return <CompanionsPage {...pageProps} />;
       case "legal":         return <LegalPage onNav={setPage} />;
       case "support":       return <SupportPage user={user!} addToast={addToast} />;
       case "travel":        return <TravelPage user={user!} refreshUser={refreshUser} addToast={addToast} onNavigate={setPage} />;

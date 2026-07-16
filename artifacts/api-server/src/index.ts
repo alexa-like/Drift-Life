@@ -12,7 +12,6 @@ import { allowedOrigins } from "./lib/cors";
 import { closeExpiredAuctions, scheduleBotAuctions } from "./routes/auction";
 import { expireMarketListings } from "./routes/market";
 import { postWeeklyRecap, pruneFeed } from "./routes/leaderboard";
-import { runGiveawayMaintenance } from "./lib/giveawayWorker";
 import { postWeeklyBanRecap } from "./lib/banRecap";
 
 const rawPort = process.env["PORT"] ?? "3000";
@@ -300,19 +299,6 @@ async function start() {
       logger.error({ err }, "feed prune startup error"),
     );
 
-    // ── Giveaway maintenance: draft expiry (§3.3) + live-timer resolution (§5.1) ─
-    // Single interval per the NOTE left in routes/giveaways.ts — both sweeps
-    // live in lib/giveawayWorker.ts so there is exactly one polling loop.
-    // Runs every 1 minute (matches the auction auto-close cadence) so a giveaway's
-    // real end time doesn't drift far from its displayed liveExpiresAt countdown.
-    setInterval(() => {
-      runGiveawayMaintenance().catch((err) =>
-        logger.error({ err }, "giveaway maintenance interval error"),
-      );
-    }, 60 * 1000);
-    runGiveawayMaintenance().catch((err) =>
-      logger.error({ err }, "giveaway maintenance startup error"),
-    );
 
     // Register Telegram webhook once the server is live and accepting traffic.
     //
