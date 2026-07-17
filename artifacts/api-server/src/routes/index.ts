@@ -51,6 +51,10 @@ import platformRouter from "./platform";
 import discordRouter from "./discord";
 import npcStoresRouter from "./npcStores";
 import factionBankRouter from "./factionBank";
+import gangCrimesRouter from "./gang-crimes";
+import gangUpgradesRouter from "./gang-upgrades";
+import gangWarsRouter from "./gang-wars";
+import businessesRouter from "./businesses";
 
 const router: IRouter = Router();
 
@@ -106,5 +110,9 @@ router.use("/search", searchRouter);
 router.use("/dev", devRouter);
 router.use("/owner", ownerRouter);
 router.use("/admin/migration", migrationAdminRouter);
+router.use("/gang-crimes", gangCrimesRouter);
+router.use("/gang-upgrades", gangUpgradesRouter);
+router.use("/gang-wars", gangWarsRouter);
+router.use("/businesses", businessesRouter);
 
 export default router;
