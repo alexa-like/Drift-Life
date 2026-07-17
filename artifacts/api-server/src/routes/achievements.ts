@@ -25,9 +25,11 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 
     function getCurrentProgress(stat: string): number {
       switch (stat) {
+        case "arenaWins":
         case "wins": return user!.wins;
-        case "winStreak": return progressMap["unbeaten_10"]?.progress || 0;
+        case "arenaFights":
         case "totalFights": return user!.totalFights;
+        case "winStreak": return progressMap["unbeaten_10"]?.progress || 0;
         case "totalCrimes": return user!.totalCrimes;
         case "crimeSuccessRate": return user!.totalCrimes >= 100
           ? Math.round((user!.successfulCrimes / user!.totalCrimes) * 100)
@@ -89,7 +91,9 @@ export async function checkAchievements(userId: string): Promise<void> {
 
     function getCurrentProgress(stat: string): number {
       switch (stat) {
+        case "arenaWins":
         case "wins": return user!.wins;
+        case "arenaFights":
         case "totalFights": return user!.totalFights;
         case "totalCrimes": return user!.totalCrimes;
         case "crimeSuccessRate": return user!.totalCrimes >= 100

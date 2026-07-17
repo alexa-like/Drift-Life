@@ -60,10 +60,6 @@ export const ACHIEVEMENT_CATALOG: IAchievementDef[] = [
   { id: "prestige_1",       name: "Reborn",              description: "Reach your first prestige.",              category: "exploration", dcReward: 50000,  target: 1,    stat: "prestige" },
   { id: "all_jobs",         name: "Jack of All Trades",  description: "Complete every job type at least once.",  category: "exploration", dcReward: 2000,   target: 5,    stat: "uniqueJobsCompleted" },
 
-  // COLLECTION (Royale)
-  { id: "royale_spins_10",  name: "Gambler",             description: "Open 10 royale spins.",                   category: "collection",  dcReward: 200,   target: 10,  stat: "royaleSpins" },
-  { id: "royale_spins_50",  name: "High Roller",         description: "Open 50 royale spins.",                   category: "collection",  dcReward: 1000,  target: 50,  stat: "royaleSpins" },
-
   // RACING
   { id: "race_first_win",   name: "Pole Position",       description: "Finish 1st in a race.",                   category: "racing",      dcReward: 500,   keyReward: 1, target: 1,   stat: "raceWins" },
   { id: "race_wins_10",     name: "Speed Demon",         description: "Win 10 races.",                           category: "racing",      dcReward: 1500,  keyReward: 3, target: 10,  stat: "raceWins" },

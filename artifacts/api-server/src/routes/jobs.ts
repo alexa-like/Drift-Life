@@ -74,9 +74,11 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: `This job is only available in ${job.district.replace(/_/g, " ")}` });
     }
 
-    // Faction bonuses + subscription bonuses
-    const energyBonus = user.faction === "grid" ? Math.floor(job.energyCost * 0.10) : 0;
-    let dcMultiplier  = user.faction === "suits" ? 1.10 : 1;
+    // Faction bonuses + subscription bonuses + skill bonuses
+    const energyBonus   = user.faction === "grid" ? Math.floor(job.energyCost * 0.10) : 0;
+    let dcMultiplier    = user.faction === "suits" ? 1.10 : 1;
+    if (user.unlockedSkills?.includes("fast_hands")) dcMultiplier *= 1.10;
+    if (user.unlockedSkills?.includes("dc_magnet"))  dcMultiplier *= 1.10;
     const subTier = (await import("../lib/subscription")).getActiveTier(user as any);
     const dcGained      = Math.floor((job.dcMin + Math.random() * (job.dcMax - job.dcMin)) * dcMultiplier);
     const baseXpGained  = Math.floor(job.xpPerJob * (subTier?.jobXpMult ?? 1));

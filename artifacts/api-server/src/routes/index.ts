@@ -49,7 +49,6 @@ import trainingRouter from "./training";
 import matchHistoryRouter from "./match-history";
 import platformRouter from "./platform";
 import discordRouter from "./discord";
-import emojisRouter from "./emojis";
 import npcStoresRouter from "./npcStores";
 import factionBankRouter from "./factionBank";
 
@@ -98,7 +97,6 @@ router.use("/training", trainingRouter);
 router.use("/match-history", matchHistoryRouter);
 router.use("/platform", platformRouter);
 router.use("/discord", discordRouter);
-router.use("/emojis", emojisRouter);
 router.use("/npc-stores", npcStoresRouter);
 router.use("/faction", factionBankRouter);
 router.use("/reports", reportsRouter);

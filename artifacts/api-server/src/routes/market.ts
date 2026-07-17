@@ -28,7 +28,7 @@ function img(id: string): string {
 
 export const SHOP_ITEMS: Array<{
   id: string; name: string;
-  type: "weapon" | "clothing" | "vehicle" | "consumable" | "material" | "badge" | "card" | "misc";
+  type: "weapon" | "clothing" | "vehicle" | "consumable" | "misc";
   rarity: "common" | "uncommon" | "rare" | "epic" | "legendary" | "event";
   slot: "enhancement" | "clothing" | "vehicle" | null;
   strengthBonus: number; charismaBonus: number; intelligenceBonus: number;
@@ -96,14 +96,6 @@ export const SHOP_ITEMS: Array<{
   { id: "hoverbike",   name: "Hoverbike",    type: "vehicle", rarity: "epic",      slot: "vehicle", strengthBonus: 0, charismaBonus: 2, intelligenceBonus: 5, streetCredBonus: 5, travelTimeReduction: 70, basePrice: 1_500_000,  description: "-70% travel time. Mag-lev. No wheels.",        imageUrl: img("hoverbike") },
   { id: "armored-limo",name: "Armored Limo", type: "vehicle", rarity: "legendary", slot: "vehicle", strengthBonus: 5, charismaBonus: 15, intelligenceBonus: 0, streetCredBonus: 8, travelTimeReduction: 80, basePrice: 15_000_000, description: "-80% travel time. Mobile fortress.",         imageUrl: img("armored-limo") },
 
-  // ── CRAFTING MATERIALS ───────────────────────────────────────────────────
-  { id: "scrap-metal",   name: "Scrap Metal",   type: "material", rarity: "common",    slot: null, strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0, streetCredBonus: 0, travelTimeReduction: 0, basePrice: 100,    description: "Salvaged from the ruins. Used in crafting.",    imageUrl: img("scrap-metal") },
-  { id: "fabric",        name: "Fabric",        type: "material", rarity: "common",    slot: null, strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0, streetCredBonus: 0, travelTimeReduction: 0, basePrice: 100,    description: "Textile roll for crafting gear.",               imageUrl: img("fabric") },
-  { id: "chemicals",     name: "Chemicals",     type: "material", rarity: "common",    slot: null, strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0, streetCredBonus: 0, travelTimeReduction: 0, basePrice: 150,    description: "Industrial chemicals. Handle with care.",       imageUrl: img("chemicals") },
-  { id: "electronics",   name: "Electronics",   type: "material", rarity: "common",    slot: null, strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0, streetCredBonus: 0, travelTimeReduction: 0, basePrice: 200,    description: "Circuit boards and chips.",                     imageUrl: img("electronics") },
-  { id: "leather",       name: "Leather",       type: "material", rarity: "common",    slot: null, strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0, streetCredBonus: 0, travelTimeReduction: 0, basePrice: 120,    description: "Synth-leather strips.",                         imageUrl: img("leather") },
-  { id: "rare-metal",    name: "Rare Metal",    type: "material", rarity: "rare",      slot: null, strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0, streetCredBonus: 0, travelTimeReduction: 0, basePrice: 2_000,  description: "Exotic alloy for high-end crafting.",           imageUrl: img("rare-metal") },
-  { id: "nano-materials",name: "Nano Materials",type: "material", rarity: "epic",      slot: null, strengthBonus: 0, charismaBonus: 0, intelligenceBonus: 0, streetCredBonus: 0, travelTimeReduction: 0, basePrice: 25_000, description: "Self-assembling nano-particles.",               imageUrl: img("nano-materials") },
 ];
 
 // Ensure every shop item's imageUrl points to its local PNG asset (keyed by item id).
@@ -163,7 +155,7 @@ router.post("/shop/buy", requireAuth, validateBody(marketShopBuySchema), async (
       blackMarket: false,
     };
 
-    if (shopItem.type === "consumable" || shopItem.type === "material") {
+    if (shopItem.type === "consumable") {
       const existing = await Item.findOne({ owner: user._id, name: shopItem.name });
       if (existing) {
         existing.quantity += qty;
@@ -271,7 +263,7 @@ router.post("/listings", requireAuth, validateBody(marketListingCreateSchema), a
     if (!item) return res.status(404).json({ message: "Item not found" });
     if (item.equipped) return res.status(400).json({ message: "Unequip the item first" });
     if (item.marketListed) return res.status(400).json({ message: "Already listed" });
-    if (item.type === "consumable" || item.type === "material") return res.status(400).json({ message: "Cannot list consumables or materials" });
+    if (item.type === "consumable") return res.status(400).json({ message: "Cannot list consumables on the market" });
 
     item.marketListed = true;
     item.marketPrice = price;

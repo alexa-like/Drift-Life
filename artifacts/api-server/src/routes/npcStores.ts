@@ -5,6 +5,7 @@ import User from "../models/User";
 import Item from "../models/Item";
 import MiniGameItem from "../models/MiniGameItem";
 import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
+import { SHOP_ITEMS } from "./market";
 
 const router = Router();
 
@@ -59,16 +60,6 @@ const STORE_CONFIGS: Record<string, { name: string; keeper: string; tagline: str
       { q: "How often do you restock?", a: "Every 6 hours. Prices change each cycle." },
     ]
   },
-  chrome_garage: {
-    name: "Chrome Garage", keeper: 'Jay "Torque"', tagline: "Parts that win races.",
-    itemType: "arena", itemTiers: ["common","uncommon"],
-    faqs: [
-      { q: "What are car parts for?", a: "Boosts your race car performance — speed, handling, nitro. Install them in the Garage." },
-      { q: "Do these fit any car?", a: "Parts are universal. Buy them, install in garage." },
-      { q: "Any legendary cars?", a: "Not here. Royale or auction only for the top-tier rides." },
-      { q: "How often do you restock?", a: "Every 6 hours." },
-    ]
-  },
 };
 
 const NORMAL_STORE_POOLS: Record<string, string[]> = {
@@ -77,7 +68,6 @@ const NORMAL_STORE_POOLS: Record<string, string[]> = {
   neon_motors: ["motorcycle","sports-car","luxury-car"],
   district_pharma: ["energy-drink","med-patch","stim-pack","nerve-tonic","first-aid-kit","trauma-kit","nano-repair","service-token","adrenaline-vial","combat-stim","nitro-can","fuel-pack"],
   combat_zone: [],
-  chrome_garage: [],
 };
 
 const PRICE_RANGES: Record<string, Record<string, [number,number]>> = {
@@ -86,7 +76,6 @@ const PRICE_RANGES: Record<string, Record<string, [number,number]>> = {
   neon_motors:  { common:[3000,5000], uncommon:[8000,14000], rare:[25000,40000] },
   district_pharma: { common:[300,600], uncommon:[900,1800], rare:[3000,6000] },
   combat_zone:  { common:[500,900], uncommon:[1500,2800], rare:[5000,9000] },
-  chrome_garage: { common:[4000,8000], uncommon:[12000,20000], rare:[35000,60000] },
 };
 
 // ABSOLUTE RULE (spec Appendix A / Section 9.4): Epic and Legendary items
@@ -171,8 +160,6 @@ async function restockStore(storeId: string): Promise<void> {
       }
     }
   }
-  // chrome_garage falls through with empty listings (arena car parts not seeded yet)
-
   // Final guard: strip any Epic/Legendary items before inserting (absolute rule)
   const safeListings = listings.filter(l => !FORBIDDEN_TIERS.has(l.itemTier ?? ""));
   if (safeListings.length > 0) {
@@ -249,17 +236,33 @@ router.post("/:storeId/buy", requireAuth, async (req: AuthRequest, res: Response
 
     // Add item to player inventory
     if (listing.itemType === "normal") {
-      // Add to Item inventory
-      const existing = await Item.findOne({ owner: req.userId, name: listing.itemName });
-      if (existing && (existing.type === "consumable" || existing.type === "material")) {
+      // Look up real item definition from shop catalog
+      const shopDef = SHOP_ITEMS.find(s => s.id === listing.itemId || s.name.toLowerCase() === listing.itemName.toLowerCase());
+      const realType = (shopDef?.type ?? "consumable") as "weapon" | "clothing" | "vehicle" | "consumable" | "misc";
+      const isStackable = realType === "consumable";
+
+      const existing = isStackable
+        ? await Item.findOne({ owner: req.userId, name: listing.itemName, type: realType })
+        : null;
+
+      if (existing) {
         existing.quantity = (existing.quantity ?? 1) + 1;
         await existing.save();
       } else {
         await Item.create({
           owner: req.userId,
           name: listing.itemName,
-          type: "consumable",
+          type: realType,
           rarity: listing.itemTier as "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythic" | "event",
+          slot: shopDef?.slot ?? null,
+          strengthBonus: shopDef?.strengthBonus ?? 0,
+          charismaBonus: shopDef?.charismaBonus ?? 0,
+          intelligenceBonus: shopDef?.intelligenceBonus ?? 0,
+          streetCredBonus: shopDef?.streetCredBonus ?? 0,
+          travelTimeReduction: shopDef?.travelTimeReduction ?? 0,
+          effect: shopDef?.effect ?? null,
+          description: shopDef?.description ?? "",
+          imageUrl: shopDef?.imageUrl ?? null,
           quantity: 1,
           basePrice: listing.price,
         });

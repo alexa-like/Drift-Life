@@ -21,7 +21,6 @@ export interface IUser extends Document {
   secondarySkill: string | null;
   seasonXp: number;
   seasonPoints: number;
-  craftingXp: number;
   dc: number;
   nc: number;
   dirtyDc: number;   // unclean cash from Runs — needs laundering
@@ -231,7 +230,6 @@ const UserSchema = new Schema<IUser>(
     secondarySkill: { type: String, default: null },
     seasonXp: { type: Number, default: 0 },
     seasonPoints: { type: Number, default: 0 },
-    craftingXp: { type: Number, default: 0 },
     dc: { type: Number, default: 750 },
     nc: { type: Number, default: 0 },
     dirtyDc: { type: Number, default: 0 },

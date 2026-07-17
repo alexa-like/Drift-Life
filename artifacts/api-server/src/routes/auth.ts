@@ -96,7 +96,6 @@ export function safeUser(user: InstanceType<typeof User>) {
     skillTree: user.skillTree ?? null,
     secondarySkill: user.secondarySkill ?? null,
     seasonXp: user.seasonXp ?? 0,
-    craftingXp: user.craftingXp ?? 0,
     mutedUsers: user.mutedUsers || [],
     blockedUsers: user.blockedUsers || [],
     following: user.following || [],

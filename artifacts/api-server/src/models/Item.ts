@@ -4,7 +4,7 @@ export interface IItem extends Document {
   _id: mongoose.Types.ObjectId;
   owner: mongoose.Types.ObjectId;
   name: string;
-  type: "weapon" | "clothing" | "vehicle" | "consumable" | "material" | "badge" | "card" | "misc";
+  type: "weapon" | "clothing" | "vehicle" | "consumable" | "misc";
   rarity: "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythic" | "event";
   strengthBonus: number;
   charismaBonus: number;
@@ -42,7 +42,7 @@ const ItemSchema = new Schema<IItem>(
     name: { type: String, required: true },
     type: {
       type: String,
-      enum: ["weapon", "clothing", "vehicle", "consumable", "material", "badge", "card", "misc"],
+      enum: ["weapon", "clothing", "vehicle", "consumable", "misc"],
       required: true,
     },
     rarity: {
