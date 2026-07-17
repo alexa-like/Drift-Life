@@ -52,6 +52,7 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "net",          label: "Net",      icon: Globe,         group: "wc",  minStage: 3, statusFilter: "normal" },
   { id: "cyber",        label: "Cyber",    icon: Cpu,           group: "wc",  minStage: 3, statusFilter: "normal" },
   { id: "guilds",       label: "Crew",     icon: Shield,        group: "wc",  minStage: 2, statusFilter: "normal" },
+  { id: "business",     label: "Biz",      icon: Building2,     group: "wc",  minStage: 2, statusFilter: "normal" },
   { id: "arena",        label: "Arena",    icon: Swords,        statusFilter: "normal" },
   { id: "loadout",      label: "Loadout",  icon: Crosshair,     statusFilter: "normal" },
   // { id: "royale",    label: "Royale",   icon: Crown,         statusFilter: "normal" }, // frozen

@@ -46,6 +46,7 @@ import NpcStorePage from "./pages/NpcStorePage";
 import RaceHubPage from "./pages/RaceHubPage";
 import RaceMatchPage from "./pages/RaceMatchPage";
 import { StaffPortalPage } from "./pages/StaffPortalPage";
+import { BusinessPage } from "./pages/BusinessPage";
 import CityPage from "./pages/CityPage";
 import NetPage from "./pages/NetPage";
 import CyberPage from "./pages/CyberPage";
@@ -286,6 +287,7 @@ function GameApp() {
       case "chat":          return <ChatPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       case "skills":        return <SkillsPage user={user!} addToast={addToast} />;
       case "guilds":        return <GuildsPage user={user!} addToast={addToast} />;
+      case "business":      return <BusinessPage user={user!} refreshUser={refreshUser} addToast={addToast} />;
       case "auction":       return <AuctionPage {...pageProps} />;
       case "loadout":       return <LoadoutPage user={user!} addToast={addToast} />;
       case "properties":    return <PropertiesPage {...pageProps} />;
