@@ -127,7 +127,7 @@ async function grantItemToInventory(userId: mongoose.Types.ObjectId | string, it
     const inv = await PlayerMiniGameInventory.findOneAndUpdate(
       { userId, "consumables.itemId": itemDef.itemId },
       { $inc: { "consumables.$.quantity": 1 } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!inv) {
       await PlayerMiniGameInventory.findOneAndUpdate(
@@ -244,7 +244,7 @@ router.post("/:id/bid", requireAuth, validateBody(auctionBidSchema), async (req:
     const bidder = await User.findOneAndUpdate(
       { _id: req.userId, dc: { $gte: amount } },
       { $inc: { dc: -amount } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!bidder) return res.status(400).json({ message: "Not enough DC" });
 
@@ -267,7 +267,7 @@ router.post("/:id/bid", requireAuth, validateBody(auctionBidSchema), async (req:
         },
         $push: { bids: { bidderId: bidder._id, bidderName: bidder.username, amount, timestamp: new Date() } },
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!updated) {

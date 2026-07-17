@@ -224,7 +224,7 @@ router.post("/:storeId/buy", requireAuth, async (req: AuthRequest, res: Response
     const updated = await NpcStoreListing.findOneAndUpdate(
       { _id: listing._id, quantity: { $gt: 0 } },
       { $inc: { quantity: -1 } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!updated) { res.status(409).json({ message: "Item sold out" }); return; }
     if (updated.quantity === 0) {

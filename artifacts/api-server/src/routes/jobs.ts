@@ -105,7 +105,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
           [`jobCooldowns.${job.id}`]: cooldownUntil,
         },
       }),
-      { new: true, updatePipeline: true },
+      { returnDocument: 'after', updatePipeline: true },
     );
 
     if (!gated) {
@@ -122,7 +122,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
         xp:           { $add: ["$xp",           xpGained] },
         seasonPoints: { $add: ["$seasonPoints", jobSeasonPts] },
       } }],
-      { new: true, updatePipeline: true },
+      { returnDocument: 'after', updatePipeline: true },
     );
     if (!rewarded) return res.status(500).json({ message: "Internal server error" });
 
@@ -195,7 +195,7 @@ router.post("/minigame/complete", requireAuth, validateBody(jobsMinigameComplete
         dc: { $min: [{ $add: ["$dc", bonus] }, 100_000_000] },
         pendingMinigame: null,
       } }],
-      { new: true, updatePipeline: true },
+      { returnDocument: 'after', updatePipeline: true },
     );
     if (!rewarded) return res.status(500).json({ message: "Internal server error" });
 

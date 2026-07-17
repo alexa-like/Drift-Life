@@ -1444,7 +1444,7 @@ async function autoResolveTurn(matchId: string, expectedTurn: number): Promise<v
   const match = await CombatMatch.findOneAndUpdate(
     { matchId, status: "active", currentTurn: expectedTurn, currentTurnDeadline: { $lt: new Date() } },
     { $set: { currentTurnDeadline: new Date(Date.now() + 30_000) } },
-    { new: true },
+    { returnDocument: 'after' },
   );
   if (!match) return;
 

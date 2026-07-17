@@ -54,7 +54,7 @@ router.post("/careers/:careerId/work", requireAuth, async (req: AuthRequest, res
     const gated = await User.findOneAndUpdate(
       { _id: req.userId, ...energySufficientExpr(career.energyCost) },
       buildRegenPipeline({ energyCost: career.energyCost }),
-      { new: true, updatePipeline: true },
+      { returnDocument: 'after', updatePipeline: true },
     );
     if (!gated) return res.status(400).json({ message: `Not enough energy (need ${career.energyCost})` });
 

@@ -95,7 +95,7 @@ export async function deductEnergy(
         energyRegenAt: newRegenAt,
       },
     },
-    { new: true, select: "energy maxEnergy" },
+    { returnDocument: 'after', select: "energy maxEnergy" },
   );
 
   if (!updated) {

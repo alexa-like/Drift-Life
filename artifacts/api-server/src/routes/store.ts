@@ -317,7 +317,7 @@ router.post("/keys", requireAuth, async (req: AuthRequest, res) => {
     const updated = await User.findOneAndUpdate(
       { _id: req.userId, nc: { $gte: COST_NC } },
       { $inc: { nc: -COST_NC, keys: KEYS_GRANTED } },
-      { new: true },
+      { returnDocument: 'after' },
     ).select("nc keys");
 
     if (!updated) {
@@ -367,7 +367,7 @@ router.post("/gift-nc", requireAuth, async (req: AuthRequest, res) => {
     const updated = await User.findOneAndUpdate(
       { _id: req.userId, nc: { $gte: totalCost } },
       { $inc: { nc: -totalCost } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!updated) return res.status(400).json({ message: "Not enough NC (concurrent check failed)" });
 

@@ -152,7 +152,7 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
         xp:          { $add: ["$xp", reward.xp] },
         dailyStreak: newStreak,
       }}],
-      { new: true, updatePipeline: true },
+      { returnDocument: 'after', updatePipeline: true },
     );
     if (!updated) return res.status(500).json({ message: "Internal server error" });
 

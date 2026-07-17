@@ -134,7 +134,7 @@ router.post("/:id/commit", requireAuth, async (req: AuthRequest, res) => {
     const updatedUser = await User.findOneAndUpdate(
       { _id: userId, energy: { $gte: energyCost } },
       { $inc: { energy: -energyCost } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!updatedUser) return res.status(400).json({ message: "Not enough energy" });
 

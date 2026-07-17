@@ -133,7 +133,7 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
     const user = await User.findOneAndUpdate(
       { _id: req.userId, nitro: { $gte: cost } },
       { $inc: { nitro: -cost } },
-      { new: true, select: "username level nitro maxNitro" },
+      { returnDocument: 'after', select: "username level nitro maxNitro" },
     );
     if (!user) {
       // Either user not found or insufficient nitro — check which

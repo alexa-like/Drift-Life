@@ -29,7 +29,7 @@ router.post("/deposit", requireAuth, validateBody(bankAmountSchema), async (req:
         bankBalance: { $lte: BANK_CAP - amount },
       },
       { $inc: { dc: -amount, bankBalance: amount } },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!updated) {
@@ -61,7 +61,7 @@ router.post("/withdraw", requireAuth, validateBody(bankAmountSchema), async (req
         dc: { $lte: WALLET_CAP - amount },
       },
       { $inc: { bankBalance: -amount, dc: amount } },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!updated) {
@@ -105,7 +105,7 @@ router.post("/transfer", requireAuth, validateBody(bankTransferSchema), async (r
     const sender = await User.findOneAndUpdate(
       { _id: req.userId, dc: { $gte: totalCost } },
       { $inc: { dc: -totalCost } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!sender) return res.status(400).json({ message: `Insufficient funds — transfer costs ${totalCost.toLocaleString()} DC (${amount.toLocaleString()} + ${fee.toLocaleString()} wire fee)` });
 

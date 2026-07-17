@@ -420,7 +420,7 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
         energyCost: run.energyCost,
         extraSet: { totalCrimes: { $add: ["$totalCrimes", 1] } },
       }),
-      { new: true, updatePipeline: true },
+      { returnDocument: 'after', updatePipeline: true },
     );
     if (!gated) return res.status(400).json({ message: `Not enough energy (need ${run.energyCost})` });
 
@@ -559,7 +559,7 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
           xp:           { $add: ["$xp",           xpGained] },
           seasonPoints: { $add: ["$seasonPoints", crimeSeasonPts] },
         } }],
-        { new: true, updatePipeline: true },
+        { returnDocument: 'after', updatePipeline: true },
       );
       if (r) {
         rewarded = r;
@@ -770,7 +770,7 @@ router.post("/bribe", requireAuth, async (req: AuthRequest, res) => {
     const updated = await User.findOneAndUpdate(
       { _id: req.userId, dc: { $gte: cost } },
       { $inc: { dc: -cost }, $set: { wantedLevel: 0, wantedDecayAt: new Date(), heat: Math.max(0, user.heat - 30) } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!updated) return res.status(400).json({ message: "Insufficient DC for bribe", cost });
     res.json({ message: `Bribed. Cost ${cost.toLocaleString()} DC. Heat and wanted level reduced.`, cost, dc: updated.dc, wantedLevel: 0, heat: updated.heat });

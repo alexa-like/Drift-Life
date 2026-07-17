@@ -158,7 +158,7 @@ router.post("/combat", requireAuth, async (req: AuthRequest, res) => {
     const updated = await PlayerLoadout.findOneAndUpdate(
       { userId: req.userId },
       { primaryWeaponId, secondaryWeaponId, bodyArmorId, consumableItemId, consumableCount: count },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: 'after' },
     );
 
     res.json({ message: "Loadout saved", loadout: updated });
@@ -272,7 +272,7 @@ router.post("/sell", requireAuth, async (req: AuthRequest, res) => {
       const pulled = await PlayerMiniGameInventory.findOneAndUpdate(
         { userId: req.userId, [`${foundCategory}.itemId`]: itemId },
         { $pull: { [foundCategory]: { itemId } } },
-        { new: true },
+        { returnDocument: 'after' },
       );
       if (!pulled) {
         res.status(409).json({ message: "Item was already sold or not found" });
@@ -283,13 +283,13 @@ router.post("/sell", requireAuth, async (req: AuthRequest, res) => {
       const decremented = await PlayerMiniGameInventory.findOneAndUpdate(
         { userId: req.userId, "consumables.itemId": itemId, "consumables.$.quantity": { $gt: 1 } },
         { $inc: { "consumables.$.quantity": -1 } },
-        { new: true },
+        { returnDocument: 'after' },
       );
       if (!decremented) {
         const pulled = await PlayerMiniGameInventory.findOneAndUpdate(
           { userId: req.userId, "consumables.itemId": itemId, "consumables.$.quantity": 1 },
           { $pull: { consumables: { itemId } } },
-          { new: true },
+          { returnDocument: 'after' },
         );
         if (!pulled) {
           res.status(409).json({ message: "Item was already sold or not found" });

@@ -416,7 +416,7 @@ router.post("/xp-boost", requireOwner as any, async (req: AuthRequest, res) => {
     await ServerConfig.findOneAndUpdate(
       { key: "xpBoost" },
       { value: { multiplier: mult, expiresAt }, updatedAt: new Date() },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
     const msg = mult === 1
       ? "XP boost cancelled"
@@ -821,7 +821,7 @@ router.patch("/chat-reports/:id", async (req: AuthRequest, res) => {
     const report = await ChatReport.findByIdAndUpdate(
       req.params.id,
       { status, reviewedBy: req.username || "unknown" },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!report) return res.status(404).json({ message: "Report not found" });
 

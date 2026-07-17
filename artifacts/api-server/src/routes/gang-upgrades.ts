@@ -63,7 +63,7 @@ router.post("/buy", requireAuth, async (req: AuthRequest, res) => {
     const updatedGuild = await Guild.findOneAndUpdate(
       { _id: user.guildId, treasury: { $gte: def.cost } },
       { $inc: { treasury: -def.cost }, $push: { upgrades: upgradeId } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!updatedGuild) return res.status(400).json({ message: "Not enough treasury funds" });
 

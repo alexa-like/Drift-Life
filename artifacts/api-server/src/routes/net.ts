@@ -72,7 +72,7 @@ router.post("/hack/initiate", requireAuth, validateBody(netHackInitiateSchema), 
     await User.findOneAndUpdate(
       { _id: req.userId, ...energySufficientExpr(3) },
       buildRegenPipeline({ energyCost: 3 }),
-      { new: true, updatePipeline: true },
+      { returnDocument: 'after', updatePipeline: true },
     );
 
     // Generate sequence (difficulty based on target's firewall)
@@ -203,7 +203,7 @@ router.post("/sim/buy", requireAuth, validateBody(netSimAmountSchema), async (re
     const user = await User.findOneAndUpdate(
       { _id: req.userId, dc: { $gte: cost } },
       { $inc: { dc: -cost, sim: amount } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!user) return res.status(400).json({ message: `Costs ${cost.toLocaleString()} DC`, cost });
 
@@ -233,7 +233,7 @@ router.post("/sim/sell", requireAuth, validateBody(netSimAmountSchema), async (r
     const user = await User.findOneAndUpdate(
       { _id: req.userId, sim: { $gte: amount } },
       { $inc: { sim: -amount, dc: revenue } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!user) return res.status(400).json({ message: "Not enough SIM" });
 
@@ -312,7 +312,7 @@ router.post("/dark-market/buy/:listingId", requireAuth, async (req: AuthRequest,
       const u = await User.findOneAndUpdate(
         { _id: req.userId },
         [{ $set: { heat: { $min: [100, { $add: ["$heat", 20] }] } } }],
-        { new: true, updatePipeline: true },
+        { returnDocument: 'after', updatePipeline: true },
       ).select("heat").lean();
       return res.json({ success: false, stung: true, message: "STING OPERATION. Item confiscated. Heat +20.", heat: u?.heat ?? 0 });
     }
@@ -322,7 +322,7 @@ router.post("/dark-market/buy/:listingId", requireAuth, async (req: AuthRequest,
     const buyer = await User.findOneAndUpdate(
       { _id: req.userId, [currencyField]: { $gte: listing.price } },
       { $inc: { [currencyField]: -listing.price } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!buyer) {
       await DarkListingModel.create(listing.toObject());

@@ -320,7 +320,7 @@ router.post("/listings/:id/buy", requireAuth, async (req: AuthRequest, res) => {
     const buyer = await User.findOneAndUpdate(
       { _id: req.userId, dc: { $gte: price } },
       { $inc: { dc: -price } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!buyer) {
       await Item.findByIdAndUpdate(item._id, { $set: { marketListed: true, marketPrice: item.marketPrice, marketListedAt: item.marketListedAt } });

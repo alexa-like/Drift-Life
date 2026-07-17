@@ -216,7 +216,7 @@ router.post("/:id/travel", requireAuth, async (req: AuthRequest, res) => {
           currentLocation: user.currentLocation ?? "downtown",
         },
       }),
-      { new: true, updatePipeline: true },
+      { returnDocument: 'after', updatePipeline: true },
     );
 
     if (!updated) {
@@ -283,7 +283,7 @@ router.post("/return-home", requireAuth, async (req: AuthRequest, res) => {
           travelArrivesAt: new Date(Date.now() + travelMs),
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!updated) {

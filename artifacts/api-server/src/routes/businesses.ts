@@ -617,7 +617,7 @@ router.post("/:businessId/shift", requireAuth, async (req: AuthRequest, res) => 
           [`businessShiftCooldowns.${businessId}`]: nextCooldown,
         },
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!updated)

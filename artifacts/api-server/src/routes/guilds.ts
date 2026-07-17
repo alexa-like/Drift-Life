@@ -375,7 +375,7 @@ router.post("/turf/race/:districtId", requireAuth, async (req: AuthRequest, res)
     const guild = await Guild.findOneAndUpdate(
       { _id: user.guildId, treasury: { $gte: district.raceCost } },
       { $inc: { treasury: -district.raceCost } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!guild) return res.status(400).json({ message: `Guild treasury needs at least ${district.raceCost.toLocaleString()} DC` });
 
