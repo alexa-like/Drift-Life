@@ -17,9 +17,10 @@ interface Career {
   id: string; tier: number; name: string; salaryPerShift: number; energyCost: number;
   statGain: Record<string, number>; description: string; available: boolean;
 }
-interface BizBlueprint {
-  type: string; name: string; dailyIncome: number; launderCapacity: number;
-  maxHolding: number; purchaseCost: number;
+interface BizCatalogEntry {
+  type: string; label: string; icon: string; description: string;
+  employeeBonus: string; ownerBaseIncome: number; createCost: number;
+  createLevel: number; perk3star: string; perk10star: string;
 }
 interface Run {
   id: string; name: string; description: string; tier: number; energyCost: number;
@@ -43,13 +44,11 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
   // HUB state
   const [hubTab, setHubTab] = useState<"careers" | "businesses">("careers");
   const [careers, setCareers] = useState<Career[]>([]);
-  const [businesses, setBusinesses] = useState<Business[]>([]);
-  const [catalog, setCatalog] = useState<BizBlueprint[]>([]);
+  const [myBusiness, setMyBusiness] = useState<Business | null>(null);
+  const [catalog, setCatalog] = useState<BizCatalogEntry[]>([]);
   const [courtInfo, setCourtInfo] = useState<any>(null);
   const [hubLoading, setHubLoading] = useState(false);
   const [hubMsg, setHubMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
-  const [launderBizId, setLaunderBizId] = useState("");
-  const [launderAmount, setLaunderAmount] = useState("");
   const [buyBizType, setBuyBizType] = useState("");
   const [buyBizName, setBuyBizName] = useState("");
 
@@ -70,7 +69,7 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
 
   useEffect(() => {
     api.get<Career[]>("/city/careers").then(setCareers).catch(() => {});
-    api.get<BizBlueprint[]>("/city/businesses/catalog").then(setCatalog).catch(() => {});
+    api.get<BizCatalogEntry[]>("/businesses/catalog").then(setCatalog).catch(() => {});
     refreshBiz();
     api.get<District[]>("/districts").then(setDistricts).catch(() => {});
     api.get<Run[]>("/crimes").then(setRuns).catch(() => {});
@@ -87,7 +86,7 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
   };
 
   async function refreshBiz() {
-    try { setBusinesses(await api.get<Business[]>("/city/businesses")); } catch {}
+    try { setMyBusiness(await api.get<Business | null>("/businesses/mine")); } catch {}
   }
 
   async function doWork(careerId: string) {
@@ -104,42 +103,31 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
     if (!buyBizType) return;
     setHubLoading(true);
     try {
-      const r = await api.post<any>("/city/businesses/buy", { type: buyBizType, name: buyBizName || undefined });
-      setHubMsg({ text: r.message, type: "success" });
       const bp = catalog.find(c => c.type === buyBizType);
-      onUserUpdate({ ...user, dc: user.dc - (bp?.purchaseCost ?? 0) });
+      await api.post<any>("/businesses", { type: buyBizType, name: buyBizName || bp?.label });
+      setHubMsg({ text: `${bp?.label ?? "Business"} opened!`, type: "success" });
+      onUserUpdate({ ...user, dc: user.dc - (bp?.createCost ?? 0) });
       await refreshBiz();
       setBuyBizType(""); setBuyBizName("");
     } catch (e: any) { setHubMsg({ text: e.response?.data?.message ?? "Error", type: "error" }); }
     finally { setHubLoading(false); }
   }
 
-  async function collectBiz(bizId: string) {
+  async function collectBiz() {
     try {
-      const r = await api.post<any>(`/city/businesses/${bizId}/collect`, {});
+      const r = await api.post<any>("/businesses/collect", {});
       setHubMsg({ text: `Collected ${r.collected?.toLocaleString()} DC`, type: "success" });
-      onUserUpdate({ ...user, dc: r.dc });
+      onUserUpdate({ ...user, dc: r.newDc });
       await refreshBiz();
     } catch (e: any) { setHubMsg({ text: e.response?.data?.message ?? "Error", type: "error" }); }
   }
 
-  async function upgradeBiz(bizId: string) {
+  async function upgradeBiz() {
     try {
-      const r = await api.post<any>(`/city/businesses/${bizId}/upgrade`, {});
-      setHubMsg({ text: r.message, type: "success" });
-      onUserUpdate({ ...user, dc: r.dc });
+      const r = await api.post<any>("/businesses/upgrade", {});
+      setHubMsg({ text: `Upgraded to ${r.starLevel}★!`, type: "success" });
+      onUserUpdate({ ...user, dc: r.newDc });
       await refreshBiz();
-    } catch (e: any) { setHubMsg({ text: e.response?.data?.message ?? "Error", type: "error" }); }
-  }
-
-  async function launderBiz() {
-    const amt = parseInt(launderAmount);
-    if (!amt || !launderBizId) return;
-    try {
-      const r = await api.post<any>(`/city/businesses/${launderBizId}/launder`, { amount: amt });
-      setHubMsg({ text: r.message, type: "success" });
-      onUserUpdate({ ...user, dc: r.dc, dirtyDc: r.dirtyDc });
-      setLaunderAmount("");
     } catch (e: any) { setHubMsg({ text: e.response?.data?.message ?? "Error", type: "error" }); }
   }
 
@@ -703,73 +691,84 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
 
           {hubTab === "businesses" && (
             <div className="space-y-4">
-              {businesses.map(biz => (
-                <div key={biz.id} className="rounded-xl p-4 space-y-3" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
+              {myBusiness ? (
+                <div className="rounded-xl p-4 space-y-3" style={{ background: "#111118", border: "1px solid #1e1e2e" }}>
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-mono font-bold" style={{ color: "#e2e8f0" }}>{biz.name}</p>
-                      <p className="font-mono text-xs capitalize" style={{ color: "#64748b" }}>{biz.type.replace(/_/g, " ")} — Lv.{biz.level}</p>
+                      <p className="font-mono font-bold" style={{ color: "#e2e8f0" }}>{myBusiness.name}</p>
+                      <p className="font-mono text-xs capitalize" style={{ color: "#64748b" }}>
+                        {myBusiness.type.replace(/_/g, " ")} — {"★".repeat(myBusiness.starLevel)}{"☆".repeat(10 - myBusiness.starLevel)}
+                      </p>
+                      <p className="font-mono text-xs mt-1" style={{ color: "#475569" }}>
+                        {myBusiness.activeEmployees?.length ?? 0} / {myBusiness.maxEmployees} employees · {myBusiness.isOpen ? "Open" : "Closed"}
+                      </p>
                     </div>
                     <div className="text-right font-mono text-xs" style={{ color: "#64748b" }}>
-                      <p>+{biz.dailyIncome.toLocaleString()} DC/day</p>
-                      <p>Launder loss: {Math.round(biz.launderRate * 100)}%</p>
+                      <p style={{ color: "#39d353" }}>+{(myBusiness.pendingIncome ?? 0).toLocaleString()} DC pending</p>
+                      <p>{myBusiness.totalEverEarned.toLocaleString()} DC lifetime</p>
                     </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
-                    <CyberButton size="sm" variant="success" onClick={() => collectBiz(biz.id)}>
-                      Collect {(biz.pendingCollection ?? 0).toLocaleString()} DC
+                    <CyberButton size="sm" variant="success" disabled={(myBusiness.pendingIncome ?? 0) < 1} onClick={collectBiz}>
+                      Collect {(myBusiness.pendingIncome ?? 0).toLocaleString()} DC
                     </CyberButton>
-                    <CyberButton size="sm" variant="primary" disabled={biz.level >= biz.maxLevel} onClick={() => upgradeBiz(biz.id)}>
-                      Upgrade ({biz.upgradeCost.toLocaleString()} DC)
-                    </CyberButton>
-                    <CyberButton size="sm" variant="ghost" onClick={() => setLaunderBizId(prev => prev === biz.id ? "" : biz.id)}>
-                      Launder
+                    <CyberButton size="sm" variant="primary" disabled={myBusiness.starLevel >= 10} onClick={upgradeBiz}>
+                      Upgrade to {myBusiness.starLevel + 1}★
                     </CyberButton>
                   </div>
-                  {launderBizId === biz.id && (
-                    <div className="flex gap-2">
-                      <input type="number" value={launderAmount} onChange={e => setLaunderAmount(e.target.value)}
-                        placeholder="Dirty DC amount"
-                        className="flex-1 px-3 py-2 rounded font-mono text-sm focus:outline-none"
-                        style={{ background: "#0a0a0f", border: "1px solid #2d2d3e", color: "#e2e8f0" }} />
-                      <CyberButton size="sm" variant="success" onClick={launderBiz}>Go</CyberButton>
+                  {(myBusiness.activeEmployees?.length ?? 0) > 0 && (
+                    <div className="space-y-1 pt-2 border-t" style={{ borderColor: "#1e1e2e" }}>
+                      <p className="font-mono text-xs font-bold" style={{ color: "#64748b" }}>EMPLOYEES</p>
+                      {myBusiness.activeEmployees!.map(e => (
+                        <div key={e.userId} className="flex justify-between font-mono text-xs" style={{ color: "#94a3b8" }}>
+                          <span>{e.username ?? "Unknown"} (Lv.{e.level ?? "?"})</span>
+                          <span>{e.totalShifts} shifts · {e.totalEarned.toLocaleString()} DC earned</span>
+                        </div>
+                      ))}
                     </div>
                   )}
+                  <p className="font-mono text-xs" style={{ color: "#334155" }}>
+                    Full management → <span style={{ color: "#00d4ff" }}>Biz</span> page in the nav
+                  </p>
                 </div>
-              ))}
-
-              {businesses.length < 3 && (
+              ) : (
                 <div className="rounded-xl p-4 space-y-3" style={{ background: "#111118", border: "1px dashed #1e1e2e" }}>
-                  <h3 className="font-mono font-bold" style={{ color: "#94a3b8" }}>Open a New Business</h3>
+                  <h3 className="font-mono font-bold" style={{ color: "#94a3b8" }}>Open a Business</h3>
+                  <p className="font-mono text-xs" style={{ color: "#475569" }}>
+                    Requires Level {catalog[0]?.createLevel ?? 20} + {(catalog[0]?.createCost ?? 100000).toLocaleString()} DC
+                  </p>
                   <select value={buyBizType} onChange={e => setBuyBizType(e.target.value)}
                     className="w-full px-3 py-2 rounded font-mono text-sm focus:outline-none"
                     style={{ background: "#0a0a0f", border: "1px solid #2d2d3e", color: "#e2e8f0" }}>
                     <option value="">Select type…</option>
-                    {catalog.map(c => <option key={c.type} value={c.type}>{c.name} — {c.purchaseCost.toLocaleString()} DC</option>)}
+                    {catalog.map(c => <option key={c.type} value={c.type}>{c.icon} {c.label}</option>)}
                   </select>
-                  {buyBizType && (
-                    <>
-                      <input value={buyBizName} onChange={e => setBuyBizName(e.target.value)} placeholder="Business name (optional)"
-                        className="w-full px-3 py-2 rounded font-mono text-sm focus:outline-none"
-                        style={{ background: "#0a0a0f", border: "1px solid #2d2d3e", color: "#e2e8f0" }} />
-                      {catalog.filter(c => c.type === buyBizType).map(c => (
-                        <div key={c.type} className="font-mono text-xs space-y-0.5" style={{ color: "#64748b" }}>
-                          <p>{c.dailyIncome.toLocaleString()} DC/day income</p>
-                          <p>{c.launderCapacity.toLocaleString()} dirty DC/day launder cap</p>
-                          <p>Max holding: {c.maxHolding.toLocaleString()} DC</p>
+                  {buyBizType && (() => {
+                    const bp = catalog.find(c => c.type === buyBizType);
+                    return bp ? (
+                      <>
+                        <div className="font-mono text-xs space-y-0.5 p-3 rounded" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e" }}>
+                          <p style={{ color: "#94a3b8" }}>{bp.description}</p>
+                          <p style={{ color: "#64748b" }}>Employee perk: {bp.employeeBonus}</p>
+                          <p style={{ color: "#64748b" }}>Income: {bp.ownerBaseIncome.toLocaleString()} DC/hr per active employee</p>
+                          <p style={{ color: "#475569" }}>3★: {bp.perk3star}</p>
+                          <p style={{ color: "#475569" }}>10★: {bp.perk10star}</p>
                         </div>
-                      ))}
-                      <CyberButton
-                        variant="primary"
-                        className="w-full"
-                        loading={hubLoading}
-                        disabled={user.dc < (catalog.find(c => c.type === buyBizType)?.purchaseCost ?? Infinity)}
-                        onClick={buyBusiness}
-                      >
-                        Open Business
-                      </CyberButton>
-                    </>
-                  )}
+                        <input value={buyBizName} onChange={e => setBuyBizName(e.target.value)} placeholder={`Name your ${bp.label} (optional)`}
+                          className="w-full px-3 py-2 rounded font-mono text-sm focus:outline-none"
+                          style={{ background: "#0a0a0f", border: "1px solid #2d2d3e", color: "#e2e8f0" }} />
+                        <CyberButton
+                          variant="primary"
+                          className="w-full"
+                          loading={hubLoading}
+                          disabled={user.dc < bp.createCost || user.level < bp.createLevel}
+                          onClick={buyBusiness}
+                        >
+                          Open for {bp.createCost.toLocaleString()} DC
+                        </CyberButton>
+                      </>
+                    ) : null;
+                  })()}
                 </div>
               )}
             </div>

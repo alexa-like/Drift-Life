@@ -233,12 +233,12 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
     isLoading: bizLoading,
   } = useQuery<BusinessData | null>({
     queryKey: ["businesses", "mine"],
-    queryFn: () => api.get("/businesses/mine").catch(() => null),
+    queryFn: (): Promise<BusinessData | null> => api.get<BusinessData>("/businesses/mine").catch(() => null),
   });
 
   const { data: employees = [] } = useQuery<Employee[]>({
     queryKey: ["businesses", "employees", myBusiness?.id],
-    queryFn: () => api.get(`/businesses/${myBusiness!.id}/employees`),
+    queryFn: (): Promise<Employee[]> => api.get<Employee[]>(`/businesses/${myBusiness!.id}/employees`),
     enabled: !!myBusiness?.id,
   });
 

@@ -420,20 +420,22 @@ export interface PlayerGarage {
 }
 
 export interface Business {
-  id: string;
+  _id: string;
+  id?: string;
   ownerId: string;
   name: string;
   type: string;
-  level: number;
-  dailyIncome: number;
-  launderRate: number;
-  launderCapacityPerDay: number;
-  launderedToday: number;
-  maxHolding: number;
-  upgradeCost: number;
-  maxLevel: number;
-  pendingCollection?: number;
-  launderCompletesAt?: string | null;
+  description: string;
+  starLevel: number;
+  isOpen: boolean;
+  wagePerShift: number;
+  maxEmployees: number;
+  employees: { userId: string; username?: string; level?: number; totalShifts: number; totalEarned: number; status: string }[];
+  activeEmployees?: { userId: string; username?: string; level?: number; totalShifts: number; totalEarned: number }[];
+  accumulatedIncome: number;
+  lastIncomeAt: string | null;
+  totalEverEarned: number;
+  pendingIncome?: number;
 }
 
 export interface WorldState {

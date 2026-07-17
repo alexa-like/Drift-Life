@@ -18,6 +18,26 @@ User.schema.add({
 
 const router = Router();
 
+// ─── GET /api/businesses/catalog — business type definitions ─────────────────
+router.get("/catalog", requireAuth, (_req, res) => {
+  const catalog = Object.entries(BUSINESS_DEFS).map(([type, def]) => ({
+    type,
+    label: def.label,
+    icon: def.icon,
+    description: def.description,
+    employeeBonus: def.employeeBonus,
+    ownerBaseIncome: def.ownerBaseIncome,
+    shiftEnergyCost: def.shiftEnergyCost,
+    shiftCooldownMin: def.shiftCooldownMin,
+    perk3star: def.perk3star,
+    perk10star: def.perk10star,
+    createCost: BUSINESS_CREATE_COST,
+    createLevel: BUSINESS_CREATE_LEVEL,
+    upgradeCost: def.upgradeCost(1),
+  }));
+  res.json(catalog);
+});
+
 // ─── Helper: calculate pending income ────────────────────────────────────────
 function calcPendingIncome(
   business: any,
@@ -65,11 +85,17 @@ router.get("/mine", requireAuth, async (req: AuthRequest, res) => {
     });
 
     const pendingIncome = calcPendingIncome(business, activeEmployees.length);
+    const def = BUSINESS_DEFS[business.type as keyof typeof BUSINESS_DEFS];
+    const incomePerHour = def ? def.ownerBaseIncome * activeEmployees.length : 0;
 
     res.json({
       ...business,
+      id: business._id.toString(),
       activeEmployees: enrichedEmployees,
+      activeEmployeeCount: activeEmployees.length,
       pendingIncome,
+      accumulatedIncome: pendingIncome,
+      incomePerHour,
     });
   } catch (err) {
     logger.error({ err }, "GET /businesses/mine error");
@@ -239,6 +265,52 @@ router.post("/upgrade", requireAuth, async (req: AuthRequest, res) => {
     });
   } catch (err) {
     logger.error({ err }, "POST /businesses/upgrade error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ─── Owner: GET /api/businesses/:id/employees ────────────────────────────────
+router.get("/:id/employees", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const business = await Business.findById(req.params.id).lean();
+    if (!business) return res.status(404).json({ message: "Business not found" });
+
+    // Only the owner (or staff/admin) may view the employee roster
+    const requestingUser = await User.findById(req.userId).select("role").lean();
+    const isOwner = business.ownerId.toString() === req.userId;
+    const isStaff = ["staff", "admin", "owner"].includes((requestingUser as any)?.role ?? "");
+    if (!isOwner && !isStaff)
+      return res.status(403).json({ message: "Not authorized to view this business roster" });
+
+    const allEmployees = business.employees.filter(
+      (e) => e.status === "active" || e.status === ("pending" as any)
+    );
+
+    const userIds = allEmployees.map((e) => e.userId);
+    const employeeUsers = await User.find({ _id: { $in: userIds } })
+      .select("username level")
+      .lean();
+    const userMap = Object.fromEntries(
+      employeeUsers.map((u) => [u._id.toString(), u])
+    );
+
+    const enriched = allEmployees.map((e) => {
+      const u = userMap[e.userId.toString()];
+      return {
+        userId: e.userId.toString(),
+        username: u?.username ?? "Unknown",
+        level: u?.level ?? 1,
+        hiredAt: e.hiredAt,
+        lastShiftAt: e.lastShiftAt,
+        totalShifts: e.totalShifts,
+        totalEarned: e.totalEarned,
+        status: e.status,
+      };
+    });
+
+    res.json(enriched);
+  } catch (err) {
+    logger.error({ err }, "GET /businesses/:id/employees error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
