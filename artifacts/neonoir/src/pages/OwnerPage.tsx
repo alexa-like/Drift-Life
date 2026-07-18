@@ -71,7 +71,19 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements" | "giveaways" | "staff" | "mass-actions";
+interface RunCatalogEntry { id: string; name: string; tier: number; energyCost: number; dcMin: number; dcMax: number; xp: number; baseSuccess: number; minLevel: number; riskLevel: string; }
+interface JobCatalogEntry { id: string; name: string; district: string; minLevel: number; energyCost: number; dcMin: number; dcMax: number; xpPerJob: number; cooldownMin: number; }
+interface StaffTierEntry { name: string; color: string; dailyDc: number; }
+interface EconomyGameConfig {
+  globalMultipliers: { dcRewardMult: number; xpRewardMult: number };
+  resourceCaps: { walletCap: number; bankCap: number };
+  crimeConfig: { runsPerHourCap: number; runOverrides: Record<string, { dcMin?: number; dcMax?: number; xp?: number; energyCost?: number; baseSuccess?: number }> };
+  jobConfig: { minigameTriggerChance: number; jobOverrides: Record<string, { dcMin?: number; dcMax?: number; xpPerJob?: number; energyCost?: number; cooldownMin?: number }> };
+  staffConfig: { tierDailyDc: Record<string, number> };
+}
+interface GameCatalog { runs: RunCatalogEntry[]; jobs: JobCatalogEntry[]; staffTiers: Record<string, StaffTierEntry>; }
+
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -196,6 +208,20 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [ownerGiveCreating, setOwnerGiveCreating] = useState(false);
   const [liveOwnerGiveaways, setLiveOwnerGiveaways] = useState<any[]>([]);
   const [ownerGiveawaysLoading, setOwnerGiveawaysLoading] = useState(false);
+  // Economy tab
+  const [gameConfig, setGameConfig] = useState<EconomyGameConfig | null>(null);
+  const [gameCatalog, setGameCatalog] = useState<GameCatalog | null>(null);
+  const [gameConfigLoading, setGameConfigLoading] = useState(false);
+  const [savingSection, setSavingSection] = useState<string | null>(null);
+  const [editDcMult, setEditDcMult] = useState("1");
+  const [editXpMult, setEditXpMult] = useState("1");
+  const [editWalletCap, setEditWalletCap] = useState("100000000");
+  const [editBankCap, setEditBankCap] = useState("1000000000");
+  const [editRunsPerHour, setEditRunsPerHour] = useState("30");
+  const [editMinigameChance, setEditMinigameChance] = useState("0.30");
+  const [editRunOverrides, setEditRunOverrides] = useState<Record<string, Record<string, string>>>({});
+  const [editJobOverrides, setEditJobOverrides] = useState<Record<string, Record<string, string>>>({});
+  const [editStaffDailyDc, setEditStaffDailyDc] = useState<Record<string, string>>({});
 
   const GIVE_DURATIONS = [
     { label: "1 hour",   ms: 60 * 60 * 1000 },
@@ -214,6 +240,57 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     } catch { /* silent */ }
     finally { setOwnerGiveawaysLoading(false); }
   }, []);
+
+  const loadGameConfig = useCallback(async () => {
+    setGameConfigLoading(true);
+    try {
+      const res = await api.get<{ config: EconomyGameConfig; catalog: GameCatalog }>("/owner/game-config");
+      setGameConfig(res.config);
+      setGameCatalog(res.catalog);
+      setEditDcMult(String(res.config.globalMultipliers.dcRewardMult));
+      setEditXpMult(String(res.config.globalMultipliers.xpRewardMult));
+      setEditWalletCap(String(res.config.resourceCaps.walletCap));
+      setEditBankCap(String(res.config.resourceCaps.bankCap));
+      setEditRunsPerHour(String(res.config.crimeConfig.runsPerHourCap));
+      setEditMinigameChance(String(res.config.jobConfig.minigameTriggerChance));
+      const runOvr: Record<string, Record<string, string>> = {};
+      for (const [runId, ov] of Object.entries(res.config.crimeConfig.runOverrides)) {
+        runOvr[runId] = {};
+        if (ov.dcMin    !== undefined) runOvr[runId].dcMin        = String(ov.dcMin);
+        if (ov.dcMax    !== undefined) runOvr[runId].dcMax        = String(ov.dcMax);
+        if (ov.xp       !== undefined) runOvr[runId].xp           = String(ov.xp);
+        if (ov.energyCost !== undefined) runOvr[runId].energyCost = String(ov.energyCost);
+        if (ov.baseSuccess !== undefined) runOvr[runId].baseSuccess = String(ov.baseSuccess);
+      }
+      setEditRunOverrides(runOvr);
+      const jobOvr: Record<string, Record<string, string>> = {};
+      for (const [jobId, ov] of Object.entries(res.config.jobConfig.jobOverrides)) {
+        jobOvr[jobId] = {};
+        if (ov.dcMin      !== undefined) jobOvr[jobId].dcMin      = String(ov.dcMin);
+        if (ov.dcMax      !== undefined) jobOvr[jobId].dcMax      = String(ov.dcMax);
+        if (ov.xpPerJob   !== undefined) jobOvr[jobId].xpPerJob   = String(ov.xpPerJob);
+        if (ov.energyCost !== undefined) jobOvr[jobId].energyCost = String(ov.energyCost);
+        if (ov.cooldownMin !== undefined) jobOvr[jobId].cooldownMin = String(ov.cooldownMin);
+      }
+      setEditJobOverrides(jobOvr);
+      const staffDc: Record<string, string> = {};
+      for (const [tier, dc] of Object.entries(res.config.staffConfig.tierDailyDc)) {
+        staffDc[tier] = String(dc);
+      }
+      setEditStaffDailyDc(staffDc);
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setGameConfigLoading(false); }
+  }, [addToast]);
+
+  async function saveGameSection(sectionKey: string, patch: Partial<EconomyGameConfig>) {
+    setSavingSection(sectionKey);
+    try {
+      const res = await api.patch<{ message: string; config: EconomyGameConfig }>("/owner/game-config", patch);
+      setGameConfig(res.config);
+      addToast(res.message, "success");
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setSavingSection(null); }
+  }
 
   async function createOwnerGiveaway() {
     const dc   = Math.max(0, Math.floor(Number(ownerGiveDc)   || 0));
@@ -629,9 +706,9 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
           style={{ background: tab === "giveaways" ? "#a855f718" : "#111118", color: tab === "giveaways" ? "#a855f7" : "#475569", border: `1px solid ${tab === "giveaways" ? "#a855f740" : "#1e1e2e"}` }}>
           🎁 Giveaways
         </button>
-        <button className="px-4 py-2 rounded font-mono text-xs opacity-40 cursor-not-allowed"
-          style={{ color: "#475569", border: "1px solid #1e1e2e" }} title="Coming soon — Phase 2">
-          Economy
+        <button onClick={() => { setTab("economy"); if (!gameConfig) loadGameConfig(); }} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "economy" ? "#39d35318" : "#111118", color: tab === "economy" ? "#39d353" : "#475569", border: `1px solid ${tab === "economy" ? "#39d35340" : "#1e1e2e"}` }}>
+          ⚙️ Economy
         </button>
         <button onClick={() => setTab("staff")} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "staff" ? "#00d4ff18" : "#111118", color: tab === "staff" ? "#00d4ff" : "#475569", border: `1px solid ${tab === "staff" ? "#00d4ff40" : "#1e1e2e"}` }}>
@@ -2020,6 +2097,283 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
               {massGranting ? "Sending…" : "📢 BROADCAST TO ALL PLAYERS"}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── ECONOMY TAB ─────────────────────────────────────────── */}
+      {tab === "economy" && (
+        <div className="space-y-4">
+          {/* Header */}
+          <div style={s}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-mono font-bold text-sm" style={{ color: "#39d353" }}>ECONOMY CONTROL CENTER</div>
+                <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>Live-tune all game economy parameters. Changes apply within 60 seconds — no server restart required.</div>
+              </div>
+              <button onClick={loadGameConfig} disabled={gameConfigLoading}
+                className="font-mono text-xs px-4 py-2 rounded"
+                style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}>
+                {gameConfigLoading ? "Loading…" : "↺ Refresh"}
+              </button>
+            </div>
+          </div>
+
+          {!gameConfig && !gameConfigLoading && (
+            <div style={s} className="text-center py-4">
+              <div className="font-mono text-xs" style={{ color: "#64748b" }}>Click Refresh to load economy settings.</div>
+            </div>
+          )}
+
+          {gameConfig && (
+            <>
+              {/* Global Multipliers */}
+              <div style={s}>
+                <div className="font-mono font-bold text-xs mb-1" style={{ color: "#39d353", letterSpacing: "0.1em" }}>GLOBAL MULTIPLIERS</div>
+                <div className="font-mono text-xs mb-4" style={{ color: "#64748b" }}>Applied on top of all individual payout calculations. 1.0 = default. 2.0 = double payouts. Stacks with event XP boosts.</div>
+                <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                  {([
+                    { label: "DC Reward Multiplier", val: editDcMult, set: setEditDcMult, help: "Applies to all crime & job DC payouts" },
+                    { label: "XP Reward Multiplier", val: editXpMult, set: setEditXpMult, help: "Applies to all crime & job XP payouts" },
+                  ] as const).map(f => (
+                    <div key={f.label}>
+                      <label className="font-mono text-xs" style={{ color: "#39d353" }}>{f.label}</label>
+                      <div className="font-mono mt-0.5 mb-1" style={{ color: "#475569", fontSize: 10 }}>{f.help}</div>
+                      <input type="number" step="0.1" min="0.1" max="100" value={f.val} onChange={e => f.set(e.target.value)}
+                        className="w-full font-mono text-xs px-3 py-2 rounded"
+                        style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e293b" }} />
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => saveGameSection("globalMultipliers", {
+                    globalMultipliers: { dcRewardMult: Math.max(0.1, parseFloat(editDcMult) || 1), xpRewardMult: Math.max(0.1, parseFloat(editXpMult) || 1) }
+                  })}
+                  disabled={savingSection === "globalMultipliers"}
+                  className="mt-4 font-mono text-xs px-4 py-2 rounded"
+                  style={{ background: savingSection === "globalMultipliers" ? "#1e293b" : "#39d35318", color: savingSection === "globalMultipliers" ? "#475569" : "#39d353", border: "1px solid #39d35340" }}>
+                  {savingSection === "globalMultipliers" ? "Saving…" : "✓ Apply Multipliers"}
+                </button>
+              </div>
+
+              {/* Resource Caps */}
+              <div style={s}>
+                <div className="font-mono font-bold text-xs mb-1" style={{ color: "#f59e0b", letterSpacing: "0.1em" }}>RESOURCE CAPS</div>
+                <div className="font-mono text-xs mb-4" style={{ color: "#64748b" }}>Maximum DC a player can hold. Defaults: Wallet 100M · Bank 1B.</div>
+                <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                  {([
+                    { label: "Wallet Cap (DC)", val: editWalletCap, set: setEditWalletCap, help: "Max DC held in wallet" },
+                    { label: "Bank Cap (DC)",   val: editBankCap,   set: setEditBankCap,   help: "Max DC held in bank" },
+                  ] as const).map(f => (
+                    <div key={f.label}>
+                      <label className="font-mono text-xs" style={{ color: "#f59e0b" }}>{f.label}</label>
+                      <div className="font-mono mt-0.5 mb-1" style={{ color: "#475569", fontSize: 10 }}>{f.help}</div>
+                      <input type="number" step="1000000" min="1000" value={f.val} onChange={e => f.set(e.target.value)}
+                        className="w-full font-mono text-xs px-3 py-2 rounded"
+                        style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e293b" }} />
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => saveGameSection("resourceCaps", {
+                    resourceCaps: { walletCap: Math.max(1000, parseInt(editWalletCap) || 100_000_000), bankCap: Math.max(1000, parseInt(editBankCap) || 1_000_000_000) }
+                  })}
+                  disabled={savingSection === "resourceCaps"}
+                  className="mt-4 font-mono text-xs px-4 py-2 rounded"
+                  style={{ background: savingSection === "resourceCaps" ? "#1e293b" : "#f59e0b18", color: savingSection === "resourceCaps" ? "#475569" : "#f59e0b", border: "1px solid #f59e0b40" }}>
+                  {savingSection === "resourceCaps" ? "Saving…" : "✓ Apply Caps"}
+                </button>
+              </div>
+
+              {/* Crime System */}
+              <div style={s}>
+                <div className="font-mono font-bold text-xs mb-1" style={{ color: "#ff2d55", letterSpacing: "0.1em" }}>CRIME SYSTEM</div>
+                <div className="font-mono text-xs mb-3" style={{ color: "#64748b" }}>Per-hour run limit and per-run reward overrides. Leave override fields blank to use hardcoded defaults.</div>
+                <div className="flex items-center gap-6 mb-4">
+                  <div>
+                    <label className="font-mono text-xs" style={{ color: "#ff2d55" }}>Runs Per Hour Cap</label>
+                    <div className="font-mono" style={{ color: "#475569", fontSize: 10 }}>Default: 30</div>
+                    <input type="number" min="1" max="1000" value={editRunsPerHour} onChange={e => setEditRunsPerHour(e.target.value)}
+                      className="font-mono text-xs px-3 py-2 rounded mt-1 w-28"
+                      style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e293b" }} />
+                  </div>
+                </div>
+                {gameCatalog && (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid #1e293b" }}>
+                          {["Name", "T", "Default DC", "Override Min", "Override Max", "Override XP", "Energy", "Success", ""].map(h => (
+                            <th key={h} className="font-mono text-left px-2 py-1" style={{ color: "#475569", fontWeight: "normal", fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gameCatalog.runs.map(r => {
+                          const ov = editRunOverrides[r.id] ?? {};
+                          const hasOv = Object.values(ov).some(v => v !== "");
+                          return (
+                            <tr key={r.id} style={{ borderBottom: "1px solid #0f172a", background: hasOv ? "#0d1a0d" : "transparent" }}>
+                              <td className="px-2 py-1.5 font-mono" style={{ color: "#e2e8f0", whiteSpace: "nowrap", fontSize: 11 }}>{r.name}</td>
+                              <td className="px-2 py-1.5 font-mono text-center" style={{ color: "#64748b", fontSize: 10 }}>T{r.tier}</td>
+                              <td className="px-2 py-1.5 font-mono" style={{ color: "#475569", fontSize: 10, whiteSpace: "nowrap" }}>{r.dcMin.toLocaleString()}–{r.dcMax.toLocaleString()}</td>
+                              {(["dcMin", "dcMax", "xp", "energyCost"] as const).map(field => (
+                                <td key={field} className="px-1 py-1">
+                                  <input type="number" min="0" placeholder="default"
+                                    value={ov[field] ?? ""}
+                                    onChange={e => setEditRunOverrides(prev => ({ ...prev, [r.id]: { ...(prev[r.id] ?? {}), [field]: e.target.value } }))}
+                                    className="font-mono px-2 py-1 rounded w-20"
+                                    style={{ background: (ov[field] ?? "") !== "" ? "#0d1a0d" : "#0a0a0f", color: (ov[field] ?? "") !== "" ? "#39d353" : "#64748b", border: `1px solid ${(ov[field] ?? "") !== "" ? "#39d35330" : "#1e293b"}`, fontSize: 10 }} />
+                                </td>
+                              ))}
+                              <td className="px-1 py-1">
+                                <input type="number" min="0" max="1" step="0.01" placeholder={r.baseSuccess.toFixed(2)}
+                                  value={ov.baseSuccess ?? ""}
+                                  onChange={e => setEditRunOverrides(prev => ({ ...prev, [r.id]: { ...(prev[r.id] ?? {}), baseSuccess: e.target.value } }))}
+                                  className="font-mono px-2 py-1 rounded w-16"
+                                  style={{ background: (ov.baseSuccess ?? "") !== "" ? "#0d1a0d" : "#0a0a0f", color: (ov.baseSuccess ?? "") !== "" ? "#39d353" : "#64748b", border: `1px solid ${(ov.baseSuccess ?? "") !== "" ? "#39d35330" : "#1e293b"}`, fontSize: 10 }} />
+                              </td>
+                              <td className="px-1 py-1">
+                                <button onClick={() => setEditRunOverrides(prev => { const n = { ...prev }; delete n[r.id]; return n; })}
+                                  className="font-mono px-2 py-1 rounded"
+                                  style={{ color: "#475569", border: "1px solid #1e293b", fontSize: 10 }}>✕</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    const runOverrides: Record<string, Record<string, number>> = {};
+                    for (const [runId, vals] of Object.entries(editRunOverrides)) {
+                      const entry: Record<string, number> = {};
+                      if ((vals.dcMin ?? "") !== "")       entry.dcMin       = parseFloat(vals.dcMin!);
+                      if ((vals.dcMax ?? "") !== "")       entry.dcMax       = parseFloat(vals.dcMax!);
+                      if ((vals.xp ?? "") !== "")          entry.xp          = parseFloat(vals.xp!);
+                      if ((vals.energyCost ?? "") !== "")  entry.energyCost  = parseFloat(vals.energyCost!);
+                      if ((vals.baseSuccess ?? "") !== "") entry.baseSuccess = parseFloat(vals.baseSuccess!);
+                      if (Object.keys(entry).length > 0)  runOverrides[runId] = entry;
+                    }
+                    saveGameSection("crimeConfig", { crimeConfig: { runsPerHourCap: Math.max(1, parseInt(editRunsPerHour) || 30), runOverrides } });
+                  }}
+                  disabled={savingSection === "crimeConfig"}
+                  className="mt-4 font-mono text-xs px-4 py-2 rounded"
+                  style={{ background: savingSection === "crimeConfig" ? "#1e293b" : "#ff2d5518", color: savingSection === "crimeConfig" ? "#475569" : "#ff2d55", border: "1px solid #ff2d5540" }}>
+                  {savingSection === "crimeConfig" ? "Saving…" : "✓ Apply Crime Config"}
+                </button>
+              </div>
+
+              {/* Job System */}
+              <div style={s}>
+                <div className="font-mono font-bold text-xs mb-1" style={{ color: "#a855f7", letterSpacing: "0.1em" }}>JOB SYSTEM</div>
+                <div className="font-mono text-xs mb-3" style={{ color: "#64748b" }}>Minigame trigger probability and per-job reward overrides. Leave blank = use hardcoded defaults.</div>
+                <div className="flex items-center gap-6 mb-4">
+                  <div>
+                    <label className="font-mono text-xs" style={{ color: "#a855f7" }}>Minigame Trigger Chance</label>
+                    <div className="font-mono" style={{ color: "#475569", fontSize: 10 }}>Default: 0.30 (30%). Range: 0–1.</div>
+                    <input type="number" min="0" max="1" step="0.01" value={editMinigameChance} onChange={e => setEditMinigameChance(e.target.value)}
+                      className="font-mono text-xs px-3 py-2 rounded mt-1 w-28"
+                      style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e293b" }} />
+                  </div>
+                </div>
+                {gameCatalog && (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid #1e293b" }}>
+                          {["Name", "District", "Default DC", "Override Min", "Override Max", "Override XP", "Energy", "Cooldown(m)", ""].map(h => (
+                            <th key={h} className="font-mono text-left px-2 py-1" style={{ color: "#475569", fontWeight: "normal", fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gameCatalog.jobs.map(j => {
+                          const ov = editJobOverrides[j.id] ?? {};
+                          const hasOv = Object.values(ov).some(v => v !== "");
+                          return (
+                            <tr key={j.id} style={{ borderBottom: "1px solid #0f172a", background: hasOv ? "#130d1f" : "transparent" }}>
+                              <td className="px-2 py-1.5 font-mono" style={{ color: "#e2e8f0", whiteSpace: "nowrap", fontSize: 11 }}>{j.name}</td>
+                              <td className="px-2 py-1.5 font-mono" style={{ color: "#64748b", fontSize: 10 }}>{j.district}</td>
+                              <td className="px-2 py-1.5 font-mono" style={{ color: "#475569", fontSize: 10, whiteSpace: "nowrap" }}>{j.dcMin.toLocaleString()}–{j.dcMax.toLocaleString()}</td>
+                              {(["dcMin", "dcMax", "xpPerJob", "energyCost", "cooldownMin"] as const).map(field => (
+                                <td key={field} className="px-1 py-1">
+                                  <input type="number" min="0" placeholder="def"
+                                    value={ov[field] ?? ""}
+                                    onChange={e => setEditJobOverrides(prev => ({ ...prev, [j.id]: { ...(prev[j.id] ?? {}), [field]: e.target.value } }))}
+                                    className="font-mono px-2 py-1 rounded w-16"
+                                    style={{ background: (ov[field] ?? "") !== "" ? "#130d1f" : "#0a0a0f", color: (ov[field] ?? "") !== "" ? "#a855f7" : "#64748b", border: `1px solid ${(ov[field] ?? "") !== "" ? "#a855f730" : "#1e293b"}`, fontSize: 10 }} />
+                                </td>
+                              ))}
+                              <td className="px-1 py-1">
+                                <button onClick={() => setEditJobOverrides(prev => { const n = { ...prev }; delete n[j.id]; return n; })}
+                                  className="font-mono px-2 py-1 rounded"
+                                  style={{ color: "#475569", border: "1px solid #1e293b", fontSize: 10 }}>✕</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    const jobOverrides: Record<string, Record<string, number>> = {};
+                    for (const [jobId, vals] of Object.entries(editJobOverrides)) {
+                      const entry: Record<string, number> = {};
+                      if ((vals.dcMin ?? "") !== "")       entry.dcMin       = parseFloat(vals.dcMin!);
+                      if ((vals.dcMax ?? "") !== "")       entry.dcMax       = parseFloat(vals.dcMax!);
+                      if ((vals.xpPerJob ?? "") !== "")    entry.xpPerJob    = parseFloat(vals.xpPerJob!);
+                      if ((vals.energyCost ?? "") !== "")  entry.energyCost  = parseFloat(vals.energyCost!);
+                      if ((vals.cooldownMin ?? "") !== "") entry.cooldownMin = parseFloat(vals.cooldownMin!);
+                      if (Object.keys(entry).length > 0)  jobOverrides[jobId] = entry;
+                    }
+                    saveGameSection("jobConfig", { jobConfig: { minigameTriggerChance: Math.max(0, Math.min(1, parseFloat(editMinigameChance) || 0.30)), jobOverrides } });
+                  }}
+                  disabled={savingSection === "jobConfig"}
+                  className="mt-4 font-mono text-xs px-4 py-2 rounded"
+                  style={{ background: savingSection === "jobConfig" ? "#1e293b" : "#a855f718", color: savingSection === "jobConfig" ? "#475569" : "#a855f7", border: "1px solid #a855f740" }}>
+                  {savingSection === "jobConfig" ? "Saving…" : "✓ Apply Job Config"}
+                </button>
+              </div>
+
+              {/* Staff Pay */}
+              <div style={s}>
+                <div className="font-mono font-bold text-xs mb-1" style={{ color: "#00d4ff", letterSpacing: "0.1em" }}>STAFF PAY</div>
+                <div className="font-mono text-xs mb-4" style={{ color: "#64748b" }}>Daily DC earnings per staff tier (claimed once every 24h). Leave blank = use hardcoded default.</div>
+                <div className="space-y-2">
+                  {gameCatalog && Object.entries(gameCatalog.staffTiers).sort(([a], [b]) => Number(a) - Number(b)).map(([tier, def]) => (
+                    <div key={tier} className="flex items-center gap-4">
+                      <div className="font-mono text-xs w-36" style={{ color: def.color }}>Tier {tier} — {def.name}</div>
+                      <div className="font-mono w-28" style={{ color: "#475569", fontSize: 10 }}>Default: {def.dailyDc.toLocaleString()} DC</div>
+                      <input type="number" min="0" max="1000000"
+                        value={editStaffDailyDc[tier] ?? ""}
+                        onChange={e => setEditStaffDailyDc(prev => ({ ...prev, [tier]: e.target.value }))}
+                        placeholder={String(def.dailyDc)}
+                        className="font-mono text-xs px-3 py-1.5 rounded w-32"
+                        style={{ background: (editStaffDailyDc[tier] ?? "") !== "" ? "#0d1a1f" : "#0a0a0f", color: (editStaffDailyDc[tier] ?? "") !== "" ? "#00d4ff" : "#64748b", border: `1px solid ${(editStaffDailyDc[tier] ?? "") !== "" ? "#00d4ff30" : "#1e293b"}` }} />
+                      <span className="font-mono text-xs" style={{ color: "#475569" }}>DC / day</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    const tierDailyDc: Record<string, number> = {};
+                    for (const [tier, val] of Object.entries(editStaffDailyDc)) {
+                      if ((val ?? "") !== "") tierDailyDc[tier] = Math.max(0, parseInt(val) || 0);
+                    }
+                    saveGameSection("staffConfig", { staffConfig: { tierDailyDc } });
+                  }}
+                  disabled={savingSection === "staffConfig"}
+                  className="mt-4 font-mono text-xs px-4 py-2 rounded"
+                  style={{ background: savingSection === "staffConfig" ? "#1e293b" : "#00d4ff18", color: savingSection === "staffConfig" ? "#475569" : "#00d4ff", border: "1px solid #00d4ff40" }}>
+                  {savingSection === "staffConfig" ? "Saving…" : "✓ Apply Staff Pay"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

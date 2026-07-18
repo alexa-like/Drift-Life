@@ -11,9 +11,11 @@ import { validateBody } from "../middlewares/validate";
 import { jobsMinigameCompleteSchema } from "../lib/schemas";
 import { getEmployerPerk } from "../lib/employeePerks";
 
+import { getGameConfig } from "../lib/gameConfig";
+
 const router = Router();
 
-const JOBS = [
+export const JOBS = [
   { id: "delivery_driver",    name: "Delivery Driver",     district: "any",               minLevel: 1,  energyCost: 2, dcMin: 100,  dcMax: 250,  xpPerJob: 8,   cooldownMin: 30,  miniGame: "timing",  description: "Move packages across New Vanta's grid." },
   { id: "street_performer",   name: "Street Performer",    district: "neon_strip", minLevel: 1,  energyCost: 1, dcMin: 50,   dcMax: 200,  xpPerJob: 5,   cooldownMin: 20,  miniGame: "rhythm",  description: "Work the crowd on the Neon Strip." },
   { id: "building_super",     name: "Building Super",      district: "any",        minLevel: 1,  energyCost: 2, dcMin: 120,  dcMax: 280,  xpPerJob: 8,   cooldownMin: 40,  miniGame: "pattern", description: "Maintain the crumbling blocks across the city." },
@@ -37,16 +39,31 @@ const JOBS = [
 // GET /api/jobs
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await User.findById(req.userId).lean();
+    const [user, gameCfg] = await Promise.all([
+      User.findById(req.userId).lean(),
+      getGameConfig(),
+    ]);
     if (!user) return res.status(404).json({ message: "User not found" });
     const now = new Date();
     const cooldowns = (user as any).jobCooldowns || {};
     const jobsWithStatus = JOBS.map(j => {
+      const jo = gameCfg.jobConfig.jobOverrides[j.id] ?? {};
       const cooldownUntil = cooldowns[j.id] ? new Date(cooldowns[j.id]) : null;
       const onCooldown = !!(cooldownUntil && cooldownUntil > now);
       const districtMatch = j.district === "any" || j.district === user.district;
       const levelOk = user.level >= j.minLevel;
-      return { ...j, available: districtMatch && levelOk && !onCooldown, onCooldown, cooldownUntil: onCooldown ? cooldownUntil : null, districtMatch };
+      return {
+        ...j,
+        energyCost: jo.energyCost ?? j.energyCost,
+        dcMin: jo.dcMin ?? j.dcMin,
+        dcMax: jo.dcMax ?? j.dcMax,
+        xpPerJob: jo.xpPerJob ?? j.xpPerJob,
+        cooldownMin: jo.cooldownMin ?? j.cooldownMin,
+        available: districtMatch && levelOk && !onCooldown,
+        onCooldown,
+        cooldownUntil: onCooldown ? cooldownUntil : null,
+        districtMatch,
+      };
     });
     res.json(jobsWithStatus);
   } catch (err: any) {
@@ -60,6 +77,14 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
   try {
     const job = JOBS.find(j => j.id === req.params.jobId);
     if (!job) return res.status(404).json({ message: "Job not found" });
+
+    const gameCfg = await getGameConfig();
+    const jo = gameCfg.jobConfig.jobOverrides[job.id] ?? {};
+    const effectiveDcMin    = jo.dcMin       ?? job.dcMin;
+    const effectiveDcMax    = jo.dcMax       ?? job.dcMax;
+    const effectiveXpPerJob = jo.xpPerJob    ?? job.xpPerJob;
+    const effectiveCooldown = jo.cooldownMin ?? job.cooldownMin;
+    const effectiveEnergy   = jo.energyCost  ?? job.energyCost;
 
     // Read user for preliminary checks + faction info only — regen computed DB-side below
     const user = await User.findById(req.userId);
@@ -76,7 +101,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
     }
 
     // Faction bonuses + subscription bonuses + skill bonuses
-    let energyBonus     = user.faction === "grid" ? Math.floor(job.energyCost * 0.10) : 0;
+    let energyBonus     = user.faction === "grid" ? Math.floor(effectiveEnergy * 0.10) : 0;
     let dcMultiplier    = user.faction === "suits" ? 1.10 : 1;
     if (user.unlockedSkills?.includes("fast_hands")) dcMultiplier *= 1.10;
     if (user.unlockedSkills?.includes("dc_magnet"))  dcMultiplier *= 1.10;
@@ -87,10 +112,10 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
       dcMultiplier *= fixerPerk.starLevel >= 10 ? 1.20 : 1.10;
       if (fixerPerk.starLevel >= 3) energyBonus += 1;
     }
-    const dcGained      = Math.floor((job.dcMin + Math.random() * (job.dcMax - job.dcMin)) * dcMultiplier);
-    const baseXpGained  = Math.floor(job.xpPerJob * (subTier?.jobXpMult ?? 1));
-    const xpGained      = Math.floor(baseXpGained * (1 + (user.prestigeXpBoost ?? 0) / 100));
-    const cooldownUntil = new Date(Date.now() + job.cooldownMin * 60 * 1000);
+    const dcGained      = Math.floor((effectiveDcMin + Math.random() * (effectiveDcMax - effectiveDcMin)) * dcMultiplier * gameCfg.globalMultipliers.dcRewardMult);
+    const baseXpGained  = Math.floor(effectiveXpPerJob * (subTier?.jobXpMult ?? 1));
+    const xpGained      = Math.floor(baseXpGained * (1 + (user.prestigeXpBoost ?? 0) / 100) * gameCfg.globalMultipliers.xpRewardMult);
+    const cooldownUntil = new Date(Date.now() + effectiveCooldown * 60 * 1000);
 
     // FULLY ATOMIC: regen computed server-side via pipeline; $expr condition
     // checks effective energy (including regen) before deducting — zero race window.
@@ -98,14 +123,14 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
       {
         _id: req.userId,
         // DB-side regen check: ensures (energy + regenSinceLastTick) >= cost
-        ...energySufficientExpr(job.energyCost),
+        ...energySufficientExpr(effectiveEnergy),
         $or: [
           { [`jobCooldowns.${job.id}`]: { $exists: false } },
           { [`jobCooldowns.${job.id}`]: { $lte: new Date() } },
         ],
       },
       buildRegenPipeline({
-        energyCost:  job.energyCost,
+        energyCost:  effectiveEnergy,
         energyBonus,
         extraSet: {
           job: job.id,
@@ -124,7 +149,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
     const rewarded = await User.findByIdAndUpdate(
       gated._id,
       [{ $set: {
-        dc:           { $min: [{ $add: ["$dc",           dcGained] },    100_000_000] },
+        dc:           { $min: [{ $add: ["$dc",           dcGained] },    gameCfg.resourceCaps.walletCap] },
         weeklyDc:     { $add: [{ $ifNull: ["$weeklyDc", 0] }, dcGained] },
         xp:           { $add: ["$xp",           xpGained] },
         seasonPoints: { $add: ["$seasonPoints", jobSeasonPts] },
@@ -137,7 +162,7 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
 
     // Server-issued minigame session — bonus completion must present this exact
     // token; the client can never just POST an arbitrary multiplier for free DC.
-    const miniGameTriggered = Math.random() < 0.30;
+    const miniGameTriggered = Math.random() < gameCfg.jobConfig.minigameTriggerChance;
     let miniGameToken: string | null = null;
     if (miniGameTriggered) {
       miniGameToken = crypto.randomBytes(16).toString("hex");

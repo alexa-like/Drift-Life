@@ -1051,4 +1051,75 @@ router.post("/mass-grant", requireOwner as any, async (req: AuthRequest, res) =>
   }
 });
 
+// ── GAME CONFIG ────────────────────────────────────────────────────────────────
+
+// GET /api/owner/game-config — full config + hardcoded catalogs for UI
+router.get("/game-config", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { getGameConfig, DEFAULT_GAME_CONFIG } = await import("../lib/gameConfig");
+    const { RUNS } = await import("./crimes");
+    const { JOBS } = await import("./jobs");
+    const config = await getGameConfig();
+    res.json({
+      config,
+      defaults: DEFAULT_GAME_CONFIG,
+      catalog: {
+        runs: RUNS.map((r: any) => ({
+          id: r.id, name: r.name, tier: r.tier,
+          energyCost: r.energyCost, dcMin: r.dcMin, dcMax: r.dcMax,
+          xp: r.xp, baseSuccess: r.baseSuccess, minLevel: r.minLevel, riskLevel: r.riskLevel,
+        })),
+        jobs: JOBS.map((j: any) => ({
+          id: j.id, name: j.name, district: j.district, minLevel: j.minLevel,
+          energyCost: j.energyCost, dcMin: j.dcMin, dcMax: j.dcMax,
+          xpPerJob: j.xpPerJob, cooldownMin: j.cooldownMin,
+        })),
+        staffTiers: Object.fromEntries(
+          Object.entries(STAFF_TIERS).map(([k, v]) => [k, { name: v.name, color: v.color, dailyDc: v.dailyDc }])
+        ),
+      },
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "game-config get error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /api/owner/game-config — update one or more config sections
+router.patch("/game-config", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { patchGameConfig } = await import("../lib/gameConfig");
+    const patch = req.body as Record<string, unknown>;
+    const gm = patch.globalMultipliers as Record<string, number> | undefined;
+    const rc = patch.resourceCaps as Record<string, number> | undefined;
+    const cc = patch.crimeConfig as Record<string, unknown> | undefined;
+    const jc = patch.jobConfig as Record<string, unknown> | undefined;
+    if (gm?.dcRewardMult !== undefined && (Number(gm.dcRewardMult) < 0.1 || Number(gm.dcRewardMult) > 100))
+      return res.status(400).json({ message: "dcRewardMult must be 0.1–100" });
+    if (gm?.xpRewardMult !== undefined && (Number(gm.xpRewardMult) < 0.1 || Number(gm.xpRewardMult) > 100))
+      return res.status(400).json({ message: "xpRewardMult must be 0.1–100" });
+    if (rc?.walletCap !== undefined && (Number(rc.walletCap) < 1_000 || Number(rc.walletCap) > 10_000_000_000))
+      return res.status(400).json({ message: "walletCap must be 1,000–10,000,000,000" });
+    if (rc?.bankCap !== undefined && (Number(rc.bankCap) < 1_000 || Number(rc.bankCap) > 100_000_000_000))
+      return res.status(400).json({ message: "bankCap must be 1,000–100,000,000,000" });
+    if (cc?.runsPerHourCap !== undefined && (Number(cc.runsPerHourCap) < 1 || Number(cc.runsPerHourCap) > 1_000))
+      return res.status(400).json({ message: "runsPerHourCap must be 1–1000" });
+    if (jc?.minigameTriggerChance !== undefined && (Number(jc.minigameTriggerChance) < 0 || Number(jc.minigameTriggerChance) > 1))
+      return res.status(400).json({ message: "minigameTriggerChance must be 0–1" });
+
+    const newConfig = await patchGameConfig(patch as any);
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "update-game-config",
+      details: { sections: Object.keys(patch) },
+    });
+    req.log.info({ sections: Object.keys(patch) }, "owner updated game config");
+    res.json({ message: "Game config updated", config: newConfig });
+  } catch (err: any) {
+    req.log.error({ err }, "game-config patch error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

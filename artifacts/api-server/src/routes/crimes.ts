@@ -30,6 +30,7 @@ import { getWorldState, worldRunModifiers } from "../models/WorldState";
 import { validateBody } from "../middlewares/validate";
 import { pursuitResolveSchema, crimesLaunderSchema } from "../lib/schemas";
 import Item from "../models/Item";
+import { getGameConfig } from "../lib/gameConfig";
 
 const router = Router();
 
@@ -237,7 +238,10 @@ function cooldownDuration(energyCost: number): number {
 // ── GET /api/crimes — list all runs ────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await User.findById(req.userId).select("crimeCooldowns").lean();
+    const [user, gameCfg] = await Promise.all([
+      User.findById(req.userId).select("crimeCooldowns").lean(),
+      getGameConfig(),
+    ]);
     const cooldowns = (user as any)?.crimeCooldowns ?? {};
     const now = Date.now();
 
@@ -245,15 +249,16 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       const rawCd = cooldowns instanceof Map ? cooldowns.get(r.id) : cooldowns[r.id];
       const cdEnd = rawCd ? new Date(rawCd).getTime() : 0;
       const cooldownEnds = cdEnd > now ? new Date(cdEnd).toISOString() : null;
+      const ro = gameCfg.crimeConfig.runOverrides[r.id] ?? {};
       return {
-        id: r.id, name: r.name, tier: r.tier, flavour: r.flavour, energyCost: r.energyCost,
-        minLevel: r.minLevel, baseSuccess: r.baseSuccess, dcRange: [r.dcMin, r.dcMax],
-        xp: r.xp, heatGain: r.tier * 4, wantedIncrease: r.wantedIncrease,
+        id: r.id, name: r.name, tier: r.tier, flavour: r.flavour, energyCost: ro.energyCost ?? r.energyCost,
+        minLevel: r.minLevel, baseSuccess: ro.baseSuccess ?? r.baseSuccess, dcRange: [ro.dcMin ?? r.dcMin, ro.dcMax ?? r.dcMax],
+        xp: ro.xp ?? r.xp, heatGain: r.tier * 4, wantedIncrease: r.wantedIncrease,
         hospitalRisk: r.hospitalRisk, description: r.description, riskLevel: r.riskLevel,
         relevantStat: r.relevantStat,
         cooldownEnds,
         // legacy fields for old UI
-        nerveCost: r.energyCost,
+        nerveCost: ro.energyCost ?? r.energyCost,
       };
     }));
   } catch (err: any) {
@@ -372,8 +377,9 @@ router.get("/jail-list", requireAuth, async (_req, res) => {
 
 // ── POST /api/crimes/:runId/commit ─────────────────────────────────────────
 router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
-  const BASE_RUNS_PER_HOUR_CAP = 30; // anti-abuse rate limit
   try {
+    const gameCfg = await getGameConfig();
+    const BASE_RUNS_PER_HOUR_CAP = gameCfg.crimeConfig.runsPerHourCap;
     const run = findRun(String(req.params.runId));
     if (!run) return res.status(404).json({ message: "Run not found" });
 
@@ -467,12 +473,16 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     if (success) {
       const crimeRewardMult = subTier?.crimeRewardMult ?? 1;
       const insideManBonus  = user.unlockedSkills?.includes("inside_man") ? 1.15 : 1;
+      const ro = gameCfg.crimeConfig.runOverrides[run.id] ?? {};
+      const effectiveDcMin = ro.dcMin ?? run.dcMin;
+      const effectiveDcMax = ro.dcMax ?? run.dcMax;
+      const effectiveRunXp = ro.xp    ?? run.xp;
       dcGained = Math.round(
-        (run.dcMin + Math.random() * (run.dcMax - run.dcMin)) * worldMods.payoutMult * crimeRewardMult * insideManBonus
+        (effectiveDcMin + Math.random() * (effectiveDcMax - effectiveDcMin)) * worldMods.payoutMult * crimeRewardMult * insideManBonus * gameCfg.globalMultipliers.dcRewardMult
       );
       const isFirstToday = !gated.lastCrimeDate || gated.lastCrimeDate.toDateString() !== new Date().toDateString();
-      const baseXp = run.xp * (isFirstToday ? 2 : 1);
-      xpGained = Math.floor(baseXp * (1 + (gated.prestigeXpBoost ?? 0) / 100));
+      const baseXp = effectiveRunXp * (isFirstToday ? 2 : 1);
+      xpGained = Math.floor(baseXp * (1 + (gated.prestigeXpBoost ?? 0) / 100) * gameCfg.globalMultipliers.xpRewardMult);
       gated.dirtyDc += dcGained;
       gated.successfulCrimes += 1;
       gated.heat = Math.min(100, gated.heat + heatGain);
@@ -561,7 +571,7 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
       const r = await User.findByIdAndUpdate(
         gated._id,
         [{ $set: {
-          dc:           { $min: [{ $add: ["$dc",           dcGained] },       100_000_000] },
+          dc:           { $min: [{ $add: ["$dc",           dcGained] },       gameCfg.resourceCaps.walletCap] },
           xp:           { $add: ["$xp",           xpGained] },
           seasonPoints: { $add: ["$seasonPoints", crimeSeasonPts] },
         } }],
