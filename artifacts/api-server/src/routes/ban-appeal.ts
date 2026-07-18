@@ -62,7 +62,7 @@ router.post("/mine", requireAuth, async (req: AuthRequest, res) => {
         $push: { messages: message },
         $set: { status: "open", lastPlayerReplyAt: new Date() },
       },
-      { upsert: true, new: true, returnDocument: "after" },
+      { upsert: true, returnDocument: "after" },
     );
 
     res.status(201).json({

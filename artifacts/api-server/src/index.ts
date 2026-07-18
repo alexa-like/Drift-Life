@@ -13,6 +13,7 @@ import { closeExpiredAuctions, scheduleBotAuctions } from "./routes/auction";
 import { expireMarketListings } from "./routes/market";
 import { postWeeklyRecap, pruneFeed } from "./routes/leaderboard";
 import { postWeeklyBanRecap } from "./lib/banRecap";
+import { tickBusinessIncome } from "./lib/businessIncomeWorker";
 
 const rawPort = process.env["PORT"] ?? "3000";
 const port = Number(rawPort);
@@ -239,6 +240,16 @@ async function start() {
   httpServer.listen(port, () => {
     logger.info({ port }, "Server listening");
     startKeepAlive();
+
+    // ── Business passive income: tick every 5 minutes ────────────────────────
+    setInterval(() => {
+      tickBusinessIncome().catch((err) =>
+        logger.error({ err }, "business income tick error"),
+      );
+    }, 5 * 60 * 1000);
+    tickBusinessIncome().catch((err) =>
+      logger.error({ err }, "business income tick startup error"),
+    );
 
     // ── Auction auto-close: run every 1 minute ────────────────────────────────
     setInterval(() => {

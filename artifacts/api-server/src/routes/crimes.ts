@@ -7,6 +7,7 @@ import { Router } from "express";
 import User from "../models/User";
 import CrimeLog from "../models/CrimeLog";
 import { getActiveTier } from "../lib/subscription";
+import { getEmployerPerk } from "../lib/employeePerks";
 // In-memory hourly run counter
 const _runCounters = new Map<string, { count: number; resetAt: number }>();
 function _getCrimeRuns(userId: string): number {
@@ -536,8 +537,13 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     gated.mood = Math.max(0, 100 - gated.stress);
     gated.lastCrimeDate = new Date();
 
-    // Set crime cooldown
-    const cdDuration = cooldownDuration(run.energyCost);
+    // Set crime cooldown — Chop Shop employees get reduced cooldowns
+    const baseCdDuration = cooldownDuration(run.energyCost);
+    const chopPerk = await getEmployerPerk(String(req.userId), (gated as any).businessId);
+    const chopReduction = chopPerk?.type === "chop_shop"
+      ? (chopPerk.starLevel >= 3 ? 0.20 : 0.10)
+      : 0;
+    const cdDuration = Math.floor(baseCdDuration * (1 - chopReduction));
     const cdMap2 = (gated as any).crimeCooldowns as Map<string, Date>;
     if (!cdMap2) {
       (gated as any).crimeCooldowns = new Map([[run.id, new Date(Date.now() + cdDuration)]]);

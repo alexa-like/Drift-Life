@@ -170,7 +170,11 @@ router.post("/collect", requireAuth, async (req: AuthRequest, res) => {
       (e) => e.status === "active"
     ).length;
 
-    const income = calcPendingIncome(business, activeCount);
+    // Collect everything: DB-accumulated (from background ticks) + any income
+    // that has accrued since the last tick (just-in-time calculation).
+    const accumulatedSoFar = business.accumulatedIncome ?? 0;
+    const recentIncome = calcPendingIncome(business, activeCount);
+    const income = accumulatedSoFar + recentIncome;
 
     if (income <= 0)
       return res.status(400).json({ message: "No income to collect" });

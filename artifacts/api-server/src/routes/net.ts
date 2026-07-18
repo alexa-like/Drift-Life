@@ -15,6 +15,7 @@ import { getWorldState, recalcSimPrice } from "../models/WorldState";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
 import { validateBody } from "../middlewares/validate";
 import { netHackInitiateSchema, netHackSubmitSchema, netSimAmountSchema, netDarkListSchema } from "../lib/schemas";
+import { getEmployerPerk } from "../lib/employeePerks";
 
 const router = Router();
 
@@ -66,7 +67,12 @@ router.post("/hack/initiate", requireAuth, validateBody(netHackInitiateSchema), 
     const recentHacks = await ActionMastery.countDocuments({
       userId: req.userId, actionType: "hack", lastAttemptAt: { $gt: oneHourAgo },
     });
-    if (recentHacks >= HACKS_PER_HOUR) return res.status(429).json({ message: "Hack rate limit reached" });
+    // Data Broker employee perk: +15% effective hack cap (base), +30% at 3★+
+    const hackPerk = await getEmployerPerk(String(req.userId), (hacker as any).businessId);
+    const effectiveHackCap = hackPerk?.type === "data_broker"
+      ? Math.ceil(HACKS_PER_HOUR * (hackPerk.starLevel >= 3 ? 1.30 : 1.15))
+      : HACKS_PER_HOUR;
+    if (recentHacks >= effectiveHackCap) return res.status(429).json({ message: "Hack rate limit reached" });
 
     // Deduct energy atomically
     await User.findOneAndUpdate(

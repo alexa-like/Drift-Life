@@ -36,7 +36,7 @@ async function upsertItem(item: SeedItem) {
         "reward.miniGameItemId": item.itemRef,
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   );
 }
 

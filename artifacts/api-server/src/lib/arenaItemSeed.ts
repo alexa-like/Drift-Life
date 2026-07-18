@@ -42,7 +42,7 @@ async function upsertItem(item: ItemSeed): Promise<void> {
         isActive:     true,
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   );
 }
 

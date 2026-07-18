@@ -9,6 +9,7 @@ import { checkAchievements } from "./achievements";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
 import { validateBody } from "../middlewares/validate";
 import { jobsMinigameCompleteSchema } from "../lib/schemas";
+import { getEmployerPerk } from "../lib/employeePerks";
 
 const router = Router();
 
@@ -75,11 +76,17 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
     }
 
     // Faction bonuses + subscription bonuses + skill bonuses
-    const energyBonus   = user.faction === "grid" ? Math.floor(job.energyCost * 0.10) : 0;
+    let energyBonus     = user.faction === "grid" ? Math.floor(job.energyCost * 0.10) : 0;
     let dcMultiplier    = user.faction === "suits" ? 1.10 : 1;
     if (user.unlockedSkills?.includes("fast_hands")) dcMultiplier *= 1.10;
     if (user.unlockedSkills?.includes("dc_magnet"))  dcMultiplier *= 1.10;
     const subTier = (await import("../lib/subscription")).getActiveTier(user as any);
+    // Fixer Office employee perk: +10% DC rewards (base), +20% at 10★; -1 energy cost at 3★+
+    const fixerPerk = await getEmployerPerk(String(req.userId), (user as any).businessId);
+    if (fixerPerk?.type === "fixer_office") {
+      dcMultiplier *= fixerPerk.starLevel >= 10 ? 1.20 : 1.10;
+      if (fixerPerk.starLevel >= 3) energyBonus += 1;
+    }
     const dcGained      = Math.floor((job.dcMin + Math.random() * (job.dcMax - job.dcMin)) * dcMultiplier);
     const baseXpGained  = Math.floor(job.xpPerJob * (subTier?.jobXpMult ?? 1));
     const xpGained      = Math.floor(baseXpGained * (1 + (user.prestigeXpBoost ?? 0) / 100));

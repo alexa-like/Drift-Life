@@ -10,6 +10,7 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, moodMultiplier } from "../models/User";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
 import { rollCityEncounter } from "./crimes";
+import { getEmployerPerk } from "../lib/employeePerks";
 
 const router = Router();
 
@@ -142,7 +143,12 @@ router.post("/:gymId/train", requireAuth, async (req: AuthRequest, res) => {
     const effectiveStats = (gated as any).getEffectiveStats();
     const currentStat = (effectiveStats as any)[stat] as number;
     const rawGain = computeGain(gym.energyCostPerTrain, gymMult, moodMult, currentStat);
-    const statGain = Math.max(0.01, rawGain);
+    // Combat Gym employee perk: +10% stat gains (base), +20% at 3★+
+    const gymPerk = await getEmployerPerk(String(req.userId), (gated as any).businessId);
+    const gymPerkMult = gymPerk?.type === "combat_gym"
+      ? (gymPerk.starLevel >= 3 ? 1.20 : 1.10)
+      : 1.0;
+    const statGain = Math.max(0.01, rawGain * gymPerkMult);
 
     // Deduct gym fee
     gated.dc -= gym.costPerUse;
