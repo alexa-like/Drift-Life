@@ -1051,6 +1051,131 @@ router.post("/mass-grant", requireOwner as any, async (req: AuthRequest, res) =>
   }
 });
 
+// ── DATABASE MANAGEMENT ───────────────────────────────────────────────────────
+
+/** Collections that hold core game state — never allow clearing/dropping from the UI */
+const DB_PROTECTED = new Set([
+  "users", "items", "factions", "guilds", "serverconfigs", "gameconfigs",
+  "worldstates", "businesses", "properties", "racecars", "companions",
+  "playergarages", "playerloadouts", "actionmasteries", "playerminigameinventories",
+  "playerpitycounters", "userachievements",
+]);
+
+// GET /api/owner/db-stats — live storage breakdown
+router.get("/db-stats", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const db = mongoose.connection.db;
+    if (!db) return res.status(503).json({ message: "DB not connected" });
+    const raw = await db.command({ dbStats: 1, scale: 1 });
+    const colls = await db.listCollections().toArray();
+    const collections: any[] = [];
+    for (const c of colls) {
+      try {
+        const cs = await db.command({ collStats: c.name, scale: 1 });
+        collections.push({
+          name: c.name,
+          docs: cs.count ?? 0,
+          dataBytes: cs.size ?? 0,
+          storageBytes: cs.storageSize ?? 0,
+          indexBytes: cs.totalIndexSize ?? 0,
+          protected: DB_PROTECTED.has(c.name),
+        });
+      } catch { /* skip unreadable collections */ }
+    }
+    collections.sort((a, b) => b.dataBytes - a.dataBytes);
+    res.json({
+      dataBytes:    raw.dataSize    ?? 0,
+      indexBytes:   raw.indexSize   ?? 0,
+      storageBytes: raw.storageSize ?? 0,
+      totalBytes:   (raw.dataSize ?? 0) + (raw.indexSize ?? 0),
+      objects:      raw.objects     ?? 0,
+      collections,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "db-stats error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/db-smart-cleanup — remove expired / stale documents across known collections
+router.post("/db-smart-cleanup", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const db = mongoose.connection.db;
+    if (!db) return res.status(503).json({ message: "DB not connected" });
+    const now = new Date();
+    const ago = (days: number) => new Date(now.getTime() - days * 86_400_000);
+    const results: Record<string, number> = {};
+    const sweep = async (col: string, filter: Record<string, unknown>) => {
+      try { results[col] = (await db.collection(col).deleteMany(filter as any)).deletedCount; }
+      catch { results[col] = 0; }
+    };
+
+    await sweep("notifications",   { createdAt: { $lt: ago(30) } });
+    await sweep("crimelogs",       { createdAt: { $lt: ago(30) } });
+    await sweep("adminauditlogs",  { createdAt: { $lt: ago(90) } });
+    await sweep("vantalogs",       { createdAt: { $lt: ago(30) } });
+    await sweep("feedevents",      { createdAt: { $lt: ago(60) } });
+    await sweep("ncpurchaselogs",  { createdAt: { $lt: ago(60) } });
+    await sweep("ucpurchaselogs",  { createdAt: { $lt: ago(60) } });
+    await sweep("factionbanklogs", { createdAt: { $lt: ago(60) } });
+    await sweep("racematches",     { status: { $in: ["finished","cancelled","timeout"] }, createdAt: { $lt: ago(7) } });
+    await sweep("combatmatches",   { status: { $in: ["finished","forfeit","timeout"] },  createdAt: { $lt: ago(7) } });
+    await sweep("hacksessions",    { expiresAt: { $lt: now } });
+    // Giveaway entries for already-resolved giveaways
+    const resolvedIds = await db.collection("giveaways").distinct("_id", { status: "resolved" });
+    if (resolvedIds.length) await sweep("giveawayentries", { giveawayId: { $in: resolvedIds } });
+
+    const totalDeleted = Object.values(results).reduce((a, b) => a + b, 0);
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "db-smart-cleanup", details: { totalDeleted, results } });
+    req.log.info({ totalDeleted }, "smart cleanup complete");
+    res.json({ message: "Smart cleanup complete", totalDeleted, breakdown: results });
+  } catch (err: any) {
+    req.log.error({ err }, "db-smart-cleanup error");
+    res.status(500).json({ message: err.message ?? "Internal server error" });
+  }
+});
+
+// DELETE /api/owner/db-clear/:collection — wipe all documents (keeps collection + indexes)
+router.delete("/db-clear/:collection", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { collection } = req.params;
+    if (DB_PROTECTED.has(collection))
+      return res.status(403).json({ message: `'${collection}' is protected and cannot be cleared` });
+    const db = mongoose.connection.db;
+    if (!db) return res.status(503).json({ message: "DB not connected" });
+    if (!(await db.listCollections({ name: collection }).hasNext()))
+      return res.status(404).json({ message: "Collection not found" });
+    const r = await db.collection(collection).deleteMany({});
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "db-clear-collection", details: { collection, deleted: r.deletedCount } });
+    res.json({ message: `Cleared ${r.deletedCount} document(s) from '${collection}'`, deleted: r.deletedCount });
+  } catch (err: any) {
+    req.log.error({ err }, "db-clear error");
+    res.status(500).json({ message: err.message ?? "Internal server error" });
+  }
+});
+
+// POST /api/owner/db-drop/:collection — permanently drop collection (requires owner code)
+router.post("/db-drop/:collection", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { collection } = req.params;
+    const { confirmCode } = req.body as { confirmCode?: string };
+    if (confirmCode !== "Hayatulahi3222")
+      return res.status(403).json({ message: "Invalid confirmation code — collection not dropped" });
+    if (DB_PROTECTED.has(collection))
+      return res.status(403).json({ message: `'${collection}' is protected and cannot be dropped` });
+    const db = mongoose.connection.db;
+    if (!db) return res.status(503).json({ message: "DB not connected" });
+    if (!(await db.listCollections({ name: collection }).hasNext()))
+      return res.status(404).json({ message: "Collection not found" });
+    await db.collection(collection).drop();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "db-drop-collection", details: { collection } });
+    res.json({ message: `Collection '${collection}' permanently dropped` });
+  } catch (err: any) {
+    req.log.error({ err }, "db-drop error");
+    res.status(500).json({ message: err.message ?? "Internal server error" });
+  }
+});
+
 // ── GAME CONFIG ────────────────────────────────────────────────────────────────
 
 // GET /api/owner/game-config — full config + hardcoded catalogs for UI

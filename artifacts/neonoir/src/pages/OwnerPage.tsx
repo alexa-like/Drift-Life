@@ -71,6 +71,13 @@ const ROLE_COLOR: Record<string, string> = {
 
 const FACTION_EMOJI: Record<string, string> = { suits: "🏢", street: "🔥", grid: "💻" };
 
+interface DbCollectionStat {
+  name: string; docs: number; dataBytes: number; storageBytes: number; indexBytes: number; protected: boolean;
+}
+interface DbStats {
+  dataBytes: number; indexBytes: number; storageBytes: number; totalBytes: number;
+  objects: number; collections: DbCollectionStat[];
+}
 interface RunCatalogEntry { id: string; name: string; tier: number; energyCost: number; dcMin: number; dcMax: number; xp: number; baseSuccess: number; minLevel: number; riskLevel: string; }
 interface JobCatalogEntry { id: string; name: string; district: string; minLevel: number; energyCost: number; dcMin: number; dcMax: number; xpPerJob: number; cooldownMin: number; }
 interface StaffTierEntry { name: string; color: string; dailyDc: number; }
@@ -83,7 +90,7 @@ interface EconomyGameConfig {
 }
 interface GameCatalog { runs: RunCatalogEntry[]; jobs: JobCatalogEntry[]; staffTiers: Record<string, StaffTierEntry>; }
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy" | "database";
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -222,6 +229,16 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [editRunOverrides, setEditRunOverrides] = useState<Record<string, Record<string, string>>>({});
   const [editJobOverrides, setEditJobOverrides] = useState<Record<string, Record<string, string>>>({});
   const [editStaffDailyDc, setEditStaffDailyDc] = useState<Record<string, string>>({});
+  // Database tab
+  const [dbStats, setDbStats] = useState<DbStats | null>(null);
+  const [dbStatsLoading, setDbStatsLoading] = useState(false);
+  const [dbLimitMB, setDbLimitMB] = useState(512);
+  const [dbClearTarget, setDbClearTarget] = useState<string | null>(null);
+  const [dbDropTarget, setDbDropTarget] = useState<string | null>(null);
+  const [dbDropCode, setDbDropCode] = useState("");
+  const [dbActionLoading, setDbActionLoading] = useState(false);
+  const [smartCleanupLoading, setSmartCleanupLoading] = useState(false);
+  const [smartCleanupResult, setSmartCleanupResult] = useState<{ totalDeleted: number; breakdown: Record<string, number> } | null>(null);
 
   const GIVE_DURATIONS = [
     { label: "1 hour",   ms: 60 * 60 * 1000 },
@@ -291,6 +308,50 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     } catch (e: any) { addToast(e.message, "error"); }
     finally { setSavingSection(null); }
   }
+
+  const loadDbStats = useCallback(async () => {
+    setDbStatsLoading(true);
+    try {
+      const res = await api.get<DbStats>("/owner/db-stats");
+      setDbStats(res);
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setDbStatsLoading(false); }
+  }, [addToast]);
+
+  const runSmartCleanup = useCallback(async () => {
+    setSmartCleanupLoading(true);
+    setSmartCleanupResult(null);
+    try {
+      const res = await api.post<{ message: string; totalDeleted: number; breakdown: Record<string, number> }>("/owner/db-smart-cleanup");
+      setSmartCleanupResult({ totalDeleted: res.totalDeleted, breakdown: res.breakdown });
+      addToast(`${res.message} — ${res.totalDeleted} removed`, "success");
+      loadDbStats();
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setSmartCleanupLoading(false); }
+  }, [addToast, loadDbStats]);
+
+  const clearCollection = useCallback(async (name: string) => {
+    setDbActionLoading(true);
+    try {
+      const res = await api.delete<{ message: string; deleted: number }>(`/owner/db-clear/${name}`);
+      addToast(res.message, "success");
+      setDbClearTarget(null);
+      loadDbStats();
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setDbActionLoading(false); }
+  }, [addToast, loadDbStats]);
+
+  const dropCollection = useCallback(async (name: string, code: string) => {
+    setDbActionLoading(true);
+    try {
+      const res = await api.post<{ message: string }>(`/owner/db-drop/${name}`, { confirmCode: code });
+      addToast(res.message, "success");
+      setDbDropTarget(null);
+      setDbDropCode("");
+      loadDbStats();
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setDbActionLoading(false); }
+  }, [addToast, loadDbStats]);
 
   async function createOwnerGiveaway() {
     const dc   = Math.max(0, Math.floor(Number(ownerGiveDc)   || 0));
@@ -709,6 +770,10 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         <button onClick={() => { setTab("economy"); if (!gameConfig) loadGameConfig(); }} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "economy" ? "#39d35318" : "#111118", color: tab === "economy" ? "#39d353" : "#475569", border: `1px solid ${tab === "economy" ? "#39d35340" : "#1e1e2e"}` }}>
           ⚙️ Economy
+        </button>
+        <button onClick={() => { setTab("database"); if (!dbStats) loadDbStats(); }} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "database" ? "#ff2d5518" : "#111118", color: tab === "database" ? "#ff2d55" : "#475569", border: `1px solid ${tab === "database" ? "#ff2d5540" : "#1e1e2e"}` }}>
+          🗄 Database
         </button>
         <button onClick={() => setTab("staff")} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "staff" ? "#00d4ff18" : "#111118", color: tab === "staff" ? "#00d4ff" : "#475569", border: `1px solid ${tab === "staff" ? "#00d4ff40" : "#1e1e2e"}` }}>
@@ -2373,6 +2438,240 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
                 </button>
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* ── DATABASE TAB ─────────────────────────────────────────── */}
+      {tab === "database" && (
+        <div className="space-y-4">
+          {/* Header */}
+          <div style={s}>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <div className="font-mono font-bold text-sm" style={{ color: "#ff2d55" }}>DATABASE MANAGEMENT</div>
+                <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>Live MongoDB storage. Protected collections (🔒) cannot be cleared or dropped. TTL indexes auto-purge logs &amp; history.</div>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={loadDbStats} disabled={dbStatsLoading}
+                  className="font-mono text-xs px-4 py-2 rounded"
+                  style={{ background: "#00d4ff18", color: "#00d4ff", border: "1px solid #00d4ff40" }}>
+                  {dbStatsLoading ? "Loading…" : "↺ Refresh"}
+                </button>
+                <button onClick={runSmartCleanup} disabled={smartCleanupLoading || dbStatsLoading}
+                  className="font-mono text-xs px-4 py-2 rounded"
+                  style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
+                  {smartCleanupLoading ? "Cleaning…" : "🧹 Smart Cleanup"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {!dbStats && !dbStatsLoading && (
+            <div style={s} className="text-center py-4">
+              <div className="font-mono text-xs" style={{ color: "#64748b" }}>Click Refresh to load database stats.</div>
+            </div>
+          )}
+
+          {/* Storage gauge */}
+          {dbStats && (() => {
+            const usedMB = dbStats.totalBytes / 1_048_576;
+            const pct = Math.min(100, (usedMB / dbLimitMB) * 100);
+            const gaugeColor = pct < 60 ? "#39d353" : pct < 85 ? "#f59e0b" : "#ff2d55";
+            return (
+              <div style={s}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-mono font-bold text-xs" style={{ color: gaugeColor, letterSpacing: "0.1em" }}>
+                    STORAGE — {pct.toFixed(1)}% USED
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs" style={{ color: "#64748b" }}>Atlas limit (MB):</span>
+                    <input type="number" min="1" value={dbLimitMB}
+                      onChange={e => setDbLimitMB(Math.max(1, parseInt(e.target.value) || 512))}
+                      className="font-mono text-xs px-2 py-1 rounded w-20 text-right"
+                      style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e293b" }} />
+                  </div>
+                </div>
+                {/* Bar */}
+                <div className="rounded-full overflow-hidden" style={{ height: 14, background: "#0f172a", border: "1px solid #1e293b" }}>
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${gaugeColor}88, ${gaugeColor})`, boxShadow: `0 0 10px ${gaugeColor}55` }} />
+                </div>
+                <div className="flex justify-between mt-1.5 font-mono text-xs">
+                  <span style={{ color: gaugeColor }}>{usedMB.toFixed(3)} MB used</span>
+                  <span style={{ color: "#475569" }}>{(dbLimitMB - usedMB).toFixed(1)} MB free / {dbLimitMB} MB limit</span>
+                </div>
+                {/* Sub-stats */}
+                <div className="flex flex-wrap gap-6 mt-4 pt-3" style={{ borderTop: "1px solid #1e293b" }}>
+                  {[
+                    { label: "Data", val: (dbStats.dataBytes/1_048_576).toFixed(3) + " MB", color: "#39d353" },
+                    { label: "Indexes", val: (dbStats.indexBytes/1_048_576).toFixed(3) + " MB", color: "#00d4ff" },
+                    { label: "Storage (disk)", val: (dbStats.storageBytes/1_048_576).toFixed(3) + " MB", color: "#a855f7" },
+                    { label: "Documents", val: dbStats.objects.toLocaleString(), color: "#f59e0b" },
+                    { label: "Collections", val: String(dbStats.collections.length), color: "#64748b" },
+                  ].map(f => (
+                    <div key={f.label}>
+                      <div className="font-mono" style={{ color: "#475569", fontSize: 10 }}>{f.label}</div>
+                      <div className="font-mono text-xs font-bold mt-0.5" style={{ color: f.color }}>{f.val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Smart cleanup result */}
+          {smartCleanupResult && (
+            <div style={{ ...s, borderColor: "#39d35340", background: "#0a150a" }}>
+              <div className="font-mono font-bold text-xs mb-2" style={{ color: "#39d353" }}>
+                ✓ CLEANUP — {smartCleanupResult.totalDeleted} documents removed
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(smartCleanupResult.breakdown).filter(([,v]) => v > 0).map(([k, v]) => (
+                  <span key={k} className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "#0d2010", color: "#39d353", border: "1px solid #39d35330" }}>
+                    {k}: {v}
+                  </span>
+                ))}
+                {Object.values(smartCleanupResult.breakdown).every(v => v === 0) && (
+                  <span className="font-mono text-xs" style={{ color: "#64748b" }}>Nothing to clean — database is already lean.</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Collections table */}
+          {dbStats && (
+            <div style={s}>
+              <div className="font-mono font-bold text-xs mb-3" style={{ color: "#e2e8f0", letterSpacing: "0.1em" }}>
+                COLLECTIONS ({dbStats.collections.length}) — sorted by size
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #1e293b" }}>
+                      {["Collection", "Docs", "Data", "Disk", "Indexes", ""].map(h => (
+                        <th key={h} className="font-mono text-left px-2 py-2"
+                          style={{ color: "#475569", fontWeight: "normal", fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dbStats.collections.map(c => {
+                      const dataMB = c.dataBytes / 1_048_576;
+                      const isLarge = dataMB > 5;
+                      const dataLabel = dataMB >= 0.1
+                        ? dataMB.toFixed(2) + " MB"
+                        : (c.dataBytes / 1024).toFixed(1) + " KB";
+                      return (
+                        <tr key={c.name} style={{ borderBottom: "1px solid #0f172a" }}>
+                          <td className="px-2 py-2 font-mono" style={{ color: c.protected ? "#475569" : "#e2e8f0", whiteSpace: "nowrap" }}>
+                            {c.protected && <span className="mr-1" style={{ fontSize: 10 }}>🔒</span>}
+                            {c.name}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-right" style={{ color: "#64748b" }}>
+                            {c.docs.toLocaleString()}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-right" style={{ color: isLarge ? "#f59e0b" : "#64748b", whiteSpace: "nowrap" }}>
+                            {dataLabel}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-right" style={{ color: "#334155", whiteSpace: "nowrap" }}>
+                            {(c.storageBytes / 1024).toFixed(0)} KB
+                          </td>
+                          <td className="px-2 py-2 font-mono text-right" style={{ color: "#334155", whiteSpace: "nowrap" }}>
+                            {(c.indexBytes / 1024).toFixed(0)} KB
+                          </td>
+                          <td className="px-2 py-2">
+                            {!c.protected && (
+                              <div className="flex gap-1">
+                                <button onClick={() => setDbClearTarget(c.name)}
+                                  className="font-mono px-2 py-1 rounded"
+                                  style={{ color: "#f59e0b", border: "1px solid #f59e0b40", background: "#f59e0b08", fontSize: 10, whiteSpace: "nowrap" }}>
+                                  Clear
+                                </button>
+                                <button onClick={() => { setDbDropTarget(c.name); setDbDropCode(""); }}
+                                  className="font-mono px-2 py-1 rounded"
+                                  style={{ color: "#ff2d55", border: "1px solid #ff2d5540", background: "#ff2d5508", fontSize: 10, whiteSpace: "nowrap" }}>
+                                  ⚠ Drop
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── Clear confirmation modal ── */}
+          {dbClearTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center"
+              style={{ background: "rgba(0,0,0,0.82)" }}
+              onClick={e => { if (e.target === e.currentTarget) setDbClearTarget(null); }}>
+              <div className="p-6 rounded-lg space-y-4" style={{ background: "#0d1117", border: "1px solid #f59e0b40", minWidth: 360, maxWidth: 480 }}>
+                <div className="font-mono font-bold text-sm" style={{ color: "#f59e0b" }}>⚠ Clear Collection</div>
+                <div className="font-mono text-xs leading-relaxed" style={{ color: "#94a3b8" }}>
+                  All <strong style={{ color: "#e2e8f0" }}>{dbStats?.collections.find(c => c.name === dbClearTarget)?.docs.toLocaleString()}</strong> documents in{" "}
+                  <strong style={{ color: "#e2e8f0" }}>{dbClearTarget}</strong> will be permanently deleted.
+                  The collection structure and indexes are preserved.
+                </div>
+                <div className="flex gap-2 justify-end pt-2">
+                  <button onClick={() => setDbClearTarget(null)}
+                    className="font-mono text-xs px-4 py-2 rounded"
+                    style={{ color: "#64748b", border: "1px solid #1e293b" }}>Cancel</button>
+                  <button onClick={() => clearCollection(dbClearTarget!)} disabled={dbActionLoading}
+                    className="font-mono text-xs px-4 py-2 rounded"
+                    style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b60" }}>
+                    {dbActionLoading ? "Clearing…" : "Confirm Clear"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Drop confirmation modal ── */}
+          {dbDropTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center"
+              style={{ background: "rgba(0,0,0,0.88)" }}
+              onClick={e => { if (e.target === e.currentTarget) { setDbDropTarget(null); setDbDropCode(""); } }}>
+              <div className="p-6 rounded-lg space-y-4" style={{ background: "#0d1117", border: "1px solid #ff2d5560", minWidth: 400, maxWidth: 500 }}>
+                <div className="font-mono font-bold" style={{ color: "#ff2d55" }}>⚠ PERMANENT DROP</div>
+                <div className="font-mono text-xs leading-relaxed" style={{ color: "#94a3b8" }}>
+                  Collection <strong style={{ color: "#ff2d55" }}>{dbDropTarget}</strong> and all{" "}
+                  <strong style={{ color: "#ff2d55" }}>{dbStats?.collections.find(c => c.name === dbDropTarget)?.docs.toLocaleString()}</strong> documents will be
+                  <strong style={{ color: "#ff2d55" }}> permanently destroyed</strong>. This cannot be undone.
+                </div>
+                <div>
+                  <label className="font-mono text-xs" style={{ color: "#64748b" }}>Enter owner confirmation code:</label>
+                  <input type="text" value={dbDropCode} onChange={e => setDbDropCode(e.target.value)}
+                    placeholder="Enter code…" autoFocus
+                    className="w-full font-mono text-xs px-3 py-2 rounded mt-1.5"
+                    style={{ background: "#0a0a0f", color: "#e2e8f0", border: `1px solid ${dbDropCode === "Hayatulahi3222" ? "#39d35360" : "#ff2d5530"}`, outline: "none" }} />
+                  {dbDropCode.length > 0 && dbDropCode !== "Hayatulahi3222" && (
+                    <div className="font-mono mt-1" style={{ color: "#ff2d55", fontSize: 10 }}>Incorrect code</div>
+                  )}
+                </div>
+                <div className="flex gap-2 justify-end pt-1">
+                  <button onClick={() => { setDbDropTarget(null); setDbDropCode(""); }}
+                    className="font-mono text-xs px-4 py-2 rounded"
+                    style={{ color: "#64748b", border: "1px solid #1e293b" }}>Cancel</button>
+                  <button
+                    onClick={() => dropCollection(dbDropTarget!, dbDropCode)}
+                    disabled={dbActionLoading || dbDropCode !== "Hayatulahi3222"}
+                    className="font-mono text-xs px-4 py-2 rounded"
+                    style={{
+                      background: dbDropCode === "Hayatulahi3222" ? "#ff2d5518" : "#111",
+                      color: dbDropCode === "Hayatulahi3222" ? "#ff2d55" : "#334155",
+                      border: "1px solid #ff2d5540",
+                      cursor: dbDropCode === "Hayatulahi3222" && !dbActionLoading ? "pointer" : "not-allowed",
+                    }}>
+                    {dbActionLoading ? "Dropping…" : "⚠ Drop Forever"}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}

@@ -10,4 +10,7 @@ const CrimeLogSchema = new Schema({
   jailDuration: { type: Number, default: 0 },
   createdAt:    { type: Date, default: Date.now }
 }, { timestamps: false });
+// 30-day TTL — crime logs auto-purge
+CrimeLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+
 export default mongoose.model("CrimeLog", CrimeLogSchema);

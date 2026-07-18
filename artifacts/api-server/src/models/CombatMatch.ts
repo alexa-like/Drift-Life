@@ -232,5 +232,7 @@ const CombatMatchSchema = new Schema<ICombatMatch>(
 );
 
 CombatMatchSchema.index({ status: 1, createdAt: -1 });
+// 30-day TTL — finished combat history auto-purges
+CombatMatchSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 export default mongoose.model<ICombatMatch>("CombatMatch", CombatMatchSchema);

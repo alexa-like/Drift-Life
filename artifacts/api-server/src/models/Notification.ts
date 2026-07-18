@@ -22,5 +22,7 @@ const NotificationSchema = new Schema<INotification>(
 );
 
 NotificationSchema.index({ userId: 1, createdAt: -1 });
+// 30-day TTL — old notifications auto-purge
+NotificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 export default mongoose.model<INotification>("Notification", NotificationSchema);

@@ -92,5 +92,7 @@ const RaceMatchSchema = new Schema<IRaceMatch>(
 );
 
 RaceMatchSchema.index({ status: 1, createdAt: -1 });
+// 30-day TTL — finished race history auto-purges
+RaceMatchSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 export default mongoose.model<IRaceMatch>("RaceMatch", RaceMatchSchema);

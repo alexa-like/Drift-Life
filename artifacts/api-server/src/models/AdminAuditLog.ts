@@ -20,6 +20,9 @@ const AdminAuditLogSchema = new Schema<IAdminAuditLog>({
   createdAt:      { type: Date, default: Date.now, index: true },
 });
 
+// 90-day TTL — old audit logs auto-expire from MongoDB
+AdminAuditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+
 export default mongoose.model<IAdminAuditLog>("AdminAuditLog", AdminAuditLogSchema);
 
 export async function logAdminAction(params: {
