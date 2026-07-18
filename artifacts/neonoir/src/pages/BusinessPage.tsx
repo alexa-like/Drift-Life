@@ -30,6 +30,10 @@ interface BusinessData {
   totalEverEarned: number;
   maxEmployees: number;
   activeEmployeeCount: number;
+  /** 0–100: % of crew who worked within 3× shift cooldown */
+  effectiveness: number;
+  /** 0–100: current popularity after ad-decay */
+  popularity: number;
 }
 
 interface Employee {
@@ -348,6 +352,15 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
     onError: (e: Error) => addToast(e.message, "error"),
   });
 
+  const advertise = useMutation({
+    mutationFn: () => api.post<{ message: string; popularity: number; cost: number; newDc: number }>("/businesses/advertise", {}),
+    onSuccess: (r) => {
+      addToast(r.message ?? "Campaign launched!", "success");
+      qc.invalidateQueries({ queryKey: ["business", "mine"] });
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
   const workShift = useMutation({
     mutationFn: (businessId: string) => api.post(`/businesses/${businessId}/shift`, {}),
     onSuccess: (r: any, businessId) => {
@@ -589,6 +602,65 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
             </p>
           </div>
         </AnimatedCard>
+
+        {/* Effectiveness + Popularity row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Effectiveness gauge */}
+          <AnimatedCard accent="#00d4ff">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs font-bold" style={{ color: "#00d4ff" }}>
+                  ⚙️ Effectiveness
+                </span>
+                <span className="font-mono text-sm font-bold"
+                  style={{ color: biz.effectiveness >= 70 ? "#39d353" : biz.effectiveness >= 40 ? "#f59e0b" : "#ff2d55" }}>
+                  {biz.effectiveness ?? 100}%
+                </span>
+              </div>
+              <div className="h-2 rounded-full" style={{ background: "#1e1e2e" }}>
+                <div className="h-2 rounded-full transition-all"
+                  style={{
+                    width: `${biz.effectiveness ?? 100}%`,
+                    background: biz.effectiveness >= 70 ? "#39d353" : biz.effectiveness >= 40 ? "#f59e0b" : "#ff2d55",
+                  }} />
+              </div>
+              <p className="font-mono text-xs" style={{ color: "#64748b" }}>
+                Income mult: ×{(0.5 + (biz.effectiveness ?? 100) / 200).toFixed(2)}
+                &nbsp;·&nbsp;Active crew working regularly keeps this high.
+              </p>
+            </div>
+          </AnimatedCard>
+
+          {/* Popularity + advertise */}
+          <AnimatedCard accent="#a855f7">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs font-bold" style={{ color: "#a855f7" }}>
+                  📣 Popularity
+                </span>
+                <span className="font-mono text-sm font-bold" style={{ color: "#a855f7" }}>
+                  {biz.popularity ?? 50}%
+                </span>
+              </div>
+              <div className="h-2 rounded-full" style={{ background: "#1e1e2e" }}>
+                <div className="h-2 rounded-full transition-all"
+                  style={{ width: `${biz.popularity ?? 50}%`, background: "#a855f7" }} />
+              </div>
+              <p className="font-mono text-xs" style={{ color: "#64748b" }}>
+                Income mult: ×{(1 + (biz.popularity ?? 50) / 200).toFixed(2)}
+                &nbsp;·&nbsp;Decays ~3%/hr. Max 100%.
+              </p>
+              <CyberButton
+                variant="primary" size="sm"
+                loading={advertise.isPending}
+                disabled={user.dc < 25_000 || advertise.isPending}
+                onClick={() => advertise.mutate()}
+              >
+                🎯 Advertise — 25,000 DC (+30%)
+              </CyberButton>
+            </div>
+          </AnimatedCard>
+        </div>
 
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

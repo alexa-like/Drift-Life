@@ -30,6 +30,12 @@ export interface IBusiness extends Document {
   lastIncomeAt: Date | null;
   totalEverEarned: number;
   description: string;
+  /** 0–100: average shift-activity score across active employees */
+  effectiveness: number;
+  /** 0–100: customer-satisfaction; boosted by advertising, decays ~3/hr */
+  popularity: number;
+  /** When the owner last ran an advertising campaign */
+  lastAdvertAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -59,7 +65,10 @@ const BusinessSchema = new Schema<IBusiness>(
     accumulatedIncome: { type: Number, default: 0 },
     lastIncomeAt: { type: Date, default: null },
     totalEverEarned: { type: Number, default: 0 },
-    description: { type: String, default: "", maxlength: 200 },
+    description:   { type: String, default: "", maxlength: 200 },
+    effectiveness: { type: Number, default: 100, min: 0, max: 100 },
+    popularity:    { type: Number, default: 50,  min: 0, max: 100 },
+    lastAdvertAt:  { type: Date, default: null },
   },
   { timestamps: true }
 );

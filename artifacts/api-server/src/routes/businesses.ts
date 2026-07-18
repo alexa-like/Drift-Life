@@ -38,16 +38,44 @@ router.get("/catalog", requireAuth, (_req, res) => {
   res.json(catalog);
 });
 
-// ─── Helper: calculate pending income ────────────────────────────────────────
-function calcPendingIncome(
-  business: any,
-  activeEmployeeCount: number
-): number {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Popularity decays 3 points/hr from lastAdvertAt, floor 10. */
+function calcCurrentPopularity(business: any): number {
+  const base = (business.popularity ?? 50) as number;
+  if (!business.lastAdvertAt) return Math.max(10, base);
+  const hoursSince = (Date.now() - new Date(business.lastAdvertAt).getTime()) / 3_600_000;
+  return Math.max(10, Math.min(100, Math.round(base - hoursSince * 3)));
+}
+
+/** % of active employees who worked within 3× the shift cooldown window. */
+function recalcEffectiveness(business: any): number {
+  const active = (business.employees as any[]).filter((e: any) => e.status === "active");
+  if (active.length === 0) return 0;
+  const def = BUSINESS_DEFS[business.type as keyof typeof BUSINESS_DEFS];
+  if (!def) return 100;
+  const windowMs = def.shiftCooldownMin * 60_000 * 3;
+  const now = Date.now();
+  const recent = active.filter(
+    (e: any) => e.lastShiftAt && now - new Date(e.lastShiftAt).getTime() < windowMs
+  ).length;
+  return Math.round((recent / active.length) * 100);
+}
+
+/**
+ * Income formula:
+ *   base_rate × employees × effectivenessMult × popularityMult
+ * effectiveness (0–100) → 0.5–1.0 mult  (you always get at least 50% if open)
+ * popularity    (0–100) → 1.0–1.5 mult  (advertising boosts this)
+ */
+function calcPendingIncome(business: any, activeEmployeeCount: number): number {
   const def = BUSINESS_DEFS[business.type as keyof typeof BUSINESS_DEFS];
   const since = business.lastIncomeAt ?? business.createdAt;
   const msElapsed = Date.now() - new Date(since).getTime();
   const hoursElapsed = Math.min(msElapsed / 3_600_000, 168); // cap 7 days
-  return Math.floor(hoursElapsed * def.ownerBaseIncome * activeEmployeeCount);
+  const effMult = 0.5 + (business.effectiveness ?? 100) / 200;
+  const popMult = 1 + calcCurrentPopularity(business) / 200;
+  return Math.floor(hoursElapsed * def.ownerBaseIncome * activeEmployeeCount * effMult * popMult);
 }
 
 // ─── Owner: GET /api/businesses/mine ─────────────────────────────────────────
@@ -96,6 +124,8 @@ router.get("/mine", requireAuth, async (req: AuthRequest, res) => {
       pendingIncome,
       accumulatedIncome: pendingIncome,
       incomePerHour,
+      effectiveness: (business as any).effectiveness ?? 100,
+      popularity:    calcCurrentPopularity(business),
     });
   } catch (err) {
     logger.error({ err }, "GET /businesses/mine error");
@@ -568,6 +598,46 @@ router.get("/my-job", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ─── Owner: POST /api/businesses/advertise — run ad campaign ─────────────────
+const AD_COST  = 25_000; // DC per campaign
+const AD_BOOST = 30;     // popularity points gained
+
+router.post("/advertise", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const businessId = (user as any).businessId;
+    if (!businessId)
+      return res.status(400).json({ message: "You do not own a business" });
+
+    if (user.dc < AD_COST)
+      return res.status(400).json({ message: `Advertising costs ${AD_COST.toLocaleString()} DC` });
+
+    const business = await Business.findById(businessId);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+
+    const currentPop = calcCurrentPopularity(business);
+    const newPop     = Math.min(100, currentPop + AD_BOOST);
+
+    (business as any).popularity   = newPop;
+    (business as any).lastAdvertAt = new Date();
+    user.dc -= AD_COST;
+
+    await Promise.all([user.save(), business.save()]);
+
+    res.json({
+      message:    `Campaign launched! Popularity boosted to ${newPop}%`,
+      popularity: newPop,
+      cost:       AD_COST,
+      newDc:      user.dc,
+    });
+  } catch (err) {
+    logger.error({ err }, "POST /businesses/advertise error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // ─── Employee: POST /api/businesses/:businessId/shift ────────────────────────
 router.post("/:businessId/shift", requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -635,12 +705,14 @@ router.post("/:businessId/shift", requireAuth, async (req: AuthRequest, res) => 
     emp.lastShiftAt = new Date();
     emp.totalEarned += business.wagePerShift;
 
-    // Accumulate passive income for owner (ownerBaseIncome per shift per active employee fraction)
-    // Add a share of hourly income for the duration of one shift
+    // Accumulate passive income for owner
     const shiftHours = def.shiftCooldownMin / 60;
     const activeCount = business.employees.filter((e) => e.status === "active").length;
     const ownerIncomeFraction = shiftHours * def.ownerBaseIncome * activeCount;
     business.accumulatedIncome += Math.floor(ownerIncomeFraction);
+
+    // Recalculate effectiveness after shift (% of crew active in 3× cooldown window)
+    (business as any).effectiveness = recalcEffectiveness(business);
 
     await business.save();
 
