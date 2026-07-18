@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PreferencesProvider, usePreferences } from "./context/PreferencesContext";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
+import { useConnectivity } from "./hooks/useConnectivity";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "./hooks/useAuth";
 import { useToast } from "./hooks/useToast";
@@ -54,6 +55,7 @@ import { PageTransition } from "./components/PageTransition";
 import { ToastContainer } from "./components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
 import { PlayerInspectModal } from "./components/PlayerInspectModal";
+import { OfflineOverlay } from "./components/OfflineOverlay";
 import { SocketProvider, useSocket } from "./context/SocketContext";
 import { api } from "./lib/api";
 import { Notification } from "./lib/types";
@@ -168,6 +170,9 @@ function GameApp() {
   // ── Deployment update detection ──────────────────────────────────────────────
   const updateAvailable = useUpdateCheck(5 * 60 * 1000);
   const [updateDismissed, setUpdateDismissed] = useState(false);
+
+  // ── Connectivity state ────────────────────────────────────────────────────────
+  const { isOnline, checkNow } = useConnectivity();
 
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [navHeight, setNavHeight] = useState(210);
@@ -303,6 +308,7 @@ function GameApp() {
   return (
     <SocketProvider userId={user!.id}>
       <SocketEvents addToast={addToast} onUserUpdate={refreshUser} />
+      <OfflineOverlay isOffline={!isOnline} onRetry={checkNow} />
       {/* Update banner — shown when a new deployment is detected */}
       {updateAvailable && !updateDismissed && (
         <div

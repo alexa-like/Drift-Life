@@ -10,6 +10,8 @@ Production is deployed separately on Render (see `render.yaml`). Replit is the d
 
 The frontend (`artifacts/neonoir`) is configured as an installable PWA: `manifest.json`, service worker (`public/sw.js`), favicon and icon set, Open Graph / Twitter card metadata, and theme colors are all in `public/` and wired into `index.html`.
 
+The service worker is update-transparent: it activates immediately in the background instead of blocking the user with a "refresh required" screen. The app also shows a non-blocking "Connection to the neon grid lost" banner when the player goes offline or the server is unreachable.
+
 ## Running
 Three workflows: `API Server`, `web` (frontend), and `Component Preview Server` (canvas sandbox, start on demand). Requires secrets: `MONGODB_URI`, `JWT_SECRET`, `JWT_REFRESH_SECRET` (all configured). The frontend dev server proxies `/api` to the API server on port 8080 (`vite.config.ts` `server.proxy`) so the two workflows can talk to each other locally.
 

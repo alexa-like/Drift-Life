@@ -53,9 +53,26 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js').catch(function(err) {
+          navigator.serviceWorker.register('/sw.js').then(function(registration) {
+            // Listen for new service workers that are waiting and tell them to activate immediately.
+            // This keeps updates transparent: no blocking "update required" screen.
+            registration.addEventListener('updatefound', function() {
+              const installing = registration.installing;
+              if (installing) {
+                installing.addEventListener('statechange', function() {
+                  if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                    installing.postMessage({ type: 'SKIP_WAITING' });
+                  }
+                });
+              }
+            });
+          }).catch(function(err) {
             console.warn('SW registration failed:', err);
           });
+        });
+        // When the new service worker takes over, refresh is optional; the app continues running.
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          console.info('Neonoir updated in the background.');
         });
       }
     </script>
