@@ -1,3 +1,4 @@
+- [⚠️ READ REPLIT.MD FIRST](read-replit-md-first.md) — MANDATORY: read replit.md in full before any other action, every session, no exceptions
 - [DriftLife Stack](driftlife-stack.md) — MongoDB+Mongoose (NOT Postgres/Drizzle), bcryptjs (not native bcrypt), nodemailer externalized in build.mjs; always pass `{ dbName: "driftlife" }` to mongoose.connect for DB isolation
 - [DriftLife Auth Flow](driftlife-auth.md) — custom JWT + bcrypt + email OTP; access token 15min, refresh 30d; email OTP 10min expiry
 - [DriftLife Item Model](driftlife-item-model.md) — Items use strengthBonus/charismaBonus/intelligenceBonus/streetCredBonus/defenseBonus NOT damage/defense
