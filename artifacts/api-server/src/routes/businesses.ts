@@ -1085,22 +1085,40 @@ router.post("/:businessId/shift", requireAuth, async (req: AuthRequest, res) => 
         .status(400)
         .json({ message: `Not enough energy — this shift costs ${def.shiftEnergyCost}` });
 
-    // Update employee record
-    const emp = business.employees[empIndex];
-    emp.totalShifts     += 1;
-    emp.lastShiftAt      = new Date();
-    emp.totalEarned     += business.wagePerShift;
-    (emp as any).jobPoints = ((emp as any).jobPoints ?? 0) + 1;
-
     // Passive income accumulation for owner (prorated by shift hours)
-    const shiftHours         = def.shiftCooldownMin / 60;
-    const activeCount        = business.employees.filter((e) => e.status === "active").length;
+    const shiftHours          = def.shiftCooldownMin / 60;
+    const activeCount         = business.employees.filter((e) => e.status === "active").length;
     const ownerIncomeFraction = shiftHours * def.ownerBaseIncome * activeCount;
-    business.accumulatedIncome += Math.floor(ownerIncomeFraction);
 
-    (business as any).effectiveness = recalcEffectiveness(business);
-    (business as any).environment   = recalcEnvironment(business);
-    await business.save();
+    // Pre-compute derived stats from the in-memory snapshot (safe — they only depend on
+    // the employee list which this request just read and is not contended by another shift)
+    const newEffectiveness = recalcEffectiveness(business);
+    const newEnvironment   = recalcEnvironment(business);
+
+    // Atomic business update — $inc for accumulatedIncome prevents lost-update race
+    // between concurrent shifts or a concurrent income worker tick
+    await Business.findOneAndUpdate(
+      { _id: business._id, "employees.userId": new mongoose.Types.ObjectId(req.userId) },
+      {
+        $inc: {
+          accumulatedIncome:        Math.floor(ownerIncomeFraction),
+          "employees.$.totalShifts": 1,
+          "employees.$.totalEarned": business.wagePerShift,
+          "employees.$.jobPoints":   1,
+        },
+        $set: {
+          "employees.$.lastShiftAt": new Date(),
+          effectiveness:             newEffectiveness,
+          environment:               newEnvironment,
+        },
+      }
+    );
+
+    // Reflect updates locally for the response payload
+    const emp = business.employees[empIndex];
+    emp.totalShifts  += 1;
+    emp.totalEarned  += business.wagePerShift;
+    (emp as any).jobPoints = ((emp as any).jobPoints ?? 0) + 1;
 
     res.json({
       message:       "Shift complete. Stay low.",

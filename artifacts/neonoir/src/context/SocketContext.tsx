@@ -28,7 +28,10 @@ export function SocketProvider({ userId, children }: { userId: string | null; ch
     socketRef.current = socket;
 
     function authenticate() {
-      socket.emit("auth", userId);
+      // Send the cryptographically-signed JWT access token — backend verifies it
+      // before granting any socket permissions. Never send raw userId.
+      const token = localStorage.getItem("accessToken");
+      if (token) socket.emit("auth", token);
       socket.emit("join_global");
     }
 

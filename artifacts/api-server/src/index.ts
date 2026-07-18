@@ -8,6 +8,7 @@ import { seed } from "./lib/seed";
 import { registerWebhook, setMyCommands } from "./lib/telegram";
 import { registerGuildCommands } from "./lib/discord";
 import User from "./models/User";
+import { verifyAccess } from "./lib/jwt";
 import { allowedOrigins } from "./lib/cors";
 import { closeExpiredAuctions, scheduleBotAuctions } from "./routes/auction";
 import { expireMarketListings } from "./routes/market";
@@ -56,9 +57,13 @@ io.on("connection", (socket) => {
   let authedFaction: string | null = null;
   let authedTitle: string | null = null;
 
-  // Authenticate socket, join private room
-  socket.on("auth", async (userId: string) => {
+  // Authenticate socket — client must send a valid JWT access token
+  socket.on("auth", async (token: string) => {
     try {
+      if (!token || typeof token !== "string") return;
+      // Verify the access token cryptographically — rejects expired, tampered, or forged tokens
+      const payload = verifyAccess(token);
+      const userId = payload.userId;
       const user = await User.findById(userId)
         .select("username faction equippedTitle role banned")
         .lean();
@@ -70,13 +75,17 @@ io.on("connection", (socket) => {
       socket.join(`user:${userId}`);
       socket.emit("auth_ok", { userId });
     } catch {
-      // ignore
+      // verifyAccess throws on invalid/expired token — silently reject
+      socket.emit("auth_err", { message: "Invalid or expired token." });
     }
   });
 
-  // Legacy join event (backward compat)
+  // Legacy join event — room join only, does NOT grant auth state
   socket.on("join", (userId: string) => {
-    socket.join(`user:${userId}`);
+    // Only allow joining the user's own room if already authenticated
+    if (authedUserId && authedUserId === userId) {
+      socket.join(`user:${userId}`);
+    }
   });
 
   // District rooms
