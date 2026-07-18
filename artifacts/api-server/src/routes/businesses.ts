@@ -38,14 +38,6 @@ import SupportTicket from "../models/SupportTicket";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
-// ── Inject business fields onto User schema (if not already present) ──────────
-if (!(User.schema as any).paths["businessId"]) {
-  User.schema.add({
-    businessId:              { type: Schema.Types.ObjectId, ref: "Business", default: null },
-    employerBusinessId:      { type: Schema.Types.ObjectId, ref: "Business", default: null },
-    businessShiftCooldowns:  { type: Map, of: Date, default: {} },
-  });
-}
 
 const router = Router();
 

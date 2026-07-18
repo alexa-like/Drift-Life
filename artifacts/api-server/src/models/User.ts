@@ -195,6 +195,10 @@ export interface IUser extends Document {
   staffEarningsTotalDc: number;
   staffTaskProgress: Record<string, number>;
   staffTaskResetAt: Date | null;
+  // ── Business system ───────────────────────────────────────────────────────
+  businessId: mongoose.Types.ObjectId | null;
+  employerBusinessId: mongoose.Types.ObjectId | null;
+  businessShiftCooldowns: Record<string, Date>;
   createdAt: Date;
   updatedAt: Date;
   getEffectiveStats(): EffectiveStats;
@@ -418,6 +422,10 @@ const UserSchema = new Schema<IUser>(
     staffEarningsTotalDc:       { type: Number, default: 0 },
     staffTaskProgress:          { type: Schema.Types.Mixed, default: {} },
     staffTaskResetAt:           { type: Date, default: null },
+    // ── Business system ──────────────────────────────────────────────────────
+    businessId:              { type: Schema.Types.ObjectId, ref: "Business", default: null },
+    employerBusinessId:      { type: Schema.Types.ObjectId, ref: "Business", default: null },
+    businessShiftCooldowns:  { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }
 );
