@@ -168,7 +168,6 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
           rank: updated.rank,
           maxEnergy: updated.maxEnergy,
           maxNerve: updated.maxNerve,
-          skillPoints: updated.skillPoints,
         },
       });
     }

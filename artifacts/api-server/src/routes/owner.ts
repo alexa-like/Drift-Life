@@ -274,7 +274,6 @@ router.post("/set-level", async (req: AuthRequest, res) => {
     user.level = lvl;
     user.xp = 0;
     user.xpToNext = xpForLevel(lvl);
-    user.skillPoints = lvl >= 10 ? Math.floor((lvl - 10) / 5) + 1 : 0;
     await user.save();
     logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "set-level", targetId: user.id, targetUsername: user.username, details: { level: lvl } });
     res.json({ message: `${user.username} set to level ${lvl}`, level: lvl });

@@ -100,11 +100,9 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: `This job is only available in ${job.district.replace(/_/g, " ")}` });
     }
 
-    // Faction bonuses + subscription bonuses + skill bonuses
+    // Faction bonuses + subscription bonuses
     let energyBonus     = user.faction === "grid" ? Math.floor(effectiveEnergy * 0.10) : 0;
     let dcMultiplier    = user.faction === "suits" ? 1.10 : 1;
-    if (user.unlockedSkills?.includes("fast_hands")) dcMultiplier *= 1.10;
-    if (user.unlockedSkills?.includes("dc_magnet"))  dcMultiplier *= 1.10;
     const subTier = (await import("../lib/subscription")).getActiveTier(user as any);
     // Fixer Office employee perk: +10% DC rewards (base), +20% at 10★; -1 energy cost at 3★+
     const fixerPerk = await getEmployerPerk(String(req.userId), (user as any).businessId);

@@ -40,10 +40,8 @@ router.post("/set-level", async (req: AuthRequest, res) => {
     user.level = level;
     user.xp = 0;
     user.xpToNext = xpForLevel(level);
-    // Recalculate skill points
-    user.skillPoints = level >= 10 ? Math.floor((level - 10) / 5) + 1 : 0;
     await user.save();
-    res.json({ message: `Level set to ${level}`, level, skillPoints: user.skillPoints });
+    res.json({ message: `Level set to ${level}`, level });
   } catch (err: any) {
     req.log.error({ err }, "dev set-level error");
     res.status(500).json({ message: "Internal server error" });

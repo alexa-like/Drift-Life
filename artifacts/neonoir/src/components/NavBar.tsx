@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard,
   BarChart2, Gavel, Building2, Dumbbell, Briefcase, Car, Globe, Cpu, Shield, Swords, Crosshair,
-  Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark, Warehouse,
-  Wrench, Star, Trophy, Gift, PawPrint, Bell, Settings, Flag, type LucideIcon,
+  Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark,
+  Wrench, Trophy, Gift, PawPrint, Bell, Settings, Flag, type LucideIcon,
 } from "lucide-react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
@@ -64,9 +64,7 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "district-hub", label: "Hub",      icon: Building,      statusFilter: "abroad" },
   { id: "friends",      label: "Friends",  icon: Users,         statusFilter: "normal" },
   { id: "bank",         label: "Bank",     icon: Landmark,      statusFilter: "normal" },
-  { id: "properties",   label: "Estate",   icon: Warehouse,     statusFilter: "normal" },
   // { id: "crafting",  label: "Craft",    icon: Wrench,        statusFilter: "normal" }, // frozen
-  { id: "skills",       label: "Skills",   icon: Star,          statusFilter: "normal" },
   { id: "achievements", label: "Achiev",   icon: Trophy },
   { id: "daily",        label: "Daily",    icon: Gift },
   // { id: "companions", label: "Allies",  icon: PawPrint,      statusFilter: "normal" }, // frozen

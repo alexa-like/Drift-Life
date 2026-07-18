@@ -13,7 +13,6 @@ export interface User {
   xp: number;
   xpToNext: number;
   prestige: number;
-  skillPoints: number;
   dc: number;
   nc: number;
   dirtyDc: number;
@@ -84,9 +83,6 @@ export interface User {
   devMode: boolean;
   battlePassPremium: boolean;
   telegramNotifications: boolean;
-  unlockedSkills: string[];
-  skillTree: string | null;
-  secondarySkill: string | null;
   seasonXp: number;
   seasonPoints: number;
   craftingXp: number;

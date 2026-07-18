@@ -21,10 +21,8 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { OwnerPage } from "./pages/OwnerPage";
 import { AchievementsPage } from "./pages/AchievementsPage";
 import { ChatPage } from "./pages/ChatPage";
-import { SkillsPage } from "./pages/SkillsPage";
 import { GuildsPage } from "./pages/GuildsPage";
 import { AuctionPage } from "./pages/AuctionPage";
-import { PropertiesPage } from "./pages/PropertiesPage";
 import { TradePage } from "./pages/TradePage";
 import { FriendsPage } from "./pages/FriendsPage";
 import TrainingCenterPage from "./pages/TrainingCenterPage";
@@ -264,13 +262,11 @@ function GameApp() {
       case "achievements":  return <AchievementsPage {...pageProps} />;
       case "missions":      return <MissionsPage {...pageProps} />;
       case "chat":          return <ChatPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
-      case "skills":        return <SkillsPage user={user!} addToast={addToast} />;
       case "guilds":        return <GuildsPage user={user!} addToast={addToast} />;
       case "faction":       return <FactionPage user={user!} addToast={addToast} />;
       case "business":      return <BusinessPage user={user!} refreshUser={refreshUser} addToast={addToast} />;
       case "auction":       return <AuctionPage {...pageProps} />;
       case "loadout":       return <LoadoutPage user={user!} addToast={addToast} />;
-      case "properties":    return <PropertiesPage {...pageProps} />;
       case "trade":         return <TradePage user={user!} addToast={addToast} />;
       case "friends":       return <FriendsPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       // Wire Cartel pages

@@ -17,10 +17,6 @@ export interface IUser extends Document {
   xpToNext: number;
   prestige: number;
   prestigeXpBoost: number;   // e.g. 10 means +10% XP
-  skillPoints: number;
-  unlockedSkills: string[];
-  skillTree: string | null;
-  secondarySkill: string | null;
   seasonXp: number;
   seasonPoints: number;
   dc: number;
@@ -228,10 +224,6 @@ const UserSchema = new Schema<IUser>(
     xpToNext: { type: Number, default: 500 },
     prestige: { type: Number, default: 0 },
     prestigeXpBoost: { type: Number, default: 0 },
-    skillPoints: { type: Number, default: 0 },
-    unlockedSkills: [{ type: String }],
-    skillTree: { type: String, default: null },
-    secondarySkill: { type: String, default: null },
     seasonXp: { type: Number, default: 0 },
     seasonPoints: { type: Number, default: 0 },
     dc: { type: Number, default: 750 },
@@ -337,7 +329,6 @@ const UserSchema = new Schema<IUser>(
     gang: { type: String, default: null },
     guildId: { type: Schema.Types.ObjectId, ref: "Guild", default: null },
     guildRole: { type: String, enum: ["leader", "officer", "member", "recruit", null], default: null },
-    properties: [{ type: Schema.Types.ObjectId, ref: "Property" }],
     businesses: [{ type: Schema.Types.ObjectId, ref: "Business" }],
     companions: [{ type: Schema.Types.ObjectId, ref: "Companion" }],
     referralCode: { type: String, unique: true, sparse: true },
@@ -573,7 +564,6 @@ export function levelUp(user: IUser): boolean {
     user.xpToNext = xpForLevel(user.level);
     user.maxEnergy = derivedMaxEnergy(user.level);
     user.maxNerve = Math.min(100, Math.floor(50 + user.level * 0.3));
-    if (user.level >= 10 && (user.level - 10) % 5 === 0) user.skillPoints += 1;
     // Stat bonuses every 5 levels — +1 to all primary stats
     if (user.level % 5 === 0) {
       user.strength     = (user.strength     ?? 1) + 1;

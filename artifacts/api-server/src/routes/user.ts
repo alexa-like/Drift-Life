@@ -368,7 +368,7 @@ router.get("/wallet", requireAuth, async (req: AuthRequest, res) => {
 router.get("/stats", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId).select(
-      "strength charisma intelligence streetCred wins losses totalFights totalCrimes successfulCrimes wantedLevel level rank prestige merit skillPoints"
+      "strength charisma intelligence streetCred wins losses totalFights totalCrimes successfulCrimes wantedLevel level rank prestige merit"
     );
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json({
@@ -386,7 +386,6 @@ router.get("/stats", requireAuth, async (req: AuthRequest, res) => {
       rank: user.rank,
       prestige: user.prestige,
       merit: user.merit,
-      skillPoints: user.skillPoints,
       winRate: user.totalFights > 0 ? Math.round((user.wins / user.totalFights) * 100) : 0,
       crimeSuccessRate: user.totalCrimes > 0 ? Math.round((user.successfulCrimes / user.totalCrimes) * 100) : 0,
     });

@@ -17,10 +17,8 @@ const GAME_LOCATIONS: { id: string; label: string }[] = [
   { id: "auction",     label: "Auction House"   },
   { id: "leaderboard", label: "Leaderboard"     },
   { id: "inventory",   label: "Inventory"       },
-  { id: "skills",      label: "Skills"          },
   { id: "profile",     label: "Profile"         },
   { id: "hack",        label: "Net (Hacking)"   },
-  { id: "properties",  label: "Properties"      },
   { id: "crafting",    label: "Crafting"        },
   { id: "races",       label: "Street Races"    },
 ];

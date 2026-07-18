@@ -472,13 +472,12 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
 
     if (success) {
       const crimeRewardMult = subTier?.crimeRewardMult ?? 1;
-      const insideManBonus  = user.unlockedSkills?.includes("inside_man") ? 1.15 : 1;
       const ro = gameCfg.crimeConfig.runOverrides[run.id] ?? {};
       const effectiveDcMin = ro.dcMin ?? run.dcMin;
       const effectiveDcMax = ro.dcMax ?? run.dcMax;
       const effectiveRunXp = ro.xp    ?? run.xp;
       dcGained = Math.round(
-        (effectiveDcMin + Math.random() * (effectiveDcMax - effectiveDcMin)) * worldMods.payoutMult * crimeRewardMult * insideManBonus * gameCfg.globalMultipliers.dcRewardMult
+        (effectiveDcMin + Math.random() * (effectiveDcMax - effectiveDcMin)) * worldMods.payoutMult * crimeRewardMult * gameCfg.globalMultipliers.dcRewardMult
       );
       const isFirstToday = !gated.lastCrimeDate || gated.lastCrimeDate.toDateString() !== new Date().toDateString();
       const baseXp = effectiveRunXp * (isFirstToday ? 2 : 1);
@@ -510,9 +509,8 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
         narrative = `Sloppy execution. Lost ${fine} DC and things got hot.`;
         gated.stress = Math.min(100, gated.stress + 5);
       } else {
-        // Severe fail — jail or hospital (light_feet skill reduces detection by 10%)
-        const detectionMult = user.unlockedSkills?.includes("light_feet") ? 0.90 : 1;
-        if (Math.random() < run.hospitalRisk * detectionMult) {
+        // Severe fail — jail or hospital
+        if (Math.random() < run.hospitalRisk) {
           const duration = (10 + run.tier * 10) * 60 * 1000;
           gated.hospitalizedUntil = new Date(Date.now() + duration);
           hospitalized = true;
