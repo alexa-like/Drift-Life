@@ -18,7 +18,6 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { HospitalPage } from "./pages/HospitalPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { FactionSelectPage } from "./pages/FactionSelectPage";
 import { OwnerPage } from "./pages/OwnerPage";
 import { AchievementsPage } from "./pages/AchievementsPage";
 import { ChatPage } from "./pages/ChatPage";
@@ -173,7 +172,6 @@ function GameApp() {
   const [updateDismissed, setUpdateDismissed] = useState(false);
 
   const [unreadNotifs, setUnreadNotifs] = useState(0);
-  const [showFactionSelect, setShowFactionSelect] = useState(false);
   const [navHeight, setNavHeight] = useState(210);
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
   const [shopStoreId, setShopStoreId] = useState<string | null>(null);
@@ -182,14 +180,6 @@ function GameApp() {
     setPage(p);
   }, [setPage]);
 
-  // Show faction selection for users without a faction
-  useEffect(() => {
-    if (user && !user.faction) {
-      setShowFactionSelect(true);
-    } else {
-      setShowFactionSelect(false);
-    }
-  }, [user]);
 
   // Poll notifications count
   useEffect(() => {
@@ -250,18 +240,6 @@ function GameApp() {
     );
   }
 
-  // Faction onboarding gate
-  if (showFactionSelect) {
-    return (
-      <>
-        <FactionSelectPage
-          onComplete={() => { refreshUser(); setShowFactionSelect(false); }}
-          addToast={addToast}
-        />
-        <ToastContainer toasts={toasts} removeToast={removeToast} />
-      </>
-    );
-  }
 
   const pageProps = { user: user!, refreshUser, addToast };
 

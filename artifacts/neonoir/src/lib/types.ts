@@ -6,7 +6,9 @@ export interface User {
   avatar: string;
   avatarUrl: string | null;
   bio: string;
-  faction: "suits" | "street" | "grid" | null;
+  faction: string | null;
+  factionId?: string | null;
+  factionRole?: "leader" | "co-leader" | "officer" | "member" | "recruit" | null;
   level: number;
   xp: number;
   xpToNext: number;

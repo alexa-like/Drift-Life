@@ -548,7 +548,7 @@ export function GuildsPage({ user, addToast }: Props) {
           <AnimatedCard className="text-center py-8">
             <div className="font-mono text-sm mb-2" style={{ color: "#64748b" }}>You are not in a guild.</div>
             <div className="font-mono text-xs mb-4" style={{ color: "#334155" }}>
-              Browse existing guilds or create your own (Level 15 + 10,000 DC).
+              Browse existing guilds or create your own (Level 15 + 15,000,000 DC).
             </div>
             <div className="flex justify-center gap-2">
               <CyberButton variant="purple" size="sm" onClick={() => setTab("browse")}>Browse Guilds</CyberButton>

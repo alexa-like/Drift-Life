@@ -35,7 +35,7 @@ function RollingNumber({ value, color }: { value: number; color: string }) {
   return <span className="font-mono tabular-nums" style={{ color, fontSize: 12, fontWeight: "bold", textShadow: `0 0 8px ${color}60` }}>{formatDC(display)}</span>;
 }
 
-const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff6b35", grid: "#00d4ff" };
+const FACTION_COLOR_DEFAULT = "#00d4ff";
 
 const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minStage?: number; group?: string; statusFilter?: string; roles?: string[] }[] = [
   { id: "dashboard",    label: "Home",     icon: Home },
@@ -260,7 +260,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
   const isHosp = user.hospitalizedUntil && new Date(user.hospitalizedUntil) > new Date();
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
   const xpPct = Math.min(100, Math.round((user.xp / user.xpToNext) * 100));
-  const fc = user.faction ? FACTION_COLOR[user.faction] : "#64748b";
+  const fc = user.faction ? FACTION_COLOR_DEFAULT : "#64748b";
 
   const navRef = useRef<HTMLElement>(null);
   const onHeightChangeRef = useRef(onHeightChange);

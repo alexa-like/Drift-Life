@@ -5,7 +5,7 @@ export interface IGuild extends Document {
   name: string;
   tag: string;
   description: string;
-  faction: "suits" | "street" | "grid" | null;
+  faction: string | null;
   leaderId: mongoose.Types.ObjectId;
   officers: mongoose.Types.ObjectId[];
   members: mongoose.Types.ObjectId[];
@@ -31,7 +31,7 @@ const GuildSchema = new Schema<IGuild>(
     name: { type: String, required: true, unique: true, trim: true, minlength: 3, maxlength: 30 },
     tag: { type: String, required: true, unique: true, trim: true, uppercase: true, minlength: 2, maxlength: 5 },
     description: { type: String, default: "", maxlength: 300 },
-    faction: { type: String, enum: ["suits", "street", "grid", null], default: null },
+    faction: { type: String, default: null },
     leaderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     officers: [{ type: Schema.Types.ObjectId, ref: "User" }],
     members: [{ type: Schema.Types.ObjectId, ref: "User" }],

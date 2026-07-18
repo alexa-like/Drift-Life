@@ -9,7 +9,9 @@ export interface IUser extends Document {
   avatar: string;
   avatarUrl: string | null;
   bio: string;
-  faction: "suits" | "street" | "grid" | null;
+  faction: string | null;
+  factionId: mongoose.Types.ObjectId | null;
+  factionRole: "leader" | "co-leader" | "officer" | "member" | "recruit" | null;
   level: number;
   xp: number;
   xpToNext: number;
@@ -218,7 +220,9 @@ const UserSchema = new Schema<IUser>(
     avatar: { type: String, default: "1" },
     avatarUrl: { type: String, default: null },
     bio: { type: String, default: "", maxlength: 300 },
-    faction: { type: String, enum: ["suits", "street", "grid", null], default: null },
+    faction:     { type: String, default: null },
+    factionId:   { type: Schema.Types.ObjectId, ref: "Faction", default: null },
+    factionRole: { type: String, enum: ["leader", "co-leader", "officer", "member", "recruit", null], default: null },
     level: { type: Number, default: 1, min: 1 },
     xp: { type: Number, default: 0 },
     xpToNext: { type: Number, default: 500 },

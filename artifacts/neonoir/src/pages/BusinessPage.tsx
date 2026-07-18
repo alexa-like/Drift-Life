@@ -56,13 +56,17 @@ interface BoardBusiness {
 }
 
 interface MyJob {
-  businessId: string;
-  businessName: string;
+  id: string;
+  name: string;
   type: string;
   starLevel: number;
   wagePerShift: number;
-  shiftCooldownUntil: string | null;
-  energyCost: number;
+  cooldownUntil: string | null;
+  shiftEnergyCost: number;
+  shiftCooldownMin: number;
+  onCooldown: boolean;
+  employeeBonus: string;
+  description: string;
 }
 
 // ── Business type definitions ──────────────────────────────────────────────────
@@ -356,7 +360,7 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const myJobIds = new Set(myJobs.map((j) => j.businessId));
+  const myJobIds = new Set(myJobs.map((j) => j.id));
   const availableBoard = board.filter(
     (b) => b.ownerId !== user.id && !myJobIds.has(b.id) && b.isOpen
   );
@@ -922,17 +926,14 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
             <div className="space-y-2">
               {myJobs.map((job) => {
                 const def = getBusinessDef(job.type);
-                const onCooldown =
-                  job.shiftCooldownUntil &&
-                  new Date(job.shiftCooldownUntil).getTime() > Date.now();
                 return (
-                  <AnimatedCard key={job.businessId} accent="#39d353" noPad>
+                  <AnimatedCard key={job.id} accent="#39d353" noPad>
                     <div className="p-4 flex items-center gap-3">
                       <span className="text-2xl">{def.icon}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="font-mono font-bold text-sm" style={{ color: "#e2e8f0" }}>
-                            {job.businessName}
+                            {job.name}
                           </span>
                           <span className="font-mono text-xs" style={{ color: "#f59e0b" }}>
                             {"⭐".repeat(job.starLevel)}
@@ -946,10 +947,10 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
                         </div>
                         <div className="flex gap-3 font-mono text-xs flex-wrap" style={{ color: "#64748b" }}>
                           <span style={{ color: "#f59e0b" }}>{formatDC(job.wagePerShift)} DC/shift</span>
-                          <span>⚡ {job.energyCost} energy</span>
-                          {onCooldown && job.shiftCooldownUntil && (
+                          <span>⚡ {job.shiftEnergyCost} energy</span>
+                          {job.onCooldown && job.cooldownUntil && (
                             <span>
-                              Ready in <Cooldown until={job.shiftCooldownUntil} />
+                              Ready in <Cooldown until={job.cooldownUntil} />
                             </span>
                           )}
                         </div>
@@ -957,11 +958,11 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
                       <CyberButton
                         variant="success"
                         size="sm"
-                        disabled={!!onCooldown || workShift.isPending}
+                        disabled={job.onCooldown || workShift.isPending}
                         loading={workShift.isPending}
-                        onClick={() => workShift.mutate(job.businessId)}
+                        onClick={() => workShift.mutate(job.id)}
                       >
-                        {onCooldown ? "Cooldown" : "Work Shift"}
+                        {job.onCooldown ? "Cooldown" : "Work Shift"}
                       </CyberButton>
                     </div>
                   </AnimatedCard>

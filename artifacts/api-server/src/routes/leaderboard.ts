@@ -265,25 +265,46 @@ router.get("/crime", requireAuth, async (req, res) => {
 
 router.get("/faction", requireAuth, async (req, res) => {
   try {
-    const factionStats = await User.aggregate([
-      { $match: { banned: false, faction: { $ne: null } } },
-      { $group: {
-        _id: "$faction",
-        players: { $sum: 1 },
-        totalLevel: { $sum: "$level" },
-        totalWins: { $sum: "$wins" },
-        totalCrimes: { $sum: "$totalCrimes" },
-        totalDc: { $sum: { $add: ["$dc", "$bankBalance"] } },
-      }},
-      { $sort: { totalLevel: -1 } },
+    // Dynamically import to avoid circular deps
+    const { default: Faction } = await import("../models/Faction");
+    const factions = await Faction.find().sort({ respect: -1, level: -1 }).limit(20).lean();
+    const factionIds = factions.map(f => f._id);
+
+    const userStats = await User.aggregate([
+      { $match: { banned: false, factionId: { $in: factionIds } } },
+      {
+        $group: {
+          _id:         "$factionId",
+          players:     { $sum: 1 },
+          totalLevel:  { $sum: "$level" },
+          totalWins:   { $sum: "$wins" },
+          totalCrimes: { $sum: "$totalCrimes" },
+          totalDc:     { $sum: { $add: ["$dc", "$bankBalance"] } },
+        },
+      },
     ]);
-    res.json(factionStats.map((f, i) => ({
-      rank: i + 1, faction: f._id, players: f.players,
-      totalLevel: f.totalLevel, totalWins: f.totalWins,
-      totalCrimes: f.totalCrimes, totalWealth: f.totalDc,
-      influence: f.totalLevel + f.totalWins * 2 + f.totalCrimes,
-    })));
-  } catch (err: any) {
+
+    const statsMap: Record<string, { players: number; totalLevel: number; totalWins: number; totalCrimes: number; totalDc: number }> =
+      Object.fromEntries(userStats.map(s => [s._id.toString(), s]));
+
+    res.json(factions.map((f, i) => {
+      const s = statsMap[f._id.toString()] ?? { players: 0, totalLevel: 0, totalWins: 0, totalCrimes: 0, totalDc: 0 };
+      return {
+        rank:        i + 1,
+        factionId:   f._id,
+        faction:     f.name,
+        tag:         f.tag,
+        color:       f.color,
+        emblem:      f.emblem,
+        players:     s.players,
+        totalLevel:  s.totalLevel,
+        totalWins:   s.totalWins,
+        totalCrimes: s.totalCrimes,
+        totalWealth: s.totalDc,
+        influence:   f.respect + s.totalWins * 5 + s.totalCrimes * 2,
+      };
+    }));
+  } catch (err: unknown) {
     req.log.error({ err }, "leaderboard/faction error");
     res.status(500).json({ message: "Internal server error" });
   }

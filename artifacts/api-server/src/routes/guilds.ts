@@ -9,7 +9,7 @@ import { guildCreateSchema, guildTreasuryDonateSchema, guildTargetSchema } from 
 
 const router = Router();
 
-const GUILD_CREATE_COST = 10_000;
+const GUILD_CREATE_COST = 15_000_000;
 const GUILD_CREATE_LEVEL = 15;
 
 // GET /api/guilds — list all guilds (paginated)

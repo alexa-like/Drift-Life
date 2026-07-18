@@ -118,13 +118,15 @@ export function safeUser(user: InstanceType<typeof User>) {
     menteeCount: ((user as any).menteeIds ?? []).length,
     // ── 10.15 Pinned badges ─────────────────────────────────────────────────
     pinnedBadges: (user as any).pinnedBadges ?? [],
+    factionId:   (user as any).factionId   ? String((user as any).factionId)  : null,
+    factionRole: (user as any).factionRole ?? null,
   };
 }
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
   try {
-    const { username, email, password, faction, referralCode } = req.body;
+    const { username, email, password, referralCode } = req.body;
     // Type-guard: reject non-string values to prevent NoSQL injection
     if (typeof username !== "string" || typeof email !== "string" || typeof password !== "string") {
       return res.status(400).json({ message: "username, email and password required" });
@@ -176,7 +178,7 @@ router.post("/register", async (req, res) => {
       passwordHash,
       emailOtp: otp,
       emailOtpExpiry: new Date(Date.now() + 10 * 60 * 1000),
-      faction: faction && ["suits", "street", "grid"].includes(faction) ? faction : null,
+      faction: null,
       referralCode: refCode,
       referredBy: referralCode || null,
       nc: 25, // welcome bonus — 25 Nova Credits for new players
@@ -474,21 +476,9 @@ router.post("/reset-password", async (req, res) => {
   }
 });
 
-// POST /api/auth/select-faction
-router.post("/select-faction", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { faction } = req.body;
-    if (!["suits", "street", "grid"].includes(faction)) return res.status(400).json({ message: "Invalid faction" });
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.faction) return res.status(400).json({ message: "Faction already chosen. This is permanent." });
-    user.faction = faction;
-    await user.save();
-    res.json({ message: `Welcome to ${faction}`, faction, user: safeUser(user) });
-  } catch (err: any) {
-    req.log.error({ err }, "select-faction error");
-    res.status(500).json({ message: "Internal server error" });
-  }
+// POST /api/auth/select-faction — deprecated: factions are now player-created
+router.post("/select-faction", requireAuth, (_req: AuthRequest, res) => {
+  res.status(410).json({ message: "Factions are now player-created. Use POST /api/factions to create or join one." });
 });
 
 // GET /api/auth/me
