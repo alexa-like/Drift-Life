@@ -34,6 +34,8 @@ interface BusinessData {
   effectiveness: number;
   /** 0–100: current popularity after ad-decay */
   popularity: number;
+  /** 0–100: workplace environment quality; affects income by up to ±33% */
+  environment: number;
 }
 
 interface Employee {
@@ -44,6 +46,7 @@ interface Employee {
   totalEarned: number;
   lastShiftAt: string | null;
   status: "active" | "pending" | "fired";
+  jobPosition: "production" | "manager" | "cleaner" | "secretary";
 }
 
 interface BoardBusiness {
@@ -328,6 +331,16 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
     onError: (e: Error) => addToast(e.message, "error"),
   });
 
+  const assignPosition = useMutation({
+    mutationFn: ({ userId, position }: { userId: string; position: string }) =>
+      api.post(`/businesses/employees/${userId}/position`, { position }),
+    onSuccess: (r: any) => {
+      addToast(r.message ?? "Position assigned!", "success");
+      qc.invalidateQueries({ queryKey: ["business", "mine"] });
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
   const saveSettings = useMutation({
     mutationFn: () =>
       api.patch("/businesses/settings", {
@@ -603,14 +616,14 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
           </div>
         </AnimatedCard>
 
-        {/* Effectiveness + Popularity row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Effectiveness + Popularity + Environment row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Effectiveness gauge */}
           <AnimatedCard accent="#00d4ff">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold" style={{ color: "#00d4ff" }}>
-                  ⚙️ Effectiveness
+                  ⚙️ Efficiency
                 </span>
                 <span className="font-mono text-sm font-bold"
                   style={{ color: biz.effectiveness >= 70 ? "#39d353" : biz.effectiveness >= 40 ? "#f59e0b" : "#ff2d55" }}>
@@ -625,8 +638,7 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
                   }} />
               </div>
               <p className="font-mono text-xs" style={{ color: "#64748b" }}>
-                Income mult: ×{(0.5 + (biz.effectiveness ?? 100) / 200).toFixed(2)}
-                &nbsp;·&nbsp;Active crew working regularly keeps this high.
+                ×{(0.5 + (biz.effectiveness ?? 100) / 200).toFixed(2)} income mult. Managers boost this.
               </p>
             </div>
           </AnimatedCard>
@@ -647,8 +659,7 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
                   style={{ width: `${biz.popularity ?? 50}%`, background: "#a855f7" }} />
               </div>
               <p className="font-mono text-xs" style={{ color: "#64748b" }}>
-                Income mult: ×{(1 + (biz.popularity ?? 50) / 200).toFixed(2)}
-                &nbsp;·&nbsp;Decays ~3%/hr. Max 100%.
+                ×{(1 + (biz.popularity ?? 50) / 200).toFixed(2)} mult. Decays ~3%/hr.
               </p>
               <CyberButton
                 variant="primary" size="sm"
@@ -656,8 +667,33 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
                 disabled={user.dc < 25_000 || advertise.isPending}
                 onClick={() => advertise.mutate()}
               >
-                🎯 Advertise — 25,000 DC (+30%)
+                🎯 Advertise — 25k DC
               </CyberButton>
+            </div>
+          </AnimatedCard>
+
+          {/* Environment gauge */}
+          <AnimatedCard accent="#39d353">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs font-bold" style={{ color: "#39d353" }}>
+                  🌿 Environment
+                </span>
+                <span className="font-mono text-sm font-bold"
+                  style={{ color: (biz.environment ?? 100) >= 70 ? "#39d353" : (biz.environment ?? 100) >= 40 ? "#f59e0b" : "#ff2d55" }}>
+                  {biz.environment ?? 100}%
+                </span>
+              </div>
+              <div className="h-2 rounded-full" style={{ background: "#1e1e2e" }}>
+                <div className="h-2 rounded-full transition-all"
+                  style={{
+                    width: `${biz.environment ?? 100}%`,
+                    background: (biz.environment ?? 100) >= 70 ? "#39d353" : (biz.environment ?? 100) >= 40 ? "#f59e0b" : "#ff2d55",
+                  }} />
+              </div>
+              <p className="font-mono text-xs" style={{ color: "#64748b" }}>
+                ×{(0.67 + ((biz.environment ?? 100) / 100) * 0.33).toFixed(2)} income mult. Assign Cleaners &amp; Managers to boost.
+              </p>
             </div>
           </AnimatedCard>
         </div>
@@ -761,48 +797,80 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
             </div>
           ) : (
             <div className="space-y-2">
-              {activeEmployees.map((emp) => (
-                <div
-                  key={emp.userId}
-                  className="flex items-center justify-between gap-3 p-3 rounded"
-                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e" }}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-sm font-bold" style={{ color: "#e2e8f0" }}>
-                        {emp.username}
-                      </span>
-                      <span
-                        className="font-mono text-xs px-1.5 py-0.5 rounded"
-                        style={{ background: "#00d4ff12", color: "#00d4ff", border: "1px solid #00d4ff30" }}
+              <div className="space-y-2">
+              {activeEmployees.map((emp) => {
+                const posColors: Record<string, string> = {
+                  production: "#64748b", manager: "#00d4ff", cleaner: "#39d353", secretary: "#a855f7",
+                };
+                const posIcons: Record<string, string> = {
+                  production: "🔩", manager: "👔", cleaner: "🧹", secretary: "📋",
+                };
+                const pos = emp.jobPosition ?? "production";
+                return (
+                  <div
+                    key={emp.userId}
+                    className="p-3 rounded space-y-2"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e" }}
+                  >
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-sm font-bold" style={{ color: "#e2e8f0" }}>
+                            {emp.username}
+                          </span>
+                          <span className="font-mono text-xs px-1.5 py-0.5 rounded"
+                            style={{ background: "#00d4ff12", color: "#00d4ff", border: "1px solid #00d4ff30" }}>
+                            Lv.{emp.level}
+                          </span>
+                          <span className="font-mono text-xs px-1.5 py-0.5 rounded"
+                            style={{ background: `${posColors[pos]}12`, color: posColors[pos], border: `1px solid ${posColors[pos]}30` }}>
+                            {posIcons[pos]} {pos.charAt(0).toUpperCase() + pos.slice(1)}
+                          </span>
+                        </div>
+                        <div className="flex gap-3 font-mono text-xs mt-1 flex-wrap" style={{ color: "#64748b" }}>
+                          <span>{emp.totalShifts} shifts</span>
+                          <span style={{ color: "#f59e0b" }}>{formatDC(emp.totalEarned)} DC earned</span>
+                          {emp.lastShiftAt && (
+                            <span>last shift {new Date(emp.lastShiftAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => fireEmployee.mutate({ bizId: biz.id, userId: emp.userId })}
+                        disabled={fireEmployee.isPending}
+                        className="font-mono text-xs px-3 py-1 rounded transition-all"
+                        style={{ background: "#ff2d5510", color: "#ff2d55", border: "1px solid #ff2d5540" }}
                       >
-                        Lv.{emp.level}
-                      </span>
+                        Fire
+                      </button>
                     </div>
-                    <div className="flex gap-3 font-mono text-xs mt-1 flex-wrap" style={{ color: "#64748b" }}>
-                      <span>{emp.totalShifts} shifts</span>
-                      <span style={{ color: "#f59e0b" }}>{formatDC(emp.totalEarned)} DC earned</span>
-                      {emp.lastShiftAt && (
-                        <span>
-                          last shift {new Date(emp.lastShiftAt).toLocaleDateString()}
-                        </span>
-                      )}
+                    {/* Job position selector */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs" style={{ color: "#475569" }}>Role:</span>
+                      {(["production", "manager", "cleaner", "secretary"] as const).map((p) => (
+                        <button key={p}
+                          onClick={() => assignPosition.mutate({ userId: emp.userId, position: p })}
+                          disabled={assignPosition.isPending || pos === p}
+                          className="font-mono text-xs px-2 py-0.5 rounded transition-all"
+                          style={{
+                            background: pos === p ? `${posColors[p]}20` : "#111118",
+                            color: pos === p ? posColors[p] : "#475569",
+                            border: `1px solid ${pos === p ? posColors[p] + "60" : "#1e1e2e"}`,
+                            opacity: assignPosition.isPending ? 0.6 : 1,
+                          }}>
+                          {posIcons[p]} {p.charAt(0).toUpperCase() + p.slice(1)}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                  <button
-                    onClick={() => fireEmployee.mutate({ bizId: biz.id, userId: emp.userId })}
-                    disabled={fireEmployee.isPending}
-                    className="font-mono text-xs px-3 py-1 rounded transition-all"
-                    style={{
-                      background: "#ff2d5510",
-                      color: "#ff2d55",
-                      border: "1px solid #ff2d5540",
-                    }}
-                  >
-                    Fire
-                  </button>
-                </div>
-              ))}
+                );
+              })}
+              </div>
+              <div className="font-mono text-xs mt-2 p-2 rounded" style={{ background: "#111118", color: "#475569" }}>
+                <span style={{ color: "#00d4ff" }}>Manager</span> — boosts efficiency ·{" "}
+                <span style={{ color: "#39d353" }}>Cleaner</span> — boosts environment ·{" "}
+                <span style={{ color: "#a855f7" }}>Secretary</span> — generates reports · Max 2 managers, 2 cleaners, 1 secretary
+              </div>
             </div>
           )}
         </div>

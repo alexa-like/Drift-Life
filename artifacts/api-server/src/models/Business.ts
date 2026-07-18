@@ -7,6 +7,8 @@ export type BusinessType =
   | "fixer_office"
   | "combat_gym";
 
+export type JobPosition = "production" | "manager" | "cleaner" | "secretary";
+
 export interface IBusinessEmployee {
   userId:      mongoose.Types.ObjectId;
   hiredAt:     Date;
@@ -14,6 +16,7 @@ export interface IBusinessEmployee {
   totalShifts: number;
   totalEarned: number;  // DC earned across all shifts
   status:      "active" | "fired" | "resigned";
+  jobPosition: JobPosition;  // role within the company
 }
 
 export interface IBusiness extends Document {
@@ -34,6 +37,12 @@ export interface IBusiness extends Document {
   effectiveness: number;
   /** 0–100: customer-satisfaction; boosted by advertising, decays ~3/hr */
   popularity: number;
+  /**
+   * 0–100: workplace environment quality.
+   * Boosted by managers and cleaners, hurt by overstaffing or inactive crew.
+   * Low environment reduces income by up to 33%.
+   */
+  environment: number;
   /** When the owner last ran an advertising campaign */
   lastAdvertAt: Date | null;
   createdAt: Date;
@@ -48,6 +57,7 @@ const EmployeeSchema = new Schema<IBusinessEmployee>(
     totalShifts: { type: Number, default: 0 },
     totalEarned: { type: Number, default: 0 },
     status:      { type: String, enum: ["active","fired","resigned"], default: "active" },
+    jobPosition: { type: String, enum: ["production","manager","cleaner","secretary"], default: "production" },
   },
   { _id: false }
 );
@@ -68,6 +78,7 @@ const BusinessSchema = new Schema<IBusiness>(
     description:   { type: String, default: "", maxlength: 200 },
     effectiveness: { type: Number, default: 100, min: 0, max: 100 },
     popularity:    { type: Number, default: 50,  min: 0, max: 100 },
+    environment:   { type: Number, default: 100, min: 0, max: 100 },
     lastAdvertAt:  { type: Date, default: null },
   },
   { timestamps: true }

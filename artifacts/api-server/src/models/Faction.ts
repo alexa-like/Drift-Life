@@ -39,6 +39,7 @@ export interface IFaction extends Document {
   maxMembers:   number;
   respect:      number;
   isRecruiting: boolean;
+  upgrades:     string[];    // purchased upgrade IDs
   pendingInvites: IFactionInvite[];
   newsLog:      IFactionNewsEntry[];
   createdAt:    Date;
@@ -84,6 +85,7 @@ const FactionSchema = new Schema<IFaction>(
     maxMembers:   { type: Number, default: 50 },
     respect:      { type: Number, default: 0 },
     isRecruiting: { type: Boolean, default: true },
+    upgrades:     { type: [String], default: [] },
     pendingInvites: { type: [InviteSchema], default: [] },
     newsLog:        { type: [NewsSchema],   default: [] },
   },

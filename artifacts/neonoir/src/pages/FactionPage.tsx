@@ -84,6 +84,72 @@ interface INewsEntry {
   createdAt: string;
 }
 
+interface IFactionUpgrade {
+  id:            string;
+  name:          string;
+  description:   string;
+  cost:          number;
+  maxPurchases:  number;
+  requiredLevel: number;
+  category:      "capacity" | "crime" | "training" | "intel";
+  effect:        string;
+}
+
+interface IUpgradesData {
+  catalog:      IFactionUpgrade[];
+  purchased:    string[];
+  treasury:     number;
+  factionLevel: number;
+}
+
+interface IFactionCrimeParticipant {
+  userId:       string;
+  username:     string;
+  committed:    boolean;
+  energyCost:   number;
+  dcShare:      number;
+  xpShare:      number;
+  respectShare: number;
+}
+
+interface IFactionCrimeDef {
+  label:       string;
+  flavour:     string;
+  minMembers:  number;
+  maxMembers:  number;
+  durationMs:  number;
+  dcMin:       number;
+  dcMax:       number;
+  xpBase:      number;
+  respectBase: number;
+  energyCost:  number;
+  jailRisk:    number;
+  minLevel:    number;
+}
+
+interface IFactionCrime {
+  _id:           string;
+  factionId:     string;
+  crimeType:     string;
+  status:        "gathering" | "in_progress" | "completed" | "failed";
+  initiatorId:   string;
+  participants:  IFactionCrimeParticipant[];
+  minMembers:    number;
+  maxMembers:    number;
+  durationMs:    number;
+  startedAt:     string | null;
+  completedAt:   string | null;
+  totalPayout:   number;
+  failureReason: string | null;
+  def:           IFactionCrimeDef;
+}
+
+interface ICrimesData {
+  active:  IFactionCrime[];
+  recent:  IFactionCrime[];
+  catalog: Record<string, IFactionCrimeDef>;
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const FACTION_CREATE_COST  = 10_000_000;
@@ -185,7 +251,7 @@ export function FactionPage({
 
   // Tab state
   const [noFactionTab, setNoFactionTab] = useState<"browse" | "create" | "invites">("browse");
-  const [factionTab,   setFactionTab]   = useState<"overview" | "members" | "news" | "standings">("overview");
+  const [factionTab,   setFactionTab]   = useState<"overview" | "members" | "crimes" | "upgrades" | "news" | "standings">("overview");
 
   // Create form
   const [createName,   setCreateName]   = useState("");
@@ -246,6 +312,21 @@ export function FactionPage({
     queryFn:  () => api.get<IStanding[]>("/factions/standings"),
     enabled:  !!myFaction && factionTab === "standings",
     staleTime: 30_000,
+  });
+
+  const { data: upgradesData, isLoading: upgradesLoading } = useQuery<IUpgradesData>({
+    queryKey: ["factions", "upgrades"],
+    queryFn:  () => api.get<IUpgradesData>("/factions/upgrades"),
+    enabled:  !!myFaction && factionTab === "upgrades",
+    staleTime: 15_000,
+  });
+
+  const { data: crimesData, isLoading: crimesLoading } = useQuery<ICrimesData>({
+    queryKey: ["factions", "crimes"],
+    queryFn:  () => api.get<ICrimesData>("/factions/crimes"),
+    enabled:  !!myFaction && factionTab === "crimes",
+    staleTime: 10_000,
+    refetchInterval: factionTab === "crimes" ? 15_000 : false,
   });
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
@@ -333,6 +414,63 @@ export function FactionPage({
       addToast(r.message ?? "Leadership transferred", "success");
       setShowTransfer(false);
       qc.invalidateQueries({ queryKey: ["factions", "mine"] });
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const buyUpgrade = useMutation({
+    mutationFn: (upgradeId: string) => api.post("/factions/upgrades/buy", { upgradeId }),
+    onSuccess: (r: any) => {
+      addToast(r.message ?? "Upgrade purchased!", "success");
+      qc.invalidateQueries({ queryKey: ["factions", "upgrades"] });
+      qc.invalidateQueries({ queryKey: ["factions", "mine"] });
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const startCrime = useMutation({
+    mutationFn: (crimeType: string) => api.post("/factions/crimes/start", { crimeType }),
+    onSuccess: () => {
+      addToast("Crime operation started!", "success");
+      qc.invalidateQueries({ queryKey: ["factions", "crimes"] });
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const joinCrime = useMutation({
+    mutationFn: (crimeId: string) => api.post(`/factions/crimes/${crimeId}/join`, {}),
+    onSuccess: () => {
+      addToast("Joined the operation!", "success");
+      qc.invalidateQueries({ queryKey: ["factions", "crimes"] });
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const commitCrime = useMutation({
+    mutationFn: (crimeId: string) => api.post(`/factions/crimes/${crimeId}/commit`, {}),
+    onSuccess: () => {
+      addToast("Energy committed — waiting for crew...", "info");
+      qc.invalidateQueries({ queryKey: ["factions", "crimes"] });
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const resolveCrime = useMutation({
+    mutationFn: (crimeId: string) => api.post(`/factions/crimes/${crimeId}/resolve`, {}),
+    onSuccess: (r: any) => {
+      const c = r as IFactionCrime;
+      if (c.status === "completed") addToast("Crime succeeded! Payouts distributed.", "success");
+      else addToast("Crime failed! Some members may be jailed.", "error");
+      qc.invalidateQueries({ queryKey: ["factions", "crimes"] });
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const cancelCrime = useMutation({
+    mutationFn: (crimeId: string) => api.delete(`/factions/crimes/${crimeId}/cancel`),
+    onSuccess: () => {
+      addToast("Crime cancelled.", "info");
+      qc.invalidateQueries({ queryKey: ["factions", "crimes"] });
     },
     onError: (e: Error) => addToast(e.message, "error"),
   });
@@ -808,6 +946,317 @@ export function FactionPage({
     );
   }
 
+  // ── Upgrades tab ─────────────────────────────────────────────────────────────
+
+  function renderUpgrades(f: IFactionData) {
+    if (upgradesLoading) return <div className="font-mono text-xs text-center py-16" style={{ color: "#334155" }}>Loading upgrades...</div>;
+    if (!upgradesData) return null;
+
+    const { catalog, purchased, treasury, factionLevel } = upgradesData;
+    const canBuy = ["leader", "co-leader", "officer"].includes(f.myRole);
+
+    const categories: Array<{ key: string; label: string; icon: string; color: string }> = [
+      { key: "capacity", label: "Capacity",  icon: "👥", color: "#00d4ff" },
+      { key: "crime",    label: "Crime",     icon: "🔫", color: "#ff2d55" },
+      { key: "training", label: "Training",  icon: "💪", color: "#39d353" },
+      { key: "intel",    label: "Intel",     icon: "🧠", color: "#a855f7" },
+    ];
+
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+            Treasury available: <span style={{ color: "#f59e0b" }}>{formatDC(treasury)} DC</span>
+          </div>
+          <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+            Faction Level: <span style={{ color: f.color }}>{factionLevel}</span>
+          </div>
+        </div>
+
+        {categories.map(({ key, label, icon, color }) => {
+          const items = catalog.filter((u) => u.category === key);
+          if (!items.length) return null;
+          return (
+            <div key={key}>
+              <div className="font-mono text-xs font-bold mb-3 flex items-center gap-2" style={{ color }}>
+                <span>{icon}</span>
+                <span className="uppercase tracking-widest">{label}</span>
+              </div>
+              <div className="space-y-2">
+                {items.map((upg) => {
+                  const ownedCount = purchased.filter((p) => p === upg.id).length;
+                  const isOwned    = ownedCount >= upg.maxPurchases;
+                  const lockedLevel = factionLevel < upg.requiredLevel;
+                  const canAfford  = treasury >= upg.cost;
+
+                  return (
+                    <div key={upg.id} className="flex items-center gap-3 p-3 rounded"
+                      style={{
+                        background: isOwned ? `${color}08` : "#0a0a0f",
+                        border: `1px solid ${isOwned ? color + "40" : "#1e1e2e"}`,
+                        opacity: lockedLevel ? 0.5 : 1,
+                      }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-sm font-bold" style={{ color: isOwned ? color : "#e2e8f0" }}>
+                            {isOwned ? "✓ " : ""}{upg.name}
+                          </span>
+                          {lockedLevel && (
+                            <span className="font-mono text-xs px-1.5 py-0.5 rounded"
+                              style={{ background: "#1e1e2e", color: "#64748b", border: "1px solid #334155" }}>
+                              Lv.{upg.requiredLevel}
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-mono text-xs mt-0.5" style={{ color: "#64748b" }}>{upg.description}</div>
+                        <div className="font-mono text-xs mt-0.5" style={{ color }}>Effect: {upg.effect}</div>
+                        <div className="font-mono text-xs mt-0.5" style={{ color: "#f59e0b" }}>
+                          Cost: {formatDC(upg.cost)} DC from treasury
+                        </div>
+                      </div>
+                      {!isOwned && canBuy && (
+                        <CyberButton
+                          variant="primary" size="sm"
+                          disabled={lockedLevel || !canAfford || buyUpgrade.isPending}
+                          loading={buyUpgrade.isPending}
+                          onClick={() => {
+                            if (window.confirm(`Purchase "${upg.name}" for ${formatDC(upg.cost)} DC from treasury?`)) {
+                              buyUpgrade.mutate(upg.id);
+                            }
+                          }}
+                        >
+                          {canAfford ? "Buy" : "No funds"}
+                        </CyberButton>
+                      )}
+                      {isOwned && (
+                        <span className="font-mono text-xs px-2 py-1 rounded"
+                          style={{ background: `${color}18`, color, border: `1px solid ${color}40` }}>
+                          Owned
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+
+        {!canBuy && (
+          <div className="font-mono text-xs p-3 rounded text-center"
+            style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#64748b" }}>
+            Only leaders and officers can purchase upgrades.
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Crimes tab ────────────────────────────────────────────────────────────────
+
+  function renderCrimes(f: IFactionData) {
+    if (crimesLoading) return <div className="font-mono text-xs text-center py-16" style={{ color: "#334155" }}>Loading operations...</div>;
+
+    const canStart = ["leader", "co-leader", "officer"].includes(f.myRole);
+    const active   = crimesData?.active ?? [];
+    const recent   = crimesData?.recent ?? [];
+    const catalog  = crimesData?.catalog ?? {};
+
+    function countdownStr(iso: string | null): string {
+      if (!iso) return "—";
+      const ms = new Date(iso).getTime() - Date.now();
+      if (ms <= 0) return "Ready to resolve";
+      const m = Math.floor(ms / 60000);
+      const h = Math.floor(m / 60);
+      if (h > 0) return `${h}h ${m % 60}m remaining`;
+      return `${m}m remaining`;
+    }
+
+    const statusColor = (s: string) =>
+      s === "gathering" ? "#f59e0b"
+        : s === "in_progress" ? "#00d4ff"
+        : s === "completed" ? "#39d353"
+        : "#ff2d55";
+
+    return (
+      <div className="space-y-5">
+        {/* Active operations */}
+        {active.length > 0 && (
+          <div>
+            <div className="font-mono text-xs font-bold mb-3 uppercase tracking-widest" style={{ color: "#00d4ff" }}>
+              🔄 Active Operations ({active.length})
+            </div>
+            <div className="space-y-3">
+              {active.map((crime) => {
+                const myParticipant = crime.participants.find((p) => p.userId === user.id);
+                const isTimerDone   = crime.completedAt && new Date(crime.completedAt).getTime() <= Date.now();
+                return (
+                  <AnimatedCard key={crime._id} accent={statusColor(crime.status)}>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <div className="font-mono text-sm font-bold" style={{ color: "#e2e8f0" }}>
+                            {crime.def.label}
+                          </div>
+                          <div className="font-mono text-xs mt-0.5" style={{ color: "#64748b" }}>
+                            {crime.def.flavour}
+                          </div>
+                        </div>
+                        <span className="font-mono text-xs px-2 py-1 rounded"
+                          style={{ background: `${statusColor(crime.status)}18`, color: statusColor(crime.status), border: `1px solid ${statusColor(crime.status)}40` }}>
+                          {crime.status.toUpperCase().replace("_", " ")}
+                        </span>
+                      </div>
+
+                      {/* Participants */}
+                      <div>
+                        <div className="font-mono text-xs mb-1" style={{ color: "#64748b" }}>
+                          Crew: {crime.participants.length}/{crime.maxMembers} (need {crime.minMembers} min)
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {crime.participants.map((p) => (
+                            <span key={p.userId} className="font-mono text-xs px-2 py-0.5 rounded"
+                              style={{
+                                background: p.committed ? "#39d35318" : "#f59e0b18",
+                                color: p.committed ? "#39d353" : "#f59e0b",
+                                border: `1px solid ${p.committed ? "#39d35340" : "#f59e0b40"}`,
+                              }}>
+                              {p.username} {p.committed ? "✓" : "…"}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Timer */}
+                      {crime.status === "in_progress" && (
+                        <div className="font-mono text-xs" style={{ color: "#00d4ff" }}>
+                          ⏱ {countdownStr(crime.completedAt)}
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex gap-2 flex-wrap">
+                        {/* Join */}
+                        {crime.status === "gathering" && !myParticipant && (
+                          <CyberButton variant="primary" size="sm" loading={joinCrime.isPending}
+                            onClick={() => joinCrime.mutate(crime._id)}>
+                            Join Operation
+                          </CyberButton>
+                        )}
+                        {/* Commit energy */}
+                        {crime.status === "gathering" && myParticipant && !myParticipant.committed && (
+                          <CyberButton variant="warning" size="sm" loading={commitCrime.isPending}
+                            onClick={() => commitCrime.mutate(crime._id)}>
+                            ⚡ Commit {crime.def.energyCost} Energy
+                          </CyberButton>
+                        )}
+                        {/* Resolve */}
+                        {crime.status === "in_progress" && isTimerDone && myParticipant && (
+                          <CyberButton variant="success" size="sm" loading={resolveCrime.isPending}
+                            onClick={() => resolveCrime.mutate(crime._id)}>
+                            🎯 Collect Results
+                          </CyberButton>
+                        )}
+                        {/* Cancel */}
+                        {crime.status === "gathering" && (crime.initiatorId === user.id || canStart) && (
+                          <CyberButton variant="danger" size="sm" loading={cancelCrime.isPending}
+                            onClick={() => { if (window.confirm("Cancel this operation?")) cancelCrime.mutate(crime._id); }}>
+                            Cancel
+                          </CyberButton>
+                        )}
+                      </div>
+                    </div>
+                  </AnimatedCard>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Start new crime (if no active) */}
+        {active.length === 0 && canStart && (
+          <div>
+            <div className="font-mono text-xs font-bold mb-3 uppercase tracking-widest" style={{ color: "#ff2d55" }}>
+              🔫 Start Operation
+            </div>
+            <div className="space-y-2">
+              {Object.entries(catalog).map(([type, def]) => {
+                const locked = f.level < def.minLevel;
+                return (
+                  <div key={type} className="flex items-center gap-3 p-3 rounded"
+                    style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", opacity: locked ? 0.5 : 1 }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-sm font-bold" style={{ color: "#e2e8f0" }}>{def.label}</span>
+                        {locked && (
+                          <span className="font-mono text-xs px-1.5 py-0.5 rounded"
+                            style={{ background: "#1e1e2e", color: "#64748b" }}>
+                            Lv.{def.minLevel} required
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-mono text-xs mt-0.5" style={{ color: "#64748b" }}>{def.flavour}</div>
+                      <div className="flex gap-3 font-mono text-xs mt-1 flex-wrap" style={{ color: "#64748b" }}>
+                        <span>👥 {def.minMembers}–{def.maxMembers} crew</span>
+                        <span>⚡ {def.energyCost} energy each</span>
+                        <span style={{ color: "#39d353" }}>
+                          💰 {(def.dcMin / 1000).toFixed(0)}k–{(def.dcMax / 1000).toFixed(0)}k DC
+                        </span>
+                        <span style={{ color: "#a855f7" }}>+{def.respectBase} respect</span>
+                      </div>
+                    </div>
+                    <CyberButton variant="danger" size="sm" loading={startCrime.isPending}
+                      disabled={locked || startCrime.isPending}
+                      onClick={() => startCrime.mutate(type)}>
+                      Start
+                    </CyberButton>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {active.length === 0 && !canStart && (
+          <div className="font-mono text-xs p-4 rounded text-center" style={{ background: "#0a0a0f", border: "1px solid #1e1e2e", color: "#64748b" }}>
+            No active crime operations. Leaders and officers can start one.
+          </div>
+        )}
+
+        {/* Recent crimes */}
+        {recent.length > 0 && (
+          <div>
+            <div className="font-mono text-xs font-bold mb-3 uppercase tracking-widest" style={{ color: "#334155" }}>
+              📋 Recent Operations
+            </div>
+            <div className="space-y-2">
+              {recent.map((crime) => (
+                <div key={crime._id} className="flex items-center gap-3 p-3 rounded"
+                  style={{ background: "#0a0a0f", border: "1px solid #1e1e2e" }}>
+                  <span className="text-base flex-shrink-0">
+                    {crime.status === "completed" ? "✅" : "❌"}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{crime.def.label}</div>
+                    {crime.status === "completed" ? (
+                      <div className="font-mono text-xs" style={{ color: "#39d353" }}>
+                        {formatDC(crime.totalPayout)} DC shared — {crime.participants.length} crew
+                      </div>
+                    ) : (
+                      <div className="font-mono text-xs" style={{ color: "#ff2d55" }}>
+                        {crime.failureReason ?? "Failed"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function renderNews() {
     if (newsLoading) return <div className="font-mono text-xs text-center py-16" style={{ color: "#334155" }}>Loading activity log...</div>;
     if (news.length === 0) return (
@@ -920,11 +1369,15 @@ export function FactionPage({
           <div className="flex gap-2 flex-wrap">
             <TabBtn active={factionTab === "overview"}  onClick={() => setFactionTab("overview")}  accent={myFaction.color}>📊 Overview</TabBtn>
             <TabBtn active={factionTab === "members"}   onClick={() => setFactionTab("members")}   accent={myFaction.color}>👥 Members ({myFaction.memberCount})</TabBtn>
+            <TabBtn active={factionTab === "crimes"}    onClick={() => setFactionTab("crimes")}    accent="#ff2d55">🔫 Crimes</TabBtn>
+            <TabBtn active={factionTab === "upgrades"}  onClick={() => setFactionTab("upgrades")}  accent="#f59e0b">⚡ Upgrades</TabBtn>
             <TabBtn active={factionTab === "news"}      onClick={() => setFactionTab("news")}      accent="#00d4ff">📰 News</TabBtn>
             <TabBtn active={factionTab === "standings"} onClick={() => setFactionTab("standings")} accent="#a855f7">🏆 Standings</TabBtn>
           </div>
           {factionTab === "overview"  && renderOverview(myFaction)}
           {factionTab === "members"   && renderMembers(myFaction)}
+          {factionTab === "crimes"    && renderCrimes(myFaction)}
+          {factionTab === "upgrades"  && renderUpgrades(myFaction)}
           {factionTab === "news"      && renderNews()}
           {factionTab === "standings" && renderStandings()}
         </>

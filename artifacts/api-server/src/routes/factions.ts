@@ -6,6 +6,10 @@ import Faction, {
   FACTION_CREATE_LEVEL,
   addFactionNews,
 } from "../models/Faction";
+import FactionCrime, {
+  FACTION_CRIME_DEFS,
+  FACTION_UPGRADES,
+} from "../models/FactionCrime";
 import User from "../models/User";
 import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
@@ -822,6 +826,401 @@ router.post("/:id/join", requireAuth, async (req: AuthRequest, res) => {
     res.json({ message: `You joined ${faction.name} as a recruit` });
   } catch (err) {
     req.log.error({ err }, "POST /factions/:id/join error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FACTION UPGRADES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/factions/upgrades — catalog + purchased upgrades for my faction
+router.get("/upgrades", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("factionId factionRole");
+    if (!user || !(user as any).factionId)
+      return res.status(400).json({ message: "You are not in a faction" });
+
+    const faction = await Faction.findById((user as any).factionId)
+      .select("upgrades treasury level name");
+    if (!faction) return res.status(404).json({ message: "Faction not found" });
+
+    const purchased: string[] = (faction as any).upgrades ?? [];
+
+    res.json({
+      catalog: FACTION_UPGRADES,
+      purchased,
+      treasury: faction.treasury,
+      factionLevel: faction.level,
+    });
+  } catch (err) {
+    req.log.error({ err }, "GET /factions/upgrades error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/factions/upgrades/buy — purchase an upgrade from treasury
+router.post("/upgrades/buy", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { upgradeId } = req.body as { upgradeId: string };
+
+    const user = await User.findById(req.userId).select("factionId factionRole");
+    if (!user || !(user as any).factionId)
+      return res.status(400).json({ message: "You are not in a faction" });
+
+    const role = (user as any).factionRole as string;
+    if (!["leader", "co-leader", "officer"].includes(role))
+      return res.status(403).json({ message: "Only leaders and officers can purchase upgrades" });
+
+    const def = FACTION_UPGRADES.find((u) => u.id === upgradeId);
+    if (!def) return res.status(400).json({ message: "Upgrade not found" });
+
+    const faction = await Faction.findById((user as any).factionId);
+    if (!faction) return res.status(404).json({ message: "Faction not found" });
+
+    if (faction.level < def.requiredLevel)
+      return res.status(400).json({ message: `Faction must be level ${def.requiredLevel} to purchase this upgrade` });
+
+    const purchased: string[] = (faction as any).upgrades ?? [];
+    const timesOwned = purchased.filter((u) => u === upgradeId).length;
+    if (timesOwned >= def.maxPurchases)
+      return res.status(400).json({ message: "Already purchased (max purchases reached)" });
+
+    // Atomically deduct treasury and add upgrade
+    const updated = await Faction.findOneAndUpdate(
+      { _id: (user as any).factionId, treasury: { $gte: def.cost } },
+      { $inc: { treasury: -def.cost }, $push: { upgrades: upgradeId } },
+      { returnDocument: "after" }
+    );
+    if (!updated)
+      return res.status(400).json({ message: "Not enough treasury funds" });
+
+    // Apply capacity side effects
+    if (upgradeId === "capacity_1") {
+      await Faction.findByIdAndUpdate(updated._id, { $inc: { maxMembers: 10 } });
+    } else if (upgradeId === "capacity_2") {
+      await Faction.findByIdAndUpdate(updated._id, { $inc: { maxMembers: 15 } });
+    } else if (upgradeId === "capacity_3") {
+      await Faction.findByIdAndUpdate(updated._id, { $inc: { maxMembers: 20 } });
+    }
+
+    res.json({
+      message: `${def.name} purchased!`,
+      purchased: (updated as any).upgrades ?? [],
+      treasury: updated.treasury,
+    });
+  } catch (err) {
+    req.log.error({ err }, "POST /factions/upgrades/buy error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FACTION ORGANIZED CRIMES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/factions/crimes — active + recent crimes for my faction
+router.get("/crimes", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("factionId");
+    if (!user || !(user as any).factionId)
+      return res.status(400).json({ message: "You are not in a faction" });
+
+    const factionId = (user as any).factionId;
+
+    const [active, recent] = await Promise.all([
+      FactionCrime.find({ factionId, status: { $in: ["gathering", "in_progress"] } }),
+      FactionCrime.find({ factionId, status: { $in: ["completed", "failed"] } })
+        .sort({ updatedAt: -1 })
+        .limit(10),
+    ]);
+
+    // Enrich participant usernames
+    const allIds = [...active, ...recent].flatMap((c) => c.participants.map((p) => p.userId));
+    const users = await User.find({ _id: { $in: allIds } }).select("username").lean();
+    const uMap = Object.fromEntries(users.map((u) => [u._id.toString(), (u as any).username]));
+
+    const enrich = (crimes: typeof active) =>
+      crimes.map((c) => ({
+        ...c.toObject(),
+        def: FACTION_CRIME_DEFS[c.crimeType],
+        participants: c.participants.map((p) => ({
+          ...p.toObject(),
+          username: uMap[p.userId.toString()] ?? "Unknown",
+        })),
+      }));
+
+    res.json({ active: enrich(active), recent: enrich(recent), catalog: FACTION_CRIME_DEFS });
+  } catch (err) {
+    req.log.error({ err }, "GET /factions/crimes error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/factions/crimes/start — start a new faction organized crime
+router.post("/crimes/start", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { crimeType } = req.body as { crimeType: string };
+
+    const def = FACTION_CRIME_DEFS[crimeType as keyof typeof FACTION_CRIME_DEFS];
+    if (!def) return res.status(400).json({ message: "Invalid crime type" });
+
+    const user = await User.findById(req.userId).select("factionId factionRole jailUntil hospitalizedUntil energy level");
+    if (!user || !(user as any).factionId)
+      return res.status(400).json({ message: "You are not in a faction" });
+
+    const role = (user as any).factionRole as string;
+    if (!["leader", "co-leader", "officer"].includes(role))
+      return res.status(403).json({ message: "Only leaders and officers can start organized crimes" });
+
+    const now = new Date();
+    if (user.jailUntil && new Date(user.jailUntil) > now)
+      return res.status(400).json({ message: "You are in jail" });
+    if (user.hospitalizedUntil && new Date(user.hospitalizedUntil) > now)
+      return res.status(400).json({ message: "You are hospitalized" });
+
+    const faction = await Faction.findById((user as any).factionId).select("level upgrades");
+    if (!faction) return res.status(404).json({ message: "Faction not found" });
+
+    if (faction.level < def.minLevel)
+      return res.status(400).json({ message: `Faction must be level ${def.minLevel} for this crime` });
+
+    const existing = await FactionCrime.findOne({
+      factionId: (user as any).factionId,
+      status: { $in: ["gathering", "in_progress"] },
+    });
+    if (existing) return res.status(400).json({ message: "Your faction already has an active crime operation" });
+
+    const crime = await FactionCrime.create({
+      factionId: (user as any).factionId,
+      crimeType,
+      status: "gathering",
+      initiatorId: user._id,
+      participants: [{
+        userId: user._id,
+        committed: false,
+        energyCost: def.energyCost,
+        dcShare: 0,
+        xpShare: 0,
+        respectShare: 0,
+      }],
+      minMembers: def.minMembers,
+      maxMembers: def.maxMembers,
+      durationMs: def.durationMs,
+      startedAt: null,
+      completedAt: null,
+      totalPayout: 0,
+      failureReason: null,
+    });
+
+    res.status(201).json({ ...crime.toObject(), def });
+  } catch (err) {
+    req.log.error({ err }, "POST /factions/crimes/start error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/factions/crimes/:id/join — join a gathering crime
+router.post("/crimes/:id/join", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("factionId jailUntil hospitalizedUntil");
+    if (!user || !(user as any).factionId)
+      return res.status(400).json({ message: "You are not in a faction" });
+
+    const crime = await FactionCrime.findById(req.params.id);
+    if (!crime) return res.status(404).json({ message: "Crime not found" });
+    if (!crime.factionId.equals((user as any).factionId))
+      return res.status(403).json({ message: "Not your faction's crime" });
+    if (crime.status !== "gathering")
+      return res.status(400).json({ message: "Crime is not in gathering phase" });
+    if (crime.participants.length >= crime.maxMembers)
+      return res.status(400).json({ message: "Crime is full" });
+
+    const alreadyIn = crime.participants.some((p) => p.userId.equals(user._id));
+    if (alreadyIn) return res.status(400).json({ message: "Already in this crime" });
+
+    const now = new Date();
+    if (user.jailUntil && new Date(user.jailUntil) > now)
+      return res.status(400).json({ message: "You are in jail" });
+    if (user.hospitalizedUntil && new Date(user.hospitalizedUntil) > now)
+      return res.status(400).json({ message: "You are hospitalized" });
+
+    const def = FACTION_CRIME_DEFS[crime.crimeType];
+    crime.participants.push({
+      userId: user._id,
+      committed: false,
+      energyCost: def.energyCost,
+      dcShare: 0,
+      xpShare: 0,
+      respectShare: 0,
+    });
+    await crime.save();
+    res.json({ ...crime.toObject(), def });
+  } catch (err) {
+    req.log.error({ err }, "POST /factions/crimes/:id/join error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/factions/crimes/:id/commit — commit energy to the crime
+router.post("/crimes/:id/commit", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const crime = await FactionCrime.findById(req.params.id);
+    if (!crime) return res.status(404).json({ message: "Crime not found" });
+    if (crime.status !== "gathering")
+      return res.status(400).json({ message: "Crime is not in gathering phase" });
+
+    const userId = req.userId as string;
+    const participant = crime.participants.find((p) => p.userId.toString() === userId);
+    if (!participant) return res.status(403).json({ message: "You are not a participant" });
+    if (participant.committed) return res.status(400).json({ message: "Already committed" });
+
+    // Atomically deduct energy
+    const updated = await User.findOneAndUpdate(
+      { _id: userId, energy: { $gte: participant.energyCost } },
+      { $inc: { energy: -participant.energyCost } },
+      { returnDocument: "after" }
+    );
+    if (!updated) return res.status(400).json({ message: "Not enough energy" });
+
+    participant.committed = true;
+
+    // Check if all committed and enough members → start
+    const allCommitted = crime.participants.every((p) => p.committed);
+    const enoughMembers = crime.participants.length >= crime.minMembers;
+
+    if (allCommitted && enoughMembers) {
+      const def = FACTION_CRIME_DEFS[crime.crimeType];
+      const faction = await Faction.findById(crime.factionId).select("upgrades");
+      const upgrades: string[] = (faction as any)?.upgrades ?? [];
+      // Payout upgrades
+      const hasPayout1 = upgrades.includes("crime_payout_1");
+      const hasPayout2 = upgrades.includes("crime_payout_2");
+      const payoutMult = hasPayout2 ? 1.30 : hasPayout1 ? 1.15 : 1.0;
+
+      const now = new Date();
+      crime.status = "in_progress";
+      crime.startedAt = now;
+      crime.totalPayout = Math.floor(
+        (def.dcMin + Math.random() * (def.dcMax - def.dcMin)) * payoutMult
+      );
+      crime.completedAt = new Date(now.getTime() + crime.durationMs);
+    }
+
+    await crime.save();
+    res.json({ ...crime.toObject(), def: FACTION_CRIME_DEFS[crime.crimeType] });
+  } catch (err) {
+    req.log.error({ err }, "POST /factions/crimes/:id/commit error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/factions/crimes/:id/resolve — collect results of a completed crime
+router.post("/crimes/:id/resolve", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId as string;
+    const crime = await FactionCrime.findById(req.params.id);
+    if (!crime) return res.status(404).json({ message: "Crime not found" });
+    if (crime.status !== "in_progress")
+      return res.status(400).json({ message: "Crime is not in progress" });
+    if (!crime.completedAt || Date.now() < crime.completedAt.getTime())
+      return res.status(400).json({ message: "Crime timer has not elapsed yet" });
+
+    const isParticipant = crime.participants.some((p) => p.userId.toString() === userId);
+    if (!isParticipant) return res.status(403).json({ message: "You are not a participant" });
+
+    const def = FACTION_CRIME_DEFS[crime.crimeType];
+
+    // Check upgrades for fail-rate reduction
+    const faction = await Faction.findById(crime.factionId).select("upgrades respect");
+    const upgrades: string[] = (faction as any)?.upgrades ?? [];
+    const failReduction = upgrades.includes("crime_success_1") ? 0.10 : 0;
+    const baseFailRate = 0.25;
+    const failed = Math.random() < Math.max(0, baseFailRate - failReduction);
+
+    if (failed) {
+      crime.status = "failed";
+      crime.failureReason = "Operation blown. Heat brought the law down on your crew.";
+
+      const JAIL_DURATION_MS = 5 * 60 * 1000;
+      for (const p of crime.participants) {
+        const jailed = Math.random() < def.jailRisk;
+        if (jailed) {
+          await User.findByIdAndUpdate(p.userId, {
+            jailUntil: new Date(Date.now() + JAIL_DURATION_MS),
+            status: "jailed",
+          });
+        }
+        Notification.create({
+          userId: p.userId,
+          type: "faction",
+          message: `Faction crime "${def.label}" failed! ${crime.failureReason}${jailed ? " You were arrested." : ""}`,
+        }).catch(() => {});
+      }
+
+      await crime.save();
+    } else {
+      const committed = crime.participants.filter((p) => p.committed);
+      const dcShare      = Math.floor(crime.totalPayout / committed.length);
+      const xpShare      = Math.floor(def.xpBase / committed.length);
+      const respectShare = Math.floor(def.respectBase / committed.length);
+
+      for (const p of crime.participants) {
+        if (p.committed) {
+          p.dcShare      = dcShare;
+          p.xpShare      = xpShare;
+          p.respectShare = respectShare;
+          await User.findByIdAndUpdate(p.userId, { $inc: { dc: dcShare, xp: xpShare } });
+          Notification.create({
+            userId: p.userId,
+            type: "faction",
+            message: `Faction crime "${def.label}" succeeded! You earned ${dcShare.toLocaleString()} DC, ${xpShare} XP, and ${respectShare} faction respect.`,
+          }).catch(() => {});
+        }
+      }
+
+      // Add respect to faction
+      if (faction) {
+        faction.respect = (faction.respect ?? 0) + def.respectBase;
+        addFactionNews(faction, "crime_success", `Organized crime "${def.label}" completed — +${def.respectBase} faction respect!`);
+        await faction.save();
+      }
+
+      crime.status = "completed";
+      await crime.save();
+    }
+
+    res.json({ ...crime.toObject(), def });
+  } catch (err) {
+    req.log.error({ err }, "POST /factions/crimes/:id/resolve error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// DELETE /api/factions/crimes/:id/cancel — cancel a gathering crime
+router.delete("/crimes/:id/cancel", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("factionId factionRole");
+    if (!user || !(user as any).factionId)
+      return res.status(400).json({ message: "You are not in a faction" });
+
+    const crime = await FactionCrime.findById(req.params.id);
+    if (!crime) return res.status(404).json({ message: "Crime not found" });
+    if (!crime.factionId.equals((user as any).factionId))
+      return res.status(403).json({ message: "Not your faction's crime" });
+    if (crime.status !== "gathering")
+      return res.status(400).json({ message: "Can only cancel a gathering crime" });
+
+    const isInitiator = crime.initiatorId.equals(req.userId as any);
+    const role = (user as any).factionRole as string;
+    const isLeader = ["leader", "co-leader"].includes(role);
+    if (!isInitiator && !isLeader)
+      return res.status(403).json({ message: "Only the initiator or faction leader can cancel" });
+
+    await FactionCrime.findByIdAndDelete(crime._id);
+    res.json({ message: "Crime operation cancelled" });
+  } catch (err) {
+    req.log.error({ err }, "DELETE /factions/crimes/:id/cancel error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

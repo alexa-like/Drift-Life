@@ -48,9 +48,11 @@ function calcCurrentPopularity(business: any): number {
   return Math.max(10, Math.min(100, Math.round(base - hoursSince * 3)));
 }
 
-/** % of active employees who worked within 3× the shift cooldown window. */
+/** % of active PRODUCTION employees who worked within 3× the shift cooldown window. */
 function recalcEffectiveness(business: any): number {
-  const active = (business.employees as any[]).filter((e: any) => e.status === "active");
+  const active = (business.employees as any[]).filter(
+    (e: any) => e.status === "active" && e.jobPosition !== "cleaner"
+  );
   if (active.length === 0) return 0;
   const def = BUSINESS_DEFS[business.type as keyof typeof BUSINESS_DEFS];
   if (!def) return 100;
@@ -59,14 +61,50 @@ function recalcEffectiveness(business: any): number {
   const recent = active.filter(
     (e: any) => e.lastShiftAt && now - new Date(e.lastShiftAt).getTime() < windowMs
   ).length;
-  return Math.round((recent / active.length) * 100);
+  // Managers who are active boost effectiveness by 5% each (max 2)
+  const managers = active.filter((e: any) => e.jobPosition === "manager" && e.lastShiftAt).length;
+  const managerBoost = Math.min(managers, 2) * 5;
+  return Math.min(100, Math.round((recent / active.length) * 100) + managerBoost);
+}
+
+/**
+ * Environment (0–100) reflects workplace quality.
+ * Base 70, +10 per active manager (max 2), +8 per active cleaner (max 2),
+ * −5 for every employee over 60% capacity (overcrowding).
+ */
+function recalcEnvironment(business: any): number {
+  const active = (business.employees as any[]).filter((e: any) => e.status === "active");
+  const def = BUSINESS_DEFS[business.type as keyof typeof BUSINESS_DEFS];
+  if (!def) return 100;
+  const windowMs = def.shiftCooldownMin * 60_000 * 4;
+  const now = Date.now();
+
+  const activeManagers = active.filter(
+    (e: any) => e.jobPosition === "manager" && e.lastShiftAt &&
+    now - new Date(e.lastShiftAt).getTime() < windowMs
+  ).length;
+  const activeCleaners = active.filter(
+    (e: any) => e.jobPosition === "cleaner" && e.lastShiftAt &&
+    now - new Date(e.lastShiftAt).getTime() < windowMs
+  ).length;
+
+  const capacityRatio = active.length / Math.max(1, business.maxEmployees ?? 5);
+  const overcrowdPenalty = capacityRatio > 0.6 ? Math.round((capacityRatio - 0.6) / 0.4 * 20) : 0;
+
+  const score = 70
+    + Math.min(activeManagers, 2) * 10
+    + Math.min(activeCleaners, 2) * 8
+    - overcrowdPenalty;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 /**
  * Income formula:
- *   base_rate × employees × effectivenessMult × popularityMult
- * effectiveness (0–100) → 0.5–1.0 mult  (you always get at least 50% if open)
+ *   base_rate × producers × effectivenessMult × popularityMult × environmentMult
+ * effectiveness (0–100) → 0.5–1.0 mult  (always at least 50% if open)
  * popularity    (0–100) → 1.0–1.5 mult  (advertising boosts this)
+ * environment   (0–100) → 0.67–1.0 mult (poor environment hurts income)
  */
 function calcPendingIncome(business: any, activeEmployeeCount: number): number {
   const def = BUSINESS_DEFS[business.type as keyof typeof BUSINESS_DEFS];
@@ -75,7 +113,8 @@ function calcPendingIncome(business: any, activeEmployeeCount: number): number {
   const hoursElapsed = Math.min(msElapsed / 3_600_000, 168); // cap 7 days
   const effMult = 0.5 + (business.effectiveness ?? 100) / 200;
   const popMult = 1 + calcCurrentPopularity(business) / 200;
-  return Math.floor(hoursElapsed * def.ownerBaseIncome * activeEmployeeCount * effMult * popMult);
+  const envMult = 0.67 + ((business.environment ?? 100) / 100) * 0.33;
+  return Math.floor(hoursElapsed * def.ownerBaseIncome * activeEmployeeCount * effMult * popMult * envMult);
 }
 
 // ─── Owner: GET /api/businesses/mine ─────────────────────────────────────────
@@ -126,6 +165,7 @@ router.get("/mine", requireAuth, async (req: AuthRequest, res) => {
       incomePerHour,
       effectiveness: (business as any).effectiveness ?? 100,
       popularity:    calcCurrentPopularity(business),
+      environment:   (business as any).environment ?? 100,
     });
   } catch (err) {
     logger.error({ err }, "GET /businesses/mine error");
@@ -711,8 +751,9 @@ router.post("/:businessId/shift", requireAuth, async (req: AuthRequest, res) => 
     const ownerIncomeFraction = shiftHours * def.ownerBaseIncome * activeCount;
     business.accumulatedIncome += Math.floor(ownerIncomeFraction);
 
-    // Recalculate effectiveness after shift (% of crew active in 3× cooldown window)
+    // Recalculate effectiveness and environment after shift
     (business as any).effectiveness = recalcEffectiveness(business);
+    (business as any).environment   = recalcEnvironment(business);
 
     await business.save();
 
@@ -728,6 +769,51 @@ router.post("/:businessId/shift", requireAuth, async (req: AuthRequest, res) => 
     });
   } catch (err) {
     logger.error({ err }, "POST /businesses/:businessId/shift error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ─── Owner: POST /api/businesses/employees/:userId/position — assign job position ──
+router.post("/employees/:userId/position", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { position } = req.body as { position: string };
+    const validPositions = ["production", "manager", "cleaner", "secretary"];
+    if (!validPositions.includes(position))
+      return res.status(400).json({ message: "Invalid position. Must be: production, manager, cleaner, secretary" });
+
+    const user = await User.findById(req.userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const bizId = (user as any).businessId;
+    if (!bizId) return res.status(400).json({ message: "You don't own a business" });
+
+    const business = await Business.findById(bizId);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+    if (!business.ownerId.equals(req.userId as any))
+      return res.status(403).json({ message: "Only the business owner can assign positions" });
+
+    const emp = business.employees.find(
+      (e) => e.userId.toString() === req.params.userId && e.status === "active"
+    );
+    if (!emp) return res.status(404).json({ message: "Employee not found" });
+
+    // Limit: max 2 managers, max 2 cleaners, max 1 secretary per business
+    if (position !== "production") {
+      const limits: Record<string, number> = { manager: 2, cleaner: 2, secretary: 1 };
+      const currentCount = business.employees.filter(
+        (e) => e.status === "active" && (e as any).jobPosition === position && e.userId.toString() !== req.params.userId
+      ).length;
+      if (currentCount >= limits[position])
+        return res.status(400).json({ message: `Maximum ${limits[position]} ${position}(s) allowed` });
+    }
+
+    (emp as any).jobPosition = position;
+    (business as any).environment = recalcEnvironment(business);
+    await business.save();
+
+    res.json({ message: `${emp.userId} assigned as ${position}`, environment: (business as any).environment });
+  } catch (err) {
+    logger.error({ err }, "POST /businesses/employees/:userId/position error");
     res.status(500).json({ message: "Internal server error" });
   }
 });
