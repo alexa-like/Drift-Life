@@ -66,6 +66,14 @@ interface FactionStat {
   totalDc: number;
 }
 
+interface LeaderboardMember {
+  username: string;
+  faction: string;
+  level: number;
+  rank: string | null;
+  dc: number;
+}
+
 interface Props {
   user: User;
   addToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
@@ -77,16 +85,16 @@ export function FactionPage({ user, addToast }: Props) {
 
   const { data: standings, isLoading: loadingStandings } = useQuery<FactionStat[]>({
     queryKey: ["leaderboard", "faction"],
-    queryFn: () => api.get("/leaderboard/faction").then((r: any) => r.data),
+    queryFn: () => api.get<FactionStat[]>("/leaderboard/faction"),
     staleTime: 60_000,
   });
 
   // Top members in user's own faction
-  const { data: topMembers, isLoading: loadingMembers } = useQuery<any[]>({
+  const { data: topMembers, isLoading: loadingMembers } = useQuery<LeaderboardMember[]>({
     queryKey: ["leaderboard", "wealth"],
     queryFn: () =>
-      api.get("/leaderboard?category=wealth&limit=50").then((r: any) =>
-        (r.data as any[]).filter((p: any) => p.faction === myFaction).slice(0, 8)
+      api.get<LeaderboardMember[]>("/leaderboard?category=wealth&limit=50").then(
+        members => members.filter(p => p.faction === myFaction).slice(0, 8)
       ),
     enabled: !!myFaction,
     staleTime: 60_000,
