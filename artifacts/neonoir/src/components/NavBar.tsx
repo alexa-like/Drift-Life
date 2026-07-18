@@ -3,7 +3,7 @@ import {
   Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard,
   BarChart2, Gavel, Building2, Dumbbell, Briefcase, Car, Globe, Cpu, Shield, Swords, Crosshair,
   Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark, Warehouse,
-  Wrench, Star, Trophy, Gift, PawPrint, Bell, Settings, type LucideIcon,
+  Wrench, Star, Trophy, Gift, PawPrint, Bell, Settings, Flag, type LucideIcon,
 } from "lucide-react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
@@ -52,7 +52,8 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "net",          label: "Net",      icon: Globe,         group: "wc",  minStage: 3, statusFilter: "normal" },
   { id: "cyber",        label: "Cyber",    icon: Cpu,           group: "wc",  minStage: 3, statusFilter: "normal" },
   { id: "guilds",       label: "Crew",     icon: Shield,        group: "wc",  minStage: 2, statusFilter: "normal" },
-  { id: "business",     label: "Biz",      icon: Building2,     group: "wc",  minStage: 2, statusFilter: "normal" },
+  { id: "faction",      label: "Faction",  icon: Flag,                        statusFilter: "normal" },
+  { id: "business",     label: "Biz",      icon: Building2,     group: "wc",  statusFilter: "normal" },
   { id: "arena",        label: "Arena",    icon: Swords,        statusFilter: "normal" },
   { id: "loadout",      label: "Loadout",  icon: Crosshair,     statusFilter: "normal" },
   // { id: "royale",    label: "Royale",   icon: Crown,         statusFilter: "normal" }, // frozen
