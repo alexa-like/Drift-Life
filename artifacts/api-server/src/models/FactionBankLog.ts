@@ -22,5 +22,7 @@ const FactionBankLogSchema = new Schema<IFactionBankLog>(
 );
 
 FactionBankLogSchema.index({ factionId: 1, createdAt: -1 });
+// 60-day TTL — old faction bank logs auto-purge
+FactionBankLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 24 * 60 * 60 });
 
 export default mongoose.model<IFactionBankLog>("FactionBankLog", FactionBankLogSchema);

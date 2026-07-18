@@ -233,6 +233,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [dbStats, setDbStats] = useState<DbStats | null>(null);
   const [dbStatsLoading, setDbStatsLoading] = useState(false);
   const [dbLimitMB, setDbLimitMB] = useState(512);
+  const [dbLimitSaving, setDbLimitSaving] = useState(false);
   const [dbClearTarget, setDbClearTarget] = useState<string | null>(null);
   const [dbDropTarget, setDbDropTarget] = useState<string | null>(null);
   const [dbDropCode, setDbDropCode] = useState("");
@@ -317,6 +318,23 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     } catch (e: any) { addToast(e.message, "error"); }
     finally { setDbStatsLoading(false); }
   }, [addToast]);
+
+  const loadDbLimit = useCallback(async () => {
+    try {
+      const res = await api.get<{ limitMB: number }>("/owner/db-limit");
+      setDbLimitMB(res.limitMB);
+    } catch { /* non-fatal — keep default */ }
+  }, []);
+
+  const saveDbLimit = useCallback(async () => {
+    setDbLimitSaving(true);
+    try {
+      const res = await api.patch<{ limitMB: number }>("/owner/db-limit", { limitMB: dbLimitMB });
+      setDbLimitMB(res.limitMB);
+      addToast(`Atlas limit saved: ${res.limitMB} MB`, "success");
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setDbLimitSaving(false); }
+  }, [addToast, dbLimitMB]);
 
   const runSmartCleanup = useCallback(async () => {
     setSmartCleanupLoading(true);
@@ -771,7 +789,7 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
           style={{ background: tab === "economy" ? "#39d35318" : "#111118", color: tab === "economy" ? "#39d353" : "#475569", border: `1px solid ${tab === "economy" ? "#39d35340" : "#1e1e2e"}` }}>
           ⚙️ Economy
         </button>
-        <button onClick={() => { setTab("database"); if (!dbStats) loadDbStats(); }} className="px-4 py-2 rounded font-mono text-xs transition-all"
+        <button onClick={() => { setTab("database"); if (!dbStats) loadDbStats(); loadDbLimit(); }} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "database" ? "#ff2d5518" : "#111118", color: tab === "database" ? "#ff2d55" : "#475569", border: `1px solid ${tab === "database" ? "#ff2d5540" : "#1e1e2e"}` }}>
           🗄 Database
         </button>
@@ -2480,33 +2498,42 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
             const gaugeColor = pct < 60 ? "#39d353" : pct < 85 ? "#f59e0b" : "#ff2d55";
             return (
               <div style={s}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="font-mono font-bold text-xs" style={{ color: gaugeColor, letterSpacing: "0.1em" }}>
-                    STORAGE — {pct.toFixed(1)}% USED
+                {/* Header row: main metric + limit config */}
+                <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
+                  <div>
+                    <div className="font-mono" style={{ color: "#475569", fontSize: 10, letterSpacing: "0.08em" }}>STORAGE USAGE</div>
+                    <div className="font-mono font-bold mt-1" style={{ fontSize: 22, color: gaugeColor, letterSpacing: "-0.02em", lineHeight: 1 }}>
+                      {usedMB.toFixed(1)} MB
+                      <span className="font-mono font-normal" style={{ fontSize: 14, color: "#475569" }}> / {dbLimitMB} MB</span>
+                    </div>
+                    <div className="font-mono mt-1" style={{ fontSize: 11, color: gaugeColor }}>
+                      {pct.toFixed(1)}% used &mdash; {(dbLimitMB - usedMB).toFixed(1)} MB free
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs" style={{ color: "#64748b" }}>Atlas limit (MB):</span>
+                    <span className="font-mono text-xs" style={{ color: "#64748b" }}>Atlas cap (MB):</span>
                     <input type="number" min="1" value={dbLimitMB}
                       onChange={e => setDbLimitMB(Math.max(1, parseInt(e.target.value) || 512))}
                       className="font-mono text-xs px-2 py-1 rounded w-20 text-right"
                       style={{ background: "#0a0a0f", color: "#e2e8f0", border: "1px solid #1e293b" }} />
+                    <button onClick={saveDbLimit} disabled={dbLimitSaving}
+                      className="font-mono text-xs px-3 py-1 rounded"
+                      style={{ background: "#39d35318", color: "#39d353", border: "1px solid #39d35340" }}>
+                      {dbLimitSaving ? "…" : "Save"}
+                    </button>
                   </div>
                 </div>
                 {/* Bar */}
-                <div className="rounded-full overflow-hidden" style={{ height: 14, background: "#0f172a", border: "1px solid #1e293b" }}>
+                <div className="rounded-full overflow-hidden" style={{ height: 12, background: "#0f172a", border: "1px solid #1e293b" }}>
                   <div className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${gaugeColor}88, ${gaugeColor})`, boxShadow: `0 0 10px ${gaugeColor}55` }} />
-                </div>
-                <div className="flex justify-between mt-1.5 font-mono text-xs">
-                  <span style={{ color: gaugeColor }}>{usedMB.toFixed(3)} MB used</span>
-                  <span style={{ color: "#475569" }}>{(dbLimitMB - usedMB).toFixed(1)} MB free / {dbLimitMB} MB limit</span>
                 </div>
                 {/* Sub-stats */}
                 <div className="flex flex-wrap gap-6 mt-4 pt-3" style={{ borderTop: "1px solid #1e293b" }}>
                   {[
-                    { label: "Data", val: (dbStats.dataBytes/1_048_576).toFixed(3) + " MB", color: "#39d353" },
-                    { label: "Indexes", val: (dbStats.indexBytes/1_048_576).toFixed(3) + " MB", color: "#00d4ff" },
-                    { label: "Storage (disk)", val: (dbStats.storageBytes/1_048_576).toFixed(3) + " MB", color: "#a855f7" },
+                    { label: "Data", val: (dbStats.dataBytes/1_048_576).toFixed(2) + " MB", color: "#39d353" },
+                    { label: "Indexes", val: (dbStats.indexBytes/1_048_576).toFixed(2) + " MB", color: "#00d4ff" },
+                    { label: "Storage (disk)", val: (dbStats.storageBytes/1_048_576).toFixed(2) + " MB", color: "#a855f7" },
                     { label: "Documents", val: dbStats.objects.toLocaleString(), color: "#f59e0b" },
                     { label: "Collections", val: String(dbStats.collections.length), color: "#64748b" },
                   ].map(f => (

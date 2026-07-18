@@ -1154,6 +1154,37 @@ router.delete("/db-clear/:collection", requireOwner as any, async (req: AuthRequ
   }
 });
 
+// GET /api/owner/db-limit — fetch the persisted Atlas storage cap (MB)
+router.get("/db-limit", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const cfg = await ServerConfig.findOne({ key: "db_atlas_limit_mb" }).lean();
+    const limitMB = (cfg?.value as { limitMB?: number } | null)?.limitMB ?? 512;
+    res.json({ limitMB });
+  } catch (err: any) {
+    req.log.error({ err }, "db-limit get error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /api/owner/db-limit — persist the Atlas storage cap (MB) so it survives redeploys
+router.patch("/db-limit", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { limitMB } = req.body as { limitMB?: unknown };
+    const mb = Number(limitMB);
+    if (!Number.isFinite(mb) || mb < 1) return res.status(400).json({ message: "limitMB must be a positive number" });
+    await ServerConfig.findOneAndUpdate(
+      { key: "db_atlas_limit_mb" },
+      { $set: { value: { limitMB: mb }, updatedAt: new Date() } },
+      { upsert: true }
+    );
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "set-db-limit", details: { limitMB: mb } });
+    res.json({ limitMB: mb });
+  } catch (err: any) {
+    req.log.error({ err }, "db-limit patch error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // POST /api/owner/db-drop/:collection — permanently drop collection (requires owner code)
 router.post("/db-drop/:collection", requireOwner as any, async (req: AuthRequest, res) => {
   try {

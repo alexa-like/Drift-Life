@@ -27,4 +27,7 @@ const UcPurchaseLogSchema = new Schema<IUcPurchaseLog>(
   { timestamps: false }
 );
 
+// 90-day TTL — purchase logs auto-purge after 3 months
+UcPurchaseLogSchema.index({ purchasedAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+
 export default mongoose.model<IUcPurchaseLog>("NcPurchaseLog", UcPurchaseLogSchema);

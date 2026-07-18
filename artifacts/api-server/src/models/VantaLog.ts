@@ -44,5 +44,7 @@ const VantaLogSchema = new Schema<IVantaLog>(
 
 VantaLogSchema.index({ dismissed: 1, severity: -1, createdAt: -1 });
 VantaLogSchema.index({ playerId: 1, createdAt: -1 });
+// 90-day TTL — dismissed vanta logs auto-purge; active flags remain until reviewed
+VantaLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
 export default mongoose.model<IVantaLog>("VantaLog", VantaLogSchema);
