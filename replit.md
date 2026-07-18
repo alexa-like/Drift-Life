@@ -8,6 +8,8 @@ Neonoir is a browser-based cyberpunk crime RPG. Monorepo (pnpm workspace) with:
 
 Production is deployed separately on Render (see `render.yaml`). Replit is the development and database environment only — not a deploy target under any circumstances.
 
+The frontend (`artifacts/neonoir`) is configured as an installable PWA: `manifest.json`, service worker (`public/sw.js`), favicon and icon set, Open Graph / Twitter card metadata, and theme colors are all in `public/` and wired into `index.html`.
+
 ## Running
 Three workflows: `API Server`, `web` (frontend), and `Component Preview Server` (canvas sandbox, start on demand). Requires secrets: `MONGODB_URI`, `JWT_SECRET`, `JWT_REFRESH_SECRET` (all configured). The frontend dev server proxies `/api` to the API server on port 8080 (`vite.config.ts` `server.proxy`) so the two workflows can talk to each other locally.
 

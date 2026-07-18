@@ -2,17 +2,47 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Neonoir</title>
-    <meta name="description" content="Neonoir — built on Replit. Update this description to reflect the app." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Neonoir — Cyberpunk Crime RPG</title>
+    <meta name="description" content="Rise through the neon underworld in Neonoir. Commit crimes, run heists, fight in the arena, street race, and build your criminal empire in a browser-based cyberpunk RPG." />
     <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="Neonoir" />
-    <meta property="og:description" content="Neonoir — built on Replit. Update this description to reflect the app." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Neonoir" />
-    <meta name="twitter:description" content="Neonoir — built on Replit. Update this description to reflect the app." />
+
+    <!-- PWA / Web App -->
+    <meta name="theme-color" content="#08080c" />
+    <meta name="background-color" content="#08080c" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Neonoir" />
+    <meta name="application-name" content="Neonoir" />
+    <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/icons/icon-120x120.png" />
+    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
+    <meta name="msapplication-TileColor" content="#08080c" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:site_name" content="Neonoir" />
+    <meta property="og:title" content="Neonoir — Cyberpunk Crime RPG" />
+    <meta property="og:description" content="Rise through the neon underworld. Commit crimes, run heists, fight in the arena, street race, and build your criminal empire." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://neonoir.app/" />
+    <meta property="og:image" content="/opengraph.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Neonoir — a neon-lit cyberpunk crime RPG banner" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Neonoir — Cyberpunk Crime RPG" />
+    <meta name="twitter:description" content="Rise through the neon underworld. Commit crimes, run heists, fight in the arena, street race, and build your criminal empire." />
+    <meta name="twitter:image" content="/opengraph.jpg" />
+    <meta name="twitter:image:alt" content="Neonoir — a neon-lit cyberpunk crime RPG banner" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -20,5 +50,14 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').catch(function(err) {
+            console.warn('SW registration failed:', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
