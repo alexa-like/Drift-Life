@@ -77,7 +77,7 @@ export function FactionPage({ user, addToast }: Props) {
 
   const { data: standings, isLoading: loadingStandings } = useQuery<FactionStat[]>({
     queryKey: ["leaderboard", "faction"],
-    queryFn: () => api.get("/leaderboard/faction").then(r => r.data),
+    queryFn: () => api.get("/leaderboard/faction").then((r: any) => r.data),
     staleTime: 60_000,
   });
 
@@ -85,7 +85,7 @@ export function FactionPage({ user, addToast }: Props) {
   const { data: topMembers, isLoading: loadingMembers } = useQuery<any[]>({
     queryKey: ["leaderboard", "wealth"],
     queryFn: () =>
-      api.get("/leaderboard?category=wealth&limit=50").then(r =>
+      api.get("/leaderboard?category=wealth&limit=50").then((r: any) =>
         (r.data as any[]).filter((p: any) => p.faction === myFaction).slice(0, 8)
       ),
     enabled: !!myFaction,
@@ -151,7 +151,7 @@ export function FactionPage({ user, addToast }: Props) {
 
       {/* ── Active perks ── */}
       <AnimatedCard>
-        <CyberSectionHeader icon={Star} label="Faction Perks" color={def.color} />
+        <CyberSectionHeader title="Faction Perks" accent={def.color} />
         <div className="mt-3 space-y-2">
           {def.perks.map((perk, i) => (
             <div
@@ -168,7 +168,7 @@ export function FactionPage({ user, addToast }: Props) {
 
       {/* ── Faction standings ── */}
       <AnimatedCard>
-        <CyberSectionHeader icon={TrendingUp} label="Faction War — Standings" color="#00d4ff" />
+        <CyberSectionHeader title="Faction War — Standings" accent="#00d4ff" />
         {loadingStandings ? (
           <p className="font-mono text-xs text-center py-6" style={{ color: "#475569" }}>Loading…</p>
         ) : (
@@ -230,7 +230,7 @@ export function FactionPage({ user, addToast }: Props) {
       {/* ── Top members in my faction ── */}
       {myFaction && (
         <AnimatedCard>
-          <CyberSectionHeader icon={Users} label={`${def.name} — Top Members`} color={def.color} />
+          <CyberSectionHeader title={`${def.name} — Top Members`} accent={def.color} />
           {loadingMembers ? (
             <p className="font-mono text-xs text-center py-6" style={{ color: "#475569" }}>Loading…</p>
           ) : (
@@ -276,7 +276,7 @@ export function FactionPage({ user, addToast }: Props) {
 
       {/* ── Faction bank note ── */}
       <AnimatedCard>
-        <CyberSectionHeader icon={Landmark} label="Faction Bank" color="#64748b" />
+        <CyberSectionHeader title="Faction Bank" accent="#64748b" />
         <p className="font-mono text-xs mt-3 leading-relaxed" style={{ color: "#64748b" }}>
           Your faction's finances are managed through your crew (guild). Join or create a crew to access the faction bank, buy faction perks, and fund faction operations.
         </p>
