@@ -52,9 +52,8 @@ externalPort = 80
 [userenv.shared]
 BASE_PATH = "/"
 NODE_ENV = "development"
-VAPID_PUBLIC_KEY = "BE-9kh3hhyokF3FJJcGzjKAEcLoDdmpZMUtCPK6n6IIN7GT9RaQWUFlT5MqgewUE0k98Z9Q_bq71zocq16665yQ"
+VAPID_PUBLIC_KEY = "BJIqa889HJWog7fNnC2mNRyBNFGlldg68XjzKG9vczRfKE3n9gpwqqHhwc9frUS5_n_CenoGP2Poy8A4j-8raks"
 VAPID_SUBJECT = "mailto:admin@neonoir.app"
-VAPID_PRIVATE_KEY = "h0qGsU_w1Zi9DHjUG39sc_XA8j7e_ud1xqtLpWl_hh8"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-965b5d69-ed31-46f3-a95e-a673f3a8f562"
