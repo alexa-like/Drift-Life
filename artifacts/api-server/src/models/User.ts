@@ -115,6 +115,10 @@ export interface IUser extends Document {
     achievements: boolean;
     dms: boolean;
     xpBoost: boolean;
+    combat: boolean;
+    crimes: boolean;
+    faction: boolean;
+    banking: boolean;
   };
   gang: string | null;
   guildId: mongoose.Types.ObjectId | null;
@@ -325,10 +329,17 @@ const UserSchema = new Schema<IUser>(
     notificationPrefs: {
       type: {
         achievements: { type: Boolean, default: true },
-        dms: { type: Boolean, default: true },
-        xpBoost: { type: Boolean, default: true },
+        dms:          { type: Boolean, default: true },
+        xpBoost:      { type: Boolean, default: true },
+        combat:       { type: Boolean, default: true },
+        crimes:       { type: Boolean, default: true },
+        faction:      { type: Boolean, default: true },
+        banking:      { type: Boolean, default: true },
       },
-      default: () => ({ achievements: true, dms: true, xpBoost: true }),
+      default: () => ({
+        achievements: true, dms: true, xpBoost: true,
+        combat: true, crimes: true, faction: true, banking: true,
+      }),
     },
     gang: { type: String, default: null },
     guildId: { type: Schema.Types.ObjectId, ref: "Guild", default: null },

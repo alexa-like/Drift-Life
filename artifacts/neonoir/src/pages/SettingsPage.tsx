@@ -1,6 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
+import {
+  isPushSupported,
+  getPushPermission,
+  getSubscriptionStatus,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "../lib/pushNotifications";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { AnimatedCard } from "../components/AnimatedCard";
@@ -63,7 +70,44 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
   const [liteMode,      setLiteMode]      = useState(user.liteModeEnabled ?? false);
   const [notifPrefs,    setNotifPrefs]    = useState(user.notificationPrefs ?? {
     achievements: true, dms: true, xpBoost: true,
+    combat: true, crimes: true, faction: true, banking: true,
   });
+
+  // ── Push notification state ──────────────────────────────────────────────
+  const [pushSupported,   setPushSupported]   = useState(false);
+  const [pushPermission,  setPushPermission]  = useState<NotificationPermission>("default");
+  const [pushSubscribed,  setPushSubscribed]  = useState(false);
+  const [pushLoading,     setPushLoading]     = useState(false);
+
+  useEffect(() => {
+    const supported = isPushSupported();
+    setPushSupported(supported);
+    if (supported) {
+      setPushPermission(getPushPermission());
+      getSubscriptionStatus().then(setPushSubscribed);
+    }
+  }, []);
+
+  async function handlePushSubscribe() {
+    setPushLoading(true);
+    const result = await subscribeToPush();
+    setPushPermission(getPushPermission());
+    if (result.success) {
+      setPushSubscribed(true);
+      addToast("Push notifications enabled", "success");
+    } else {
+      addToast(result.error ?? "Failed to enable push notifications", "error");
+    }
+    setPushLoading(false);
+  }
+
+  async function handlePushUnsubscribe() {
+    setPushLoading(true);
+    await unsubscribeFromPush();
+    setPushSubscribed(false);
+    addToast("Push notifications disabled", "success");
+    setPushLoading(false);
+  }
 
   async function savePrivacy() {
     setSaving(true);
@@ -346,11 +390,71 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
       {/* Notifications */}
       {tab === "notifications" && (
         <AnimatedCard accent="#00d4ff" className="flex flex-col gap-4">
-          {[
-            { key: "achievements" as const, label: "Achievement unlocks",  desc: "Notify when you earn an achievement"         },
-            { key: "dms"          as const, label: "Direct Messages",      desc: "Notify when you receive a DM"                },
-            { key: "xpBoost"      as const, label: "XP Boost Alerts",      desc: "Notify about active XP bonus events"         },
-          ].map(({ key, label, desc }) => (
+
+          {/* ── Browser Push Notifications ─────────────────────────────── */}
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>
+                Browser Push Notifications
+              </div>
+              {pushSubscribed && (
+                <span
+                  className="font-mono"
+                  style={{
+                    fontSize: 9, fontWeight: "bold", letterSpacing: "0.05em",
+                    color: "#22c55e", background: "#22c55e18",
+                    border: "1px solid #22c55e40", borderRadius: 4, padding: "1px 6px",
+                  }}
+                >
+                  ACTIVE
+                </span>
+              )}
+            </div>
+            <div className="font-mono mb-3" style={{ color: "#64748b", fontSize: 11 }}>
+              {!pushSupported
+                ? "Not supported in this browser. Install the app on Android/iOS for push support."
+                : pushPermission === "denied"
+                ? "Blocked — open browser settings and allow notifications for this site."
+                : pushSubscribed
+                ? "You'll receive notifications even when the app is closed or minimized."
+                : "Get notified about DMs, combat results, crimes, and more — even when Neonoir is closed."}
+            </div>
+            {pushSupported && pushPermission !== "denied" && (
+              <CyberButton
+                variant={pushSubscribed ? "ghost" : "primary"}
+                size="sm"
+                glow={!pushSubscribed}
+                loading={pushLoading}
+                onClick={pushSubscribed ? handlePushUnsubscribe : handlePushSubscribe}
+              >
+                {pushSubscribed ? "🔕 Disable Push Notifications" : "🔔 Enable Push Notifications"}
+              </CyberButton>
+            )}
+            {pushPermission === "denied" && (
+              <div
+                className="font-mono text-xs px-3 py-2 rounded"
+                style={{ background: "#ff6b3518", border: "1px solid #ff6b3540", color: "#ff6b35" }}
+              >
+                ⚠ Notifications blocked. Go to your browser's site settings to re-enable them.
+              </div>
+            )}
+          </div>
+
+          <div style={{ borderTop: "1px solid #1e1e2e" }} />
+
+          {/* ── Per-type notification toggles ──────────────────────────── */}
+          <div className="font-mono text-xs font-bold" style={{ color: "#64748b", letterSpacing: "0.08em" }}>
+            NOTIFY ME ABOUT
+          </div>
+          {([
+            { key: "achievements" as const, label: "Achievement unlocks",  desc: "When you earn an achievement"               },
+            { key: "dms"          as const, label: "Direct Messages",      desc: "When someone sends you a DM"               },
+            { key: "combat"       as const, label: "Combat Results",       desc: "Win/loss results, bounty hits"              },
+            { key: "crimes"       as const, label: "Crime Outcomes",       desc: "Crime success, failure, or jail alerts"     },
+            { key: "faction"      as const, label: "Faction Events",       desc: "Turf wars, faction messages, raids"         },
+            { key: "banking"      as const, label: "Banking Alerts",       desc: "Transfers received and large deposits"      },
+            { key: "xpBoost"      as const, label: "XP Boost Alerts",      desc: "When an XP bonus event goes live"           },
+          ] as const).map(({ key, label, desc }) => (
             <div key={key} className="flex items-center justify-between gap-3">
               <div>
                 <div className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{label}</div>
@@ -362,16 +466,20 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
               />
             </div>
           ))}
+
+          <div style={{ borderTop: "1px solid #1e1e2e" }} />
+
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>Sound Effects</div>
-              <div className="font-mono" style={{ color: "#64748b", fontSize: 11 }}>Play audio feedback on actions</div>
+              <div className="font-mono" style={{ color: "#64748b", fontSize: 11 }}>Play audio feedback on game actions</div>
             </div>
             <Toggle
               checked={soundEnabled}
               onChange={v => { setSoundEnabled(v); localStorage.setItem("neonoir_sounds_enabled", v ? "true" : "false"); }}
             />
           </div>
+
           <CyberButton variant="primary" loading={saving} onClick={saveNotifications}>
             Save Notification Preferences
           </CyberButton>

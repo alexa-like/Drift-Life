@@ -51,10 +51,15 @@ router.patch("/", requireAuth, async (req: AuthRequest, res) => {
     if (notificationPrefs && typeof notificationPrefs === "object") {
       const prefs = user.notificationPrefs || {
         achievements: true, dms: true, xpBoost: true,
+        combat: true, crimes: true, faction: true, banking: true,
       };
       if (notificationPrefs.achievements !== undefined) prefs.achievements = Boolean(notificationPrefs.achievements);
-      if (notificationPrefs.dms !== undefined) prefs.dms = Boolean(notificationPrefs.dms);
-      if (notificationPrefs.xpBoost !== undefined) prefs.xpBoost = Boolean(notificationPrefs.xpBoost);
+      if (notificationPrefs.dms          !== undefined) prefs.dms          = Boolean(notificationPrefs.dms);
+      if (notificationPrefs.xpBoost      !== undefined) prefs.xpBoost      = Boolean(notificationPrefs.xpBoost);
+      if (notificationPrefs.combat       !== undefined) prefs.combat        = Boolean(notificationPrefs.combat);
+      if (notificationPrefs.crimes       !== undefined) prefs.crimes        = Boolean(notificationPrefs.crimes);
+      if (notificationPrefs.faction      !== undefined) prefs.faction       = Boolean(notificationPrefs.faction);
+      if (notificationPrefs.banking      !== undefined) prefs.banking       = Boolean(notificationPrefs.banking);
       user.notificationPrefs = prefs;
     }
     if (uiScale !== undefined) {

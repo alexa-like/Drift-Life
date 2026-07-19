@@ -79,6 +79,10 @@ export interface User {
     achievements: boolean;
     dms: boolean;
     xpBoost: boolean;
+    combat: boolean;
+    crimes: boolean;
+    faction: boolean;
+    banking: boolean;
   };
   devMode: boolean;
   battlePassPremium: boolean;

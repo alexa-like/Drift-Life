@@ -1,4 +1,4 @@
-const CACHE_NAME = 'neonoir-v1';
+const CACHE_NAME = 'neonoir-v2';
 const PRECACHE = ['/', '/index.html', '/favicon.svg', '/favicon.ico', '/manifest.json'];
 const STATIC_EXTENSIONS = /\.(?:js|css|png|jpg|jpeg|svg|gif|webp|ico|woff|woff2|ttf|otf|eot)$/;
 
@@ -26,6 +26,39 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+// ── Push Notifications ───────────────────────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { /* malformed payload */ }
+
+  const title   = data.title  || 'Neonoir';
+  const options = {
+    body:     data.body  || '',
+    icon:     data.icon  || '/favicon.svg',
+    badge:    data.badge || '/favicon.svg',
+    tag:      data.tag   || 'general',
+    renotify: true,
+    data:     { link: data.link || '/' },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const link = (event.notification.data && event.notification.data.link) || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => {
+      // Focus an existing window if one is open
+      for (const c of cs) {
+        if ('focus' in c) { c.focus(); return c.navigate(link); }
+      }
+      return clients.openWindow(link);
+    })
+  );
 });
 
 self.addEventListener('fetch', (event) => {
