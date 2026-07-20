@@ -299,7 +299,7 @@ Add a **"Cosmetics"** tab to the existing Store page (`artifacts/neonoir/src/pag
 ---
 
 ## TIER 2 — EVENT ENGINE
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Build the complete event creation, scheduling, theming, and management system. Owner can create any event type, schedule it, change the game's name and look, and Vanta can plan a full year of events.
 
