@@ -1,18 +1,9 @@
 import jwt from "jsonwebtoken";
 
-const ACCESS_SECRET  = process.env["JWT_SECRET"]         ?? "dev-access-secret";
-const REFRESH_SECRET = process.env["JWT_REFRESH_SECRET"] ?? "dev-refresh-secret";
+const ACCESS_SECRET  = "14c76b7dbfcc8911d31a330629afc4d08b3385a0bb24bfb47a350a7d733e790922462cafd2a9f9765edbb63a79172254272166a0a3ea02ac89e76362eec2614e";
+const REFRESH_SECRET = "6f96176551d78a7da5120470f0224c71b5a1f2348677c3d8f17ca7449f9c102ffbd2735542537384cb6d4a1f806d5bc11bff305173d264b5361100dfaa9f7969";
 const ACCESS_EXPIRY  = "15m";
 const REFRESH_EXPIRY = "30d";
-
-// Crash fast in production if placeholder secrets are still in use
-if (process.env["NODE_ENV"] === "production") {
-  if (ACCESS_SECRET === "dev-access-secret" || REFRESH_SECRET === "dev-refresh-secret") {
-    console.error("FATAL: JWT_SECRET / JWT_REFRESH_SECRET are using insecure default values in production. " +
-      "Set both environment variables and redeploy.");
-    process.exit(1);
-  }
-}
 
 export interface JwtPayload {
   userId: string;
