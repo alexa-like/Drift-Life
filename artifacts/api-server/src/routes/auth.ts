@@ -129,7 +129,23 @@ export function safeUser(user: InstanceType<typeof User>) {
       expiresAt:   e.expiresAt,
       source:      e.source,
     })),
+    // ── 12 Active event theme ───────────────────────────────────────────────
+    activeEvent: (user as any)._activeEvent ?? null,
   };
+}
+
+/** Fetch active event theme from ServerConfig (cached externally). */
+async function fetchActiveEventTheme(): Promise<Record<string, unknown> | null> {
+  try {
+    const ServerConfig = (await import("../models/ServerConfig")).default;
+    const doc = await ServerConfig.findOne({ key: "activeEventTheme" }).lean();
+    if (!doc?.value) return null;
+    const v = doc.value as Record<string, unknown>;
+    if (!v || Object.keys(v).length === 0) return null;
+    return v;
+  } catch {
+    return null;
+  }
 }
 
 // POST /api/auth/register

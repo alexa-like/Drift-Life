@@ -17,6 +17,7 @@ import { postWeeklyBanRecap } from "./lib/banRecap";
 import { tickBusinessIncome } from "./lib/businessIncomeWorker";
 import VantaScheduledTask from "./models/VantaScheduledTask";
 import { pushLog } from "./lib/logBuffer";
+import { tickEventScheduler } from "./lib/eventEngine";
 
 const rawPort = process.env["PORT"] ?? "3000";
 const port = Number(rawPort);
@@ -260,6 +261,16 @@ async function start() {
     }, 5 * 60 * 1000);
     tickBusinessIncome().catch((err) =>
       logger.error({ err }, "business income tick startup error"),
+    );
+
+    // ── Event scheduler: auto-activate / auto-end / flash cleanup every 60s ──
+    setInterval(() => {
+      tickEventScheduler(io).catch((err) =>
+        logger.error({ err }, "event scheduler tick error"),
+      );
+    }, 60_000);
+    tickEventScheduler(io).catch((err) =>
+      logger.error({ err }, "event scheduler startup error"),
     );
 
     // ── Auction auto-close: run every 1 minute ────────────────────────────────
