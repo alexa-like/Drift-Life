@@ -128,8 +128,8 @@ The very first action in every session must be to read `replit.md` in full befor
 
 ---
 
-### RULE 16 — One Tier at a Time
-Build one tier fully before starting the next. Never work on two tiers simultaneously. The only exception: if the owner explicitly requests a full audit of completed tiers, you may audit all done tiers and report findings without building anything new.
+### RULE 16 — One Tier at a Time — Wait for the Owner
+Build one tier fully, verify it, push it, and mark it ✅ Done. Then stop and wait for the owner to explicitly say to continue before touching the next tier. Never start the next tier on your own. Never work on two tiers simultaneously. The only exception: if the owner explicitly requests a full audit of completed tiers, you may audit all done tiers and report findings without building anything new.
 
 ---
 
@@ -167,9 +167,7 @@ After finishing a tier, verifying the build, and pushing to GitHub — edit only
 
 ---
 
-## TIERS 1–10 — COMPLETED (see Junks/update_tiers_old.md for full spec)
-
-These tiers were specified in detail in `Junks/update_tiers_old.md`. Read that file for the full spec of each tier. Their current implementation status per the audit report (`Junks/NEONOIR_TIER_AUDIT_REPORT.md`):
+## TIERS 1–10 — COMPLETED
 
 | Tier | Title | Status |
 |---|---|---|
@@ -183,8 +181,6 @@ These tiers were specified in detail in `Junks/update_tiers_old.md`. Read that f
 | 8 | UI Polish, Images & Navigation | ✅ Done |
 | 9 | Districts, Player Status & NavBar Gating | ✅ Done |
 | 10 | System Feed, Notifications, Factions & Economy | ✅ Done |
-
-Before starting Tier 1, read `Junks/NEONOIR_TIER_AUDIT_REPORT.md` and fix any open ⚠️ items from the completed tiers that are still broken. Do not start Tier 1 until the audit gaps are closed.
 
 ---
 
@@ -1708,4 +1704,4 @@ After all checks pass and all anomalies are resolved:
 
 ---
 
-*End of NEONOIR_MASTER_PLAN.md — All 24 tiers fully specified. Build tier by tier. Complete, verify, push, and mark ✅ Done before starting the next tier. Tier 14 runs only when explicitly requested by the owner.*
+*End of NEONOIR_MASTER_PLAN.md — All 14 tiers fully specified. Build one tier at a time. Complete, verify, push, and mark ✅ Done — then stop and wait for the owner's instruction before starting the next tier. Tier 14 runs only when explicitly requested by the owner.*
