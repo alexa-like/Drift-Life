@@ -324,7 +324,7 @@ const VANTA_TOOLS: GroqTool[] = [
 ];
 
 // ── TOOL EXECUTORS ─────────────────────────────────────────────────────────────
-async function execTool(name: string, args: Record<string, unknown>, actorId: string, actorUsername: string, ownerIpExcludeIds: string[] = []): Promise<string> {
+async function execTool(name: string, args: Record<string, unknown>, actorId: string, actorUsername: string, ownerIpExcludeIds: string[] = [], io?: any): Promise<string> {
   try {
     switch (name) {
       case "get_player_info": {
@@ -362,6 +362,8 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
         await user.save();
         logAdminAction({ actorId, actorUsername, action: "vanta-adjust-currency", targetId: String(user._id), targetUsername: user.username, details: { currency, amount, reason } });
         pushLog("info", `Vanta adjusted ${currency} for ${user.username}`, `delta=${amount}`);
+        // Push live update to the target player immediately
+        if (io) io.to(`user:${user._id}`).emit("user_data_updated", { field: currency, value: (user as any)[currency], dc: user.dc, bankBalance: user.bankBalance, nc: user.nc });
         return `✅ ${amount >= 0 ? "+" : ""}${amount} ${currency} applied to ${user.username}. New value: ${(user as any)[currency]}.`;
       }
 
@@ -375,6 +377,8 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
         const result = await User.updateMany({ banned: false, isGhostAccount: { $ne: true } }, { $inc: { [currency]: amount } });
         logAdminAction({ actorId, actorUsername, action: "vanta-mass-currency", details: { currency, amount, reason, playersAffected: result.modifiedCount } });
         pushLog("info", `Vanta mass-granted ${amount} ${currency}`, reason);
+        // Broadcast live update to every connected player so their UI refreshes instantly
+        if (io) io.emit("user_data_updated", { field: currency, broadcast: true });
         return `✅ Gave +${amount} ${currency} to ${result.modifiedCount} players. Reason: ${reason}`;
       }
 
@@ -389,6 +393,7 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
         (user as any).bannedAt = new Date();
         await user.save();
         logAdminAction({ actorId, actorUsername, action: "vanta-ban", targetId: String(user._id), targetUsername: user.username, details: { reason } });
+        if (io) io.to(`user:${user._id}`).emit("user_data_updated", { banned: true });
         return `✅ ${user.username} has been banned. Reason: ${reason}`;
       }
 
@@ -400,6 +405,7 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
         user.banReason = null;
         await user.save();
         logAdminAction({ actorId, actorUsername, action: "vanta-unban", targetId: String(user._id), targetUsername: user.username });
+        if (io) io.to(`user:${user._id}`).emit("user_data_updated", { banned: false });
         return `✅ ${user.username} has been unbanned.`;
       }
 
@@ -814,7 +820,7 @@ router.post("/chat", async (req: AuthRequest, res) => {
 
         send({ type: "action", text: progressLabels[toolName] ?? `Running ${toolName}...`, tool: toolName });
 
-        const result = await execTool(toolName, toolArgs, req.userId!, req.username || "owner", ownerIpExcludeIds);
+        const result = await execTool(toolName, toolArgs, req.userId!, req.username || "owner", ownerIpExcludeIds, req.app.locals["io"]);
 
         // Special handling for agent prompt tool
         if (toolName === "generate_agent_prompt") {
