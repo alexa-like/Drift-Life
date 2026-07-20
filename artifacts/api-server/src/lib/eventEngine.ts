@@ -12,6 +12,33 @@ import FeedEvent from "../models/FeedEvent";
 import Notification from "../models/Notification";
 import ServerConfig from "../models/ServerConfig";
 import { logger } from "./logger";
+import { sendPushToUser } from "./sendPushToUser";
+import { isWebPushConfigured, sendPushNotification, type PushPayload } from "./webPush";
+import PushSubscription from "../models/PushSubscription";
+
+/**
+ * Fan-out a push notification to every player who has an active push subscription.
+ * Fire-and-forget — failures per subscription are silently swallowed.
+ */
+async function broadcastPushToAll(payload: PushPayload): Promise<void> {
+  if (!isWebPushConfigured()) return;
+  try {
+    const subs = await PushSubscription.find({}).lean();
+    await Promise.allSettled(
+      subs.map(async (sub) => {
+        try {
+          await sendPushNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
+        } catch (err: any) {
+          if (err.expired) {
+            PushSubscription.deleteOne({ _id: sub._id }).catch(() => {});
+          }
+        }
+      }),
+    );
+  } catch (err) {
+    logger.warn({ err }, "broadcastPushToAll failed");
+  }
+}
 
 // ── Flash event cache (30-second TTL) ────────────────────────────────────────
 
@@ -150,6 +177,13 @@ export async function distributeEventRewards(eventId: string): Promise<void> {
         message: `The ${event.name} event has ended. You ranked #${rank} and earned: ${notifParts.join(", ")}.`,
         read: false,
       });
+      // Push notification for event reward
+      sendPushToUser(participant.userId, {
+        title: `🏆 Event Rewards — #${rank}`,
+        body: `${event.name} ended. You earned: ${notifParts.join(", ")}.`,
+        link: "/events",
+        tag: "achievements",
+      }, "achievements").catch(() => {});
     }
   }
 
@@ -301,6 +335,14 @@ export async function activateEvent(event: IEvent, io?: unknown): Promise<void> 
     });
   }
 
+  // Push notification to all subscribed players
+  broadcastPushToAll({
+    title: `⚡ Event Started: ${event.name}`,
+    body: `A new event is live in New Vanta. Jump in now!`,
+    link: "/events",
+    tag: "general",
+  }).catch(() => {});
+
   logger.info({ eventId: event._id, name: event.name }, "Event activated");
 }
 
@@ -331,6 +373,14 @@ export async function endEvent(event: IEvent, io?: unknown): Promise<void> {
   if (io) {
     (io as any).emit("event_ended", { eventName: event.name });
   }
+
+  // Push notification to all subscribed players
+  broadcastPushToAll({
+    title: `🏁 Event Ended: ${event.name}`,
+    body: `The event is over. Check your rewards!`,
+    link: "/events",
+    tag: "general",
+  }).catch(() => {});
 
   // Distribute rewards in background (don't block the response)
   distributeEventRewards(String(event._id)).catch(err => {

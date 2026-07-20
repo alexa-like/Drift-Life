@@ -71,6 +71,7 @@ export interface User {
   titles: string[];
   merit: number;
   appearOffline: boolean;
+  lastActiveAt?: string | null;
   dmPrivacy: "anyone" | "nobody";
   liteModeEnabled: boolean;
   notificationPrefs: {

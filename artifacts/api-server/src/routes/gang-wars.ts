@@ -6,6 +6,7 @@ import User from "../models/User";
 import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { logger } from "../lib/logger";
+import { sendPushToUser } from "../lib/sendPushToUser";
 
 const router = Router();
 
@@ -155,6 +156,15 @@ router.post("/declare", requireAuth, async (req: AuthRequest, res) => {
         })
       )
     );
+    // Push notification to each target guild member
+    for (const uid of targetMemberIds) {
+      sendPushToUser(uid, {
+        title: `⚔️ War Declared — [${myGuild.tag}]`,
+        body: `${myGuild.name} has declared war on your gang! Your leader has 24h to accept or decline.`,
+        link: "/guilds",
+        tag: "faction",
+      }, "faction").catch(() => {});
+    }
 
     res.status(201).json(war);
   } catch (err) {

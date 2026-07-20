@@ -182,6 +182,13 @@ export async function closeExpiredAuctions(): Promise<void> {
             type: "system",
             message: `You won the auction for "${listing.itemName}" with a bid of ${listing.currentBid.toLocaleString()} DC! Check your inventory.`,
           });
+          // Push notification to the winner
+          sendPushToUser(listing.currentBidderId, {
+            title: "🏆 Auction Won!",
+            body: `Your bid on "${listing.itemName}" won! It's been added to your inventory.`,
+            link: "/inventory",
+            tag: "auction",
+          }, "banking").catch(() => {});
         } else {
           listing.status = "expired";
           await listing.save();

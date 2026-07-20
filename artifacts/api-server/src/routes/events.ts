@@ -13,6 +13,29 @@ import Notification from "../models/Notification";
 import CosmeticItem from "../models/CosmeticItem";
 import ServerConfig from "../models/ServerConfig";
 import { getActiveEvent, invalidateActiveEventCache, endEvent, activateEvent, distributeEventRewards, getActiveFlashEvent, invalidateFlashCache, applyBossAbilityEffect } from "../lib/eventEngine";
+import { isWebPushConfigured, sendPushNotification, type PushPayload } from "../lib/webPush";
+import PushSubscription from "../models/PushSubscription";
+import { logger } from "../lib/logger";
+
+async function broadcastPushToAll(payload: PushPayload): Promise<void> {
+  if (!isWebPushConfigured()) return;
+  try {
+    const subs = await PushSubscription.find({}).lean();
+    await Promise.allSettled(
+      subs.map(async (sub) => {
+        try {
+          await sendPushNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
+        } catch (err: any) {
+          if (err.expired) {
+            PushSubscription.deleteOne({ _id: sub._id }).catch(() => {});
+          }
+        }
+      }),
+    );
+  } catch (err) {
+    logger.warn({ err }, "broadcastPushToAll (events) failed");
+  }
+}
 
 const router = Router();
 
@@ -231,6 +254,9 @@ router.post("/strike-boss", requireAuth, async (req: AuthRequest, res) => {
 
     const newHp = updatedEvent ? Math.max(0, updatedEvent.boss!.currentHp) : 0;
 
+    // Get io before phase-check so applyBossAbilityEffect can use it
+    const io = req.app.locals["io"];
+
     // Check for phase transition + apply ability effect
     let phaseChange: string | null = null;
     if (updatedEvent?.boss) {
@@ -248,6 +274,13 @@ router.post("/strike-boss", requireAuth, async (req: AuthRequest, res) => {
             message: `[BOSS] Phase transition: "${phase.name}"! ${phase.description}`,
             dc: 0, xp: 0, actorLevel: 0,
           });
+          // Push to all subscribed players on boss phase change
+          broadcastPushToAll({
+            title: `💀 Boss: ${phase.name}`,
+            body: phase.description || `The boss has entered a new phase!`,
+            link: "/events",
+            tag: "general",
+          }).catch(() => {});
           break;
         }
       }
@@ -277,7 +310,6 @@ router.post("/strike-boss", requireAuth, async (req: AuthRequest, res) => {
     }
 
     // Broadcast boss HP update via WebSocket
-    const io = req.app.locals["io"];
     if (io) {
       io.emit("boss_hp_update", {
         eventId: String(event._id),

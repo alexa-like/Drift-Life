@@ -28,6 +28,48 @@ import { NC_PACKS, TIER_CONFIG, getActiveTier, type SubscriptionTier } from "../
 import { resolvePending, peekPending, storePending } from "./store";
 import { getWorldState } from "../models/WorldState";
 import { QuestTemplate } from "../models/Quest";
+import { callGroq, DEFAULT_VANTA_MODEL } from "../lib/groq";
+
+// ── Per-chat Vanta conversation history (owner only) ─────────────────────────
+// Stores the last 10 message turns per chatId to give Vanta context.
+const _vantaHistory = new Map<string, Array<{ role: "user" | "assistant"; content: string }>>();
+const VANTA_HISTORY_LIMIT = 10;
+
+const VANTA_TELEGRAM_SYSTEM = `You are Vanta, the private AI assistant and system administrator for Neonoir — a gritty cyberpunk crime RPG. You serve the game owner exclusively via Telegram.
+
+You have knowledge of the game world but cannot directly execute game commands from Telegram — you provide information, analysis, and guidance. Be concise (Telegram messages have limited space). Use short bullet points. Cyberpunk noir style — sharp, efficient, loyal.
+
+IMPORTANT: Keep responses under 300 words. Use plain text (HTML is OK with <b> and <i> tags for Telegram).`;
+
+async function handleOwnerVantaMessage(chatId: string, text: string): Promise<void> {
+  const history = _vantaHistory.get(chatId) ?? [];
+
+  history.push({ role: "user", content: text });
+
+  // Trim to last N turns
+  while (history.length > VANTA_HISTORY_LIMIT) history.shift();
+
+  try {
+    const result = await callGroq({
+      model: DEFAULT_VANTA_MODEL,
+      messages: history,
+      systemPrompt: VANTA_TELEGRAM_SYSTEM,
+      maxTokens: 500,
+      temperature: 0.7,
+    });
+
+    const reply = result.content?.trim() || "...";
+    history.push({ role: "assistant", content: reply });
+
+    // Persist updated history
+    _vantaHistory.set(chatId, history);
+
+    await sendTelegramMessage(chatId, `🤖 <b>Vanta:</b>\n\n${reply}`);
+  } catch (err) {
+    _vantaHistory.set(chatId, history);
+    await sendTelegramMessage(chatId, `❌ Vanta is offline. Check GROQ_API_KEY configuration.`);
+  }
+}
 
 const router = Router();
 
@@ -88,19 +130,25 @@ async function showMainMenu(chatId: string, editMsgId?: number): Promise<void> {
 }
 
 async function showStatus(chatId: string, linkedUser: any, editMsgId?: number): Promise<void> {
-  const tier = getActiveTier(linkedUser);
-  const tierCfg = tier ? TIER_CONFIG[linkedUser.subscriptionTier as SubscriptionTier] : null;
+  // Fetch fresh user data including dc, nc, health, energy, currentLocation
+  const fullUser = await User.findById((linkedUser as any)._id)
+    .select("username nc dc health maxHealth energy maxEnergy currentLocation subscriptionTier subscriptionExpiresAt ncDailyClaimedAt")
+    .lean() as any;
+  const u = fullUser ?? linkedUser;
+
+  const tier = getActiveTier(u);
+  const tierCfg = tier ? TIER_CONFIG[u.subscriptionTier as SubscriptionTier] : null;
 
   const subLine = tierCfg
     ? `💎 <b>${tierCfg.name}</b>`
     : `💎 No active subscription`;
 
-  const expiresLine = linkedUser.subscriptionExpiresAt && tier
-    ? `   Expires: ${new Date(linkedUser.subscriptionExpiresAt).toDateString()}`
+  const expiresLine = u.subscriptionExpiresAt && tier
+    ? `   Expires: ${new Date(u.subscriptionExpiresAt).toDateString()}`
     : "";
 
-  const lastClaim: Date | null = linkedUser.ncDailyClaimedAt
-    ? new Date(linkedUser.ncDailyClaimedAt)
+  const lastClaim: Date | null = u.ncDailyClaimedAt
+    ? new Date(u.ncDailyClaimedAt)
     : null;
   const claimedToday = lastClaim
     ? lastClaim.toDateString() === new Date().toDateString()
@@ -111,9 +159,17 @@ async function showStatus(chatId: string, linkedUser: any, editMsgId?: number): 
       : `⏳ Daily NC: ready to claim (${tierCfg!.dailyNc} NC)`
     : "";
 
+  const location = u.currentLocation
+    ? String(u.currentLocation).replace(/-/g, " ")
+    : "Unknown";
+
   const text =
-    `<b>📊 @${linkedUser.username} — Status</b>\n\n` +
-    `💎 NC Balance: <b>${(linkedUser.nc ?? 0).toLocaleString()} NC</b>\n` +
+    `<b>📊 @${u.username} — Status</b>\n\n` +
+    `💵 DC: <b>${(u.dc ?? 0).toLocaleString()}</b>\n` +
+    `💎 NC: <b>${(u.nc ?? 0).toLocaleString()}</b>\n` +
+    `❤️ HP: ${u.health ?? "?"}/${u.maxHealth ?? 100}\n` +
+    `⚡ Energy: ${u.energy ?? "?"}/${u.maxEnergy ?? 100}\n` +
+    `📍 Location: ${location}\n\n` +
     `${subLine}\n` +
     `${expiresLine ? expiresLine + "\n" : ""}` +
     `${claimLine ? claimLine + "\n" : ""}` +
@@ -639,8 +695,15 @@ router.post("/webhook", async (req, res) => {
 
       // ── 3c. Text commands → inline menus ───────────────────────────────
       const linkedUser = await User.findOne({ telegramId: chatId })
-        .select("_id uc username subscriptionTier subscriptionExpiresAt ucDailyClaimedAt")
+        .select("_id uc username subscriptionTier subscriptionExpiresAt ucDailyClaimedAt role nc dc")
         .lean();
+
+      // ── Owner → Vanta forwarding ─────────────────────────────────────────
+      // If the message is from the game owner's linked account, forward to Vanta AI.
+      if (linkedUser && (linkedUser as any).role === "owner" && !text.startsWith("/")) {
+        await handleOwnerVantaMessage(chatId, text);
+        return;
+      }
 
       if (text === "/start" || text === "/menu" || text === "/help") {
         await showMainMenu(chatId);

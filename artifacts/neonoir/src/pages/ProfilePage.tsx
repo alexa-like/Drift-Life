@@ -262,6 +262,37 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
         <div className="font-mono mt-1" style={{ fontSize: 10, color: "#64748b" }}>
           District: {user.district.replace(/-/g, " ")}
         </div>
+        {/* Presence / last active */}
+        {(() => {
+          if (user.appearOffline) return null;
+          const rawLast = (user as any).lastActiveAt;
+          if (!rawLast) return null;
+          const last = new Date(rawLast);
+          const diffMs = Date.now() - last.getTime();
+          const diffMin = Math.floor(diffMs / 60000);
+          let presenceLabel: string;
+          let presenceColor: string;
+          if (diffMin < 5) {
+            presenceLabel = "● Online now";
+            presenceColor = "#39d353";
+          } else if (diffMin < 30) {
+            presenceLabel = `◌ Active ${diffMin}m ago`;
+            presenceColor = "#f59e0b";
+          } else if (diffMin < 1440) {
+            const h = Math.floor(diffMin / 60);
+            presenceLabel = `◌ Active ${h}h ago`;
+            presenceColor = "#64748b";
+          } else {
+            const days = Math.floor(diffMin / 1440);
+            presenceLabel = `○ Last seen ${days}d ago`;
+            presenceColor = "#334155";
+          }
+          return (
+            <div className="font-mono mt-1" style={{ fontSize: 10, color: presenceColor }}>
+              {presenceLabel}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── STAT STRIP ──────────────────────────────────────────── */}
