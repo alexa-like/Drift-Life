@@ -43,7 +43,7 @@ import User from "../models/User";
 const router = Router();
 
 function botUsername(): string {
-  return process.env["TELEGRAM_BOT_USERNAME"] || "NeonoirBot";
+  return "NeonoirBot";
 }
 
 /** The message text sent to the player's bot chat / Discord DM containing the code. */

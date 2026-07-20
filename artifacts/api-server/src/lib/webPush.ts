@@ -1,24 +1,17 @@
 import webpush from "web-push";
 
-const VAPID_PUBLIC_KEY  = process.env["VAPID_PUBLIC_KEY"];
-const VAPID_PRIVATE_KEY = process.env["VAPID_PRIVATE_KEY"];
-const VAPID_SUBJECT     = process.env["VAPID_SUBJECT"] ?? "mailto:noreply@neonoir.game";
+const VAPID_PUBLIC_KEY  = "_2eRihoiTaTu1K1mM6b0jHfTxkUNxc2gNRTlwNgm30g0ZeFWwtl7aldkeRaeGah4Ri60MGwnQKXrmCBP6-RC1w";
+const VAPID_PRIVATE_KEY = "BzWw_4iN5KbOY_c_aMF_V3ud7Zk3KlQmCpykf-g7O-E";
+const VAPID_SUBJECT     = "mailto:admin@neonoir.app";
 
-let _configured = false;
-
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-  _configured = true;
-} else {
-  console.warn("[webpush] VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY not set — push notifications disabled");
-}
+webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
 export function isWebPushConfigured(): boolean {
-  return _configured;
+  return true;
 }
 
 export function getVapidPublicKey(): string {
-  return VAPID_PUBLIC_KEY ?? "";
+  return VAPID_PUBLIC_KEY;
 }
 
 export interface PushPayload {
@@ -38,7 +31,6 @@ export async function sendPushNotification(
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
   payload: PushPayload
 ): Promise<void> {
-  if (!_configured) return;
   try {
     await webpush.sendNotification(
       { endpoint: subscription.endpoint, keys: subscription.keys },
