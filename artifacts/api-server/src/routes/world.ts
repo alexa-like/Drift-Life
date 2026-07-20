@@ -21,6 +21,12 @@ const DISTRICT_MODIFIERS: Record<string, {
   "outskirts":  { crimePayoutMod: 1.5,  raceTypeBonus: "drag",    itemPriceMod: 0.8 },
 };
 
+// ── GET /api/world/online-count ──────────────────────────────────────────────
+router.get("/online-count", (_req, res) => {
+  const onlineUsers: Map<string, string> = (_req as any).app.locals["onlineUsers"] ?? new Map();
+  res.json({ count: new Set(onlineUsers.values()).size });
+});
+
 // ── GET /api/world/state ─────────────────────────────────────────────────────
 router.get("/state", requireAuth, async (req: AuthRequest, res) => {
   try {

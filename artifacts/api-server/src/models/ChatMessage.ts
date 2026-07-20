@@ -1,8 +1,13 @@
 import mongoose, { Document, Schema } from "mongoose";
 
+export interface IReaction {
+  emoji: string;
+  userIds: mongoose.Types.ObjectId[];
+}
+
 export interface IChatMessage extends Document {
   _id: mongoose.Types.ObjectId;
-  channel: "global" | "district" | "dm" | `faction:${string}`;
+  channel: "global" | "district" | "dm" | "event" | `faction:${string}`;
   districtId: string | null;
   dmKey: string | null;
   senderId: mongoose.Types.ObjectId;
@@ -13,6 +18,9 @@ export interface IChatMessage extends Document {
   senderPinnedBadges: string[];
   content: string;
   deleted: boolean;
+  replyToId: mongoose.Types.ObjectId | null;
+  replyToPreview: string | null;
+  reactions: IReaction[];
   createdAt: Date;
 }
 
@@ -29,12 +37,19 @@ const ChatMessageSchema = new Schema<IChatMessage>(
     senderPinnedBadges:   [{ type: String }],
     content:              { type: String, required: true, maxlength: 256 },
     deleted:         { type: Boolean, default: false },
+    replyToId:       { type: Schema.Types.ObjectId, ref: "ChatMessage", default: null },
+    replyToPreview:  { type: String, default: null },
+    reactions:       [{
+      emoji:   { type: String, required: true },
+      userIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    }],
   },
   { timestamps: true }
 );
 
 ChatMessageSchema.index({ channel: 1, districtId: 1, createdAt: -1 });
 ChatMessageSchema.index({ channel: 1, dmKey: 1, createdAt: -1 });
+ChatMessageSchema.index({ channel: 1, createdAt: -1 }); // event channel
 ChatMessageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 }); // 30-day TTL
 
 export function dmKey(userA: string, userB: string): string {

@@ -36,6 +36,9 @@ const io = new SocketServer(httpServer, {
 // Per-socket rate limiting: 10 messages per 60s window
 const chatRateMap = new Map<string, { count: number; resetAt: number; lastMsgs: string[] }>();
 
+// Online presence tracking: socketId → userId (authenticated sockets only)
+const onlineUsers = new Map<string, string>();
+
 function checkRateLimit(socketId: string, content: string): boolean {
   const now = Date.now();
   let entry = chatRateMap.get(socketId);
@@ -77,6 +80,9 @@ io.on("connection", (socket) => {
       authedTitle = user.equippedTitle || null;
       socket.join(`user:${userId}`);
       socket.emit("auth_ok", { userId });
+      // Track online presence and broadcast new count
+      onlineUsers.set(socket.id, userId);
+      io.emit("online_count", { count: new Set(onlineUsers.values()).size });
     } catch {
       // verifyAccess throws on invalid/expired token — silently reject
       socket.emit("auth_err", { message: "Invalid or expired token." });
@@ -116,6 +122,11 @@ io.on("connection", (socket) => {
   // Guild room
   socket.on("join_guild", (guildId: string) => {
     socket.join(`guild:${guildId}`);
+  });
+
+  // Event chat room
+  socket.on("join_event", () => {
+    socket.join("event");
   });
 
   // District chat
@@ -217,12 +228,17 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     chatRateMap.delete(socket.id);
+    if (onlineUsers.has(socket.id)) {
+      onlineUsers.delete(socket.id);
+      io.emit("online_count", { count: new Set(onlineUsers.values()).size });
+    }
     logger.info({ socketId: socket.id }, "Socket disconnected");
   });
 });
 
-// Make io available to routes
+// Make io and online user map available to routes
 app.locals["io"] = io;
+app.locals["onlineUsers"] = onlineUsers;
 
 function shutdown(signal: string) {
   logger.info({ signal }, "Shutting down");

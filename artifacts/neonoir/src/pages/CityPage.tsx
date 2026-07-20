@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { api } from "../lib/api";
+import { useSocket } from "../context/SocketContext";
 import type { User, Business, District } from "../lib/types";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
@@ -40,6 +41,19 @@ type TopTab = "street" | "districts" | "hub" | "court";
 
 export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: Props) {
   const [topTab, setTopTab] = useState<TopTab>("street");
+  const [onlineCount, setOnlineCount] = useState(0);
+  const { socket } = useSocket();
+
+  useEffect(() => {
+    api.get<{ count: number }>("/world/online-count").then(r => setOnlineCount(r.count)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handler = ({ count }: { count: number }) => setOnlineCount(count);
+    socket.on("online_count", handler);
+    return () => { socket.off("online_count", handler); };
+  }, [socket]);
 
   // HUB state
   const [hubTab, setHubTab] = useState<"careers" | "businesses">("careers");
@@ -272,6 +286,7 @@ export default function CityPage({ user, onUserUpdate, refreshUser, addToast }: 
             <div className="font-mono text-xs flex gap-3">
               <span style={{ color: "#f59e0b" }}>{user.dc.toLocaleString()} DC</span>
               <span style={{ color: "#f97316" }}>{(user.dirtyDc ?? 0).toLocaleString()} dirty</span>
+              {onlineCount > 0 && <span style={{ color: "#39d353" }} title="Players online">◉ {onlineCount}</span>}
             </div>
           }
         />

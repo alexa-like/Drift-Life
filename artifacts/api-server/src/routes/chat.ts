@@ -10,6 +10,7 @@ import { notifyMentions } from "../lib/mentions";
 import { getActiveTier } from "../lib/subscription";
 import { scanMessage } from "../lib/chatMod";
 import { fireVantaEvent } from "../lib/vanta";
+import { sendPushToUser } from "../lib/sendPushToUser";
 
 /** Resolved flair data for rendering. */
 interface FlairData {
@@ -69,6 +70,8 @@ const MAX_CONTENT_LEN = 256;
 const XP_PER_MESSAGE = 2;
 const XP_CAP_PER_DAY = 20;
 
+const ALLOWED_REACTIONS = new Set(["👍", "❤️", "😂", "🔥", "💀", "👏", "⚡", "🤙"]);
+
 const cooldownMap = new Map<string, number>();
 
 function requireStaff(req: AuthRequest, res: any, next: any) {
@@ -117,6 +120,9 @@ router.get("/global", requireAuth, async (req: AuthRequest, res) => {
         equippedNameFlair: flair?.equippedNameFlair ?? null,
         equippedMessageCard: flair?.equippedMessageCard ?? null,
         flairData: flair?.flairData ?? null,
+        replyToId: (m as any).replyToId ?? null,
+        replyToPreview: (m as any).replyToPreview ?? null,
+        reactions: ((m as any).reactions ?? []).map((r: any) => ({ emoji: r.emoji, count: r.userIds.length, userIds: r.userIds.map(String) })),
       };
     }));
   } catch (err: any) {
@@ -167,6 +173,17 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
+    // Optional reply-to threading
+    let globalReplyToId: mongoose.Types.ObjectId | null = null;
+    let globalReplyToPreview: string | null = null;
+    if (req.body.replyToId) {
+      const orig = await ChatMessage.findById(req.body.replyToId).select("content channel").lean();
+      if (orig && orig.channel === "global") {
+        globalReplyToId = orig._id as mongoose.Types.ObjectId;
+        globalReplyToPreview = orig.content.slice(0, 100);
+      }
+    }
+
     const message = await ChatMessage.create({
       channel: "global",
       districtId: null,
@@ -178,6 +195,8 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
       senderLevel: user.level,
       senderPinnedBadges: senderBadges,
       content,
+      replyToId: globalReplyToId,
+      replyToPreview: globalReplyToPreview,
     });
 
     const io = req.app.locals["io"];
@@ -197,6 +216,8 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
         flairData: senderFlairData,
         content,
         at: message.createdAt,
+        replyToId: globalReplyToId,
+        replyToPreview: globalReplyToPreview,
       });
     }
 
@@ -245,6 +266,9 @@ router.get("/district/:districtId", requireAuth, async (req: AuthRequest, res) =
         equippedNameFlair: flair?.equippedNameFlair ?? null,
         equippedMessageCard: flair?.equippedMessageCard ?? null,
         flairData: flair?.flairData ?? null,
+        replyToId: (m as any).replyToId ?? null,
+        replyToPreview: (m as any).replyToPreview ?? null,
+        reactions: ((m as any).reactions ?? []).map((r: any) => ({ emoji: r.emoji, count: r.userIds.length, userIds: r.userIds.map(String) })),
       };
     }));
   } catch (err: any) {
@@ -377,6 +401,9 @@ router.get("/faction", requireAuth, async (req: AuthRequest, res) => {
         equippedNameFlair: flair?.equippedNameFlair ?? null,
         equippedMessageCard: flair?.equippedMessageCard ?? null,
         flairData: flair?.flairData ?? null,
+        replyToId: (m as any).replyToId ?? null,
+        replyToPreview: (m as any).replyToPreview ?? null,
+        reactions: ((m as any).reactions ?? []).map((r: any) => ({ emoji: r.emoji, count: r.userIds.length, userIds: r.userIds.map(String) })),
       };
     }));
   } catch (err: any) {
@@ -573,6 +600,8 @@ router.get("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
       title: m.senderTitle,
       content: m.content,
       at: m.createdAt,
+      replyToId: (m as any).replyToId ?? null,
+      replyToPreview: (m as any).replyToPreview ?? null,
     })));
   } catch (err: any) {
     req.log.error({ err }, "get dm error");
@@ -613,6 +642,17 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
     }
     cooldownMap.set(`dm:${myId}`, now);
 
+    // Optional reply-to threading for DMs
+    let dmReplyToId: mongoose.Types.ObjectId | null = null;
+    let dmReplyToPreview: string | null = null;
+    if (req.body.replyToId) {
+      const orig = await ChatMessage.findById(req.body.replyToId).select("content channel dmKey").lean();
+      if (orig && orig.channel === "dm" && orig.dmKey === key) {
+        dmReplyToId = orig._id as mongoose.Types.ObjectId;
+        dmReplyToPreview = orig.content.slice(0, 100);
+      }
+    }
+
     const message = await ChatMessage.create({
       channel: "dm",
       districtId: null,
@@ -622,6 +662,8 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
       senderFaction: me.faction,
       senderTitle: me.equippedTitle,
       content,
+      replyToId: dmReplyToId,
+      replyToPreview: dmReplyToPreview,
     });
 
     const io = req.app.locals["io"];
@@ -634,10 +676,20 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
         title: me.equippedTitle,
         content,
         at: message.createdAt,
+        replyToId: dmReplyToId,
+        replyToPreview: dmReplyToPreview,
       };
       io.to(`user:${otherId}`).emit("new_dm", { senderId: myId, senderName: me.username, message: payload });
       io.to(`user:${myId}`).emit("dm_message", { partnerId: otherId, message: payload });
     }
+
+    // Push notification to DM recipient
+    sendPushToUser(otherId, {
+      title: `📨 ${me.username}`,
+      body: content.slice(0, 100),
+      link: "/chat",
+      tag: "dm",
+    }, "dms").catch(() => {});
 
     res.json({ message: "Sent", id: message._id });
   } catch (err: any) {
@@ -752,6 +804,205 @@ router.post("/report", requireAuth, async (req: AuthRequest, res) => {
     res.json({ message: "Report submitted" });
   } catch (err: any) {
     req.log.error({ err }, "report message error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── EVENT CHAT ────────────────────────────────────────────────────────────────
+
+// GET /api/chat/event — last 50 messages in the global event channel
+router.get("/event", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const me = await User.findById(req.userId).select("mutedUsers").lean();
+    const muted = ((me as any)?.mutedUsers ?? []).map(String);
+    const messages = await ChatMessage.find({
+      channel: "event",
+      deleted: false,
+      ...(muted.length ? { senderId: { $nin: muted } } : {}),
+    })
+      .sort({ createdAt: -1 })
+      .limit(HISTORY_LIMIT)
+      .lean();
+    const reversedEv = messages.reverse();
+    const flairMapEv = await enrichMessagesWithFlairs(reversedEv.map(m => ({ userId: m.senderId, ...m })));
+    res.json(reversedEv.map(m => {
+      const flair = flairMapEv.get(String(m.senderId));
+      return {
+        id: m._id,
+        userId: m.senderId,
+        username: m.senderName,
+        faction: m.senderFaction,
+        title: m.senderTitle,
+        level: (m as any).senderLevel || 1,
+        pinnedBadges: (m as any).senderPinnedBadges ?? [],
+        content: m.content,
+        at: m.createdAt,
+        role: flair?.role ?? "player",
+        equippedNameFlair: flair?.equippedNameFlair ?? null,
+        equippedMessageCard: flair?.equippedMessageCard ?? null,
+        flairData: flair?.flairData ?? null,
+        replyToId: (m as any).replyToId ?? null,
+        replyToPreview: (m as any).replyToPreview ?? null,
+        reactions: ((m as any).reactions ?? []).map((r: any) => ({ emoji: r.emoji, count: r.userIds.length, userIds: r.userIds.map(String) })),
+      };
+    }));
+  } catch (err: any) {
+    req.log.error({ err }, "get event chat error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/chat/event — send a message in the event channel
+router.post("/event", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const content = sanitizeContent(req.body.content);
+    if (!content) return res.status(400).json({ message: "content required" });
+    if (content.length > MAX_CONTENT_LEN) return res.status(400).json({ message: `Message too long (max ${MAX_CONTENT_LEN} chars)` });
+
+    const now = Date.now();
+    const lastSent = cooldownMap.get(String(req.userId)) || 0;
+    if (now - lastSent < MESSAGE_COOLDOWN_MS) {
+      return res.status(429).json({ message: "Slow down — 1 message per 3 seconds" });
+    }
+    cooldownMap.set(String(req.userId), now);
+
+    const user = await User.findById(req.userId)
+      .select("username faction equippedTitle mutedUntil banned level pinnedBadges role equippedNameFlair equippedMessageCard");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.banned) return res.status(403).json({ message: "Banned" });
+    if (user.mutedUntil && user.mutedUntil > new Date()) {
+      return res.status(403).json({ message: "You are muted" });
+    }
+
+    const evBadges: string[] = (user as any).pinnedBadges ?? [];
+    const evFlairId: string | null = (user as any).equippedNameFlair ?? null;
+    const evFlairItem = evFlairId
+      ? await CosmeticItem.findOne({ id: evFlairId }).select("color animation cssKey").lean()
+      : null;
+    const evFlairData = evFlairItem
+      ? { color: evFlairItem.color, animation: evFlairItem.animation, cssKey: evFlairItem.cssKey }
+      : null;
+
+    const modEv = scanMessage(content);
+    if (!modEv.ok) {
+      fireVantaEvent(user._id, user.username, "manual_flag" as any, modEv.severity as any,
+        `[auto-mod/event] ${modEv.reason}: "${content.slice(0, 120)}"`);
+      if (modEv.severity === "high") {
+        return res.status(400).json({ message: "Message blocked: violates community guidelines." });
+      }
+    }
+
+    let evReplyToId: mongoose.Types.ObjectId | null = null;
+    let evReplyToPreview: string | null = null;
+    if (req.body.replyToId) {
+      const orig = await ChatMessage.findById(req.body.replyToId).select("content channel").lean();
+      if (orig && orig.channel === "event") {
+        evReplyToId = orig._id as mongoose.Types.ObjectId;
+        evReplyToPreview = orig.content.slice(0, 100);
+      }
+    }
+
+    const message = await ChatMessage.create({
+      channel: "event" as const,
+      districtId: null,
+      dmKey: null,
+      senderId: user._id,
+      senderName: user.username,
+      senderFaction: user.faction,
+      senderTitle: user.equippedTitle,
+      senderLevel: user.level,
+      senderPinnedBadges: evBadges,
+      content,
+      replyToId: evReplyToId,
+      replyToPreview: evReplyToPreview,
+    });
+
+    const evIo = req.app.locals["io"];
+    if (evIo) {
+      evIo.to("event").emit("event_message", {
+        id: message._id,
+        userId: user._id,
+        username: user.username,
+        faction: user.faction,
+        title: user.equippedTitle,
+        level: user.level,
+        pinnedBadges: evBadges,
+        role: (user as any).role ?? "player",
+        equippedNameFlair: evFlairId,
+        equippedMessageCard: (user as any).equippedMessageCard ?? null,
+        flairData: evFlairData,
+        content,
+        at: message.createdAt,
+        replyToId: evReplyToId,
+        replyToPreview: evReplyToPreview,
+      });
+    }
+
+    notifyMentions({ text: content, senderId: user._id, senderName: user.username, sourceLabel: "Event Chat", sourcePage: "chat" });
+    res.json({ message: "Sent", id: message._id });
+  } catch (err: any) {
+    req.log.error({ err }, "post event chat error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── REACTIONS ─────────────────────────────────────────────────────────────────
+
+// POST /api/chat/react/:messageId — toggle a reaction emoji on a message
+router.post("/react/:messageId", requireAuth, async (req: AuthRequest, res) => {
+  const { emoji } = req.body;
+  if (!emoji || !ALLOWED_REACTIONS.has(emoji)) {
+    return res.status(400).json({ message: "Invalid emoji" });
+  }
+  if (!mongoose.isValidObjectId(req.params.messageId)) {
+    return res.status(400).json({ message: "Invalid messageId" });
+  }
+  try {
+    const msg = await ChatMessage.findById(req.params.messageId);
+    if (!msg || msg.deleted) return res.status(404).json({ message: "Message not found" });
+
+    const userId = new mongoose.Types.ObjectId(req.userId as string);
+    const existing = (msg.reactions as any[]).find((r: any) => r.emoji === emoji);
+
+    if (existing) {
+      const alreadyReacted = existing.userIds.some((id: any) => id.equals(userId));
+      if (alreadyReacted) {
+        existing.userIds = existing.userIds.filter((id: any) => !id.equals(userId));
+        if (existing.userIds.length === 0) {
+          msg.reactions = (msg.reactions as any[]).filter((r: any) => r.emoji !== emoji) as any;
+        }
+      } else if (existing.userIds.length < 200) {
+        existing.userIds.push(userId);
+      }
+    } else {
+      (msg.reactions as any[]).push({ emoji, userIds: [userId] });
+    }
+
+    await msg.save();
+
+    const reactionPayload = (msg.reactions as any[]).map((r: any) => ({
+      emoji: r.emoji,
+      count: r.userIds.length,
+      userIds: r.userIds.map(String),
+    }));
+
+    const reactIo = req.app.locals["io"];
+    if (reactIo) {
+      const update = { messageId: String(msg._id), reactions: reactionPayload };
+      if (msg.channel === "dm" && msg.dmKey) {
+        const [uid1, uid2] = msg.dmKey.split(":");
+        reactIo.to(`user:${uid1}`).emit("reaction_update", update);
+        reactIo.to(`user:${uid2}`).emit("reaction_update", update);
+      } else {
+        const room = msg.channel === "district" && msg.districtId
+          ? `district:${msg.districtId}` : msg.channel;
+        reactIo.to(room).emit("reaction_update", update);
+      }
+    }
+
+    res.json({ reactions: reactionPayload });
+  } catch (err: any) {
+    req.log.error({ err }, "react error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

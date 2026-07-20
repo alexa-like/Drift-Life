@@ -1,6 +1,7 @@
 import User from "../models/User";
 import Notification from "../models/Notification";
 import mongoose from "mongoose";
+import { sendPushToUser } from "./sendPushToUser";
 
 const MAX_NOTIFS = 30;
 
@@ -59,6 +60,13 @@ export async function notifyMentions(opts: {
           read: false,
           link: `page:${sourcePage}`,
         });
+        // Push notification for mention
+        sendPushToUser(target._id, {
+          title: `📡 ${senderName} mentioned you`,
+          body: `In ${sourceLabel}`,
+          link: `/${sourcePage}`,
+          tag: "mention",
+        }, "dms").catch(() => {});
       } catch { /* individual failure — ignore */ }
     }));
   } catch { /* top-level failure — ignore */ }

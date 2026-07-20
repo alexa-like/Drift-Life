@@ -26,6 +26,8 @@ import {
 } from "../lib/telegram";
 import { NC_PACKS, TIER_CONFIG, getActiveTier, type SubscriptionTier } from "../lib/subscription";
 import { resolvePending, peekPending, storePending } from "./store";
+import { getWorldState } from "../models/WorldState";
+import { QuestTemplate } from "../models/Quest";
 
 const router = Router();
 
@@ -655,6 +657,64 @@ router.post("/webhook", async (req, res) => {
           return;
         }
         await showStatus(chatId, linkedUser);
+        return;
+      }
+
+      if (text === "/event" || text === "/events") {
+        try {
+          const world = await getWorldState();
+          const now = new Date();
+          const activeEvents = world.activeEvents.filter((e: any) => e.endsAt > now);
+          if (activeEvents.length === 0) {
+            await sendTelegramMessage(chatId, `🌐 <b>No active events right now.</b>\n\nCheck Neonoir for upcoming events.`);
+          } else {
+            const lines = activeEvents.map((e: any) => {
+              const endsIn = Math.max(0, Math.ceil((new Date(e.endsAt).getTime() - now.getTime()) / 60000));
+              return `• <b>${e.name}</b> — ends in ${endsIn}m`;
+            }).join("\n");
+            await sendTelegramMessage(chatId, `🌐 <b>Active Events</b>\n\n${lines}`);
+          }
+        } catch {
+          await sendTelegramMessage(chatId, `❌ Could not fetch events.`);
+        }
+        return;
+      }
+
+      if (text === "/quests" || text === "/quest") {
+        if (!linkedUser) {
+          await sendTelegramMessage(chatId, `❌ No Neonoir account linked.\n\nLink in-game under Store → Link Telegram first.`);
+          return;
+        }
+        try {
+          const fullUser = await User.findById((linkedUser as any)._id)
+            .select("dailyQuests weeklyQuests username").lean();
+          if (!fullUser) { await sendTelegramMessage(chatId, `❌ Account not found.`); return; }
+
+          const dailyQ: any[] = (fullUser as any).dailyQuests ?? [];
+          const weeklyQ: any[] = (fullUser as any).weeklyQuests ?? [];
+          const allIds = [...dailyQ, ...weeklyQ].map((q: any) => q.questId);
+          const templates = await QuestTemplate.find({ id: { $in: allIds } }).lean();
+          const tMap = new Map(templates.map((t: any) => [t.id, t]));
+
+          function fmtQ(q: any): string {
+            const t: any = tMap.get(q.questId);
+            const title = t?.title ?? q.questId;
+            const done = q.completed ? "✅" : `${q.progress ?? 0}/${t?.targetCount ?? "?"}`;
+            return `${done} ${title}`;
+          }
+
+          const lines: string[] = [];
+          if (dailyQ.length > 0) { lines.push("📅 <b>Daily Quests</b>"); dailyQ.forEach((q: any) => lines.push(fmtQ(q))); }
+          if (weeklyQ.length > 0) { lines.push("\n📆 <b>Weekly Quests</b>"); weeklyQ.forEach((q: any) => lines.push(fmtQ(q))); }
+
+          if (lines.length === 0) {
+            await sendTelegramMessage(chatId, `📋 No quests assigned yet. Log into Neonoir to get your daily quests.`);
+          } else {
+            await sendTelegramMessage(chatId, `📋 <b>${(fullUser as any).username} — Quests</b>\n\n${lines.join("\n")}`);
+          }
+        } catch {
+          await sendTelegramMessage(chatId, `❌ Could not fetch quests.`);
+        }
         return;
       }
 

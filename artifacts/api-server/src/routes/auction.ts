@@ -10,6 +10,7 @@ import { validateBody } from "../middlewares/validate";
 import { auctionBidSchema } from "../lib/schemas";
 import { logger } from "../lib/logger";
 import { postToSystemFeed } from "../lib/systemFeed";
+import { sendPushToUser } from "../lib/sendPushToUser";
 
 const router = Router();
 
@@ -291,6 +292,13 @@ router.post("/:id/bid", requireAuth, validateBody(auctionBidSchema), async (req:
           newBid: amount,
         });
       }
+      // Push notification to outbid player
+      sendPushToUser(previousBidderId, {
+        title: "⚠️ Outbid!",
+        body: `Someone outbid you on "${listing.itemName}". Your ${previousBid.toLocaleString()} DC was refunded.`,
+        link: "/auction",
+        tag: "auction_outbid",
+      }, "banking").catch(() => {});
     }
 
     res.json({

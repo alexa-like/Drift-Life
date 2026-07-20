@@ -351,6 +351,10 @@ export interface ChatMessage {
   equippedNameFlair?: string | null;
   equippedMessageCard?: string | null;
   flairData?: FlairData | null;
+  // ── Tier 6 — reply-to & reactions ────────────────────────────────────────
+  replyToId?: string | null;
+  replyToPreview?: string | null;
+  reactions?: { emoji: string; count: number; userIds: string[] }[];
 }
 
 export interface ChatReport {

@@ -70,12 +70,49 @@ function MessageContextMenu({ x, y, onReport, onMute, onClose }: {
   );
 }
 
-function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
+const REACTION_EMOJIS = ["👍", "❤️", "😂", "🔥", "💀", "👏", "⚡", "🤙"];
+
+function ReactionPicker({ onPick, onReplyTo }: { onPick: (emoji: string) => void; onReplyTo?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(p => !p)}
+        title="React / Reply"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 3, padding: "1px 6px", fontSize: 11, color: "#475569", cursor: "pointer", fontFamily: "monospace", lineHeight: 1.6 }}
+      >
+        ☺+
+      </button>
+      {open && (
+        <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, background: "#111118", border: "1px solid #00d4ff40", borderRadius: 4, padding: 8, zIndex: 100, display: "flex", gap: 4, flexWrap: "wrap", maxWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.8)" }}>
+          {REACTION_EMOJIS.map(e => (
+            <button key={e} onClick={() => { onPick(e); setOpen(false); }} style={{ fontSize: 18, background: "none", border: "none", cursor: "pointer", padding: "2px 3px", borderRadius: 3 }}>{e}</button>
+          ))}
+          {onReplyTo && (
+            <button onClick={() => { onReplyTo(); setOpen(false); }} style={{ width: "100%", fontSize: 10, color: "#64748b", border: "none", background: "none", cursor: "pointer", padding: "4px 2px", fontFamily: "monospace", textAlign: "left" }}>↩ Reply</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onReact, onReplyTo, currentUserId }: {
   message: ChatMessage;
   isOwn: boolean;
   onUsernameClick?: (id: string) => void;
   onReport?: (messageId: string) => void;
   onMute?: (userId: string, username: string) => void;
+  onReact?: (messageId: string, emoji: string) => void;
+  onReplyTo?: (msg: { id: string; content: string; username: string }) => void;
+  currentUserId?: string;
 }) {
   const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
   const fc = message.faction ? FACTION_COLOR[message.faction] || "#00d4ff" : "#00d4ff";
@@ -171,6 +208,13 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
         </span>
       </div>
       
+      {message.replyToPreview && (
+        <div style={{ borderLeft: "2px solid #00d4ff30", paddingLeft: 8, marginBottom: 4, maxWidth: 340 }}>
+          <span className="font-mono opacity-60" style={{ fontSize: 10, color: "#94a3b8" }}>
+            ↩ {message.replyToPreview.slice(0, 80)}{message.replyToPreview.length > 80 ? "…" : ""}
+          </span>
+        </div>
+      )}
       <MessageCard
         variant={deriveMessageVariant({
           isOwn,
@@ -185,6 +229,47 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
           onLocationClick={handleLocNav}
         />
       </MessageCard>
+
+      {/* Reactions bar */}
+      {(message.reactions && message.reactions.filter(r => r.count > 0).length > 0) || onReact ? (
+        <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap", maxWidth: 340 }}>
+          {(message.reactions ?? []).filter(r => r.count > 0).map(r => {
+            const mine = currentUserId ? r.userIds.includes(currentUserId) : false;
+            return (
+              <button
+                key={r.emoji}
+                onClick={() => onReact?.(message.id, r.emoji)}
+                title={`${r.count} reaction${r.count !== 1 ? "s" : ""}`}
+                style={{
+                  background: mine ? "rgba(0,212,255,0.12)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${mine ? "rgba(0,212,255,0.4)" : "rgba(255,255,255,0.1)"}`,
+                  borderRadius: 3,
+                  padding: "1px 6px",
+                  fontSize: 13,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 3,
+                  cursor: onReact ? "pointer" : "default",
+                  color: mine ? "#00d4ff" : "#94a3b8",
+                  fontFamily: "monospace",
+                  lineHeight: 1.6,
+                }}
+              >
+                {r.emoji} <span style={{ fontSize: 10 }}>{r.count}</span>
+              </button>
+            );
+          })}
+          {onReact && (
+            <div style={{ position: "relative" }}>
+              <ReactionPicker
+                onPick={(emoji) => onReact(message.id, emoji)}
+                onReplyTo={onReplyTo ? () => onReplyTo({ id: message.id, content: message.content, username: message.username }) : undefined}
+              />
+            </div>
+          )}
+        </div>
+      ) : null}
+
       {menu}
     </motion.div>
   );
@@ -315,6 +400,7 @@ function GlobalTab({ user, onInspect, onReport, onMute, isMuted, muted, onToggle
 } & ModProps & { muted: boolean; onToggleMute: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading,  setLoading]  = useState(true);
+  const [replyingTo, setReplyingTo] = useState<{ id: string; content: string; username: string } | null>(null);
   const { socket } = useSocket();
   const bottomRef  = useRef<HTMLDivElement>(null);
 
@@ -329,14 +415,27 @@ function GlobalTab({ user, onInspect, onReport, onMute, isMuted, muted, onToggle
   useEffect(() => {
     if (!socket) return;
     const handler = (msg: ChatMessage) => setMessages(prev => [...prev.slice(-49), msg]);
+    const reactHandler = ({ messageId, reactions }: { messageId: string; reactions: any[] }) =>
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions } : m));
     socket.on("global_message", handler);
-    return () => { socket.off("global_message", handler); };
+    socket.on("reaction_update", reactHandler);
+    return () => { socket.off("global_message", handler); socket.off("reaction_update", reactHandler); };
   }, [socket]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   async function send(content: string) {
-    try { await api.post<any>("/chat/global", { content }); } catch { /* ignore */ }
+    try {
+      await api.post<any>("/chat/global", { content, ...(replyingTo ? { replyToId: replyingTo.id } : {}) });
+      setReplyingTo(null);
+    } catch { /* ignore */ }
+  }
+
+  async function handleReact(messageId: string, emoji: string) {
+    try {
+      const res = await api.post<{ reactions: any[] }>(`/chat/react/${messageId}`, { emoji });
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: res.reactions } : m));
+    } catch { /* ignore */ }
   }
 
   const visible = messages.filter(m => !isMuted(m.userId));
@@ -363,10 +462,17 @@ function GlobalTab({ user, onInspect, onReport, onMute, isMuted, muted, onToggle
       <div className="flex-1 overflow-y-auto pr-2 mb-4 scrollbar-hide">
         {loading && <div className="font-mono text-sm text-center py-10 text-[#00d4ff] animate-pulse">CONNECTING...</div>}
         {visible.map(m => (
-          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} onReport={onReport} onMute={onMute} />
+          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id} onUsernameClick={onInspect} onReport={onReport} onMute={onMute} onReact={handleReact} onReplyTo={setReplyingTo} currentUserId={user.id} />
         ))}
         <div ref={bottomRef} />
       </div>
+      {replyingTo && (
+        <div className="flex items-center gap-2 px-3 py-1.5 mb-2 border border-[#00d4ff30] bg-[#00d4ff08]" style={{ borderRadius: 2 }}>
+          <span className="font-mono text-[10px] text-[#64748b] uppercase">↩ replying to</span>
+          <span className="font-mono text-xs text-[#00d4ff] flex-1 truncate">{replyingTo.username}: {replyingTo.content.slice(0, 60)}</span>
+          <button onClick={() => setReplyingTo(null)} className="font-mono text-xs text-[#ff2d55] ml-1">✕</button>
+        </div>
+      )}
       <MessageInput onSend={send} placeholder="BROADCAST TO GLOBAL..." eventBadge={user.activeEvent ? { text: user.activeEvent.chatBadgeText || user.activeEvent.eventName, color: user.activeEvent.chatBadgeColor || user.activeEvent.primaryColor } : null} />
     </div>
   );
@@ -645,18 +751,108 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
   );
 }
 
+function EventTab({ user, onInspect, onReport, onMute, isMuted }: { user: User } & ModProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [replyingTo, setReplyingTo] = useState<{ id: string; content: string; username: string } | null>(null);
+  const { socket } = useSocket();
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const evColor = (user.activeEvent as any)?.chatBadgeColor || "#a855f7";
+
+  useEffect(() => {
+    api.get<ChatMessage[]>("/chat/event")
+      .then(m => { setMessages(m); setLoading(false); })
+      .catch(() => setLoading(false));
+    socket?.emit("join_event");
+  }, [socket]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (msg: ChatMessage) => setMessages(prev => [...prev.slice(-49), msg]);
+    const reactHandler = ({ messageId, reactions }: { messageId: string; reactions: any[] }) =>
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions } : m));
+    socket.on("event_message", handler);
+    socket.on("reaction_update", reactHandler);
+    return () => { socket.off("event_message", handler); socket.off("reaction_update", reactHandler); };
+  }, [socket]);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  async function send(content: string) {
+    try {
+      await api.post<any>("/chat/event", { content, ...(replyingTo ? { replyToId: replyingTo.id } : {}) });
+      setReplyingTo(null);
+    } catch { /* ignore */ }
+  }
+
+  async function handleReact(messageId: string, emoji: string) {
+    try {
+      const res = await api.post<{ reactions: any[] }>(`/chat/react/${messageId}`, { emoji });
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: res.reactions } : m));
+    } catch { /* ignore */ }
+  }
+
+  const visible = messages.filter(m => !isMuted(m.userId));
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#1e1e2e]">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: evColor, boxShadow: `0 0 8px ${evColor}` }} />
+          <span className="font-display font-bold text-sm uppercase tracking-widest" style={{ color: evColor }}>
+            {(user.activeEvent as any)?.eventName || "Event Chat"}
+          </span>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto pr-2 mb-4 scrollbar-hide">
+        {loading && <div className="font-mono text-sm text-center py-10 animate-pulse" style={{ color: evColor }}>CONNECTING...</div>}
+        {visible.map(m => (
+          <MessageBubble key={m.id} message={m} isOwn={m.userId === user.id}
+            onUsernameClick={onInspect} onReport={onReport} onMute={onMute}
+            onReact={handleReact} onReplyTo={setReplyingTo} currentUserId={user.id}
+          />
+        ))}
+        <div ref={bottomRef} />
+      </div>
+      {replyingTo && (
+        <div className="flex items-center gap-2 px-3 py-1.5 mb-2 border" style={{ borderColor: `${evColor}30`, background: `${evColor}08`, borderRadius: 2 }}>
+          <span className="font-mono text-[10px] text-[#64748b] uppercase">↩ replying to</span>
+          <span className="font-mono text-xs flex-1 truncate" style={{ color: evColor }}>{replyingTo.username}: {replyingTo.content.slice(0, 60)}</span>
+          <button onClick={() => setReplyingTo(null)} className="font-mono text-xs text-[#ff2d55] ml-1">✕</button>
+        </div>
+      )}
+      <MessageInput onSend={send} placeholder="BROADCAST TO EVENT..."
+        eventBadge={user.activeEvent ? { text: (user.activeEvent as any).chatBadgeText || (user.activeEvent as any).eventName, color: evColor } : null}
+      />
+    </div>
+  );
+}
+
 const GLOBAL_MUTE_KEY = "neonoir:globalChatMuted";
 
 export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
-  const [tab, setTab] = useState<"global" | "district" | "faction" | "messages">("global");
+  const [tab, setTab] = useState<"global" | "district" | "faction" | "event" | "messages">("global");
   const [mutedUserIds, setMutedUserIds] = useState<string[]>(user.mutedUsers ?? []);
   const [globalMuted, setGlobalMuted] = useState<boolean>(() => {
     try { return localStorage.getItem(GLOBAL_MUTE_KEY) === "1"; } catch { return false; }
   });
+  const [onlineCount, setOnlineCount] = useState(0);
+  const { socket } = useSocket();
 
   useEffect(() => {
     setMutedUserIds(user.mutedUsers ?? []);
   }, [user.mutedUsers]);
+
+  useEffect(() => {
+    api.get<{ count: number }>("/world/online-count").then(r => setOnlineCount(r.count)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handler = ({ count }: { count: number }) => setOnlineCount(count);
+    socket.on("online_count", handler);
+    return () => { socket.off("online_count", handler); };
+  }, [socket]);
 
   const isAbroad = user.status === "abroad";
   const district = user.currentLocation || user.district;
@@ -665,12 +861,14 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
     { id: "global"   as const, label: "GLOBAL"   },
     ...(isAbroad ? [{ id: "district" as const, label: "LOCAL" }] : []),
     ...(user.faction ? [{ id: "faction"  as const, label: "FACTION" }] : []),
+    ...(user.activeEvent ? [{ id: "event" as const, label: "EVENT" }] : []),
     { id: "messages" as const, label: "SECURE"      },
   ];
 
   useEffect(() => {
     if (tab === "district" && !isAbroad) setTab("global");
-  }, [tab, isAbroad]);
+    if (tab === "event" && !user.activeEvent) setTab("global");
+  }, [tab, isAbroad, user.activeEvent]);
 
   function isMuted(userId: string) {
     return mutedUserIds.includes(userId);
@@ -736,9 +934,14 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
             )}
           </button>
         ))}
-        {/* Event chat badge — shown while an event is active */}
-        {user.activeEvent && (
-          <div className="flex items-center px-3 flex-shrink-0" style={{ borderLeft: "1px solid #1e1e2e" }}>
+        {/* Online count + event badge */}
+        <div className="flex items-center px-3 gap-2 flex-shrink-0" style={{ borderLeft: "1px solid #1e1e2e" }}>
+          {onlineCount > 0 && (
+            <span className="font-mono text-[10px] text-[#39d353]" title="Players online">
+              ◉ {onlineCount}
+            </span>
+          )}
+          {user.activeEvent && (
             <span
               className="font-mono text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm animate-pulse"
               style={{
@@ -749,14 +952,15 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
             >
               {user.activeEvent.chatBadgeText || "EVENT"}
             </span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="flex-1 p-4 sm:p-6 overflow-hidden relative z-10">
         {tab === "global"   && <GlobalTab   user={user} {...modProps} muted={globalMuted} onToggleMute={toggleGlobalMute} />}
         {tab === "district" && isAbroad && <DistrictTab user={user} {...modProps} />}
         {tab === "faction"  && <FactionTab  user={user} {...modProps} />}
+        {tab === "event"    && user.activeEvent && <EventTab user={user} {...modProps} />}
         {tab === "messages" && <MessagesTab user={user} onInspect={onInspectPlayer} />}
       </div>
     </div>
