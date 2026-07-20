@@ -622,7 +622,7 @@ New queue mode on the existing arena system:
 ---
 
 ## TIER 4 — EVENT FRONTEND
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Build all player-facing event UI — the event page, boss fight interface, archive, upcoming events, and custom game mode builder for owners.
 

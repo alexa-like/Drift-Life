@@ -3,6 +3,7 @@ import { User } from "../lib/types";
 import { api } from "../lib/api";
 import { formatDC } from "../lib/format";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import EventGameModesTab from "../components/EventGameModesTab";
 
 interface Props {
   user: User;
@@ -90,7 +91,7 @@ interface EconomyGameConfig {
 }
 interface GameCatalog { runs: RunCatalogEntry[]; jobs: JobCatalogEntry[]; staffTiers: Record<string, StaffTierEntry>; }
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy" | "database" | "vanta-ai" | "defaults";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "event-game-modes" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy" | "database" | "vanta-ai" | "defaults";
 type VantaMsg = { role: "user" | "vanta" | "progress" | "action" | "result" | "agent_prompt" | "error"; text: string; tool?: string; summary?: string; prompt?: string; };
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
@@ -882,6 +883,10 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         <button onClick={() => setTab("special-events")} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "special-events" ? "#f59e0b18" : "#111118", color: tab === "special-events" ? "#f59e0b" : "#475569", border: `1px solid ${tab === "special-events" ? "#f59e0b40" : "#1e1e2e"}` }}>
           Events
+        </button>
+        <button onClick={() => setTab("event-game-modes")} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "event-game-modes" ? "#f59e0b18" : "#111118", color: tab === "event-game-modes" ? "#f59e0b" : "#475569", border: `1px solid ${tab === "event-game-modes" ? "#f59e0b40" : "#1e1e2e"}` }}>
+          🎮 Event Builder
         </button>
         <button onClick={() => setTab("announcements")} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "announcements" ? "#00d4ff18" : "#111118", color: tab === "announcements" ? "#00d4ff" : "#475569", border: `1px solid ${tab === "announcements" ? "#00d4ff40" : "#1e1e2e"}` }}>
@@ -1698,6 +1703,8 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
       )}
 
       {/* ANNOUNCEMENTS TAB */}
+      {tab === "event-game-modes" && <EventGameModesTab addToast={addToast} />}
+
       {tab === "announcements" && (
         <div className="space-y-5">
           <div style={s}>

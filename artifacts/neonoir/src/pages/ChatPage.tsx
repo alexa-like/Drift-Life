@@ -736,6 +736,21 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
             )}
           </button>
         ))}
+        {/* Event chat badge — shown while an event is active */}
+        {user.activeEvent && (
+          <div className="flex items-center px-3 flex-shrink-0" style={{ borderLeft: "1px solid #1e1e2e" }}>
+            <span
+              className="font-mono text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm animate-pulse"
+              style={{
+                background: `${user.activeEvent.chatBadgeColor}20`,
+                color: user.activeEvent.chatBadgeColor || "#00d4ff",
+                border: `1px solid ${user.activeEvent.chatBadgeColor || "#00d4ff"}40`,
+              }}
+            >
+              {user.activeEvent.chatBadgeText || "EVENT"}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 p-4 sm:p-6 overflow-hidden relative z-10">

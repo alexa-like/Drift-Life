@@ -3,7 +3,7 @@ import {
   Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard,
   BarChart2, Gavel, Building2, Dumbbell, Briefcase, Car, Globe, Cpu, Shield, Swords, Crosshair,
   Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark,
-  Wrench, Trophy, Gift, PawPrint, Bell, Settings, Flag, type LucideIcon,
+  Wrench, Trophy, Gift, PawPrint, Bell, Settings, Flag, CalendarDays, type LucideIcon,
 } from "lucide-react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
@@ -65,6 +65,7 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "friends",      label: "Friends",  icon: Users,         statusFilter: "normal" },
   { id: "bank",         label: "Bank",     icon: Landmark,      statusFilter: "normal" },
   // { id: "crafting",  label: "Craft",    icon: Wrench,        statusFilter: "normal" }, // frozen
+  { id: "events",       label: "Event",    icon: CalendarDays },
   { id: "achievements", label: "Achiev",   icon: Trophy },
   { id: "daily",        label: "Daily",    icon: Gift },
   // { id: "companions", label: "Allies",  icon: PawPrint,      statusFilter: "normal" }, // frozen
@@ -418,20 +419,30 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
         }).map(item => {
           const isActive = active === item.id;
           const Icon = item.icon;
-          const iconColor = isActive ? "#00d4ff" : "#475569";
+          const isEventItem = item.id === "events";
+          const hasActiveEvent = isEventItem && !!user.activeEvent;
+          const eventColor = user.activeEvent?.primaryColor || "#ff2d55";
+          const iconColor = isActive ? "#00d4ff" : hasActiveEvent ? eventColor : "#475569";
           return (
             <button
               key={item.id}
               onClick={() => onNav(item.id)}
-              className="flex flex-col items-center flex-shrink-0 group transition-all clip-nav-item"
+              className="relative flex flex-col items-center flex-shrink-0 group transition-all clip-nav-item"
               style={{
                 minWidth: 54,
                 padding: "8px 4px 6px",
-                background: isActive ? "#00d4ff20" : "#111118",
-                border: isActive ? "1px solid #00d4ff" : "1px solid #1e1e2e",
-                boxShadow: isActive ? "0 0 20px #00d4ff40" : "none",
+                background: isActive ? "#00d4ff20" : hasActiveEvent ? `${eventColor}15` : "#111118",
+                border: isActive ? "1px solid #00d4ff" : hasActiveEvent ? `1px solid ${eventColor}50` : "1px solid #1e1e2e",
+                boxShadow: isActive ? "0 0 20px #00d4ff40" : hasActiveEvent ? `0 0 12px ${eventColor}30` : "none",
               }}
             >
+              {/* Pulsing dot for active event */}
+              {hasActiveEvent && !isActive && (
+                <span
+                  className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full animate-ping"
+                  style={{ background: eventColor, boxShadow: `0 0 6px ${eventColor}` }}
+                />
+              )}
               <Icon 
                 size={18} 
                 strokeWidth={isActive ? 2 : 1.5} 
@@ -442,12 +453,12 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 className={cn("font-mono uppercase tracking-wider mt-1.5", isActive && "glitch-text")}
                 style={{
                   fontSize: 8,
-                  color: isActive ? "#fff" : "#64748b",
-                  fontWeight: isActive ? "bold" : "normal",
-                  textShadow: isActive ? "0 0 5px #00d4ff" : "none",
+                  color: isActive ? "#fff" : hasActiveEvent ? eventColor : "#64748b",
+                  fontWeight: isActive || hasActiveEvent ? "bold" : "normal",
+                  textShadow: isActive ? "0 0 5px #00d4ff" : hasActiveEvent ? `0 0 5px ${eventColor}` : "none",
                 }}
               >
-                {item.label}
+                {hasActiveEvent ? (user.activeEvent!.chatBadgeText?.split(" ")[0] || "Event") : item.label}
               </span>
             </button>
           );
