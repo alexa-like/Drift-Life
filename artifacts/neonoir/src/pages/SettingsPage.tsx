@@ -74,6 +74,7 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
   const [notifPrefs,    setNotifPrefs]    = useState(user.notificationPrefs ?? {
     achievements: true, dms: true, xpBoost: true,
     combat: true, crimes: true, faction: true, banking: true,
+    auction: true, events: true, mentions: true,
   });
 
   // ── Push notification state ──────────────────────────────────────────────
@@ -483,11 +484,14 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
             NOTIFY ME ABOUT
           </div>
           {([
-            { key: "achievements" as const, label: "Achievement unlocks",  desc: "When you earn an achievement"               },
+            { key: "achievements" as const, label: "Achievement Unlocks",  desc: "When you earn an achievement"               },
             { key: "dms"          as const, label: "Direct Messages",      desc: "When someone sends you a DM"               },
+            { key: "mentions"     as const, label: "@Mentions",            desc: "When someone @mentions you in chat"         },
+            { key: "auction"      as const, label: "Auction Alerts",       desc: "Outbids and auction wins"                   },
+            { key: "events"       as const, label: "Live Events",          desc: "Event starts, ends, and boss phase shifts"  },
             { key: "combat"       as const, label: "Combat Results",       desc: "Win/loss results, bounty hits"              },
             { key: "crimes"       as const, label: "Crime Outcomes",       desc: "Crime success, failure, or jail alerts"     },
-            { key: "faction"      as const, label: "Faction Events",       desc: "Turf wars, faction messages, raids"         },
+            { key: "faction"      as const, label: "Faction & Gang Wars",  desc: "Turf wars, faction messages, war declarations" },
             { key: "banking"      as const, label: "Banking Alerts",       desc: "Transfers received and large deposits"      },
             { key: "xpBoost"      as const, label: "XP Boost Alerts",      desc: "When an XP bonus event goes live"           },
           ] as const).map(({ key, label, desc }) => (

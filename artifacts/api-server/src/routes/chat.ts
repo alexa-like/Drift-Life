@@ -11,6 +11,7 @@ import { getActiveTier } from "../lib/subscription";
 import { scanMessage } from "../lib/chatMod";
 import { fireVantaEvent } from "../lib/vanta";
 import { sendPushToUser } from "../lib/sendPushToUser";
+import { notifyTelegram } from "../lib/telegram";
 
 /** Resolved flair data for rendering. */
 interface FlairData {
@@ -690,6 +691,10 @@ router.post("/dm/:userId", requireAuth, async (req: AuthRequest, res) => {
       link: "/chat",
       tag: "dm",
     }, "dms").catch(() => {});
+    // Telegram notification to DM recipient
+    User.findById(otherId).select("telegramId telegramNotifications").lean()
+      .then(u => notifyTelegram(u as any, `📨 <b>${me.username}</b>:\n\n${content.slice(0, 200)}`))
+      .catch(() => {});
 
     res.json({ message: "Sent", id: message._id });
   } catch (err: any) {

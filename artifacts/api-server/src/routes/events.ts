@@ -16,6 +16,7 @@ import { getActiveEvent, invalidateActiveEventCache, endEvent, activateEvent, di
 import { isWebPushConfigured, sendPushNotification, type PushPayload } from "../lib/webPush";
 import PushSubscription from "../models/PushSubscription";
 import { logger } from "../lib/logger";
+import { broadcastTelegramToLinkedUsers } from "../lib/telegram";
 
 async function broadcastPushToAll(payload: PushPayload): Promise<void> {
   if (!isWebPushConfigured()) return;
@@ -274,13 +275,16 @@ router.post("/strike-boss", requireAuth, async (req: AuthRequest, res) => {
             message: `[BOSS] Phase transition: "${phase.name}"! ${phase.description}`,
             dc: 0, xp: 0, actorLevel: 0,
           });
-          // Push to all subscribed players on boss phase change
+          // Push + Telegram to all subscribed/linked players on boss phase change
           broadcastPushToAll({
             title: `💀 Boss: ${phase.name}`,
             body: phase.description || `The boss has entered a new phase!`,
             link: "/events",
             tag: "general",
           }).catch(() => {});
+          broadcastTelegramToLinkedUsers(
+            `💀 <b>Boss Phase: ${phase.name}</b>\n\n${phase.description || "The boss has entered a new phase!"}`,
+          ).catch(() => {});
           break;
         }
       }

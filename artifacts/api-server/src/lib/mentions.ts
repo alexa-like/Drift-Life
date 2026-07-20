@@ -2,6 +2,7 @@ import User from "../models/User";
 import Notification from "../models/Notification";
 import mongoose from "mongoose";
 import { sendPushToUser } from "./sendPushToUser";
+import { notifyTelegram } from "./telegram";
 
 const MAX_NOTIFS = 30;
 
@@ -66,7 +67,13 @@ export async function notifyMentions(opts: {
           body: `In ${sourceLabel}`,
           link: `/${sourcePage}`,
           tag: "mention",
-        }, "dms").catch(() => {});
+        }, "mentions").catch(() => {});
+        // Telegram notification for mention
+        const tgUser = await User.findById(target._id).select("telegramId telegramNotifications").lean().catch(() => null);
+        notifyTelegram(
+          tgUser as any,
+          `📡 <b>${senderName}</b> mentioned you in ${sourceLabel}`,
+        ).catch(() => {});
       } catch { /* individual failure — ignore */ }
     }));
   } catch { /* top-level failure — ignore */ }

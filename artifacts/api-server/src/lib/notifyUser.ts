@@ -21,6 +21,9 @@ export type NotifType =
   | "crimes"
   | "faction"
   | "banking"
+  | "auction"
+  | "events"
+  | "mentions"
   | "general";
 
 interface NotifyOpts {

@@ -258,6 +258,30 @@ export async function setMyCommands(
  * sub-field delivered inside a regular "message" update. Including it causes
  * Telegram to reject or ignore the registration silently.
  */
+/**
+ * Broadcast a Telegram message to every player who has linked their account
+ * and has Telegram notifications enabled. Fire-and-forget safe.
+ */
+export async function broadcastTelegramToLinkedUsers(text: string): Promise<void> {
+  const token = getToken();
+  if (!token) return;
+  try {
+    // Dynamic import to avoid circular deps (models → lib/telegram is fine,
+    // but we keep this lazy to be safe)
+    const { default: User } = await import("../models/User");
+    const users = await User.find({
+      telegramId: { $ne: null },
+      telegramNotifications: true,
+    }).select("telegramId").lean();
+
+    await Promise.allSettled(
+      users.map((u) => sendTelegramMessage((u as any).telegramId as string, text).catch(() => {}))
+    );
+  } catch (err) {
+    logger.warn({ err }, "broadcastTelegramToLinkedUsers failed");
+  }
+}
+
 export async function registerWebhook(webhookUrl: string, secretToken: string): Promise<void> {
   const token = getToken();
   if (!token) return;

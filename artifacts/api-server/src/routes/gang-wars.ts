@@ -7,6 +7,7 @@ import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 import { sendPushToUser } from "../lib/sendPushToUser";
+import { notifyTelegram } from "../lib/telegram";
 
 const router = Router();
 
@@ -156,7 +157,7 @@ router.post("/declare", requireAuth, async (req: AuthRequest, res) => {
         })
       )
     );
-    // Push notification to each target guild member
+    // Push + Telegram notification to each target guild member
     for (const uid of targetMemberIds) {
       sendPushToUser(uid, {
         title: `⚔️ War Declared — [${myGuild.tag}]`,
@@ -164,6 +165,9 @@ router.post("/declare", requireAuth, async (req: AuthRequest, res) => {
         link: "/guilds",
         tag: "faction",
       }, "faction").catch(() => {});
+      User.findById(uid).select("telegramId telegramNotifications").lean()
+        .then(u => notifyTelegram(u as any, `⚔️ <b>War Declared!</b>\n\n<b>[${myGuild.tag}] ${myGuild.name}</b> has declared war on your gang! Your leader has 24 hours to accept or decline.`))
+        .catch(() => {});
     }
 
     res.status(201).json(war);

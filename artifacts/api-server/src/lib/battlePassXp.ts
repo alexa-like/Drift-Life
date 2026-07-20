@@ -1,6 +1,7 @@
 import { BattlePass } from "../models/BattlePass";
 import User from "../models/User";
 import { notifyUser } from "./notifyUser";
+import { notifyTelegram } from "./telegram";
 
 /**
  * Award battle-pass XP to a user for the given action key.
@@ -46,13 +47,20 @@ export async function awardBattlePassXp(userId: string, action: string): Promise
 
   // Notify on level-up
   if (newLevel > oldLevel) {
+    // Look up Telegram data once for all level-up notifications
+    const tgUser = await User.findById(userId).select("telegramId telegramNotifications").lean().catch(() => null);
     for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
       notifyUser({
         userId,
         type:    "general",
-        title:   `🏆 Battle Pass Level ${lvl}!`,
         message: `You reached Level ${lvl} in the ${pass.seasonName} pass!`,
+        link:    "/battle-pass",
+        push:    { title: `🏆 Battle Pass Level ${lvl}!` },
       }).catch(() => {});
+      notifyTelegram(
+        tgUser as any,
+        `🏆 <b>Battle Pass Level ${lvl}!</b>\n\nYou reached Level ${lvl} in the <b>${pass.seasonName}</b> season pass!`,
+      ).catch(() => {});
     }
   }
 }

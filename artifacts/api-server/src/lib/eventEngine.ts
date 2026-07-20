@@ -15,6 +15,7 @@ import { logger } from "./logger";
 import { sendPushToUser } from "./sendPushToUser";
 import { isWebPushConfigured, sendPushNotification, type PushPayload } from "./webPush";
 import PushSubscription from "../models/PushSubscription";
+import { broadcastTelegramToLinkedUsers } from "./telegram";
 
 /**
  * Fan-out a push notification to every player who has an active push subscription.
@@ -343,6 +344,11 @@ export async function activateEvent(event: IEvent, io?: unknown): Promise<void> 
     tag: "general",
   }).catch(() => {});
 
+  // Telegram notification to all linked players
+  broadcastTelegramToLinkedUsers(
+    `⚡ <b>Event Started: ${event.name}</b>\n\nA new event is live in New Vanta! Jump in now at /events`,
+  ).catch(() => {});
+
   logger.info({ eventId: event._id, name: event.name }, "Event activated");
 }
 
@@ -381,6 +387,11 @@ export async function endEvent(event: IEvent, io?: unknown): Promise<void> {
     link: "/events",
     tag: "general",
   }).catch(() => {});
+
+  // Telegram notification to all linked players
+  broadcastTelegramToLinkedUsers(
+    `🏁 <b>Event Ended: ${event.name}</b>\n\nThe event is over — check your rewards in Neonoir!`,
+  ).catch(() => {});
 
   // Distribute rewards in background (don't block the response)
   distributeEventRewards(String(event._id)).catch(err => {

@@ -11,6 +11,7 @@ import { auctionBidSchema } from "../lib/schemas";
 import { logger } from "../lib/logger";
 import { postToSystemFeed } from "../lib/systemFeed";
 import { sendPushToUser } from "../lib/sendPushToUser";
+import { notifyTelegram } from "../lib/telegram";
 
 const router = Router();
 
@@ -188,7 +189,11 @@ export async function closeExpiredAuctions(): Promise<void> {
             body: `Your bid on "${listing.itemName}" won! It's been added to your inventory.`,
             link: "/inventory",
             tag: "auction",
-          }, "banking").catch(() => {});
+          }, "auction").catch(() => {});
+          // Telegram notification to the winner
+          User.findById(listing.currentBidderId).select("telegramId telegramNotifications").lean()
+            .then(u => notifyTelegram(u as any, `🏆 <b>Auction Won!</b>\n\nYour bid on "<b>${listing.itemName}</b>" won! Check your inventory.`))
+            .catch(() => {});
         } else {
           listing.status = "expired";
           await listing.save();
@@ -305,7 +310,11 @@ router.post("/:id/bid", requireAuth, validateBody(auctionBidSchema), async (req:
         body: `Someone outbid you on "${listing.itemName}". Your ${previousBid.toLocaleString()} DC was refunded.`,
         link: "/auction",
         tag: "auction_outbid",
-      }, "banking").catch(() => {});
+      }, "auction").catch(() => {});
+      // Telegram notification to outbid player
+      User.findById(previousBidderId).select("telegramId telegramNotifications").lean()
+        .then(u => notifyTelegram(u as any, `⚠️ <b>Outbid!</b>\n\nSomeone outbid you on "<b>${listing.itemName}</b>". Your ${previousBid.toLocaleString()} DC has been refunded.`))
+        .catch(() => {});
     }
 
     res.json({
