@@ -313,7 +313,9 @@ router.post("/collect", requireAuth, async (req: AuthRequest, res) => {
     if (!found) return res.json({ found: false, message: "Nothing found this time." });
 
     const username = (user as any).username;
-    const pointsForCollect = event.pointSources.find(p => p.action === "collection_find")?.points ?? 5;
+    let pointsForCollect = event.pointSources.find(p => p.action === "collection_find")?.points ?? 5;
+    const collectFlash = await getActiveFlashEvent();
+    if (collectFlash?.effect === "2x_event_points") pointsForCollect *= 2;
 
     await EventProgress.findOneAndUpdate(
       { eventId: event._id, userId: req.userId },

@@ -18,6 +18,7 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { fireMissionEvent } from "../lib/missionEvents";
 import { checkAchievements } from "./achievements";
 import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
+import { getActiveFlashEvent } from "../lib/eventEngine";
 
 const router = Router();
 
@@ -644,6 +645,7 @@ const RACE_HALF_CAP = 50;  // races 30–49: 50% DC + 50% XP, no Key Shard
 // 50+: DC = 0, XP = 5% only
 
 async function grantRaceRewards(match: any) {
+  const _raceFlash = await getActiveFlashEvent();
   const BASE_REWARDS: Record<number, { dc: number; xp: number; keyShards: number }> = {
     1: { dc: 300, xp: 300, keyShards: 1 },
     2: { dc: 150, xp: 180, keyShards: 0 },
@@ -673,11 +675,13 @@ async function grantRaceRewards(match: any) {
     u.miniGameMatchesToday = racesToday + 1;
     // ─────────────────────────────────────────────────────────────────────────
 
-    const dcEarned    = Math.floor(base.dc * dcMult);
+    let dcEarned      = Math.floor(base.dc * dcMult);
     const xpEarned    = Math.floor(base.xp * xpMult * (1 + (u.prestigeXpBoost ?? 0) / 100));
     const shardsEarned = fullRewards ? base.keyShards : 0;
     // 1st place: 10% chance of a bonus Key (Racing Royale spin token)
     const bonusKey = placement === 1 && fullRewards && Math.random() < 0.1 ? 1 : 0;
+    // Flash 2x_race_prizes
+    if (_raceFlash?.effect === "2x_race_prizes" && dcEarned > 0) dcEarned *= 2;
 
     u.dc         += dcEarned;
     u.xp         += xpEarned;

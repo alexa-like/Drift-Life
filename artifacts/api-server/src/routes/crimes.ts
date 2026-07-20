@@ -31,6 +31,7 @@ import { validateBody } from "../middlewares/validate";
 import { pursuitResolveSchema, crimesLaunderSchema } from "../lib/schemas";
 import Item from "../models/Item";
 import { getGameConfig } from "../lib/gameConfig";
+import { getActiveFlashEvent } from "../lib/eventEngine";
 
 const router = Router();
 
@@ -312,6 +313,8 @@ router.post("/district/:crimeId/commit", requireAuth, async (req: AuthRequest, r
 
     if (success) {
       dcGained = Math.floor(crime.dcMin + Math.random() * (crime.dcMax - crime.dcMin));
+      const _districtFlash = await getActiveFlashEvent();
+      if (_districtFlash?.effect === "2x_crime_payout") dcGained *= 2;
       user.dc = Math.min(100_000_000, user.dc + dcGained);
       user.weeklyDc = (user.weeklyDc ?? 0) + dcGained;
       user.successfulCrimes += 1;
@@ -479,6 +482,8 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
       dcGained = Math.round(
         (effectiveDcMin + Math.random() * (effectiveDcMax - effectiveDcMin)) * worldMods.payoutMult * crimeRewardMult * gameCfg.globalMultipliers.dcRewardMult
       );
+      const _runsFlash = await getActiveFlashEvent();
+      if (_runsFlash?.effect === "2x_crime_payout") dcGained *= 2;
       const isFirstToday = !gated.lastCrimeDate || gated.lastCrimeDate.toDateString() !== new Date().toDateString();
       const baseXp = effectiveRunXp * (isFirstToday ? 2 : 1);
       xpGained = Math.floor(baseXp * (1 + (gated.prestigeXpBoost ?? 0) / 100) * gameCfg.globalMultipliers.xpRewardMult);

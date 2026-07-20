@@ -1,13 +1,20 @@
 import webpush from "web-push";
+import { logger } from "./logger";
 
-const VAPID_PUBLIC_KEY  = "_2eRihoiTaTu1K1mM6b0jHfTxkUNxc2gNRTlwNgm30g0ZeFWwtl7aldkeRaeGah4Ri60MGwnQKXrmCBP6-RC1w";
-const VAPID_PRIVATE_KEY = "BzWw_4iN5KbOY_c_aMF_V3ud7Zk3KlQmCpykf-g7O-E";
+const VAPID_PUBLIC_KEY  = process.env["VAPID_PUBLIC_KEY"]  ?? "_2eRihoiTaTu1K1mM6b0jHfTxkUNxc2gNRTlwNgm30g0ZeFWwtl7aldkeRaeGah4Ri60MGwnQKXrmCBP6-RC1w";
+const VAPID_PRIVATE_KEY = process.env["VAPID_PRIVATE_KEY"] ?? "BzWw_4iN5KbOY_c_aMF_V3ud7Zk3KlQmCpykf-g7O-E";
 const VAPID_SUBJECT     = "mailto:admin@neonoir.app";
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+let _webPushReady = false;
+try {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  _webPushReady = true;
+} catch (err) {
+  logger.warn({ err }, "Web Push VAPID key validation failed — push notifications disabled. Provide valid VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY env vars.");
+}
 
 export function isWebPushConfigured(): boolean {
-  return true;
+  return _webPushReady;
 }
 
 export function getVapidPublicKey(): string {

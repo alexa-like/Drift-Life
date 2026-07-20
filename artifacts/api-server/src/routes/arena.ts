@@ -19,6 +19,7 @@ import { fireMissionEvent } from "../lib/missionEvents";
 import { checkAchievements } from "./achievements";
 import { emitFeedEvent } from "../lib/feedEvents";
 import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
+import { getActiveFlashEvent } from "../lib/eventEngine";
 
 const router = Router();
 
@@ -1598,6 +1599,8 @@ async function grantCombatRewards(match: any) {
     if (!userId) return;
     const u = await User.findById(userId);
     if (!u) return;
+    const _arenaFlash = await getActiveFlashEvent();
+    const _arena2x = _arenaFlash?.effect === "2x_arena_rewards";
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
@@ -1659,6 +1662,12 @@ async function grantCombatRewards(match: any) {
       }
       u.combatWinStreak = 0;
       u.losses += 1;
+    }
+    // Flash 2x_arena_rewards: add the same DC again before saving
+    if (_arena2x && dcEarned > 0) {
+      u.dc += dcEarned;
+      u.weeklyDc = (u.weeklyDc ?? 0) + dcEarned;
+      dcEarned *= 2;
     }
     u.totalFights += 1;
     if (isWinner) {
