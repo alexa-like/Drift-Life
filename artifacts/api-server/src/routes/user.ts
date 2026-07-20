@@ -5,7 +5,7 @@ import Item from "../models/Item";
 import UserAchievement from "../models/Achievement";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen } from "../lib/regen";
-import { safeUser } from "./auth";
+import { safeUser, fetchActiveEventTheme } from "./auth";
 import bcrypt from "bcryptjs";
 import { postToSystemFeed } from "../lib/systemFeed";
 import Notification from "../models/Notification";
@@ -23,6 +23,7 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     applyRegen(user);
     await user.save();
+    (user as any)._activeEvent = await fetchActiveEventTheme();
     res.json(safeUser(user));
   } catch (err: any) {
     req.log.error({ err }, "get me error");

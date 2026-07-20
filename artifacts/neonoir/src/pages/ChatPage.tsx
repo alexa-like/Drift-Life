@@ -198,7 +198,7 @@ interface Props {
 
 const EMOJI_ORDER = Object.entries(GAME_EMOJIS);
 
-function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void; placeholder?: string }) {
+function MessageInput({ onSend, placeholder, eventBadge }: { onSend: (text: string) => void; placeholder?: string; eventBadge?: { text: string; color: string } | null }) {
   const [text, setText] = useState("");
   const [showPicker, setShowPicker] = useState(false);
   const lastSent = useRef(0);
@@ -232,8 +232,19 @@ function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void;
   }, [showPicker]);
 
   return (
-    <div className="flex gap-3 pt-4 border-t border-[#1e1e2e]" style={{ position: "relative" }}>
-      {showPicker && (
+    <>
+      {eventBadge && (
+        <div className="flex justify-start pb-1.5">
+          <span
+            className="font-mono text-[10px] px-1.5 py-0.5 uppercase tracking-widest"
+            style={{ color: eventBadge.color, border: `1px solid ${eventBadge.color}30`, background: `${eventBadge.color}10` }}
+          >
+            ⚡ {eventBadge.text}
+          </span>
+        </div>
+      )}
+      <div className="flex gap-3 pt-4 border-t border-[#1e1e2e]" style={{ position: "relative" }}>
+        {showPicker && (
         <div
           ref={pickerRef}
           className="clip-card"
@@ -288,6 +299,7 @@ function MessageInput({ onSend, placeholder }: { onSend: (text: string) => void;
         SEND
       </CyberButton>
     </div>
+    </>
   );
 }
 
@@ -355,7 +367,7 @@ function GlobalTab({ user, onInspect, onReport, onMute, isMuted, muted, onToggle
         ))}
         <div ref={bottomRef} />
       </div>
-      <MessageInput onSend={send} placeholder="BROADCAST TO GLOBAL..." />
+      <MessageInput onSend={send} placeholder="BROADCAST TO GLOBAL..." eventBadge={user.activeEvent ? { text: user.activeEvent.chatBadgeText || user.activeEvent.eventName, color: user.activeEvent.chatBadgeColor || user.activeEvent.primaryColor } : null} />
     </div>
   );
 }
@@ -407,7 +419,7 @@ function DistrictTab({ user, onInspect, onReport, onMute, isMuted }: { user: Use
         ))}
         <div ref={bottomRef} />
       </div>
-      <MessageInput onSend={send} placeholder="BROADCAST TO LOCAL..." />
+      <MessageInput onSend={send} placeholder="BROADCAST TO LOCAL..." eventBadge={user.activeEvent ? { text: user.activeEvent.chatBadgeText || user.activeEvent.eventName, color: user.activeEvent.chatBadgeColor || user.activeEvent.primaryColor } : null} />
     </div>
   );
 }
@@ -460,7 +472,7 @@ function FactionTab({ user, onInspect, onReport, onMute, isMuted }: { user: User
         ))}
         <div ref={bottomRef} />
       </div>
-      {!error && <MessageInput onSend={send} placeholder="ENCRYPTED COMMS..." />}
+      {!error && <MessageInput onSend={send} placeholder="ENCRYPTED COMMS..." eventBadge={user.activeEvent ? { text: user.activeEvent.chatBadgeText || user.activeEvent.eventName, color: user.activeEvent.chatBadgeColor || user.activeEvent.primaryColor } : null} />}
     </div>
   );
 }
@@ -555,7 +567,7 @@ function MessagesTab({ user, onInspect }: { user: User; onInspect?: (id: string)
           ))}
           <div ref={bottomRef} />
         </div>
-        <MessageInput onSend={send} placeholder="DIRECT TRANSMISSION..." />
+        <MessageInput onSend={send} placeholder="DIRECT TRANSMISSION..." eventBadge={user.activeEvent ? { text: user.activeEvent.chatBadgeText || user.activeEvent.eventName, color: user.activeEvent.chatBadgeColor || user.activeEvent.primaryColor } : null} />
       </div>
     );
   }

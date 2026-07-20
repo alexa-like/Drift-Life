@@ -315,10 +315,10 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
       <div className="flex items-center gap-3 px-4 py-2" style={{ borderBottom: "1px solid #111118" }}>
         <button
           className="font-display font-black text-xl flex-shrink-0 tracking-widest uppercase glitch-text"
-          style={{ color: "#00d4ff", textShadow: "0 0 15px #00d4ff" }}
+          style={{ color: user.activeEvent?.primaryColor || "#00d4ff", textShadow: `0 0 15px ${user.activeEvent?.primaryColor || "#00d4ff"}` }}
           onClick={() => onNav("dashboard")}
         >
-          DRIFT
+          {user.activeEvent?.gameDisplayName ?? "NEONOIR"}
         </button>
 
         <SearchBar onInspectPlayer={onInspectPlayer} onNav={onNav} />

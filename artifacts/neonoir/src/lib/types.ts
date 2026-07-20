@@ -128,6 +128,19 @@ export interface User {
   // ── 11 Cosmetics system ────────────────────────────────────────────────────
   equippedNameFlair?: string | null;
   equippedMessageCard?: string | null;
+  activeEvent?: {
+    eventId: string;
+    eventName: string;
+    eventType: string;
+    endsAt: string;
+    gameDisplayName: string;
+    primaryColor: string;
+    accentColor: string;
+    backgroundColor: string;
+    bannerImageUrl: string;
+    chatBadgeText: string;
+    chatBadgeColor: string;
+  } | null;
   ownedCosmetics?: string[];
   cosmeticInventory?: CosmeticInventoryEntry[];
 }

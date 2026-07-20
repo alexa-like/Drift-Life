@@ -1479,4 +1479,181 @@ router.patch("/cosmetics/:id", requireOwner as any, async (req: AuthRequest, res
   }
 });
 
+// ── EVENT MANAGEMENT (Owner) ──────────────────────────────────────────────────
+import Event from "../models/Event";
+import EventProgress from "../models/EventProgress";
+import { activateEvent, endEvent, invalidateFlashCache } from "../lib/eventEngine";
+
+// GET /api/owner/events — list all events in all statuses
+router.get("/events", async (_req, res) => {
+  try {
+    const events = await Event.find({})
+      .sort({ startsAt: -1 })
+      .lean();
+    res.json(events);
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/events/flash — trigger a flash event (register BEFORE /:id)
+router.post("/events/flash", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { label, effect, durationHours } = req.body as { label: string; effect: string; durationHours: number };
+    if (!label || !effect || !durationHours) {
+      return res.status(400).json({ message: "label, effect, and durationHours required" });
+    }
+    const validEffects = ["2x_crime_payout", "2x_arena_rewards", "3x_boss_damage", "2x_event_points", "free_boss_strikes", "2x_race_prizes"];
+    if (!validEffects.includes(effect)) {
+      return res.status(400).json({ message: `effect must be one of: ${validEffects.join(", ")}` });
+    }
+    const hours = Math.max(0.25, Math.min(24, Number(durationHours)));
+    const expiresAt = new Date(Date.now() + hours * 3_600_000);
+    await ServerConfig.findOneAndUpdate(
+      { key: "flashEvent" },
+      { key: "flashEvent", value: { label, effect, expiresAt }, updatedAt: new Date() },
+      { upsert: true }
+    );
+    invalidateFlashCache();
+    const io = req.app.locals["io"];
+    if (io) io.emit("flash_event_started", { label, effect, expiresAt });
+    await FeedEvent.create({
+      type: "system", actor: "System", actorId: null, dc: 0, xp: 0, actorLevel: 0,
+      message: `[⚡ FLASH EVENT] ${label} — active for the next ${hours} hour${hours !== 1 ? "s" : ""}!`,
+    });
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "owner", action: "flash-event", details: { label, effect, hours } });
+    res.json({ message: "Flash event started", label, effect, expiresAt });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/broadcast — send message to all online players via WebSocket + feed
+router.post("/broadcast", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { message } = req.body as { message: string };
+    if (!message?.trim()) return res.status(400).json({ message: "message required" });
+    const text = String(message).trim().slice(0, 500);
+    const io = req.app.locals["io"];
+    if (io) io.emit("owner_broadcast", { message: text, sentAt: new Date() });
+    await FeedEvent.create({
+      type: "system", actor: "System", actorId: null, dc: 0, xp: 0, actorLevel: 0,
+      message: `[BROADCAST] ${text}`,
+    });
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "owner", action: "broadcast", details: { message: text } });
+    res.json({ message: "Broadcast sent" });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/events — create a new event (status: draft)
+router.post("/events", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { name, slug, type, description, startsAt, endsAt, theme, pointSources, boss, collectible, milestones, teams, lottery, leaderboardRewards, oneTimeRewards } = req.body;
+    if (!name || !slug || !type || !startsAt || !endsAt) {
+      return res.status(400).json({ message: "name, slug, type, startsAt, endsAt required" });
+    }
+    const existing = await Event.findOne({ slug });
+    if (existing) return res.status(409).json({ message: "Slug already in use" });
+    const event = await Event.create({
+      name, slug, type,
+      description: description || "",
+      status: "draft",
+      startsAt: new Date(startsAt),
+      endsAt: new Date(endsAt),
+      createdBy: req.username || "owner",
+      lastEditedAt: new Date(),
+      theme: theme || {},
+      pointSources: pointSources || [],
+      boss: boss || undefined,
+      collectible: collectible || undefined,
+      milestones: milestones || undefined,
+      teams: teams || undefined,
+      lottery: lottery || undefined,
+      leaderboardRewards: leaderboardRewards || [],
+      oneTimeRewards: oneTimeRewards || [],
+    });
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "owner", action: "create-event", details: { eventId: String(event._id), name, type } });
+    res.status(201).json(event);
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /api/owner/events/:id — edit any field (status changes go through dedicated endpoints)
+router.patch("/events/:id", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const event = await Event.findById(req.params["id"]);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    const patch = { ...req.body, lastEditedAt: new Date() };
+    delete patch.status;
+    Object.assign(event, patch);
+    await event.save();
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "owner", action: "edit-event", details: { eventId: String(event._id), changes: Object.keys(req.body) } });
+    res.json(event);
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/events/:id/activate
+router.post("/events/:id/activate", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const event = await Event.findById(req.params["id"]);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (event.status === "active") return res.status(409).json({ message: "Event is already active" });
+    const io = req.app.locals["io"];
+    await activateEvent(event, io);
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "owner", action: "activate-event", details: { eventId: String(event._id), name: event.name } });
+    res.json({ message: `Event "${event.name}" activated` });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/events/:id/end — manually end event + distribute rewards
+router.post("/events/:id/end", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const event = await Event.findById(req.params["id"]);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (event.status !== "active") return res.status(409).json({ message: "Event is not active" });
+    const io = req.app.locals["io"];
+    await endEvent(event, io);
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "owner", action: "end-event", details: { eventId: String(event._id), name: event.name } });
+    res.json({ message: `Event "${event.name}" ended and rewards distributed` });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/events/:id/archive
+router.post("/events/:id/archive", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const event = await Event.findById(req.params["id"]);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (event.status !== "ended") return res.status(409).json({ message: "Only ended events can be archived" });
+    await Event.findByIdAndUpdate(event._id, { status: "archived" });
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "owner", action: "archive-event", details: { eventId: String(event._id), name: event.name } });
+    res.json({ message: `Event "${event.name}" archived` });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// DELETE /api/owner/events/:id — draft events only
+router.delete("/events/:id", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const event = await Event.findById(req.params["id"]);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (event.status !== "draft") return res.status(409).json({ message: "Only draft events can be deleted" });
+    await Event.findByIdAndDelete(event._id);
+    await EventProgress.deleteMany({ eventId: event._id });
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "owner", action: "delete-event", details: { eventId: String(event._id), name: event.name } });
+    res.json({ message: `Event "${event.name}" deleted` });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

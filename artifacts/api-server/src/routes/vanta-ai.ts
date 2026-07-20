@@ -18,6 +18,8 @@ import Item from "../models/Item";
 import CrimeLog from "../models/CrimeLog";
 import VantaLog from "../models/VantaLog";
 import FeedEvent from "../models/FeedEvent";
+import Event from "../models/Event";
+import { endEvent } from "../lib/eventEngine";
 import Notification from "../models/Notification";
 import { logAdminAction } from "../models/AdminAuditLog";
 import { getRecentLogs, pushLog } from "../lib/logBuffer";
@@ -318,6 +320,103 @@ const VANTA_TOOLS: GroqTool[] = [
           filter: { type: "string", description: "Filter: 'online', 'banned', 'new_today', 'high_level', 'jailed', 'hospitalized', 'ghost'" },
           limit: { type: "number", default: 10 },
         },
+      },
+    },
+  },
+
+  // ── Tier 2: Event Engine tools ───────────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "plan_year_of_events",
+      description: "Generate a suggested full-year event calendar for New Vanta. Returns a list of events with dates, types, and themes for owner review. Owner approves each with schedule_event.",
+      parameters: {
+        type: "object",
+        properties: {
+          includeCollaborations: { type: "boolean", description: "Include anime/game collaboration event suggestions" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "schedule_event",
+      description: "Create an event and save it as a draft or scheduled event. Checks for conflicts with other scheduled/active events first.",
+      parameters: {
+        type: "object",
+        properties: {
+          name:        { type: "string",  description: "Event name" },
+          type:        { type: "string",  enum: ["boss_raid", "leaderboard_grind", "collection_hunt", "milestone", "sports", "lottery"], description: "Event type" },
+          description: { type: "string",  description: "Short event description" },
+          startsAt:    { type: "string",  description: "ISO datetime string" },
+          endsAt:      { type: "string",  description: "ISO datetime string" },
+          bossName:    { type: "string",  description: "Boss name (boss_raid only)" },
+          bossHp:      { type: "number",  description: "Boss total HP (boss_raid only, default 1,000,000)" },
+          theme:       { type: "object",  description: "Theme overrides: { gameDisplayName, primaryColor, accentColor, backgroundColor, bannerImageUrl, chatBadgeText, chatBadgeColor }" },
+          status:      { type: "string",  enum: ["draft", "scheduled"], description: "Initial status (default: draft)" },
+        },
+        required: ["name", "type", "startsAt", "endsAt"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_event_calendar",
+      description: "Return all game events in chronological order, optionally filtered by status.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "Filter by status: draft | scheduled | active | ended | archived | all (default: all)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "modify_event",
+      description: "Modify a specific field on an event. Use dot-notation for nested fields (e.g. boss.totalHp, theme.primaryColor, endsAt).",
+      parameters: {
+        type: "object",
+        properties: {
+          eventId: { type: "string", description: "Event _id or slug" },
+          field:   { type: "string", description: "Dot-notation field path to update" },
+          value:   { description: "New value for the field" },
+        },
+        required: ["eventId", "field", "value"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "broadcast_message",
+      description: "Send a message to all online players via WebSocket and post it to the game feed.",
+      parameters: {
+        type: "object",
+        properties: {
+          message: { type: "string", description: "Message to broadcast (max 500 chars)" },
+        },
+        required: ["message"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "end_event_early",
+      description: "Manually end an active event immediately and trigger reward distribution.",
+      parameters: {
+        type: "object",
+        properties: {
+          eventId: { type: "string", description: "Event _id or slug" },
+          reason:  { type: "string", description: "Optional reason posted to the game feed" },
+        },
+        required: ["eventId"],
       },
     },
   },
@@ -623,6 +722,126 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
         if (!players.length) return `No players found (filter: ${filter}).`;
         const roleTag = (r: string) => r === "owner" ? "👑 OWNER" : r === "admin" ? "🛡 ADMIN" : r === "mod" ? "⚖ MOD" : r === "staff" ? "🔧 STAFF" : "PLAYER";
         return players.map(p => `• ${p.username} [${roleTag(p.role)}] | Lv${p.level} | ${p.dc.toLocaleString()} DC | ${p.status} | ${p.district || "—"}`).join("\n");
+      }
+
+      // ── Tier 2: Event Engine ───────────────────────────────────────────────────
+      case "plan_year_of_events": {
+        const includeCollabs = args["includeCollaborations"] === true;
+        const plan = [
+          { month: "January",    name: "New Year's City Rush",         type: "leaderboard_grind",  window: "Jan 1–7",            theme: "Gold & cyan — neo-year",     desc: "Race to top the leaderboard in the first week of the year" },
+          { month: "February",   name: "Valentine's Heist",            type: "collection_hunt",    window: "Feb 10–17",           theme: "Red & pink neon",            desc: "Collect stolen jewels scattered across every district" },
+          { month: "March",      name: "Spring Syndicate Wars",        type: "milestone",          window: "Mar 15–31",           theme: "Green & purple",             desc: "Collective city-wide crime target — all factions contribute" },
+          { month: "April",      name: "Easter Black Market",          type: "collection_hunt",    window: "Easter week",         theme: "Neon on dark",               desc: "Hidden caches appear across all districts" },
+          { month: "May",        name: "Champions League Clash",       type: "sports",             window: "UCL Final week",      theme: "Stadium neon",               desc: "Pick your side, earn event points, win faction prizes" },
+          { month: "June–July",  name: "Summer Heat Boss",             type: "boss_raid",          window: "Jun 21 – Jul 5",      theme: "Orange & red heat wave",     desc: "Take down the Summer Enforcer — New Vanta's most wanted" },
+          { month: "July",       name: "Neon Carnival",                type: "lottery",            window: "Jul 14–21",           theme: "Bright festival colors",     desc: "Earn tickets from all activities; lottery draw at close" },
+          { month: "August",     name: "Dog Days Grind",               type: "leaderboard_grind",  window: "Aug 1–31",            theme: "Heat shimmer purple",        desc: "Month-long grind — biggest leaderboard prize pool of the year" },
+          { month: "September",  name: "Back-to-the-Grid Sprint",      type: "milestone",          window: "Sep 1–15",            theme: "Teal & silver",              desc: "Collective race + crime milestone" },
+          { month: "October",    name: "Halloween Horror Boss",        type: "boss_raid",          window: "Oct 24 – Nov 1",      theme: "Orange & black horror",      desc: "Face the Reaper — limited Halloween boss with exclusive cosmetics" },
+          { month: "November",   name: "Black Market Frenzy",          type: "collection_hunt",    window: "Nov 25 – Dec 2",      theme: "Dark gold",                  desc: "Black Friday loot hunt across all districts" },
+          { month: "December",   name: "Christmas Corporate Siege",    type: "boss_raid",          window: "Dec 20 – Jan 1",      theme: "Red, green & gold",          desc: "Defeat the Christmas Corporate Overlord; earn holiday cosmetics" },
+        ];
+        if (includeCollabs) {
+          plan.push({ month: "TBD", name: "One Punch Man × Neonoir: Garou Invasion",         type: "boss_raid",          window: "3 weeks — owner picks date", theme: "OPM palette",           desc: "Garou as boss; S-class hero cosmetics as rewards" });
+          plan.push({ month: "TBD", name: "Dragon Ball × Neonoir: Tournament of Power",      type: "leaderboard_grind",  window: "2 weeks — owner picks date", theme: "Orange & blue DBZ",     desc: "Top fighters earn Saiyan-class cosmetics" });
+          plan.push({ month: "TBD", name: "Attack on Titan × Neonoir: Titan Siege",          type: "milestone",          window: "2 weeks — owner picks date", theme: "Dark military green",   desc: "City-wide collective strike — shared titan HP pool" });
+        }
+        return `**Year Event Plan — New Vanta ${new Date().getFullYear()}**\n\n` +
+          plan.map((e, i) => `${i + 1}. **${e.name}** (${e.month})\n   Type: ${e.type} | Window: ${e.window}\n   Theme: ${e.theme}\n   ${e.desc}`).join("\n\n") +
+          `\n\n---\nUse \`schedule_event\` to create any of these as drafts. Adjust dates and themes before activating.`;
+      }
+
+      case "schedule_event": {
+        const { name: evtName, type: evtType, description: evtDesc, startsAt, endsAt, bossName, bossHp, theme, status: evtStatus } = args as any;
+        if (!evtName || !evtType || !startsAt || !endsAt) return "name, type, startsAt, and endsAt are required.";
+        const start = new Date(startsAt);
+        const end   = new Date(endsAt);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return "Invalid startsAt or endsAt — use ISO datetime strings.";
+        if (start >= end) return "startsAt must be before endsAt.";
+        // Check for conflicts
+        const conflict = await Event.findOne({ status: { $in: ["scheduled", "active"] }, startsAt: { $lte: end }, endsAt: { $gte: start } });
+        if (conflict) return `⚠️ Date conflict with **"${conflict.name}"** (${conflict.startsAt.toDateString()} – ${conflict.endsAt.toDateString()}). Adjust dates and retry.`;
+        const slug = `${String(evtName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now()}`;
+        const boss = evtType === "boss_raid" && bossName
+          ? { name: bossName, imageUrl: "", totalHp: bossHp || 1_000_000, currentHp: bossHp || 1_000_000, phases: [], strikeEnergyCost: 5, strikeCooldownSeconds: 30, strikeBaseDamage: { min: 100, max: 500 }, bossRetaliationDamage: { min: 0, max: 0 } }
+          : undefined;
+        const defaultTheme = { gameDisplayName: "Neonoir", primaryColor: "#00E0FF", accentColor: "#FF2D55", backgroundColor: "#070710", bannerImageUrl: "", chatBadgeText: String(evtName).toUpperCase().slice(0, 20), chatBadgeColor: "#00E0FF" };
+        const event = await Event.create({
+          name: evtName, slug, type: evtType, description: evtDesc || "", status: evtStatus || "draft",
+          startsAt: start, endsAt: end, createdBy: actorUsername, lastEditedAt: new Date(),
+          theme: theme ? { ...defaultTheme, ...theme } : defaultTheme,
+          pointSources: [{ action: "arena_win", points: 10 }, { action: "crime", points: 5 }, { action: "race_win", points: 15 }],
+          boss,
+          leaderboardRewards: [
+            { rankFrom: 1,  rankTo: 1,  reward: { dc: 500_000, nc: 100, cosmetics: [], titles: ["Champion"], eventPoints: 0 } },
+            { rankFrom: 2,  rankTo: 3,  reward: { dc: 250_000, nc: 50,  cosmetics: [], titles: [],            eventPoints: 0 } },
+            { rankFrom: 4,  rankTo: 10, reward: { dc: 100_000, nc: 25,  cosmetics: [], titles: [],            eventPoints: 0 } },
+          ],
+          oneTimeRewards: [],
+        });
+        logAdminAction({ actorId, actorUsername, action: "vanta-create-event", details: { eventId: String(event._id), name: evtName, type: evtType } });
+        return `✅ Event created: **"${evtName}"** (${evtType})\n- Status: ${evtStatus || "draft"}\n- Dates: ${start.toDateString()} → ${end.toDateString()}\n- ID: \`${event._id}\`\n\nUse \`modify_event\` to adjust any field. Activate via the Owner Panel when ready.`;
+      }
+
+      case "get_event_calendar": {
+        const statusFilter = (args["status"] as string) || "all";
+        const filter = statusFilter === "all" ? {} : { status: statusFilter };
+        const events = await Event.find(filter).sort({ startsAt: 1 }).select("name type status startsAt endsAt archive").lean();
+        if (!events.length) return `No events found${statusFilter !== "all" ? ` with status "${statusFilter}"` : ""}.`;
+        const statusIcon: Record<string, string> = { draft: "📝", scheduled: "⏰", active: "🔥", ended: "✅", archived: "📦" };
+        return `**Event Calendar** (${events.length}):\n\n` +
+          events.map((e: any, i: number) =>
+            `${i + 1}. ${statusIcon[e.status] || "•"} **${e.name}** (${e.type})\n   ${new Date(e.startsAt).toDateString()} → ${new Date(e.endsAt).toDateString()}${e.archive?.totalParticipants ? ` | ${e.archive.totalParticipants} participants` : ""}`
+          ).join("\n");
+      }
+
+      case "modify_event": {
+        const { eventId: evtId, field: evtField, value: evtValue } = args as { eventId: string; field: string; value: unknown };
+        if (!evtId || !evtField) return "eventId and field are required.";
+        const evtQuery = mongoose.isValidObjectId(evtId) ? { _id: evtId } : { slug: evtId };
+        const event = await Event.findOne(evtQuery);
+        if (!event) return `Event not found: "${evtId}". Use get_event_calendar to list events with their IDs.`;
+        const keys = String(evtField).split(".");
+        let cursor: any = event;
+        for (let i = 0; i < keys.length - 1; i++) {
+          if (cursor[keys[i]] === undefined || cursor[keys[i]] === null) cursor[keys[i]] = {};
+          cursor = cursor[keys[i]];
+        }
+        cursor[keys[keys.length - 1]] = evtValue;
+        event.lastEditedAt = new Date();
+        await event.save();
+        logAdminAction({ actorId, actorUsername, action: "vanta-modify-event", details: { eventId: String(event._id), field: evtField, value: evtValue } });
+        return `✅ Updated **"${event.name}"**: \`${evtField}\` → \`${JSON.stringify(evtValue)}\``;
+      }
+
+      case "broadcast_message": {
+        const broadcastMsg = String(args["message"] || "").trim().slice(0, 500);
+        if (!broadcastMsg) return "message is required.";
+        if (io) io.emit("owner_broadcast", { message: broadcastMsg, sentAt: new Date() });
+        await FeedEvent.create({
+          type: "system", actor: "System", actorId: null, dc: 0, xp: 0, actorLevel: 0,
+          message: `[BROADCAST] ${broadcastMsg}`,
+        });
+        logAdminAction({ actorId, actorUsername, action: "vanta-broadcast", details: { message: broadcastMsg } });
+        return `✅ Broadcast sent to all online players:\n"${broadcastMsg}"`;
+      }
+
+      case "end_event_early": {
+        const { eventId: endEvtId, reason: endReason } = args as { eventId: string; reason?: string };
+        if (!endEvtId) return "eventId is required.";
+        const endEvtQuery = mongoose.isValidObjectId(endEvtId) ? { _id: endEvtId } : { slug: endEvtId };
+        const event = await Event.findOne(endEvtQuery);
+        if (!event) return `Event not found: "${endEvtId}". Use get_event_calendar to list events.`;
+        if (event.status !== "active") return `Event **"${event.name}"** is not active (current status: ${event.status}).`;
+        await endEvent(event, io);
+        if (endReason?.trim()) {
+          await FeedEvent.create({
+            type: "system", actor: "System", actorId: null, dc: 0, xp: 0, actorLevel: 0,
+            message: `[EVENT] ${event.name} ended early. ${endReason.trim()}`,
+          });
+        }
+        logAdminAction({ actorId, actorUsername, action: "vanta-end-event", details: { eventId: String(event._id), name: event.name, reason: endReason } });
+        return `✅ Event **"${event.name}"** ended. Reward distribution running in background.${endReason ? `\nFeed message: "${endReason}"` : ""}`;
       }
 
       default:

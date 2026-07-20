@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { User, FeedEvent } from "../lib/types";
+import { EventBanner } from "../components/EventBanner";
 import { api } from "../lib/api";
 import { formatDC } from "../lib/format";
 import { WantedStars } from "../components/WantedStars";
@@ -89,7 +90,14 @@ export function Dashboard({ user, onNav, addToast, refreshUser }: Props) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 relative z-0">
       <div className="dl-page-bg bg-city" />
-      
+
+      {/* ── Event Banner ── */}
+      {user.activeEvent && (
+        <div className="lg:col-span-12">
+          <EventBanner event={user.activeEvent} onNav={onNav} />
+        </div>
+      )}
+
       {/* ── Left Column (Stats & Identity) ── */}
       <div className="lg:col-span-4 flex flex-col gap-5">
         

@@ -178,6 +178,23 @@ function GameApp() {
   const updateAvailable = useUpdateCheck(5 * 60 * 1000);
   const [updateDismissed, setUpdateDismissed] = useState(false);
 
+  // ── Event theme: apply CSS vars + page title while an event is active ──────
+  useEffect(() => {
+    const ev = user?.activeEvent;
+    const root = document.documentElement;
+    if (ev) {
+      root.style.setProperty("--event-primary", ev.primaryColor || "#00d4ff");
+      root.style.setProperty("--event-accent",  ev.accentColor  || "#ff2d55");
+      root.style.setProperty("--event-bg",      ev.backgroundColor || "transparent");
+      document.title = ev.gameDisplayName || "Neonoir";
+    } else {
+      root.style.removeProperty("--event-primary");
+      root.style.removeProperty("--event-accent");
+      root.style.removeProperty("--event-bg");
+      document.title = "Neonoir";
+    }
+  }, [user?.activeEvent?.eventId]);
+
   // ── Connectivity state ────────────────────────────────────────────────────────
   const { isOnline, checkNow } = useConnectivity();
 

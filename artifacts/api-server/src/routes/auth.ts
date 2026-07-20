@@ -135,7 +135,7 @@ export function safeUser(user: InstanceType<typeof User>) {
 }
 
 /** Fetch active event theme from ServerConfig (cached externally). */
-async function fetchActiveEventTheme(): Promise<Record<string, unknown> | null> {
+export async function fetchActiveEventTheme(): Promise<Record<string, unknown> | null> {
   try {
     const ServerConfig = (await import("../models/ServerConfig")).default;
     const doc = await ServerConfig.findOne({ key: "activeEventTheme" }).lean();
@@ -526,6 +526,7 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     applyRegen(user);
     await user.save();
+    (user as any)._activeEvent = await fetchActiveEventTheme();
     res.json(safeUser(user));
   } catch (err: any) {
     req.log.error({ err }, "me error");
