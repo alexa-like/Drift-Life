@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
+import type { CosmeticItem } from "../lib/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,8 +81,229 @@ interface Props {
   onNavigate?: (page: string) => void;
 }
 
+const RARITY_COLOR: Record<string, string> = {
+  common:    "#94a3b8",
+  rare:      "#00E0FF",
+  epic:      "#a855f7",
+  legendary: "#FFD700",
+  event:     "#FF4FA3",
+};
+
+function CosmeticsTab({ user, nc }: { user: any; nc: number }) {
+  const [items, setItems] = useState<CosmeticItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api.get<CosmeticItem[]>("/cosmetics");
+      setItems(data);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingItems(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleBuy(item: CosmeticItem) {
+    setBusy(item.id);
+    setActionMsg(null);
+    try {
+      const res = await api.post<{ message: string; nc: number }>(`/cosmetics/${item.id}/buy`, {});
+      setActionMsg(`✓ ${res.message}`);
+      await load();
+    } catch (err: any) {
+      setActionMsg(`✕ ${err?.message ?? "Purchase failed"}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleEquip(item: CosmeticItem, equip: boolean) {
+    setBusy(item.id);
+    setActionMsg(null);
+    try {
+      const res = await api.post<{ message: string }>(`/cosmetics/${item.id}/equip`, { equip });
+      setActionMsg(`✓ ${res.message}`);
+      await load();
+    } catch (err: any) {
+      setActionMsg(`✕ ${err?.message ?? "Action failed"}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const flairs  = items.filter(i => i.type === "name_flair");
+  const cards   = items.filter(i => i.type === "message_card");
+
+  if (loadingItems) {
+    return <div className="text-center font-mono text-sm py-8" style={{ color: "#475569" }}>Loading cosmetics…</div>;
+  }
+
+  function FlairPreview({ item }: { item: CosmeticItem }) {
+    const style: React.CSSProperties = item.animation !== "gradient"
+      ? { color: item.color || "#00E0FF" }
+      : {};
+    return (
+      <span className={`font-mono font-bold text-sm ${item.cssKey}`} style={style}>
+        YourName
+      </span>
+    );
+  }
+
+  function CardPreview({ item }: { item: CosmeticItem }) {
+    const borderColor = item.color || "#1e1e2e";
+    return (
+      <div className="font-mono text-xs px-3 py-2 clip-btn" style={{
+        background: item.color ? `${item.color}10` : "#111118",
+        border: `1px solid ${borderColor}50`,
+        borderLeft: item.cssKey === "card-staff" ? `3px solid ${borderColor}` : undefined,
+        color: "#e2e8f0",
+        boxShadow: item.cssKey !== "card-default" ? `0 0 10px ${borderColor}22` : "none",
+      }}>
+        Sample message text here…
+      </div>
+    );
+  }
+
+  function CosmeticCard({ item }: { item: CosmeticItem }) {
+    const isNameFlair = item.type === "name_flair";
+    const rarityColor = RARITY_COLOR[item.rarity] ?? "#94a3b8";
+    const isBusy = busy === item.id;
+
+    return (
+      <div
+        className="flex flex-col gap-2 p-3 rounded"
+        style={{
+          background: item.equipped ? `${rarityColor}12` : "#0a0a14",
+          border: `1px solid ${item.equipped ? rarityColor + "60" : "#1e1e2e"}`,
+          transition: "border-color 0.2s, background 0.2s",
+        }}
+      >
+        {/* Preview */}
+        <div className="flex items-center justify-center py-3 rounded" style={{ background: "#070710", minHeight: 52 }}>
+          {isNameFlair ? <FlairPreview item={item} /> : <CardPreview item={item} />}
+        </div>
+
+        {/* Name + rarity */}
+        <div>
+          <div className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{item.name}</div>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className="font-mono uppercase font-bold clip-btn px-1" style={{ fontSize: 8, color: rarityColor, background: `${rarityColor}15`, border: `1px solid ${rarityColor}40` }}>
+              {item.rarity}
+            </span>
+            <span className="font-mono text-xs" style={{ color: "#334155" }}>
+              {isNameFlair ? "Name Flair" : "Message Card"}
+            </span>
+          </div>
+          <div className="font-mono text-xs mt-1" style={{ color: "#475569" }}>{item.previewDescription}</div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col gap-1 mt-auto">
+          {item.equipped && (
+            <button
+              disabled={isBusy}
+              onClick={() => handleEquip(item, false)}
+              className="w-full font-mono text-xs font-bold py-1.5 rounded"
+              style={{ background: `${rarityColor}25`, color: rarityColor, border: `1px solid ${rarityColor}50`, opacity: isBusy ? 0.6 : 1 }}
+            >
+              {isBusy ? "…" : "✓ Equipped — Unequip"}
+            </button>
+          )}
+          {!item.equipped && item.owned && (
+            <button
+              disabled={isBusy}
+              onClick={() => handleEquip(item, true)}
+              className="w-full font-mono text-xs font-bold py-1.5 rounded"
+              style={{ background: "#1e1e2e", color: "#94a3b8", border: "1px solid #2a2a3e", opacity: isBusy ? 0.6 : 1 }}
+            >
+              {isBusy ? "…" : "Equip"}
+            </button>
+          )}
+          {!item.owned && item.purchasable && (
+            <button
+              disabled={isBusy || nc < item.priceNC}
+              onClick={() => handleBuy(item)}
+              className="w-full font-mono text-xs font-bold py-1.5 rounded"
+              style={{
+                background: nc >= item.priceNC ? `${rarityColor}20` : "#1e1e2e",
+                color: nc >= item.priceNC ? rarityColor : "#334155",
+                border: `1px solid ${nc >= item.priceNC ? rarityColor + "40" : "#1e1e2e"}`,
+                cursor: nc >= item.priceNC ? "pointer" : "default",
+                opacity: isBusy ? 0.6 : 1,
+              }}
+              title={nc < item.priceNC ? `Need ${item.priceNC.toLocaleString()} NC — you have ${nc.toLocaleString()}` : undefined}
+            >
+              {isBusy ? "…" : nc >= item.priceNC
+                ? `💎 ${item.priceNC.toLocaleString()} NC`
+                : `💎 ${item.priceNC.toLocaleString()} NC needed`}
+            </button>
+          )}
+          {!item.owned && !item.purchasable && (
+            <div className="font-mono text-xs text-center" style={{ color: "#334155" }}>
+              {item.eventRewardable ? "Event Reward" : "Not available"}
+            </div>
+          )}
+          {item.expiresAt && (
+            <div className="font-mono text-xs text-center" style={{ color: "#f59e0b" }}>
+              Expires {new Date(item.expiresAt).toLocaleDateString()}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {actionMsg && (
+        <div className="font-mono text-xs p-3 rounded" style={{
+          background: actionMsg.startsWith("✓") ? "#16a34a15" : "#ff2d5515",
+          color: actionMsg.startsWith("✓") ? "#22c55e" : "#ff2d55",
+          border: `1px solid ${actionMsg.startsWith("✓") ? "#22c55e30" : "#ff2d5530"}`,
+        }}>
+          {actionMsg}
+          <button onClick={() => setActionMsg(null)} style={{ float: "right", background: "none", border: "none", color: "inherit", cursor: "pointer" }}>✕</button>
+        </div>
+      )}
+
+      <div className="font-mono text-xs" style={{ color: "#475569" }}>
+        You have <span style={{ color: "#a855f7", fontWeight: 700 }}>{nc.toLocaleString()} NC</span> available.
+      </div>
+
+      {/* Name Flairs */}
+      {flairs.length > 0 && (
+        <div>
+          <div className="font-mono text-xs font-bold mb-2" style={{ color: "#a0a0c0" }}>NAME FLAIRS</div>
+          <div className="grid grid-cols-2 gap-2">
+            {flairs.map(item => <CosmeticCard key={item.id} item={item} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Message Cards */}
+      {cards.length > 0 && (
+        <div>
+          <div className="font-mono text-xs font-bold mb-2" style={{ color: "#a0a0c0" }}>MESSAGE CARDS</div>
+          <div className="grid grid-cols-2 gap-2">
+            {cards.map(item => <CosmeticCard key={item.id} item={item} />)}
+          </div>
+        </div>
+      )}
+
+      {items.length === 0 && (
+        <div className="text-center font-mono text-sm py-8" style={{ color: "#334155" }}>No cosmetics available.</div>
+      )}
+    </div>
+  );
+}
+
 export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
-  const [tab, setTab] = useState<"nc" | "subs">("nc");
+  const [tab, setTab] = useState<"nc" | "subs" | "cosmetics">("nc");
   const [status, setStatus] = useState<StoreStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState<string | null>(null);
@@ -309,12 +531,13 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
       {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
       <div className="flex gap-0 rounded overflow-hidden" style={{ border: "1px solid #1e1e2e" }}>
         {[
-          { key: "nc",   label: "💎 NC Packs"        },
-          { key: "subs", label: "⭐ Subscriptions"    },
+          { key: "nc",        label: "💎 NC Packs"     },
+          { key: "subs",      label: "⭐ Subscriptions" },
+          { key: "cosmetics", label: "✨ Cosmetics"     },
         ].map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key as "nc" | "subs")}
+            onClick={() => setTab(t.key as "nc" | "subs" | "cosmetics")}
             className="flex-1 font-mono text-xs font-bold py-2 transition-colors"
             style={{
               background: tab === t.key ? "#0f0f1a" : "#070710",
@@ -643,6 +866,11 @@ export function StorePage({ user, onUserUpdate, onNavigate }: Props) {
             💎 NC purchases are instant and final · Subscriptions do not auto-renew
           </div>
         </div>
+      )}
+
+      {/* ── Cosmetics tab ───────────────────────────────────────────────────── */}
+      {!loading && tab === "cosmetics" && (
+        <CosmeticsTab user={user} nc={status?.nc ?? 0} />
       )}
 
       {/* ── Telegram linked status ───────────────────────────────────────────── */}

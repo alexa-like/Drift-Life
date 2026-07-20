@@ -9,7 +9,7 @@ import { StatBar } from "../components/StatBar";
 import { InventoryPage } from "./InventoryPage";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { SubscriberNameBadge, type SubscriberTier } from "../components/SubscriberNameBadge";
+import { PlayerNameBadge, type SubscriberTier } from "../components/PlayerNameBadge";
 import { PrestigeConfirmModal } from "../components/PrestigeConfirmModal";
 
 // Inject header CSS for banner zone (APEX shimmer + Sovereign weave)
@@ -182,9 +182,13 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
           {/* Identity */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <SubscriberNameBadge
+              <PlayerNameBadge
                 username={user.username}
-                tier={(user as any).subscriptionTier as SubscriberTier}
+                subscriptionTier={(user as any).subscriptionTier as SubscriberTier}
+                equippedNameFlair={(user as any).equippedNameFlair ?? null}
+                cosmeticData={(user as any).equippedNameFlair && (user as any)._cosmeticData
+                  ? (user as any)._cosmeticData
+                  : null}
                 fontSize="1.125rem"
                 className="text-white"
               />

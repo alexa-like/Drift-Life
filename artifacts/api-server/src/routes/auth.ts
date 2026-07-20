@@ -119,6 +119,16 @@ export function safeUser(user: InstanceType<typeof User>) {
     pinnedBadges: (user as any).pinnedBadges ?? [],
     factionId:   (user as any).factionId   ? String((user as any).factionId)  : null,
     factionRole: (user as any).factionRole ?? null,
+    // ── 11 Cosmetics system ─────────────────────────────────────────────────
+    equippedNameFlair:   (user as any).equippedNameFlair   ?? null,
+    equippedMessageCard: (user as any).equippedMessageCard ?? null,
+    ownedCosmetics:      (user as any).ownedCosmetics      ?? [],
+    cosmeticInventory:   ((user as any).cosmeticInventory ?? []).map((e: { cosmeticId: string; acquiredAt: Date; expiresAt: Date | null; source: string }) => ({
+      cosmeticId:  e.cosmeticId,
+      acquiredAt:  e.acquiredAt,
+      expiresAt:   e.expiresAt,
+      source:      e.source,
+    })),
   };
 }
 

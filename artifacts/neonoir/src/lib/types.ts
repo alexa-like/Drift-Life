@@ -125,6 +125,11 @@ export interface User {
   menteeCount?: number;
   // ── 10.15 Pinned badges ────────────────────────────────────────────────────
   pinnedBadges?: string[];
+  // ── 11 Cosmetics system ────────────────────────────────────────────────────
+  equippedNameFlair?: string | null;
+  equippedMessageCard?: string | null;
+  ownedCosmetics?: string[];
+  cosmeticInventory?: CosmeticInventoryEntry[];
 }
 
 // ── Giveaway system (Tier 4) ──────────────────────────────────────────────────
@@ -276,6 +281,40 @@ export interface Achievement {
   completedAt?: string | null;
 }
 
+// ── 11 Cosmetics system ────────────────────────────────────────────────────
+
+export interface FlairData {
+  color: string;
+  animation: "none" | "pulse" | "glow" | "rainbow" | "glitch" | "gradient";
+  cssKey: string;
+}
+
+export interface CosmeticItem {
+  id: string;
+  name: string;
+  type: "name_flair" | "message_card";
+  color: string;
+  animation: "none" | "pulse" | "glow" | "rainbow" | "glitch" | "gradient";
+  cssKey: string;
+  priceNC: number;
+  purchasable: boolean;
+  eventRewardable: boolean;
+  rarity: "common" | "rare" | "epic" | "legendary" | "event";
+  previewDescription: string;
+  seasonExclusive: boolean;
+  // enriched from server
+  owned?: boolean;
+  equipped?: boolean;
+  expiresAt?: string | null;
+}
+
+export interface CosmeticInventoryEntry {
+  cosmeticId: string;
+  acquiredAt: string;
+  expiresAt: string | null;
+  source: "purchase" | "event_reward" | "subscription" | "owner_grant";
+}
+
 export interface ChatMessage {
   id: string;
   userId: string;
@@ -291,6 +330,11 @@ export interface ChatMessage {
   subscriptionTier?: "street_runner" | "neon_syndicate" | "apex_sovereign" | null;
   // ── 10.15 Pinned achievement badges ──────────────────────────────────────
   pinnedBadges?: string[];
+  // ── 11 Cosmetics ─────────────────────────────────────────────────────────
+  role?: string | null;
+  equippedNameFlair?: string | null;
+  equippedMessageCard?: string | null;
+  flairData?: FlairData | null;
 }
 
 export interface ChatReport {

@@ -6,7 +6,8 @@ import { useSocket } from "../context/SocketContext";
 import { CyberButton } from "../components/CyberButton";
 import { MentionInput } from "../components/MentionInput";
 import { MentionText, GAME_EMOJIS } from "../components/MentionText";
-import { SubscriberNameBadge } from "../components/SubscriberNameBadge";
+import { PlayerNameBadge } from "../components/PlayerNameBadge";
+import { MessageCard, deriveMessageVariant } from "../components/MessageCard";
 
 function fmtAchievementId(id: string): string {
   return id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
@@ -136,9 +137,11 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
         {message.title && (
           <span className="font-mono uppercase font-bold" style={{ fontSize: 9, color: "#a855f7", textShadow: "0 0 5px #a855f7" }}>[{message.title}]</span>
         )}
-        <SubscriberNameBadge
+        <PlayerNameBadge
           username={message.username}
-          tier={message.subscriptionTier}
+          subscriptionTier={message.subscriptionTier}
+          equippedNameFlair={message.equippedNameFlair}
+          cosmeticData={message.flairData ?? null}
           fontSize={12}
           onClick={() => message.userId && onUsernameClick?.(message.userId)}
         />
@@ -168,28 +171,20 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute }: {
         </span>
       </div>
       
-      <div
-        className="font-mono text-sm px-4 py-2 clip-btn relative overflow-hidden"
-        style={{
-          background: isOwn ? "#00d4ff10" : "#111118",
-          border: `1px solid ${isOwn ? "#00d4ff40" : "#1e1e2e"}`,
-          color: "#e2e8f0",
-          maxWidth: "85%",
-          wordBreak: "break-word",
-          boxShadow: isOwn ? "0 0 15px rgba(0,212,255,0.05)" : "none"
-        }}
+      <MessageCard
+        variant={deriveMessageVariant({
+          isOwn,
+          senderRole: message.role,
+          subscriptionTier: message.subscriptionTier,
+        })}
+        isOwn={isOwn}
       >
-        {/* Subtle scanline on bubble */}
-        <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: "linear-gradient(transparent 50%, rgba(0,0,0,0.2) 50%)", backgroundSize: "100% 4px" }} />
-        
-        <div className="relative z-10">
-          <MentionText
-            text={message.content}
-            onUserClick={handleMentionUser}
-            onLocationClick={handleLocNav}
-          />
-        </div>
-      </div>
+        <MentionText
+          text={message.content}
+          onUserClick={handleMentionUser}
+          onLocationClick={handleLocNav}
+        />
+      </MessageCard>
       {menu}
     </motion.div>
   );

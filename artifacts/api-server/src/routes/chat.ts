@@ -3,12 +3,63 @@ import sanitizeHtml from "sanitize-html";
 import User from "../models/User";
 import ChatMessage, { dmKey } from "../models/ChatMessage";
 import ChatReport from "../models/ChatReport";
+import CosmeticItem from "../models/CosmeticItem";
 import { requireAuth, requireOwner, AuthRequest } from "../middlewares/auth";
 import mongoose from "mongoose";
 import { notifyMentions } from "../lib/mentions";
 import { getActiveTier } from "../lib/subscription";
 import { scanMessage } from "../lib/chatMod";
 import { fireVantaEvent } from "../lib/vanta";
+
+/** Resolved flair data for rendering. */
+interface FlairData {
+  color: string;
+  animation: string;
+  cssKey: string;
+}
+
+/**
+ * Batch-enriches a flat message array with sender flair/card data.
+ * Fetches all unique senderIds in one query, then resolves cosmetic items.
+ */
+async function enrichMessagesWithFlairs(
+  messages: Array<{
+    userId: mongoose.Types.ObjectId | string;
+    [key: string]: unknown;
+  }>
+): Promise<Map<string, { equippedNameFlair: string | null; equippedMessageCard: string | null; role: string; flairData: FlairData | null }>> {
+  const senderIds = [...new Set(messages.map(m => String(m.userId)))];
+  if (senderIds.length === 0) return new Map();
+
+  const users = await User.find({ _id: { $in: senderIds } })
+    .select("equippedNameFlair equippedMessageCard role")
+    .lean();
+
+  const flairIds = users
+    .map(u => (u as any).equippedNameFlair)
+    .filter((id): id is string => !!id);
+
+  const cosmetics = flairIds.length > 0
+    ? await CosmeticItem.find({ id: { $in: flairIds } }).select("id color animation cssKey").lean()
+    : [];
+
+  const cosmeticMap = new Map(cosmetics.map(c => [c.id, c]));
+
+  const result = new Map<string, { equippedNameFlair: string | null; equippedMessageCard: string | null; role: string; flairData: FlairData | null }>();
+  for (const u of users) {
+    const flairId: string | null = (u as any).equippedNameFlair ?? null;
+    const cosItem = flairId ? cosmeticMap.get(flairId) : null;
+    result.set(String((u as any)._id), {
+      equippedNameFlair: flairId,
+      equippedMessageCard: (u as any).equippedMessageCard ?? null,
+      role: (u as any).role ?? "player",
+      flairData: cosItem
+        ? { color: cosItem.color, animation: cosItem.animation, cssKey: cosItem.cssKey }
+        : null,
+    });
+  }
+  return result;
+}
 
 const router = Router();
 
@@ -48,17 +99,26 @@ router.get("/global", requireAuth, async (req: AuthRequest, res) => {
       .sort({ createdAt: -1 })
       .limit(HISTORY_LIMIT)
       .lean();
-    res.json(messages.reverse().map(m => ({
-      id: m._id,
-      userId: m.senderId,
-      username: m.senderName,
-      faction: m.senderFaction,
-      title: m.senderTitle,
-      level: (m as any).senderLevel || 1,
-      pinnedBadges: (m as any).senderPinnedBadges ?? [],
-      content: m.content,
-      at: m.createdAt,
-    })));
+    const reversed = messages.reverse();
+    const flairMap = await enrichMessagesWithFlairs(reversed.map(m => ({ userId: m.senderId, ...m })));
+    res.json(reversed.map(m => {
+      const flair = flairMap.get(String(m.senderId));
+      return {
+        id: m._id,
+        userId: m.senderId,
+        username: m.senderName,
+        faction: m.senderFaction,
+        title: m.senderTitle,
+        level: (m as any).senderLevel || 1,
+        pinnedBadges: (m as any).senderPinnedBadges ?? [],
+        content: m.content,
+        at: m.createdAt,
+        role: flair?.role ?? "player",
+        equippedNameFlair: flair?.equippedNameFlair ?? null,
+        equippedMessageCard: flair?.equippedMessageCard ?? null,
+        flairData: flair?.flairData ?? null,
+      };
+    }));
   } catch (err: any) {
     req.log.error({ err }, "get global chat error");
     res.status(500).json({ message: "Internal server error" });
@@ -80,7 +140,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned level subscriptionTier subscriptionExpiresAt pinnedBadges");
+      .select("username faction equippedTitle mutedUntil banned level subscriptionTier subscriptionExpiresAt pinnedBadges role equippedNameFlair equippedMessageCard");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
@@ -89,6 +149,13 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
 
     const activeTierGlobal = getActiveTier(user as any);
     const senderBadges: string[] = (user as any).pinnedBadges ?? [];
+    const senderFlairId: string | null = (user as any).equippedNameFlair ?? null;
+    const senderFlairItem = senderFlairId
+      ? await CosmeticItem.findOne({ id: senderFlairId }).select("color animation cssKey").lean()
+      : null;
+    const senderFlairData = senderFlairItem
+      ? { color: senderFlairItem.color, animation: senderFlairItem.animation, cssKey: senderFlairItem.cssKey }
+      : null;
 
     // Auto-moderation scan
     const modGlobal = scanMessage(content);
@@ -124,6 +191,10 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
         level: user.level,
         subscriptionTier: activeTierGlobal ? (user as any).subscriptionTier : null,
         pinnedBadges: senderBadges,
+        role: (user as any).role ?? "player",
+        equippedNameFlair: senderFlairId,
+        equippedMessageCard: (user as any).equippedMessageCard ?? null,
+        flairData: senderFlairData,
         content,
         at: message.createdAt,
       });
@@ -155,18 +226,27 @@ router.get("/district/:districtId", requireAuth, async (req: AuthRequest, res) =
       .sort({ createdAt: -1 })
       .limit(HISTORY_LIMIT)
       .lean();
-    res.json(messages.reverse().map(m => ({
-      id: m._id,
-      userId: m.senderId,
-      username: m.senderName,
-      faction: m.senderFaction,
-      title: m.senderTitle,
-      level: (m as any).senderLevel || 1,
-      pinnedBadges: (m as any).senderPinnedBadges ?? [],
-      content: m.content,
-      at: m.createdAt,
-      districtId: m.districtId,
-    })));
+    const reversedDist = messages.reverse();
+    const flairMapDist = await enrichMessagesWithFlairs(reversedDist.map(m => ({ userId: m.senderId, ...m })));
+    res.json(reversedDist.map(m => {
+      const flair = flairMapDist.get(String(m.senderId));
+      return {
+        id: m._id,
+        userId: m.senderId,
+        username: m.senderName,
+        faction: m.senderFaction,
+        title: m.senderTitle,
+        level: (m as any).senderLevel || 1,
+        pinnedBadges: (m as any).senderPinnedBadges ?? [],
+        content: m.content,
+        at: m.createdAt,
+        districtId: m.districtId,
+        role: flair?.role ?? "player",
+        equippedNameFlair: flair?.equippedNameFlair ?? null,
+        equippedMessageCard: flair?.equippedMessageCard ?? null,
+        flairData: flair?.flairData ?? null,
+      };
+    }));
   } catch (err: any) {
     req.log.error({ err }, "get district chat error");
     res.status(500).json({ message: "Internal server error" });
@@ -189,7 +269,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
     cooldownMap.set(String(req.userId), now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned district level subscriptionTier subscriptionExpiresAt pinnedBadges");
+      .select("username faction equippedTitle mutedUntil banned district level subscriptionTier subscriptionExpiresAt pinnedBadges role equippedNameFlair equippedMessageCard");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (user.mutedUntil && user.mutedUntil > new Date()) {
@@ -199,6 +279,13 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
     const activeTierDistrict = getActiveTier(user as any);
     const dId = String(districtId);
     const districtBadges: string[] = (user as any).pinnedBadges ?? [];
+    const distFlairId: string | null = (user as any).equippedNameFlair ?? null;
+    const distFlairItem = distFlairId
+      ? await CosmeticItem.findOne({ id: distFlairId }).select("color animation cssKey").lean()
+      : null;
+    const distFlairData = distFlairItem
+      ? { color: distFlairItem.color, animation: distFlairItem.animation, cssKey: distFlairItem.cssKey }
+      : null;
 
     // Auto-moderation scan
     const modDistrict = scanMessage(content);
@@ -234,6 +321,10 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
         level: user.level,
         subscriptionTier: activeTierDistrict ? (user as any).subscriptionTier : null,
         pinnedBadges: districtBadges,
+        role: (user as any).role ?? "player",
+        equippedNameFlair: distFlairId,
+        equippedMessageCard: (user as any).equippedMessageCard ?? null,
+        flairData: distFlairData,
         content,
         at: message.createdAt,
         districtId: dId,
@@ -268,17 +359,26 @@ router.get("/faction", requireAuth, async (req: AuthRequest, res) => {
       .sort({ createdAt: -1 })
       .limit(HISTORY_LIMIT)
       .lean();
-    res.json(messages.reverse().map(m => ({
-      id: m._id,
-      userId: m.senderId,
-      username: m.senderName,
-      faction: m.senderFaction,
-      title: m.senderTitle,
-      level: (m as any).senderLevel || 1,
-      pinnedBadges: (m as any).senderPinnedBadges ?? [],
-      content: m.content,
-      at: m.createdAt,
-    })));
+    const reversedFaction = messages.reverse();
+    const flairMapFaction = await enrichMessagesWithFlairs(reversedFaction.map(m => ({ userId: m.senderId, ...m })));
+    res.json(reversedFaction.map(m => {
+      const flair = flairMapFaction.get(String(m.senderId));
+      return {
+        id: m._id,
+        userId: m.senderId,
+        username: m.senderName,
+        faction: m.senderFaction,
+        title: m.senderTitle,
+        level: (m as any).senderLevel || 1,
+        pinnedBadges: (m as any).senderPinnedBadges ?? [],
+        content: m.content,
+        at: m.createdAt,
+        role: flair?.role ?? "player",
+        equippedNameFlair: flair?.equippedNameFlair ?? null,
+        equippedMessageCard: flair?.equippedMessageCard ?? null,
+        flairData: flair?.flairData ?? null,
+      };
+    }));
   } catch (err: any) {
     req.log.error({ err }, "get faction chat error");
     res.status(500).json({ message: "Internal server error" });
@@ -300,7 +400,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
     cooldownMap.set(`faction:${String(req.userId)}`, now);
 
     const user = await User.findById(req.userId)
-      .select("username faction equippedTitle mutedUntil banned level subscriptionTier subscriptionExpiresAt pinnedBadges");
+      .select("username faction equippedTitle mutedUntil banned level subscriptionTier subscriptionExpiresAt pinnedBadges role equippedNameFlair equippedMessageCard");
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.banned) return res.status(403).json({ message: "Banned" });
     if (!user.faction) {
@@ -313,6 +413,13 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
     const activeTierFaction = getActiveTier(user as any);
     const channel = `faction:${user.faction}` as `faction:${string}`;
     const factionBadges: string[] = (user as any).pinnedBadges ?? [];
+    const factionFlairId: string | null = (user as any).equippedNameFlair ?? null;
+    const factionFlairItem = factionFlairId
+      ? await CosmeticItem.findOne({ id: factionFlairId }).select("color animation cssKey").lean()
+      : null;
+    const factionFlairData = factionFlairItem
+      ? { color: factionFlairItem.color, animation: factionFlairItem.animation, cssKey: factionFlairItem.cssKey }
+      : null;
 
     // Auto-moderation scan
     const modFaction = scanMessage(content);
@@ -348,6 +455,10 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
         level: user.level,
         subscriptionTier: activeTierFaction ? (user as any).subscriptionTier : null,
         pinnedBadges: factionBadges,
+        role: (user as any).role ?? "player",
+        equippedNameFlair: factionFlairId,
+        equippedMessageCard: (user as any).equippedMessageCard ?? null,
+        flairData: factionFlairData,
         content,
         at: message.createdAt,
       });

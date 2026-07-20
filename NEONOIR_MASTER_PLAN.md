@@ -189,7 +189,7 @@ Before starting Tier 11, read `Junks/NEONOIR_TIER_AUDIT_REPORT.md` and fix any o
 ---
 
 ## TIER 11 — COSMETICS SYSTEM
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Build the full cosmetics system — name flairs, chat message card designs, the cosmetics store, and the rendering infrastructure used by all future tiers.
 

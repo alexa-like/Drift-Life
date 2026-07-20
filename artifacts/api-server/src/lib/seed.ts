@@ -2,10 +2,12 @@ import User from "../models/User";
 import Item from "../models/Item";
 import { logger } from "./logger";
 import { seedArenaItems } from "./arenaItemSeed";
+import { seedCosmeticItems } from "../models/CosmeticItem";
 export async function seed() {
   try {
     await Promise.all([
       seedArenaItems(),
+      seedCosmeticItems(),
     ]);
     const [userCount, itemCount] = await Promise.all([
       User.countDocuments(),

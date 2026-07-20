@@ -1374,4 +1374,109 @@ router.patch("/game-config", requireOwner as any, async (req: AuthRequest, res) 
   }
 });
 
+// ── Cosmetics: owner routes ───────────────────────────────────────────────────
+import CosmeticItemModel from "../models/CosmeticItem";
+
+// POST /api/owner/cosmetics/grant — grant a cosmetic to a player
+router.post("/cosmetics/grant", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { userId, cosmeticId, expiresAt } = req.body as { userId: string; cosmeticId: string; expiresAt?: string | null };
+    if (!userId || !cosmeticId) return res.status(400).json({ message: "userId and cosmeticId required" });
+
+    const item = await CosmeticItemModel.findOne({ id: cosmeticId }).lean();
+    if (!item) return res.status(404).json({ message: "Cosmetic not found" });
+
+    const expiry = expiresAt ? new Date(expiresAt) : null;
+
+    const updated = await User.findByIdAndUpdate(
+      userId,
+      {
+        $addToSet: { ownedCosmetics: cosmeticId },
+        $push: {
+          cosmeticInventory: {
+            cosmeticId,
+            acquiredAt: new Date(),
+            expiresAt: expiry,
+            source: "owner_grant",
+          },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) return res.status(404).json({ message: "Player not found" });
+
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "grant-cosmetic",
+      details: { targetId: userId, cosmeticId, expiresAt: expiry },
+    });
+
+    res.json({ message: `${item.name} granted to player` });
+  } catch (err: any) {
+    req.log.error({ err }, "owner grant-cosmetic error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/cosmetics/catalog — add a new cosmetic to the catalog
+router.post("/cosmetics/catalog", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { id, name, type, color, animation, cssKey, priceNC, purchasable, eventRewardable, rarity, previewDescription, seasonExclusive } = req.body;
+    if (!id || !name || !type || !cssKey) {
+      return res.status(400).json({ message: "id, name, type, and cssKey are required" });
+    }
+
+    const existing = await CosmeticItemModel.findOne({ id }).lean();
+    if (existing) return res.status(409).json({ message: "A cosmetic with that id already exists" });
+
+    const item = await CosmeticItemModel.create({
+      id, name, type, color: color ?? "", animation: animation ?? "none",
+      cssKey, priceNC: priceNC ?? 0, purchasable: purchasable ?? false,
+      eventRewardable: eventRewardable ?? false, rarity: rarity ?? "common",
+      previewDescription: previewDescription ?? "", seasonExclusive: seasonExclusive ?? false,
+    });
+
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "create-cosmetic",
+      details: { cosmeticId: id, name, type },
+    });
+
+    res.status(201).json(item);
+  } catch (err: any) {
+    req.log.error({ err }, "owner create-cosmetic error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /api/owner/cosmetics/:id — edit an existing cosmetic
+router.patch("/cosmetics/:id", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const allowedFields = ["name", "color", "animation", "cssKey", "priceNC", "purchasable", "eventRewardable", "rarity", "previewDescription", "seasonExclusive"];
+    const patch: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) patch[field] = req.body[field];
+    }
+
+    const updated = await CosmeticItemModel.findOneAndUpdate({ id }, { $set: patch }, { new: true });
+    if (!updated) return res.status(404).json({ message: "Cosmetic not found" });
+
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "edit-cosmetic",
+      details: { cosmeticId: id, changes: patch },
+    });
+
+    res.json(updated);
+  } catch (err: any) {
+    req.log.error({ err }, "owner edit-cosmetic error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

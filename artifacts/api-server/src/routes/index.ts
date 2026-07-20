@@ -55,6 +55,7 @@ import gangUpgradesRouter from "./gang-upgrades";
 import gangWarsRouter from "./gang-wars";
 import businessesRouter from "./businesses";
 import factionsRouter from "./factions";
+import cosmeticsRouter from "./cosmetics";
 
 const router: IRouter = Router();
 
@@ -114,5 +115,6 @@ router.use("/gang-upgrades", gangUpgradesRouter);
 router.use("/gang-wars", gangWarsRouter);
 router.use("/businesses", businessesRouter);
 router.use("/factions", factionsRouter);
+router.use("/cosmetics", cosmeticsRouter);
 
 export default router;

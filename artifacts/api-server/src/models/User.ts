@@ -189,6 +189,16 @@ export interface IUser extends Document {
   menteeIds?: string[];
   // ── 10.15 Pinned achievement badges ─────────────────────────────────────
   pinnedBadges?: string[];
+  // ── 11 Cosmetics system ──────────────────────────────────────────────────
+  cosmeticInventory: Array<{
+    cosmeticId: string;
+    acquiredAt: Date;
+    expiresAt: Date | null;
+    source: "purchase" | "event_reward" | "subscription" | "owner_grant";
+  }>;
+  equippedNameFlair: string | null;
+  equippedMessageCard: string | null;
+  ownedCosmetics: string[];
   // ── Security / Vanta ─────────────────────────────────────────────────────
   lastLoginIp?: string | null;
   loginIpHistory?: string[];
@@ -426,6 +436,16 @@ const UserSchema = new Schema<IUser>(
     menteeIds:  [{ type: Schema.Types.ObjectId, ref: "User" }],
     // ── 10.15 Pinned achievement badges (max 3) ────────────────────────────
     pinnedBadges: [{ type: String }],
+    // ── 11 Cosmetics system ────────────────────────────────────────────────
+    cosmeticInventory: [{
+      cosmeticId: { type: String, required: true },
+      acquiredAt: { type: Date, default: Date.now },
+      expiresAt:  { type: Date, default: null },
+      source: { type: String, enum: ["purchase", "event_reward", "subscription", "owner_grant"], required: true },
+    }],
+    equippedNameFlair:   { type: String, default: null },
+    equippedMessageCard: { type: String, default: null },
+    ownedCosmetics:      [{ type: String }],
     // ── Security / Vanta ──────────────────────────────────────────────────
     lastLoginIp:    { type: String, default: null },
     loginIpHistory: [{ type: String }],
