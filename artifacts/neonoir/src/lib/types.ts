@@ -23,8 +23,6 @@ export interface User {
   maxHealth: number;
   energy: number;
   maxEnergy: number;
-  adrenaline: number;
-  maxAdrenaline: number;
   nitro: number;
   maxNitro: number;
   activeBuffs?: Array<{ buffType: string; value: number; expiresAt: string }>;

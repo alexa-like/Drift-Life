@@ -29,8 +29,6 @@ export interface IUser extends Document {
   maxHealth: number;   // computed at runtime via computeMaxHp() — NOT a stored field, see virtual below
   energy: number;
   maxEnergy: number;
-  adrenaline: number;      // Tier 1.8 — fighting pool, costs 1 to queue for Arena
-  maxAdrenaline: number;
   nitro: number;           // Tier 1.8 — racing pool, costs 1 to queue for a Race
   maxNitro: number;
   nerve: number;     // legacy — kept for backward compat
@@ -43,7 +41,6 @@ export interface IUser extends Document {
   mood: number;      // 0-100; 100=calm, feeds gym gain multiplier
   energyRegenAt: Date;
   nerveRegenAt: Date;
-  adrenalineRegenAt: Date;
   nitroRegenAt: Date;
   heatDecayAt: Date;
   stressDecayAt: Date;
@@ -256,8 +253,6 @@ const UserSchema = new Schema<IUser>(
     health: { type: Number, default: 100 },
     energy: { type: Number, default: 200 },
     maxEnergy: { type: Number, default: 200 },
-    adrenaline: { type: Number, default: 5 },
-    maxAdrenaline: { type: Number, default: 5 },
     nitro: { type: Number, default: 5 },
     maxNitro: { type: Number, default: 5 },
     nerve: { type: Number, default: 50 },
@@ -273,7 +268,6 @@ const UserSchema = new Schema<IUser>(
     mood: { type: Number, default: 100, min: 0, max: 100 },
     energyRegenAt: { type: Date, default: Date.now },
     nerveRegenAt: { type: Date, default: Date.now },
-    adrenalineRegenAt: { type: Date, default: Date.now },
     nitroRegenAt: { type: Date, default: Date.now },
     heatDecayAt: { type: Date, default: Date.now },
     stressDecayAt: { type: Date, default: Date.now },
@@ -551,15 +545,6 @@ export function applyRegen(user: IUser): void {
 
   // Mood: inversely tied to stress. Recompute lazily.
   user.mood = Math.max(0, 100 - user.stress);
-
-  // Adrenaline: +1 per 12 min (Arena queue fuel)
-  if (!user.adrenalineRegenAt) user.adrenalineRegenAt = new Date(now);
-  const adrenalineMinutes = (now - user.adrenalineRegenAt.getTime()) / 60000;
-  const adrenalineGain = Math.floor(adrenalineMinutes / 12);
-  if (adrenalineGain > 0 && user.adrenaline < user.maxAdrenaline) {
-    user.adrenaline = Math.min(user.maxAdrenaline, user.adrenaline + adrenalineGain);
-    user.adrenalineRegenAt = new Date(now);
-  }
 
   // Nitro: +1 per 12 min (Race queue fuel)
   if (!user.nitroRegenAt) user.nitroRegenAt = new Date(now);

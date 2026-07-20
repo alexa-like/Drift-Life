@@ -43,8 +43,6 @@ export function safeUser(user: InstanceType<typeof User>) {
     maxHealth: user.maxHealth,
     energy: user.energy,
     maxEnergy: user.maxEnergy,
-    adrenaline: user.adrenaline ?? 0,
-    maxAdrenaline: user.maxAdrenaline ?? 5,
     nitro: user.nitro ?? 0,
     maxNitro: user.maxNitro ?? 5,
     nerve: user.nerve,

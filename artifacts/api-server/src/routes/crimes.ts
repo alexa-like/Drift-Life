@@ -39,7 +39,7 @@ const router = Router();
 const ENCOUNTERS = [
   { id: "wallet",      weight: 15, fn: async (user: any) => { const dc = 150 + Math.floor(Math.random()*250); user.dc += dc; return { message: `You spotted a wallet in the gutter. You pocket ${dc} DC.` }; } },
   { id: "free_energy", weight: 10, fn: async (user: any) => { user.energy = Math.min(user.maxEnergy ?? 10, user.energy + 2); return { message: "A vendor hands you a sample can. +2 Energy." }; } },
-  { id: "adrenaline",  weight: 8,  fn: async (user: any) => { user.adrenaline = Math.min(user.maxAdrenaline ?? 5, user.adrenaline + 1); return { message: "You find an unmarked vial. +1 Adrenaline." }; } },
+  { id: "energy_stim", weight: 8,  fn: async (user: any) => { user.energy = Math.min(user.maxEnergy ?? 200, user.energy + 15); return { message: "You find an unmarked stim pack. +15 Energy." }; } },
   { id: "nitro",       weight: 8,  fn: async (user: any) => { user.nitro = Math.min(user.maxNitro ?? 5, user.nitro + 1); return { message: "An unattended canister catches your eye. +1 Nitro." }; } },
   { id: "key_shard",   weight: 6,  fn: async (user: any) => { user.keyShards = (user.keyShards ?? 0) + 1; return { message: "Something glints in the drain. A shard — circuit-etched, still warm. +1 Key Shard." }; } },
   { id: "pickpocket",  weight: 8,  fn: async (user: any) => { if (Math.random() < 0.5) { const lost = 100 + Math.floor(Math.random()*200); user.dc = Math.max(0, user.dc - lost); return { message: `You check your pockets. Someone got there first. Lost ${lost} DC.` }; } return null; } },

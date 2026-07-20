@@ -72,7 +72,7 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "owner",        label: "Owner",    icon: Settings,      roles: ["admin", "owner"] },
 ];
 
-function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; maxEnergy: number; energyRegenAt?: string | null }) {
+function useEnergyCountdown(energyRegenAt: string | null | undefined, energy: number, maxEnergy: number): number | null {
   const [secsLeft, setSecsLeft] = useState<number | null>(null);
   useEffect(() => {
     if (!energyRegenAt || energy >= maxEnergy) { setSecsLeft(null); return; }
@@ -84,38 +84,34 @@ function EnergyDisplay({ energy, maxEnergy, energyRegenAt }: { energy: number; m
     const iv = setInterval(calc, 1_000);
     return () => clearInterval(iv);
   }, [energyRegenAt, energy, maxEnergy]);
+  return secsLeft;
+}
 
-  const isFull = energy >= maxEnergy;
-  const color = isFull ? "#39d353" : "#00d4ff";
+function CurrencyBadge({ label, value, color, integer }: { label: string; value: number; color: string; integer?: boolean }) {
   return (
-    <span className="font-mono flex items-center gap-1" style={{ color, fontWeight: "bold", fontSize: 11, textShadow: `0 0 8px ${color}60` }}>
-      ENG:{energy}/{maxEnergy}
-      {!isFull && secsLeft !== null && secsLeft > 0 && (
-        <span style={{ color: "#475569", fontWeight: "normal", fontSize: 10, textShadow: "none" }}>
-          +{secsLeft}s
-        </span>
-      )}
+    <span className="font-mono flex items-center gap-1 flex-shrink-0">
+      <span style={{ color: "#475569", fontSize: 9, textTransform: "uppercase", fontWeight: "bold", letterSpacing: "0.05em" }}>{label}</span>
+      {integer
+        ? <span style={{ color, fontWeight: "bold", fontSize: 11, textShadow: `0 0 8px ${color}60` }}>{value.toLocaleString()}</span>
+        : <RollingNumber value={value} color={color} />
+      }
     </span>
   );
 }
 
-function StatBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
+function StatBar({ label, value, max, color, sublabel }: { label: string; value: number; max: number; color: string; sublabel?: string }) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <div className="flex-1 flex flex-col justify-center px-1" style={{ minWidth: 60 }}>
-      <div className="flex justify-between items-baseline mb-0.5 font-mono text-[9px] uppercase font-bold" style={{ color }}>
-        <span>{label}</span>
+    <div className="flex-1 flex flex-col justify-center" style={{ minWidth: 0 }}>
+      <div className="flex justify-between items-baseline mb-0.5 font-mono text-[9px] uppercase font-bold">
+        <span style={{ color }}>
+          {label}
+          {sublabel && <span style={{ color: "#475569", fontWeight: "normal", marginLeft: 3 }}>{sublabel}</span>}
+        </span>
         <span style={{ color: "#e2e8f0" }}>{value}</span>
       </div>
       <div className="h-1 bg-[#1e1e2e] clip-bar w-full">
-        <div 
-          className="h-full clip-bar" 
-          style={{ 
-            width: `${pct}%`, 
-            background: color,
-            boxShadow: `0 0 6px ${color}`
-          }} 
-        />
+        <div className="h-full clip-bar" style={{ width: `${pct}%`, background: color, boxShadow: `0 0 6px ${color}` }} />
       </div>
     </div>
   );
@@ -259,6 +255,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
   const isJailed = user.jailUntil && new Date(user.jailUntil) > new Date();
   const xpPct = Math.min(100, Math.round((user.xp / user.xpToNext) * 100));
   const fc = user.faction ? FACTION_COLOR_DEFAULT : "#64748b";
+  const energyColor = user.energy >= user.maxEnergy ? "#39d353" : "#00d4ff";
+  const energySecsLeft = useEnergyCountdown((user as any).energyRegenAt, user.energy, user.maxEnergy);
 
   const navRef = useRef<HTMLElement>(null);
   const onHeightChangeRef = useRef(onHeightChange);
@@ -343,10 +341,10 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
 
       <AnnouncementBanner />
 
-      {/* Vitals & Status Strip - HUD overlay feel */}
-      <div className="flex items-center px-4 py-1.5 overflow-x-auto gap-4" style={{ background: "rgba(13, 13, 20, 0.8)", backdropFilter: "blur(4px)", borderBottom: "1px solid #1e1e2e", scrollbarWidth: "none", boxShadow: "inset 0 -10px 20px rgba(0,0,0,0.5)" }}>
-        {/* Status tags */}
-        <div className="flex gap-2 flex-shrink-0">
+      {/* ── Row A: Vitals — HP / NRV / ENG ───────────────────────────── */}
+      <div className="flex items-center gap-2 px-4 py-1.5" style={{ background: "rgba(13,13,20,0.85)", backdropFilter: "blur(4px)", borderBottom: "1px solid #111118" }}>
+        {/* Status badges */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <span className="font-mono text-[10px] uppercase bg-slate-800 px-2 py-0.5 clip-btn text-slate-300">
             Lv.<span className="text-white font-bold">{user.level}</span>
           </span>
@@ -357,37 +355,38 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
           )}
           {isHosp && (
             <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn animate-pulse font-bold bg-red-900/30 text-red-500 border border-red-500/50">
-              HOSPITAL
+              HOSP
             </span>
           )}
           {isJailed && (
             <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn font-bold bg-amber-900/30 text-amber-500 border border-amber-500/50">
-              JAILED
+              JAIL
             </span>
           )}
         </div>
-
-        {/* HUD Bars */}
-        <div className="flex-1 flex items-center gap-3 min-w-[300px]">
-          <StatBar label="HP" value={user.health} max={user.maxHealth} color="#ff2d55" />
-          <StatBar label="NRV" value={user.nerve} max={user.maxNerve} color="#ff6b35" />
-          <StatBar label="ADR" value={user.adrenaline} max={user.maxAdrenaline} color="#f59e0b" />
-          <div className="flex-1 flex justify-end">
-            <EnergyDisplay energy={user.energy} maxEnergy={user.maxEnergy} energyRegenAt={(user as any).energyRegenAt} />
-          </div>
+        {/* Stat bars */}
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          <StatBar label="HP"  value={user.health} max={user.maxHealth} color="#ff2d55" />
+          <StatBar label="NRV" value={user.nerve}  max={user.maxNerve}  color="#ff6b35" />
+          <StatBar
+            label="ENG"
+            value={user.energy}
+            max={user.maxEnergy}
+            color={energyColor}
+            sublabel={energySecsLeft !== null && user.energy < user.maxEnergy ? `+${energySecsLeft}s` : undefined}
+          />
         </div>
+      </div>
 
-        {/* Currencies */}
-        <div className="flex gap-4 flex-shrink-0 bg-[#08080c] px-3 py-1 clip-bar border border-[#1e1e2e]">
-          <span className="font-mono text-xs flex items-center gap-1" style={{ color: "#f59e0b" }}>
-            <span className="text-[#64748b]">DC</span>
-            <RollingNumber value={user.dc} color="#f59e0b" />
-          </span>
-          <span className="font-mono text-xs flex items-center gap-1" style={{ color: "#a855f7" }}>
-            <span className="text-[#64748b]">NC</span>
-            <RollingNumber value={user.nc} color="#a855f7" />
-          </span>
-        </div>
+      {/* ── Row B: Currencies ─────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-1.5" style={{ background: "rgba(8,8,12,0.9)", backdropFilter: "blur(4px)", borderBottom: "1px solid #1e1e2e" }}>
+        <CurrencyBadge label="DC"     value={user.dc}                    color="#f59e0b" />
+        <CurrencyBadge label="NC"     value={user.nc}                    color="#a855f7" />
+        <CurrencyBadge label="BANK"   value={user.bankBalance}           color="#10b981" />
+        <CurrencyBadge label="KEYS"   value={user.keys ?? 0}             color="#00d4ff" integer />
+        <CurrencyBadge label="SHARDS" value={user.keyShards ?? 0}        color="#64748b" integer />
+        <CurrencyBadge label="MERIT"  value={(user as any).merit ?? 0}   color="#f43f5e" integer />
+        <CurrencyBadge label="SPINS"  value={(user as any).spinTokens ?? 0} color="#8b5cf6" integer />
       </div>
 
       {/* Nav Icons */}

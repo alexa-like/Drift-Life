@@ -140,12 +140,12 @@ export default function ArenaHubPage({ user, onNavigate }: Props) {
           title="COMBAT ZONE"
           subtitle="Turn-based tactical combat. Loadout is everything."
           glowColor="#ff2d55"
-          barLabel="ADRENALINE REQ."
-          barValue={user.adrenaline}
-          barMax={user.maxAdrenaline}
+          barLabel="ENERGY REQ. (5)"
+          barValue={user.energy}
+          barMax={user.maxEnergy}
           onClick={() => onNavigate("arena-combat")}
-          disabled={user.adrenaline < 1}
-          disabledMsg={`INSUFFICIENT ADRENALINE (${user.adrenaline}/${user.maxAdrenaline})`}
+          disabled={user.energy < 5}
+          disabledMsg={`INSUFFICIENT ENERGY — NEED 5 (${user.energy}/${user.maxEnergy})`}
           icon="⚔️"
         />
         <ArenaCard

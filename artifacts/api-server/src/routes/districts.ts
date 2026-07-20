@@ -33,8 +33,8 @@ const DISTRICT_SHOPS: Record<string, {
     tagline: "The strip runs 24/7.",
     restockHours: 8,
     items: [
-      { id: "synthetic_adrenaline", name: "Synthetic Adrenaline", price: 1200, rarity: "common",   effect: "adrenaline:+3",    notes: "+3 Adrenaline instantly" },
-      { id: "black_market_stim",    name: "Black Market Stim",    price: 2500, rarity: "uncommon", effect: "adrenaline:+5",    notes: "+5 Adrenaline (full refill)" },
+      { id: "synthetic_stimpack", name: "Synthetic Stimpack", price: 1200, rarity: "common",   effect: "energy:30",    notes: "+30 Energy instantly" },
+      { id: "black_market_stim",    name: "Black Market Stim",    price: 2500, rarity: "uncommon", effect: "energy:50",    notes: "+50 Energy" },
       { id: "designer_nitro",       name: "Designer Nitro",       price: 1200, rarity: "common",   effect: "nitro:+3",         notes: "+3 Nitro instantly" },
       { id: "euphoria_pill",        name: "Euphoria Pill",        price:  800, rarity: "common",   effect: "xp_bonus:15",      notes: "+15% XP gain for next crime" },
       { id: "inhibitor_patch",      name: "Inhibitor Patch",      price:  600, rarity: "common",   effect: "prevent_hosp:1",   notes: "Prevents hospitalization from next danger roll (1 use)" },
@@ -49,7 +49,7 @@ const DISTRICT_SHOPS: Record<string, {
     rotatingPool: [
       { id: "dockside_pistol",    name: "Dockside Pistol",    price: 3000, rarity: "uncommon", effect: "arena_weapon",      notes: "Arena weapon — requires arena loadout" },
       { id: "cargo_armor_plates", name: "Cargo Armor Plates", price: 4500, rarity: "uncommon", effect: "arena_armor",       notes: "Arena body armor" },
-      { id: "contraband_stim",    name: "Contraband Stim",    price: 1800, rarity: "common",   effect: "adrenaline:+3",     notes: "+3 Adrenaline" },
+      { id: "contraband_stim",    name: "Contraband Stim",    price: 1800, rarity: "common",   effect: "energy:30",     notes: "+30 Energy" },
       { id: "imported_nitro_can", name: "Imported Nitro Can", price: 1800, rarity: "common",   effect: "nitro:+3",          notes: "+3 Nitro" },
       { id: "grey_market_parts",  name: "Grey Market Parts",  price: 2000, rarity: "uncommon", effect: "car_repair",        notes: "Car part for Garage repair" },
       { id: "dock_pass",          name: "Dock Pass",          price:  500, rarity: "common",   effect: "travel_discount:80:docks", notes: "Reduces travel time to Docks by 80% on next trip" },
@@ -62,7 +62,7 @@ const DISTRICT_SHOPS: Record<string, {
     tagline: "Cheap, low-quality. Volume goods.",
     restockHours: 8,
     items: [
-      { id: "street_stim",         name: "Street Stim",         price:  400, rarity: "common", effect: "adrenaline:+1",          notes: "+1 Adrenaline" },
+      { id: "street_stim",         name: "Street Stim",         price:  400, rarity: "common", effect: "energy:10",          notes: "+10 Energy" },
       { id: "scrap_nitro",         name: "Scrap Nitro",          price:  400, rarity: "common", effect: "nitro:+1",               notes: "+1 Nitro" },
       { id: "junkyard_part",       name: "Junkyard Part",        price:  800, rarity: "common", effect: "car_repair:5",           notes: "Car part (restores 5% car condition)" },
       { id: "dirty_energy_drink",  name: "Dirty Energy Drink",   price:  300, rarity: "common", effect: "energy:+2;hosp_risk:10", notes: "+2 Energy — 10% chance of 3min hospitalization" },
@@ -76,7 +76,7 @@ const DISTRICT_SHOPS: Record<string, {
     restockHours: 8,
     items: [
       { id: "apex_med_suite",    name: "Apex Med Suite",    price: 6000, rarity: "uncommon", effect: "clear_hospital",         notes: "Instantly leave hospital (DC-based full early release)" },
-      { id: "executive_stim",    name: "Executive Stim",    price: 4000, rarity: "uncommon", effect: "adrenaline:+5;xp_bonus_arena:5:2", notes: "+5 Adrenaline + +5% XP for next 2 arena matches" },
+      { id: "executive_stim",    name: "Executive Stim",    price: 4000, rarity: "uncommon", effect: "energy:50;xp_bonus_arena:5:2", notes: "+50 Energy + +5% XP for next 2 arena matches" },
       { id: "premium_nitro",     name: "Premium Nitro",     price: 4000, rarity: "uncommon", effect: "nitro:+5;xp_bonus_race:5:2",       notes: "+5 Nitro + +5% XP for next 2 races" },
       { id: "security_implant",  name: "Security Implant",  price: 8000, rarity: "uncommon", effect: "mug_reduction:10",       notes: "Permanent −10% mug chance when equipped (enhancement slot)" },
       { id: "corp_data_chip",    name: "Corp Data Chip",    price: 3000, rarity: "uncommon", effect: "espionage_job:1",         notes: "1 Corp espionage job attempt (special high-reward job, abroad only)" },
@@ -91,7 +91,7 @@ const DISTRICT_SHOPS: Record<string, {
       { id: "reinforced_barrel",  name: "Reinforced Barrel",  price: 12000, rarity: "rare",     effect: "arena_attachment:damage", notes: "Arena weapon attachment (boosts damage)" },
       { id: "titanium_frame",     name: "Titanium Frame",     price: 14000, rarity: "rare",     effect: "arena_armor_reinforce",   notes: "Arena body armor reinforcement" },
       { id: "industrial_fuel_cell", name: "Industrial Fuel Cell", price: 2500, rarity: "uncommon", effect: "nitro:+5;travel_time:-50:next", notes: "+5 Nitro + vehicle travel time −50% for next trip" },
-      { id: "combat_injector",    name: "Combat Injector",    price:  2000, rarity: "common",   effect: "adrenaline:+4",           notes: "+4 Adrenaline" },
+      { id: "combat_injector",    name: "Combat Injector",    price:  2000, rarity: "common",   effect: "energy:40",           notes: "+40 Energy" },
       { id: "salvage_kit",        name: "Salvage Kit",        price:  3000, rarity: "uncommon", effect: "arena_repair:20",         notes: "Repairs arena weapon/armor durability +20 points" },
     ],
   },
@@ -103,7 +103,7 @@ const DISTRICT_SHOPS: Record<string, {
     items: [
       { id: "ghost_pistol",        name: "Ghost Pistol",        price: 18000, rarity: "rare", effect: "arena_weapon:top",     notes: "Top-tier arena pistol" },
       { id: "exo_chest_fragment",  name: "Exo Chest Fragment",  price: 20000, rarity: "rare", effect: "arena_armor:high",     notes: "High-tier arena armor" },
-      { id: "overload_stim",       name: "Overload Stim",       price:  6000, rarity: "rare", effect: "adrenaline:+5;stun_immune:1", notes: "+5 Adrenaline + stun immunity for first round of next match" },
+      { id: "overload_stim",       name: "Overload Stim",       price:  6000, rarity: "rare", effect: "energy:50;stun_immune:1", notes: "+50 Energy + stun immunity for first round of next match" },
       { id: "outskirts_nitro",     name: "Outskirts Nitro",     price:  5000, rarity: "rare", effect: "nitro:+5;travel_time:-60000", notes: "+5 Nitro + −1 min from next travel" },
       { id: "void_key_shards",     name: "Void Key Shard ×5",   price:  8000, rarity: "rare", effect: "key_shards:5",         notes: "Bonus key shards — shortcut toward Master Royale" },
     ],

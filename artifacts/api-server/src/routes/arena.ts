@@ -80,7 +80,7 @@ interface LoadoutSnapshot {
 }
 
 const combatQueue = new Map<string, QueueEntry>();
-const ADRENALINE_COST = 1;
+const ENERGY_COST = 5; // Energy to queue for arena (replaces adrenaline)
 
 // ── Score formula ─────────────────────────────────────────────────────────────
 function skillScore(level: number, wins: number, totalFights: number, gearTier: number): number {
@@ -237,7 +237,7 @@ async function generateAILoadout(playerLevel: number): Promise<LoadoutSnapshot> 
 // ── POST /api/arena/queue/join ────────────────────────────────────────────────
 router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await User.findById(req.userId).select("username level prestige wins totalFights adrenaline maxAdrenaline combatWinStreak combatAccuracyBonus");
+    const user = await User.findById(req.userId).select("username level prestige wins totalFights energy maxEnergy combatWinStreak combatAccuracyBonus");
     if (!user) { res.status(404).json({ message: "User not found" }); return; }
 
     if (combatQueue.has(req.userId!)) {
@@ -252,20 +252,20 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    // Deduct adrenaline
-    if (user.adrenaline < ADRENALINE_COST) {
-      res.status(400).json({ message: `Not enough Adrenaline — need ${ADRENALINE_COST}` });
+    // Deduct energy to queue
+    if (user.energy < ENERGY_COST) {
+      res.status(400).json({ message: `Not enough Energy — need ${ENERGY_COST} to queue for the arena` });
       return;
     }
-    user.adrenaline -= ADRENALINE_COST;
+    user.energy -= ENERGY_COST;
     await user.save();
 
     const loadout = await resolveLoadoutStats(req.userId!, user.level, (user as any).prestige ?? 0, (user as any).combatAccuracyBonus ?? 0);
 
     // Validate primary weapon requirement
     if (!loadout.primaryWeaponId) {
-      // Refund adrenaline
-      user.adrenaline = Math.min(user.maxAdrenaline, user.adrenaline + ADRENALINE_COST);
+      // Refund energy
+      user.energy = Math.min(user.maxEnergy, user.energy + ENERGY_COST);
       await user.save();
       res.status(400).json({ message: "You must equip a primary weapon to queue for the arena" });
       return;
@@ -275,7 +275,7 @@ router.post("/queue/join", requireAuth, async (req: AuthRequest, res) => {
     const inv = await PlayerMiniGameInventory.findOne({ userId: req.userId }).lean();
     const primaryEntry = inv?.primaryWeapons.find(w => w.itemId === loadout.primaryWeaponId);
     if (!primaryEntry || primaryEntry.durability <= 0) {
-      user.adrenaline = Math.min(user.maxAdrenaline, user.adrenaline + ADRENALINE_COST);
+      user.energy = Math.min(user.maxEnergy, user.energy + ENERGY_COST);
       await user.save();
       res.status(400).json({ message: "Your primary weapon is destroyed — repair or replace it before queuing" });
       return;
@@ -341,7 +341,7 @@ router.post("/queue/leave", requireAuth, async (req: AuthRequest, res) => {
     combatQueue.delete(req.userId!);
     await User.updateOne(
       { _id: req.userId },
-      [{ $set: { adrenaline: { $min: ["$maxAdrenaline", { $add: ["$adrenaline", ADRENALINE_COST] }] } } }],
+      [{ $set: { energy: { $min: ["$maxEnergy", { $add: ["$energy", ENERGY_COST] }] } } }],
     );
     res.json({ message: "Left queue — energy refunded" });
   } catch (err) {

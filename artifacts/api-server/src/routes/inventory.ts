@@ -172,9 +172,11 @@ router.post("/:id/use", requireAuth, async (req: AuthRequest, res) => {
       }
     }
     if (effect.includes("adrenaline:")) {
+      // Legacy adrenaline items now grant energy (10 energy per 1 adrenaline)
       const amt = parseInt(effect.match(/adrenaline:(\d+)/)?.[1] || "0");
-      user.adrenaline = Math.min(user.maxAdrenaline, user.adrenaline + amt);
-      effectMessage += `+${amt} Adrenaline. `;
+      const energyAmt = amt * 10;
+      user.energy = Math.min(user.maxEnergy, user.energy + energyAmt);
+      effectMessage += `+${energyAmt} Energy. `;
     }
     if (effect.includes("nitro:")) {
       const amt = parseInt(effect.match(/nitro:(\d+)/)?.[1] || "0");
