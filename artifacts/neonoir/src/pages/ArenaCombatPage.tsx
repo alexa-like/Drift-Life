@@ -8,6 +8,8 @@ interface Props {
   addToast: (msg: string, type?: "success" | "error" | "info" | "warning") => void;
   onUserUpdate: () => void;
   onNavigate: (page: string) => void;
+  /** Called whenever the player's live arena HP changes so the NavBar stays in sync. */
+  onHpChange?: (current: number, max: number) => void;
 }
 
 type Phase = "idle" | "queuing" | "found" | "matched" | "complete";
@@ -189,7 +191,7 @@ function CharacterBadge({ name, color, isLeft, animState }: {
   );
 }
 
-export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNavigate }: Props) {
+export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNavigate, onHpChange }: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [match, setMatch] = useState<Match | null>(null);
   const [acting, setActing] = useState(false);
@@ -260,6 +262,10 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
       const data = await api.get<{ match: Match }>(`/arena/match/${matchId}`);
       triggerAnimFromTurn(data.match, prevMatch ?? null);
       setMatch(data.match);
+      // Push live HP to NavBar on every poll
+      const myHPLive = data.match.player1Id === user.id ? data.match.player1HP : data.match.player2HP;
+      const myMaxLive = data.match.player1Id === user.id ? data.match.player1Loadout.hp : data.match.player2Loadout.hp;
+      onHpChange?.(myHPLive, myMaxLive);
       if (data.match.status === "complete") {
         setPhase("complete");
         clearInterval(pollRef.current!);
@@ -269,7 +275,7 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
       return data.match;
     } catch { return null; }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onUserUpdate, isP1]);
+  }, [onUserUpdate, onHpChange, isP1, user.id]);
 
   // Poll active match every 2s
   useEffect(() => {
@@ -358,6 +364,10 @@ export default function ArenaCombatPage({ user, addToast, onUserUpdate, onNaviga
       }
       triggerAnimFromTurn(data.match, prevMatch);
       setMatch(data.match);
+      // Push live HP to NavBar after each action resolves
+      const myHPAfter = isP1 ? data.match.player1HP : data.match.player2HP;
+      const myMaxAfter = isP1 ? data.match.player1Loadout.hp : data.match.player2Loadout.hp;
+      onHpChange?.(myHPAfter, myMaxAfter);
       if (data.match.status === "complete") {
         setPhase("complete");
         clearInterval(pollRef.current!);

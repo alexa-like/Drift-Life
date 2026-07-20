@@ -206,9 +206,16 @@ function GameApp() {
   const [navHeight, setNavHeight] = useState(210);
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
   const [shopStoreId, setShopStoreId] = useState<string | null>(null);
+  // Live arena HP override: keeps the NavBar HP bar in sync during a fight
+  const [arenaHp, setArenaHp] = useState<{ current: number; max: number } | null>(null);
+  const handleArenaHpChange = useCallback((current: number, max: number) => {
+    setArenaHp({ current, max });
+  }, []);
 
   const navTo = useCallback((p: string) => {
     setPage(p);
+    // Clear the arena HP override whenever the player navigates away from combat
+    if (p !== "arena-combat") setArenaHp(null);
   }, [setPage]);
 
 
@@ -315,7 +322,7 @@ function GameApp() {
       case "events-archive":  return <EventArchivePage onNavigate={setPage} />;
       case "battle-pass":     return <BattlePassPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "arena":         return <ArenaHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
-      case "arena-combat":  return <ArenaCombatPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
+      case "arena-combat":  return <ArenaCombatPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} onHpChange={handleArenaHpChange} />;
       case "race-hub":      return <RaceHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "race-match":    return <RaceMatchPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "daily":         return <DailyPage {...pageProps} onNav={setPage} />;
@@ -368,7 +375,7 @@ function GameApp() {
         style={{ minHeight: "calc(100dvh / var(--dl-scale, 1))", color: "#e2e8f0" }}
       >
         <NavBar
-          user={user!}
+          user={arenaHp ? { ...user!, health: arenaHp.current, maxHealth: arenaHp.max } : user!}
           active={page}
           onNav={navTo}
           onLogout={handleLogout}
