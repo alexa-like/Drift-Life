@@ -167,9 +167,9 @@ After finishing a tier, verifying the build, and pushing to GitHub — edit only
 
 ---
 
-## TIERS 1–10 — EXISTING PLAN
+## TIERS 1–10 — COMPLETED (see Junks/update_tiers_old.md for full spec)
 
-These tiers were specified in detail in `Junks/update_tiers.md`. Read that file for the full spec of each tier. Their current implementation status per the audit report (`Junks/NEONOIR_TIER_AUDIT_REPORT.md`):
+These tiers were specified in detail in `Junks/update_tiers_old.md`. Read that file for the full spec of each tier. Their current implementation status per the audit report (`Junks/NEONOIR_TIER_AUDIT_REPORT.md`):
 
 | Tier | Title | Status |
 |---|---|---|
@@ -184,16 +184,16 @@ These tiers were specified in detail in `Junks/update_tiers.md`. Read that file 
 | 9 | Districts, Player Status & NavBar Gating | ✅ Done |
 | 10 | System Feed, Notifications, Factions & Economy | ✅ Done |
 
-Before starting Tier 11, read `Junks/NEONOIR_TIER_AUDIT_REPORT.md` and fix any open ⚠️ items from Tiers 1–10 that are still broken. Do not start Tier 11 until the audit gaps are closed.
+Before starting Tier 1, read `Junks/NEONOIR_TIER_AUDIT_REPORT.md` and fix any open ⚠️ items from the completed tiers that are still broken. Do not start Tier 1 until the audit gaps are closed.
 
 ---
 
-## TIER 11 — COSMETICS SYSTEM
+## TIER 1 — COSMETICS SYSTEM
 **Status: ✅ Done**
 
 **Goal:** Build the full cosmetics system — name flairs, chat message card designs, the cosmetics store, and the rendering infrastructure used by all future tiers.
 
-### 11.1 — CosmeticItem Model
+### 1.1 — CosmeticItem Model
 Create `artifacts/api-server/src/models/CosmeticItem.ts`:
 ```typescript
 {
@@ -220,7 +220,7 @@ Seed initial catalog on first load (check if collection is empty before seeding)
 - **Event Card** — message_card, `#FFD700`, pulse, 0 NC, not purchasable (event reward only)
 - **Staff Card** — message_card, `#FF4444`, none, 0 NC, not purchasable (role-gated)
 
-### 11.2 — Update User Model
+### 1.2 — Update User Model
 Add to `User` model in `artifacts/api-server/src/models/User.ts`:
 ```typescript
 cosmeticInventory: [{
@@ -235,7 +235,7 @@ ownedCosmetics: string[];            // flat array of cosmeticIds for fast looku
 ```
 Add to schema with safe defaults (empty arrays, null equipped fields).
 
-### 11.3 — Cosmetics Routes
+### 1.3 — Cosmetics Routes
 Create `artifacts/api-server/src/routes/cosmetics.ts`, register in `index.ts`:
 
 - `GET /api/cosmetics` — return full catalog + for each item: `owned: bool`, `equipped: bool`, `expiresAt`
@@ -248,7 +248,7 @@ Owner routes (add to `owner.ts`):
 - `POST /api/owner/cosmetics/catalog` — add a new cosmetic to the catalog (owner can create custom event cosmetics)
 - `PATCH /api/owner/cosmetics/:id` — edit an existing cosmetic (name, price, rarity, etc.)
 
-### 11.4 — PlayerNameBadge Component
+### 1.4 — PlayerNameBadge Component
 In `artifacts/neonoir/src/components/`, create `PlayerNameBadge.tsx`. This replaces `SubscriberNameBadge` everywhere:
 
 Props: `{ username: string, subscriptionTier?: string | null, equippedNameFlair?: string | null, cosmeticData?: CosmeticItem }`
@@ -267,7 +267,7 @@ CSS classes per animation type (add to global CSS):
 
 Update every page/component that currently renders a username directly (Chat, Leaderboard, Profile, Friends, Feed, Arena, Race, Owner panel) to use `PlayerNameBadge` instead of `SubscriberNameBadge`.
 
-### 11.5 — Chat Message Card Variants
+### 1.5 — Chat Message Card Variants
 Create `artifacts/neonoir/src/components/MessageCard.tsx` with 5 variants:
 - `default` — current plain card look
 - `subscriber` — colored name + subtle cyan glow border
@@ -284,7 +284,7 @@ Variant selection logic (in order):
 
 Replace existing chat message rendering with `MessageCard` in the Chat page.
 
-### 11.6 — Cosmetics Store UI
+### 1.6 — Cosmetics Store UI
 Add a **"Cosmetics"** tab to the existing Store page (`artifacts/neonoir/src/pages/StorePage.tsx`):
 - Grid of cosmetic cards — each shows: live preview of player's own username in that style, item name, rarity badge, price in NC
 - States per card: Buy (price button), Owned + Equip, Equipped (checkmark)
@@ -292,7 +292,7 @@ Add a **"Cosmetics"** tab to the existing Store page (`artifacts/neonoir/src/pag
 - Insufficient NC state — clear error message matching existing `notEnoughNc` pattern
 - Show `expiresAt` countdown on temporary cosmetics ("Expires in 6 days")
 
-### 11.7 — Verify
+### 1.7 — Verify
 - Build and restart API server and frontend
 - Confirm catalog seeded on startup
 - Confirm buy/equip/unequip routes work
@@ -302,12 +302,12 @@ Add a **"Cosmetics"** tab to the existing Store page (`artifacts/neonoir/src/pag
 
 ---
 
-## TIER 12 — EVENT ENGINE
+## TIER 2 — EVENT ENGINE
 **Status: ⏳ Not started**
 
 **Goal:** Build the complete event creation, scheduling, theming, and management system. Owner can create any event type, schedule it, change the game's name and look, and Vanta can plan a full year of events.
 
-### 12.1 — Event Model
+### 2.1 — Event Model
 Create `artifacts/api-server/src/models/Event.ts`:
 ```typescript
 {
@@ -429,7 +429,7 @@ Create `artifacts/api-server/src/models/Event.ts`:
 }
 ```
 
-### 12.2 — Player Event Progress Model
+### 2.2 — Player Event Progress Model
 Create `artifacts/api-server/src/models/EventProgress.ts`:
 ```typescript
 {
@@ -447,7 +447,7 @@ Create `artifacts/api-server/src/models/EventProgress.ts`:
 ```
 Index on `{ eventId, points: -1 }` for leaderboard queries. Index on `{ eventId, userId }` unique.
 
-### 12.3 — Event Routes (Backend)
+### 2.3 — Event Routes (Backend)
 Create `artifacts/api-server/src/routes/events.ts`, register in `index.ts`:
 
 **Public routes (any authenticated player):**
@@ -469,7 +469,7 @@ Create `artifacts/api-server/src/routes/events.ts`, register in `index.ts`:
 - `POST /api/owner/events/flash` — trigger instant flash event: `{ label, effect, durationHours }` — stored in ServerConfig, expires automatically
 - `POST /api/owner/broadcast` — send a message to all online players via WebSocket + post to feed
 
-### 12.4 — Game Display Name (Frontend Theming)
+### 2.4 — Game Display Name (Frontend Theming)
 In `ServerConfig`, store `gameDisplayName` (default: `"Neonoir"`).
 
 When an event is active:
@@ -486,13 +486,13 @@ When an event is active:
 
 When event ends → all revert to defaults automatically.
 
-### 12.5 — Event Scheduling & Auto-Activation
+### 2.5 — Event Scheduling & Auto-Activation
 Add a cron job to the existing regen/scheduler in the API server:
 - Every minute: check scheduled events where `startsAt <= now` and `status = "scheduled"` → set `status = "active"`, apply theme to ServerConfig, post feed event: "[EVENT] {name} has begun!"
-- Every minute: check active events where `endsAt <= now` → trigger reward distribution (§12.6), set `status = "ended"`, post feed event: "[EVENT] {name} has ended. Rewards are being distributed."
+- Every minute: check active events where `endsAt <= now` → trigger reward distribution (§2.6), set `status = "ended"`, post feed event: "[EVENT] {name} has ended. Rewards are being distributed."
 - Every minute: check flash events in ServerConfig where `expiresAt <= now` → remove them
 
-### 12.6 — Reward Distribution (Auto at Event End)
+### 2.6 — Reward Distribution (Auto at Event End)
 When an event ends (triggered by scheduler or owner manually):
 1. Query `EventProgress` sorted by points descending → assign ranks
 2. For each leaderboard reward bracket: find players in that rank range, grant rewards (DC atomic add, NC atomic add, cosmetics via owner-grant logic, titles push to `User.titles`)
@@ -501,7 +501,7 @@ When an event ends (triggered by scheduler or owner manually):
 5. Freeze leaderboard into `event.archive.finalLeaderboard`
 6. Set `archive.totalParticipants`, `archive.bossKilled`, etc.
 
-### 12.7 — Vanta Year Planner
+### 2.7 — Vanta Year Planner
 Add new tools to `routes/vanta-ai.ts`:
 
 **`plan_year_of_events`** — Owner tells Vanta: "Plan me a full year of events starting now"
@@ -525,7 +525,7 @@ Add new tools to `routes/vanta-ai.ts`:
 
 **`end_event_early`** — Manually trigger event end + reward distribution
 
-### 12.8 — Flash Events
+### 2.8 — Flash Events
 Flash events are micro-events lasting 1–2 hours:
 - Stored in `ServerConfig` key `"flashEvent"`: `{ label, effect, expiresAt }`
 - Effects: `"2x_crime_payout"`, `"2x_arena_rewards"`, `"3x_boss_damage"`, `"2x_event_points"`, `"free_boss_strikes"`, `"2x_race_prizes"`
@@ -533,7 +533,7 @@ Flash events are micro-events lasting 1–2 hours:
 - Feed auto-posts when a flash event starts: "[⚡ FLASH EVENT] {label} — active for the next {X} hours!"
 - All online players get a WebSocket push notification when flash event starts
 
-### 12.9 — Verify
+### 2.9 — Verify
 - Build and restart both services
 - Confirm event creation, scheduling, and auto-activation work
 - Confirm boss HP updates via WebSocket
@@ -543,12 +543,12 @@ Flash events are micro-events lasting 1–2 hours:
 
 ---
 
-## TIER 13 — EVENT TYPES & BOSS FIGHT
+## TIER 3 — EVENT TYPES & BOSS FIGHT
 **Status: ⏳ Not started**
 
 **Goal:** Implement all 6 event type mechanics, the dedicated Boss Fight page, Event Arena PvE mode, and the Strike Boss action.
 
-### 13.1 — Boss Raid Mechanics
+### 3.1 — Boss Raid Mechanics
 **Passive damage (automatic):**
 - When a player wins an arena match during a `boss_raid` event: add `pointSources["arena_win"].points` boss damage to their `EventProgress.bossDamageDealt` and `points`. Update `boss.currentHp` by the same amount (atomic `$inc: -damageAmount` with `$max: 0` floor).
 - Same for crimes, races — read `pointSources` config from the active event.
@@ -570,13 +570,13 @@ Flash events are micro-events lasting 1–2 hours:
 - Stored on phase: `abilityEffect` string
 - Implemented effects: `"all_damage_2x_10min"` → set flash event for 10 min; `"freeze_strikes_5min"` → set a ServerConfig flag that blocks strike-boss for 5 min; `"energy_drain"` → reduce all online players' adrenaline by 20%
 
-### 13.2 — Leaderboard Grind Mechanics
+### 3.2 — Leaderboard Grind Mechanics
 - Points awarded per `pointSources` config when any listed action completes
 - EventProgress updated on every qualifying action
 - No special additional logic — pure points accumulation
 - Feed posts: when a player enters the top 10 for the first time; when top rank changes
 
-### 13.3 — Collection Hunt Mechanics
+### 3.3 — Collection Hunt Mechanics
 `POST /api/events/collect` called after qualifying actions (the frontend calls this after crimes, jobs, etc. complete):
 1. Check active `collection_hunt` event and player hasn't exceeded `setSize` collectibles
 2. Roll `Math.random() < collectible.dropChance`
@@ -584,25 +584,25 @@ Flash events are micro-events lasting 1–2 hours:
 4. If `collectiblesFound === collectible.setSize`: auto-grant set-completion reward, post to feed: "{username} completed the full {name} set!"
 5. Return: `{ found: bool, total: number, setComplete: bool }`
 
-### 13.4 — Milestone Mechanics
+### 3.4 — Milestone Mechanics
 - Each milestone has an `action` and `target` (collective server total)
 - On each qualifying action: update a shared server counter in `ServerConfig` key `"eventMilestoneProgress"` (atomic `$inc`)
 - Scheduler checks every minute: if counter crossed a milestone threshold → grant all participants the `rewardAll` reward, post dramatic feed event, lock that milestone as reached
 - Milestone progress exposed via `GET /api/events/active`
 
-### 13.5 — Sports / Football Mechanics
+### 3.5 — Sports / Football Mechanics
 - On event creation, teams are defined
 - Players pick a team once on their first action during the event (stored on `EventProgress.teamId`). Cannot change.
 - Points earned by a player add to both their individual total and their team's total (stored in `ServerConfig "eventTeamScores"`)
 - `GET /api/events/leaderboard` returns: individual leaderboard + team standings
 - At event end: winning team's players get the team-winner bonus reward in addition to their rank reward
 
-### 13.6 — Lottery Mechanics
+### 3.6 — Lottery Mechanics
 - Qualifying actions earn tickets (stored in `EventProgress.ticketsEarned`, added to `points` proportionally)
 - `GET /api/events/active` shows player their ticket count and estimated odds
 - At event end: weighted random draw from all players (weight = ticket count), select `lottery.winnersCount` winners, grant rewards, post winners to feed
 
-### 13.7 — Event Arena PvE Mode (Boss NPC Fights)
+### 3.7 — Event Arena PvE Mode (Boss NPC Fights)
 New queue mode on the existing arena system:
 
 **Owner configures PvE NPCs when creating a boss_raid event:**
@@ -616,7 +616,7 @@ New queue mode on the existing arena system:
 
 **New route:** `POST /api/arena/queue-pve` — queue for event PvE fight (validates active boss_raid event)
 
-### 13.8 — Verify
+### 3.8 — Verify
 - All 6 event type mechanics work end-to-end
 - Boss HP decrements correctly with concurrent updates (test with 2 ghost accounts)
 - Phase transitions fire and broadcast correctly
@@ -625,12 +625,12 @@ New queue mode on the existing arena system:
 
 ---
 
-## TIER 14 — EVENT FRONTEND
+## TIER 4 — EVENT FRONTEND
 **Status: ⏳ Not started**
 
 **Goal:** Build all player-facing event UI — the event page, boss fight interface, archive, upcoming events, and custom game mode builder for owners.
 
-### 14.1 — Active Event Page (`/event`)
+### 4.1 — Active Event Page (`/event`)
 Create `artifacts/neonoir/src/pages/EventPage.tsx`:
 
 **When no event is active:** Show "No active event — check upcoming events" + link to upcoming events page.
@@ -660,7 +660,7 @@ Create `artifacts/neonoir/src/pages/EventPage.tsx`:
 
 **Lottery Panel:** Your ticket count, estimated odds, time remaining
 
-### 14.2 — Boss Fight Animations
+### 4.2 — Boss Fight Animations
 Using Framer Motion (already installed):
 - Boss HP bar animates smoothly on damage
 - Strike button has a satisfying press + recoil animation
@@ -668,12 +668,12 @@ Using Framer Motion (already installed):
 - Phase change: dramatic screen flash + phase name appears
 - Boss kill: full-screen celebration animation
 
-### 14.3 — Upcoming Events Page (`/events/upcoming`)
+### 4.3 — Upcoming Events Page (`/events/upcoming`)
 Create `artifacts/neonoir/src/pages/UpcomingEventsPage.tsx`:
 - Cards for each scheduled event: name, type icon, start countdown, reward tier preview (top prize cosmetic/title shown), theme color accent
 - "Coming Soon" mystery cards for events without confirmed details
 
-### 14.4 — Past Events Archive (`/events/archive`)
+### 4.4 — Past Events Archive (`/events/archive`)
 Create `artifacts/neonoir/src/pages/EventArchivePage.tsx`:
 - Grid of all past events, sorted by most recent
 - Each card: event name, dates, type, total participants
@@ -684,15 +684,15 @@ Create `artifacts/neonoir/src/pages/EventArchivePage.tsx`:
   - Milestone: which tiers were reached
   - Rewards that were available (full reward table)
 
-### 14.5 — Event Chat Badge
+### 4.5 — Event Chat Badge
 In the Chat page and chat components: while an event is active, render a small colored badge next to the chat input and in the chat header showing `theme.chatBadgeText` in `theme.chatBadgeColor`. Small and non-intrusive.
 
-### 14.6 — Event NavBar Entry
+### 4.6 — Event NavBar Entry
 Add "Event" to the NavBar (visible when an event is active or upcoming):
 - Active event: shows with a pulsing indicator
 - No active event: shows with "Upcoming" label linking to upcoming page
 
-### 14.7 — Custom Event Game Mode Builder (Owner Panel)
+### 4.7 — Custom Event Game Mode Builder (Owner Panel)
 In the owner panel, add an "Event Game Modes" section:
 - Owner can define custom game logic per event type using a JSON config editor
 - Pre-built templates: `boss_raid`, `leaderboard_grind`, `collection_hunt`, `milestone`, `sports`, `lottery`
@@ -700,7 +700,7 @@ In the owner panel, add an "Event Game Modes" section:
 - The custom mode is stored on the event and the backend reads it to apply custom logic
 - This is the foundation — complex custom modes (heist, survival) are added here as pre-built templates in future tiers
 
-### 14.8 — Verify
+### 4.8 — Verify
 - All 6 event pages render correctly
 - Boss HP bar updates in real-time via WebSocket
 - Strike button respects cooldown, energy, and phase effects
@@ -710,18 +710,18 @@ In the owner panel, add an "Event Game Modes" section:
 
 ---
 
-## TIER 15 — BATTLE PASS + SEASONS + DAILY & WEEKLY QUESTS
+## TIER 5 — BATTLE PASS + SEASONS + DAILY & WEEKLY QUESTS
 **Status: ⏳ Not started**
 
 **Goal:** Build the battle pass system (event-only, not pay-to-win), named seasons, and daily/weekly quests.
 
-### 15.1 — Key Rules (Non-Negotiable)
+### 5.1 — Key Rules (Non-Negotiable)
 - **Battle pass runs only when an event is active.** No standalone battle pass without an event.
 - **Premium track = cosmetics, titles, NC only. Zero stat advantages.** Never grant strength, health, speed, damage, energy cap, or any gameplay-affecting stat on the premium track.
 - **XP rate is identical for free and premium players.** No XP boosts purchasable.
 - **Premium pass purchased with NC** (not DC).
 
-### 15.2 — BattlePass Model
+### 5.2 — BattlePass Model
 Create `artifacts/api-server/src/models/BattlePass.ts`:
 ```typescript
 {
@@ -746,7 +746,7 @@ Create `artifacts/api-server/src/models/BattlePass.ts`:
 }
 ```
 
-### 15.3 — User Battle Pass Progress
+### 5.3 — User Battle Pass Progress
 Add to User model:
 ```typescript
 seasonXP: number;           // resets each season
@@ -756,7 +756,7 @@ premiumPassEventId: string | null; // which event's pass they bought
 claimedPassRewards: string[]; // "level_N_free" | "level_N_premium"
 ```
 
-### 15.4 — Battle Pass Routes
+### 5.4 — Battle Pass Routes
 Add to events routes or create `routes/battle-pass.ts`:
 - `GET /api/battle-pass/active` — return active pass: all levels, rewards, player's current level, claimed rewards, premium status
 - `POST /api/battle-pass/buy-premium` — atomic NC deduction (`nc: { $gte: ncCost }`), set `hasPremiumPass: true`, `premiumPassEventId`
@@ -772,7 +772,7 @@ Vanta tools:
 - `battle_pass_report` — query: how many players are at each level, % premium conversion, will any players hit max level before event ends
 - `adjust_xp_rate` — multiply all xpSources by a factor (e.g. 2x weekend)
 
-### 15.5 — XP Hooks
+### 5.5 — XP Hooks
 Add XP award calls to every qualifying route. Create `lib/battlePassXp.ts` helper:
 ```typescript
 export async function awardBattlePassXp(userId: string, action: string): Promise<void>
@@ -783,7 +783,7 @@ export async function awardBattlePassXp(userId: string, action: string): Promise
 - On level-up: sends notification "You reached Battle Pass Level {N}!"
 - Call this helper from: arena match completion, crime completion, race completion, daily quest completion, boss strike, event collect
 
-### 15.6 — Seasons System
+### 5.6 — Seasons System
 Each active event that has a battle pass is considered a **Season**:
 - Season name comes from `BattlePass.seasonName`
 - When season ends (event ends): current `seasonXP` and `seasonLevel` are archived to `User.seasonHistory` array: `[{ seasonName, eventId, finalLevel, hasPremiumPass, endedAt }]`
@@ -816,7 +816,7 @@ Each active event that has a battle pass is considered a **Season**:
 - When displaying cosmetics in the store or on profiles: season-exclusive ones show a "Season {name} Exclusive" badge
 - Each season should have at least one season-exclusive cosmetic in its top reward tier (rank 1 or max battle pass level)
 
-### 15.7 — Daily Quests
+### 5.7 — Daily Quests
 Create `artifacts/api-server/src/models/DailyQuest.ts` (shared quest templates):
 ```typescript
 {
@@ -858,7 +858,7 @@ Routes:
 
 **Seed quest templates:** Create at least 20 quest templates covering all major systems (crimes, arena, racing, market, gym, jobs, boss strike, collection, etc.).
 
-### 15.8 — Battle Pass UI
+### 5.8 — Battle Pass UI
 Create `artifacts/neonoir/src/pages/BattlePassPage.tsx`:
 - Full horizontal track visualization — 50 levels scrollable
 - Each level shows: free reward (always visible) + premium reward (grayed out if not premium)
@@ -874,7 +874,7 @@ Daily/Weekly quests section on the same page (or a quests tab):
 - Claim button when completed
 - Reset countdown for each
 
-### 15.9 — Verify
+### 5.9 — Verify
 - Battle pass only exists when an event is active
 - XP awards fire correctly for all 6+ action types
 - Level-up notifications send
@@ -885,12 +885,12 @@ Daily/Weekly quests section on the same page (or a quests tab):
 
 ---
 
-## TIER 16 — LIVE PRESENCE + PUSH NOTIFICATIONS + CHAT UPGRADES + TELEGRAM
+## TIER 6 — LIVE PRESENCE + PUSH NOTIFICATIONS + CHAT UPGRADES + TELEGRAM
 **Status: ⏳ Not started**
 
 **Goal:** Make the game feel alive — players see who's online, get phone notifications, chat is richer, and Telegram is linked for power users.
 
-### 16.1 — Live Online Presence
+### 6.1 — Live Online Presence
 Add to User model: `lastSeenAt: Date` (updated on every authenticated request via middleware).
 
 In `lib/presence.ts`:
@@ -906,7 +906,7 @@ On City/Home page: display "X players online right now" (polls every 30 seconds 
 
 On profile page: show "Online now" / "Active X minutes ago" / "Last seen X days ago" based on `lastSeenAt`.
 
-### 16.2 — Push Notifications (Wire Existing Infrastructure)
+### 6.2 — Push Notifications (Wire Existing Infrastructure)
 VAPID keys are already in `.replit` env. `PushSubscription` model already exists.
 
 Check existing push infrastructure in `routes/notifications.ts` — wire real game events to it:
@@ -926,7 +926,7 @@ Send push notifications for:
 
 Notification preference: players can toggle push notifications on/off per category in settings.
 
-### 16.3 — Chat Upgrades
+### 6.3 — Chat Upgrades
 **@username mentions:**
 - In chat message send route: scan message text for `@username` pattern
 - Resolve each mentioned username to a userId
@@ -955,7 +955,7 @@ Notification preference: players can toggle push notifications on/off per catego
 
 Route: `GET /api/chat?room=global|event|faction` — existing route extended with `room` filter.
 
-### 16.4 — Telegram Bot Integration
+### 6.4 — Telegram Bot Integration
 **Setup:**
 - Requires `TELEGRAM_BOT_TOKEN` secret (ask owner before writing any Telegram code)
 - Bot uses webhook (not polling) — register webhook to `$REPLIT_DEV_DOMAIN/api/telegram/webhook`
@@ -968,7 +968,7 @@ Route: `GET /api/chat?room=global|event|faction` — existing route extended wit
 - Player can unlink at any time from Settings
 
 **Notifications via Telegram (linked players only):**
-- All the same events as push notifications (§16.2) — send as Telegram message to linked players
+- All the same events as push notifications (§6.2) — send as Telegram message to linked players
 - Player can configure which notifications to receive in Settings (same toggles as push)
 
 **Owner via Telegram:**
@@ -982,7 +982,7 @@ Route: `GET /api/chat?room=global|event|faction` — existing route extended wit
 - `/event` — shows active event, boss HP, your rank
 - `/quests` — shows today's daily quests and progress
 
-### 16.5 — Verify
+### 6.5 — Verify
 - Online count updates correctly via WebSocket
 - Presence shows correctly on profile pages
 - Push notifications send for all 8+ event types
@@ -997,12 +997,12 @@ Route: `GET /api/chat?room=global|event|faction` — existing route extended wit
 
 ---
 
-## TIER 17 — BOUNTY SYSTEM + FULL PROFILE + ACHIEVEMENTS
+## TIER 7 — BOUNTY SYSTEM + FULL PROFILE + ACHIEVEMENTS
 **Status: ⏳ Not started**
 
 **Goal:** Add social depth — players can put bounties on each other, profiles become showcase pages, and achievements fire automatically from game actions.
 
-### 17.1 — Bounty System
+### 7.1 — Bounty System
 Create `artifacts/api-server/src/models/Bounty.ts`:
 ```typescript
 {
@@ -1031,7 +1031,7 @@ Scheduler: expire bounties older than 7 days → refund DC to placer.
 
 "Most Wanted" tab on the Leaderboard page: top 10 players with highest active bounty amounts on them.
 
-### 17.2 — Full Profile Page Overhaul
+### 7.2 — Full Profile Page Overhaul
 Redesign `artifacts/neonoir/src/pages/ProfilePage.tsx`:
 
 **Header section:**
@@ -1064,7 +1064,7 @@ Redesign `artifacts/neonoir/src/pages/ProfilePage.tsx`:
 **Season history:**
 - Battle pass seasons: season name, final level, had premium pass or not
 
-### 17.3 — Achievements System (Wire Existing Model)
+### 7.3 — Achievements System (Wire Existing Model)
 `Achievement.ts` model exists. Create achievement definitions and wire them to game actions.
 
 Create `lib/achievements.ts`:
@@ -1086,7 +1086,7 @@ Achievement triggers to wire (add `checkAchievements` call at the completion poi
 
 Seed achievement definitions on startup (check if collection empty before seeding).
 
-### 17.4 — Pinned Badges
+### 7.4 — Pinned Badges
 Add to User model: `pinnedBadges: string[]` (max 3 achievement ids).
 
 Routes:
@@ -1095,7 +1095,7 @@ Routes:
 
 Show pinned badges in chat next to username (small icon) and in profile header (prominent).
 
-### 17.5 — Verify
+### 7.5 — Verify
 - Bounty placement, claiming via arena, expiry, cancellation all work
 - Feed posts for bounty events appear correctly
 - Profile page renders all sections with correct data
@@ -1104,12 +1104,12 @@ Show pinned badges in chat next to username (small icon) and in profile header (
 
 ---
 
-## TIER 18 — PLAYER TRADING + GANG WARS
+## TIER 8 — PLAYER TRADING + GANG WARS
 **Status: ⏳ Not started**
 
 **Goal:** Activate two systems whose models already exist — player-to-player item/DC trading and organized gang wars.
 
-### 18.1 — Player Trading
+### 8.1 — Player Trading
 `PlayerTrade.ts` model exists. Build routes and UI.
 
 Routes in `routes/trade.ts`:
@@ -1126,7 +1126,7 @@ Notifications: send push + in-app notification when:
 
 Trade UI: button on player profile → opens trade modal with item picker + DC amount inputs.
 
-### 18.2 — Gang Wars
+### 8.2 — Gang Wars
 `GangWar.ts` model exists. Build the full war system.
 
 Routes in `routes/gang-wars.ts`:
@@ -1142,7 +1142,7 @@ Event tie-in: during an active event, gang war arena wins also contribute event 
 
 Gang War UI: banner on gang page when at war, live score tracker, member contribution table.
 
-### 18.3 — Verify
+### 8.3 — Verify
 - Trade offer, accept, decline, counter all work
 - Atomic swap is correct (no items or DC lost or duplicated — test this carefully)
 - Items held in escrow during pending trade cannot be equipped or sold
@@ -1152,12 +1152,12 @@ Gang War UI: banner on gang page when at war, live score tracker, member contrib
 
 ---
 
-## TIER 19 — HACKING + NPC ENCOUNTERS + MENTOR SYSTEM
+## TIER 9 — HACKING + NPC ENCOUNTERS + MENTOR SYSTEM
 **Status: ⏳ Not started**
 
 **Goal:** Activate three more existing model foundations — hacking, random world encounters, and player mentorship.
 
-### 19.1 — Hacking System
+### 9.1 — Hacking System
 `HackSession.ts` model exists. Build the full hacking system:
 
 **Concept:** Intelligence-based activity. Player targets another player or a corporation NPC to steal DC or items.
@@ -1172,7 +1172,7 @@ Routes in `routes/hacking.ts`:
 
 Feed: post dramatic feed events for large successful hacks only (over 25,000 DC stolen): "[🔓 HACK] {attacker} breached {target}'s systems and walked away with {amount} DC."
 
-### 19.2 — NPC Encounters While Traveling
+### 9.2 — NPC Encounters While Traveling
 When a player initiates a travel action (uses `POST /api/city/travel` or district travel), roll a random encounter:
 - 15% chance of an encounter (configurable in ServerConfig)
 - Encounter pool (pick one randomly):
@@ -1189,7 +1189,7 @@ During active events with a boss_raid: add event-specific encounters:
 
 Encounters are non-blocking: presented as a modal/card on the travel confirmation screen. Player sees the encounter and can act on it. Store `lastEncounterAt` on User.
 
-### 19.3 — Mentor System
+### 9.3 — Mentor System
 Add to User model: `mentorId: ObjectId | null`, `menteeIds: ObjectId[]`, `isMentor: boolean`, `mentorRating: number` (0–5, averaged from mentee ratings).
 
 Routes in `routes/mentor.ts`:
@@ -1206,7 +1206,7 @@ XP bonus while in active mentorship:
 
 Mentor badge: active mentors get a "Mentor" title and badge shown on their profile.
 
-### 19.4 — Verify
+### 9.4 — Verify
 - Hacking success/fail rates are correct
 - DC stolen atomically (no double-steal with concurrent hacks)
 - 6-hour cooldown enforced
@@ -1217,12 +1217,12 @@ Mentor badge: active mentors get a "Mentor" title and badge shown on their profi
 
 ---
 
-## TIER 20 — BUSINESS SYSTEM OVERHAUL
+## TIER 10 — BUSINESS SYSTEM OVERHAUL
 **Status: ⏳ Not started**
 
 **Goal:** Expand the existing Business system into a meaningful passive income mechanic with upgrades, event tie-ins, and NC utility.
 
-### 20.1 — Business Model Expansion
+### 10.1 — Business Model Expansion
 `Business.ts` model exists. Extend it:
 
 Add fields:
@@ -1237,7 +1237,7 @@ activeBuffs: [{            // event bonuses applied to this business
 }];
 ```
 
-### 20.2 — Passive Income Collection
+### 10.2 — Passive Income Collection
 `GET /api/businesses` — return business list + pending income (hours since `lastCollectedAt` * `passiveIncomePerHour`, capped at 24h accumulation)
 
 `POST /api/businesses/:id/collect` — atomic: collect pending income as DC, reset `lastCollectedAt`
@@ -1249,7 +1249,7 @@ Income per hour by tier:
 - Tier 4: 3,000 DC/hr
 - Tier 5: 7,500 DC/hr
 
-### 20.3 — Business Upgrades
+### 10.3 — Business Upgrades
 `POST /api/businesses/:id/upgrade` — invest DC toward next tier: `{ dcAmount }`. Atomic deduction. When `upgradeProgress` reaches tier threshold → advance tier, reduce laundering cooldown by 30min per tier.
 
 Upgrade costs (cumulative DC to reach tier):
@@ -1258,20 +1258,20 @@ Upgrade costs (cumulative DC to reach tier):
 - Tier 4: 750,000 DC
 - Tier 5: 2,500,000 DC
 
-### 20.4 — NC Utility Purchases (from existing spec)
+### 10.4 — NC Utility Purchases (from existing spec)
 These were planned in `Junks/docs/superpowers/specs/2026-07-13-nc-store-expansiondesign.md`. Implement them now:
 - `POST /api/store/refill-energy` — 2 NC per point of energy, min 10 NC
 - `POST /api/business/:id/skip-launder` — `Math.max(5, minutesRemaining)` NC
 - `POST /api/settings/change-username` — 500 NC flat, uniqueness check
 - `POST /api/inventory/buy-loadout-slot` — `300 NC * (purchasedSlots + 1)`, max +3 slots, add `User.purchasedLoadoutSlots`
 
-### 20.5 — Gang War Targeting
+### 10.5 — Gang War Targeting
 During gang wars: businesses owned by enemy gang members have a 5% chance per hour of taking "damage" — reducing their `upgradeProgress` slightly. This is flavor — losing a gang war means your business took a hit.
 
-### 20.6 — Event Business Bonuses
+### 10.6 — Event Business Bonuses
 When a `boss_raid` or `leaderboard_grind` event is active: businesses earn +25% passive income (applied as a buff on the business doc for the event duration, auto-cleared when event ends).
 
-### 20.7 — Verify
+### 10.7 — Verify
 - Passive income accumulates correctly (test with time jump in dev)
 - Collection is atomic
 - Upgrade tiers advance correctly
@@ -1280,12 +1280,12 @@ When a `boss_raid` or `leaderboard_grind` event is active: businesses earn +25% 
 
 ---
 
-## TIER 21 — VANTA LIVE TESTING ENGINE + CHAT PERSISTENCE + PLAYER TUTOR
+## TIER 11 — VANTA LIVE TESTING ENGINE + CHAT PERSISTENCE + PLAYER TUTOR
 **Status: ⏳ Not started**
 
 **Goal:** Make Vanta genuinely powerful — it can test any game system live, its chat persists across sessions, and it guides players as a smart tutor.
 
-### 21.1 — Vanta Owner Restrictions (Hardcoded Server-Side)
+### 11.1 — Vanta Owner Restrictions (Hardcoded Server-Side)
 In `routes/vanta-ai.ts`, before executing ANY Vanta tool call, add a guard function:
 
 ```typescript
@@ -1302,7 +1302,7 @@ Block completely (return error to Vanta without executing):
 
 These checks run against the `ownerId` from the authenticated session — cannot be overridden by Vanta's AI instructions. If blocked, Vanta receives: `"This action is not permitted on the owner account."` and should inform the owner naturally.
 
-### 21.2 — Vanta Live Testing Engine
+### 11.2 — Vanta Live Testing Engine
 Add new tools to `routes/vanta-ai.ts`:
 
 **`test_system`** — Live test any game system:
@@ -1346,7 +1346,7 @@ Input: { endpoint: string, concurrency: number }
 - Check for race conditions (duplicate items, wrong balances, deadlocks)
 - Report any inconsistencies found
 
-### 21.3 — Vanta Chat Persistence (Owner)
+### 11.3 — Vanta Chat Persistence (Owner)
 `VantaAISession` model already stores messages. Fix the frontend to load them:
 
 - On Vanta panel load: `GET /api/vanta-ai/session` — return the active session's last 100 messages
@@ -1355,7 +1355,7 @@ Input: { endpoint: string, concurrency: number }
 - When session exceeds 100 messages: oldest messages deleted from the stored array, BUT before deletion Vanta generates a `summary` of them (a paragraph capturing key decisions, preferences, game state discussed) stored on the session as `contextSummary`. This summary is prepended to Vanta's system prompt so she never truly forgets important context.
 - Session TTL extended to 90 days (currently 30)
 
-### 21.4 — Player Vanta Tutor
+### 11.4 — Player Vanta Tutor
 Vanta now has two modes: `owner` (existing) and `player` (new).
 
 Create new `routes/player-vanta.ts`:
@@ -1375,7 +1375,7 @@ Create new `routes/player-vanta.ts`:
 
 **Vanta tutor entry point:** available everywhere via a floating "?" button in the corner. Not a full page — a slide-in panel so player can chat with Vanta while playing.
 
-### 21.5 — Verify
+### 11.5 — Verify
 - Owner restrictions block all protected actions (test with ghost owner account)
 - `test_system` for racing, arena, crimes returns accurate pass/fail reports
 - `test_event` correctly simulates and cleans up
@@ -1387,12 +1387,12 @@ Create new `routes/player-vanta.ts`:
 
 ---
 
-## TIER 22 — TUTORIAL / ONBOARDING + ECONOMY DASHBOARD + REFERRAL
+## TIER 12 — TUTORIAL / ONBOARDING + ECONOMY DASHBOARD + REFERRAL
 **Status: ⏳ Not started**
 
 **Goal:** Make the game accessible to new players, give the owner visibility into the economy, and create a referral growth loop.
 
-### 22.1 — Tutorial / Onboarding Flow
+### 12.1 — Tutorial / Onboarding Flow
 `onboardingStage` already exists on User (0=new, 1=first crime, 2=has car, 3=has job, 4=fully unlocked). NavBar already gates by `minStage`. Build the actual UI flow:
 
 **Stage 0 → 1 (new player, first session):**
@@ -1422,7 +1422,7 @@ Create new `routes/player-vanta.ts`:
 
 **Player Vanta integration:** During onboarding stages 0–3, Player Vanta proactively offers help in the floating panel: "Need help with your first crime? Ask me."
 
-### 22.2 — Economy Dashboard (Owner Panel)
+### 12.2 — Economy Dashboard (Owner Panel)
 New tab in the owner panel: **Economy**
 
 Display (all live data, refreshed every 60 seconds):
@@ -1439,7 +1439,7 @@ Display (all live data, refreshed every 60 seconds):
 - New player registrations per day (last 14 days, bar chart)
 - Player retention: players who logged in today who also logged in 7 days ago
 
-### 22.3 — Referral System
+### 12.3 — Referral System
 Add to User model: `referralCode: string` (unique 8-char alphanumeric, generated on account creation), `referredBy: string | null` (referral code used at signup), `referralCount: number`, `referralRewardsClaimed: number`.
 
 Registration route update: accept optional `referralCode` field. If provided and valid → link `referredBy`, find the referrer.
@@ -1454,7 +1454,7 @@ When the referred player reaches level 5 (not just registers — must actually p
 
 Referral link shown on profile page and settings: `https://neonoir.app/register?ref={code}`
 
-### 22.4 — Verify
+### 12.4 — Verify
 - Onboarding stages advance correctly at the right triggers
 - Stage rewards grant correctly
 - Skipping works (advances to stage 4, no rewards)
@@ -1466,32 +1466,32 @@ Referral link shown on profile page and settings: `https://neonoir.app/register?
 
 ---
 
-## TIER 23 — FINAL POLISH: ANIMATIONS + MOBILE + PERFORMANCE
+## TIER 13 — FINAL POLISH: ANIMATIONS + MOBILE + PERFORMANCE
 **Status: ⏳ Not started**
 
 **Goal:** Make the game feel premium. Smooth animations, proper mobile experience, fast loads.
 
-### 23.1 — Page Transitions
+### 13.1 — Page Transitions
 Using Framer Motion (already installed). Wrap all route components in an `AnimatePresence` wrapper in the router:
 - Page enter: fade in + slide up 20px (200ms ease-out)
 - Page exit: fade out (150ms)
 - Modal open: scale from 0.95 + fade in
 - Modal close: scale to 0.95 + fade out
 
-### 23.2 — Loading States & Skeleton Loaders
+### 13.2 — Loading States & Skeleton Loaders
 Replace all "loading..." text and blank screens with skeleton loaders:
 - Skeleton shapes that match the actual content layout
 - Use Tailwind `animate-pulse` on skeleton elements
 - Apply to: Profile page, Leaderboard, Market, Auction, Feed, Event page, Battle Pass
 
-### 23.3 — Micro-interactions
+### 13.3 — Micro-interactions
 - Buttons: subtle press scale (0.97) on click using Framer Motion `whileTap`
 - Cards: gentle lift on hover (`y: -2`, shadow increase)
 - Numbers that change (DC, NC, HP, boss HP): animate the value change using a number-counting animation
 - Boss HP bar: smooth animated width transition (not instant jump)
 - Level-up: brief celebratory animation on the battle pass level indicator
 
-### 23.4 — Mobile PWA Optimizations
+### 13.4 — Mobile PWA Optimizations
 - Add a **bottom navigation bar** for mobile viewports (< 768px): Home, Crimes, Arena, Chat, Profile — the 5 most-used pages
 - Top NavBar collapses to a hamburger menu on mobile
 - All tap targets minimum 44x44px (WCAG AA)
@@ -1499,14 +1499,14 @@ Replace all "loading..." text and blank screens with skeleton loaders:
 - Test all pages at 375px (iPhone SE) and 390px (iPhone 14) viewport widths
 - Ensure no horizontal overflow on any page
 
-### 23.5 — Performance
+### 13.5 — Performance
 - Lazy load all page components (React.lazy + Suspense — already partially done, verify all pages are covered)
 - Image lazy loading (`loading="lazy"` on all img tags)
 - Memoize expensive list renders (Leaderboard, Market listings, Cosmetics grid) with `React.memo` and `useMemo`
 - Debounce search inputs (Market search, Player search)
 - API response caching headers on read-heavy endpoints (leaderboard, cosmetics catalog, world state): `Cache-Control: public, max-age=30`
 
-### 23.6 — Verify
+### 13.6 — Verify
 - All page transitions animate smoothly
 - No blank loading screens anywhere
 - All interactive elements have hover/press states
@@ -1567,15 +1567,15 @@ Weekly quests use the same templates but `targetCount * 5` and `reward * 4`.
 
 ---
 
-## TIER 24 — FINAL AUDIT TIER
+## TIER 14 — FINAL AUDIT TIER
 **Status: ⏳ Not started**
 
 **Goal:** Full audit of every system across all 24 tiers. Vanta runs a complete live health check. Owner reviews findings and agent closes any open gaps. This tier is run ONLY when the owner explicitly requests it — never automatically. It is the last tier.
 
-### 24.1 — When to Run This Tier
-The owner must explicitly say: "Run the final audit" or "Start Tier 24". Do not start this tier automatically after finishing Tier 23. Wait for the explicit command.
+### 14.1 — When to Run This Tier
+The owner must explicitly say: "Run the final audit" or "Start Tier 24". Do not start this tier automatically after finishing Tier 13. Wait for the explicit command.
 
-### 24.2 — Vanta Full Health Check
+### 14.2 — Vanta Full Health Check
 Trigger `run_health_check` from the Vanta panel (built in Tier 21). Vanta will:
 1. Run `test_system` for every system: crimes, arena, racing, market, auction, hacking, quests, events, battle pass, bounties, trading, gang wars, chat, mentor, business, push notifications, referral, onboarding
 2. Run `test_event` on the most recent past event (or a freshly created draft test event)
@@ -1584,17 +1584,17 @@ Trigger `run_health_check` from the Vanta panel (built in Tier 21). Vanta will:
 
 Any failures found here must be fixed before the tier is marked complete.
 
-### 24.3 — Manual Audit Checklist
+### 14.3 — Manual Audit Checklist
 Work through each tier systematically. For each tier listed as ✅ Done:
 
-**Tier 11 (Cosmetics):**
+**Tier 1 (Cosmetics):**
 - [ ] Seeded cosmetics appear in store
 - [ ] Name flairs render with correct animation in chat, profile, leaderboard, feed
 - [ ] Message card variants show correctly for subscriber / event / staff / own
 - [ ] Expired cosmetics auto-removed on login
 - [ ] Owner can grant, edit, create cosmetics
 
-**Tier 12 (Event Engine):**
+**Tier 2 (Event Engine):**
 - [ ] Events auto-activate and auto-end on schedule
 - [ ] Theme colors apply to entire frontend on activation
 - [ ] Game display name changes in navbar, title, login
@@ -1602,7 +1602,7 @@ Work through each tier systematically. For each tier listed as ✅ Done:
 - [ ] Server broadcast reaches all online players
 - [ ] Reward distribution runs automatically on event end
 
-**Tier 13 (Event Types):**
+**Tier 3 (Event Types):**
 - [ ] Boss HP decrements correctly from activities AND from manual strikes
 - [ ] Boss phases trigger and abilities fire at correct HP thresholds
 - [ ] Collection hunt drops work at correct probability
@@ -1611,14 +1611,14 @@ Work through each tier systematically. For each tier listed as ✅ Done:
 - [ ] Lottery weighted draw selects correct number of winners
 - [ ] PvE arena pairs player vs correct NPC difficulty tier
 
-**Tier 14 (Event Frontend):**
+**Tier 4 (Event Frontend):**
 - [ ] Boss HP bar updates in real-time without page refresh
 - [ ] Strike boss button respects cooldown and energy
 - [ ] Archive page shows frozen leaderboard and boss results
 - [ ] Upcoming events countdown is correct
 - [ ] Event NavBar entry pulses when event is active
 
-**Tier 15 (Battle Pass):**
+**Tier 5 (Battle Pass):**
 - [ ] XP awards fire for all 6+ action types
 - [ ] Level-up notification sends
 - [ ] Premium track is cosmetics/titles/NC only — zero stat rewards exist on any tier
@@ -1627,7 +1627,7 @@ Work through each tier systematically. For each tier listed as ✅ Done:
 - [ ] Season data archives on event end and resets correctly
 - [ ] Hall of Fame snapshot saved at season end
 
-**Tier 16 (Live Presence + Chat):**
+**Tier 6 (Live Presence + Chat):**
 - [ ] Online count updates on connect/disconnect
 - [ ] @mentions link to profiles and send push notification
 - [ ] /location links navigate in-app
@@ -1637,59 +1637,59 @@ Work through each tier systematically. For each tier listed as ✅ Done:
 - [ ] Telegram linking flow works end-to-end
 - [ ] Owner can control Vanta via Telegram
 
-**Tier 17 (Bounties + Profile + Achievements):**
+**Tier 7 (Bounties + Profile + Achievements):**
 - [ ] Bounty claimed correctly via arena win
 - [ ] Bounty expires and refunds after 7 days
 - [ ] Full profile page renders all 6 sections
 - [ ] Achievements fire for all 7 defined triggers
 - [ ] Pinned badges display in chat and profile
 
-**Tier 18 (Trading + Gang Wars):**
+**Tier 8 (Trading + Gang Wars):**
 - [ ] Atomic trade swap: no DC or items lost or duplicated
 - [ ] Traded items held in escrow (cannot equip or sell while in pending trade)
 - [ ] Gang war scores update in real time
 - [ ] War ends correctly at 48hr, winning gang gets prize pool
 
-**Tier 19 (Hacking + NPC + Mentor):**
+**Tier 9 (Hacking + NPC + Mentor):**
 - [ ] Hacking success rate is formula-correct (not always win or always lose)
 - [ ] 6-hour cooldown enforced per target player
 - [ ] NPC travel encounters trigger at ~15% rate (test 30 travels)
 - [ ] Mentor/mentee XP bonus of +15% is applied correctly
 - [ ] Mentor DC bonus triggers at mentee level 10, 20, 30
 
-**Tier 20 (Business):**
+**Tier 10 (Business):**
 - [ ] Passive income accumulates by the hour (test by checking timestamps)
 - [ ] Upgrade progress is atomic (no negative DC possible)
 - [ ] All 4 NC utility purchases work (energy refill, launder skip, username change, loadout slot)
 - [ ] Event business bonus applies and auto-clears
 
-**Tier 21 (Vanta Testing + Tutor):**
+**Tier 11 (Vanta Testing + Tutor):**
 - [ ] Owner restrictions block owner account ban/delete/role changes — test this explicitly
 - [ ] test_system report returns real pass/fail (not all-pass by default)
 - [ ] Vanta chat loads last 100 messages on refresh
 - [ ] Player Vanta responds in correct register for levels 1-10, 30, 60+
 
-**Tier 22 (Tutorial + Economy + Referral):**
+**Tier 12 (Tutorial + Economy + Referral):**
 - [ ] Onboarding stages advance at correct triggers
 - [ ] Skip button works and grants no rewards
 - [ ] Economy dashboard shows live data (refresh and confirm numbers change)
 - [ ] EconomyLog has entries for at least: crime reward, arena reward, NC purchase
 - [ ] Referral reward fires when referred player hits level 5 (not just registration)
 
-**Tier 23 (Polish):**
+**Tier 13 (Polish):**
 - [ ] Page transitions animate on every route change
 - [ ] No "loading..." text exists anywhere — all replaced by skeleton loaders
 - [ ] Mobile bottom nav visible at 375px viewport
 - [ ] No horizontal scroll overflow on any page at 375px
 - [ ] Lighthouse mobile score ≥ 70
 
-### 24.4 — Fix All Found Issues
+### 14.4 — Fix All Found Issues
 For every checklist item that fails or every Vanta-reported error:
 1. Fix it — do not mark items as "known issue" or "low priority"
 2. Re-verify after fixing
 3. Re-run `run_health_check` after all fixes — it must return all-pass
 
-### 24.5 — Final Database Sanity Check
+### 14.5 — Final Database Sanity Check
 Run these direct DB queries and verify no anomalies:
 - Any user with negative DC or NC → fix atomically
 - Any user with `equippedNameFlair` pointing to a non-existent or un-owned cosmeticId → clear it
@@ -1700,12 +1700,12 @@ Run these direct DB queries and verify no anomalies:
 
 Report counts of any anomalies found and fixed.
 
-### 24.6 — Final Push
+### 14.6 — Final Push
 After all checks pass and all anomalies are resolved:
 1. Push to GitHub
-2. Mark Tier 24 ✅ Done
+2. Mark Tier 14 ✅ Done
 3. Report to owner: "All 24 tiers are verified. The game is complete."
 
 ---
 
-*End of NEONOIR_MASTER_PLAN.md — All 24 tiers fully specified. Build tier by tier. Complete, verify, push, and mark ✅ Done before starting the next tier. Tier 24 runs only when explicitly requested by the owner.*
+*End of NEONOIR_MASTER_PLAN.md — All 24 tiers fully specified. Build tier by tier. Complete, verify, push, and mark ✅ Done before starting the next tier. Tier 14 runs only when explicitly requested by the owner.*
