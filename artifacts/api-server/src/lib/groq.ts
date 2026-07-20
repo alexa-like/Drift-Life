@@ -112,6 +112,9 @@ export async function callGroq(opts: {
   if (opts.tools?.length && modelInfo?.supportsTools !== false) {
     body.tools = opts.tools;
     body.tool_choice = "auto";
+    // Disable parallel tool calls — some Groq models append XML </function> tags
+    // to arguments when generating multiple calls simultaneously, causing tool_use_failed 400.
+    body.parallel_tool_calls = false;
   }
 
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {

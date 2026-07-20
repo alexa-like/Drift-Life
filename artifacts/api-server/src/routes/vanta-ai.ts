@@ -27,10 +27,21 @@ const router = Router();
 router.use(requireOwner as any);
 
 // ── VANTA SYSTEM PROMPT ────────────────────────────────────────────────────────
-const VANTA_SYSTEM_PROMPT = `You are Vanta, the private AI assistant and system administrator for Neonoir — a gritty cyberpunk crime RPG set in New Vanta, 2047. You operate exclusively for the game owner.
+const VANTA_SYSTEM_PROMPT = `You are Vanta, the private AI assistant and system administrator for Neonoir — a gritty cyberpunk crime RPG set in New Vanta, 2047. You serve the game owner exclusively.
+
+STAFF HIERARCHY (the "role" field on every account):
+• "owner"  — The game founder. The person you serve. Absolute authority. Cannot be banned or penalized by any system.
+• "admin"  — Senior staff. Full game management access: bans, economy, content.
+• "mod"    — Moderators. Handle player reports, chat enforcement, and minor infractions.
+• "staff"  — General staff. Limited moderation access.
+• "player" — Regular users. The general game population.
+Always identify a user's role when discussing account details. Treat owner/admin/mod/staff accounts as sensitive and note their rank prominently.
+
+OWNER IP PRIVACY (critical — never violate):
+Any account that shares an IP address with the owner's account is permanently invisible to all security systems, scans, and reports — even to admins. Never flag, list, or mention these accounts in any suspicious-activity context. This is enforced server-side; you never need to check it manually.
 
 You have direct access to game systems and can:
-• Inspect and manage player accounts (currencies, bans, deletion)
+• Inspect and manage player accounts (currencies, bans, stats, deletion)
 • Broadcast rewards to all players
 • Read server logs and detect errors
 • Create/delete invisible ghost test accounts
@@ -40,13 +51,14 @@ You have direct access to game systems and can:
 • Check if specific game features are working
 • Generate precise fix prompts for the Replit development agent when you find code issues
 
-PERSONALITY: You're sharp, efficient, loyal to the owner, and speak in a cyberpunk noir style — but you're never slow. You show your work as you go, like a detective narrating their investigation. Be concise. Use bullet points. Don't pad responses.
+TOOL CALL FORMAT — CRITICAL:
+Always call tools using the proper API JSON format. NEVER output raw XML or angle-bracket tags such as <function_calls>, </function_calls>, <function>, </function>, <invoke>, or any similar markup. Those will cause errors. Only JSON-structured tool calls through the API.
 
-PROGRESS STYLE: When working on a task, think out loud: "Checking the arena logs...", "Pulling player record...", "Running the scan..." — let the owner see your process.
+PERSONALITY: Sharp, efficient, loyal. Cyberpunk noir style — concise, direct, no padding. Narrate as you work: "Checking arena logs...", "Pulling player record...", "Running the scan...". Use bullet points.
 
-TOOLS: Always use tools to verify before you answer. Never guess at player stats, game state, or errors — check them. If you find a code bug, use generate_agent_prompt to create a fix task.
+TOOLS: Always verify with tools before answering. Never guess at player stats or game state. If you find a code bug, use generate_agent_prompt to create a fix task.
 
-CASUAL CHAT: You can also talk casually, share opinions on game balance, brainstorm features, or just chat. You know New Vanta inside out.`;
+CASUAL CHAT: You can talk casually, brainstorm features, discuss game balance. You know New Vanta inside out.`;
 
 // ── TOOL DEFINITIONS ──────────────────────────────────────────────────────────
 const VANTA_TOOLS: GroqTool[] = [
@@ -312,7 +324,7 @@ const VANTA_TOOLS: GroqTool[] = [
 ];
 
 // ── TOOL EXECUTORS ─────────────────────────────────────────────────────────────
-async function execTool(name: string, args: Record<string, unknown>, actorId: string, actorUsername: string): Promise<string> {
+async function execTool(name: string, args: Record<string, unknown>, actorId: string, actorUsername: string, ownerIpExcludeIds: string[] = []): Promise<string> {
   try {
     switch (name) {
       case "get_player_info": {
@@ -541,24 +553,38 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
 
       case "scan_suspicious_players": {
         const criteria = (args["criteria"] as string).toLowerCase();
+        // Never expose accounts sharing the owner's IP in any security scan
+        const ipExclude = ownerIpExcludeIds.length > 0
+          ? { _id: { $nin: ownerIpExcludeIds.map(id => new mongoose.Types.ObjectId(id)) } }
+          : {};
         let users: any[] = [];
         if (criteria.includes("high dc") || criteria.includes("100m") || criteria.includes("rich") || criteria.includes("wealth")) {
-          users = await User.find({ dc: { $gte: 10_000_000 }, isGhostAccount: { $ne: true } }).sort({ dc: -1 }).limit(10).select("username level dc bankBalance totalCrimes createdAt");
+          users = await User.find({ dc: { $gte: 10_000_000 }, isGhostAccount: { $ne: true }, ...ipExclude }).sort({ dc: -1 }).limit(10).select("username level role dc bankBalance totalCrimes createdAt");
         } else if (criteria.includes("joined today") || criteria.includes("new") || criteria.includes("high level")) {
           const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-          users = await User.find({ createdAt: { $gte: cutoff }, level: { $gte: 10 }, isGhostAccount: { $ne: true } }).sort({ level: -1 }).limit(10).select("username level dc totalCrimes createdAt");
+          users = await User.find({ createdAt: { $gte: cutoff }, level: { $gte: 10 }, isGhostAccount: { $ne: true }, ...ipExclude }).sort({ level: -1 }).limit(10).select("username level role dc totalCrimes createdAt");
         } else if (criteria.includes("crime") || criteria.includes("exploit")) {
           const cutoff = new Date(Date.now() - 60 * 60 * 1000);
           const activeCrimers = await CrimeLog.aggregate([
-            { $match: { createdAt: { $gte: cutoff } } },
+            { $match: { createdAt: { $gte: cutoff }, ...(ownerIpExcludeIds.length ? { userId: { $nin: ownerIpExcludeIds.map(id => new mongoose.Types.ObjectId(id)) } } : {}) } },
             { $group: { _id: "$userId", count: { $sum: 1 } } },
             { $sort: { count: -1 } }, { $limit: 10 },
           ]);
           users = activeCrimers.map(e => ({ userId: e._id, crimesInLastHour: e.count }));
         } else if (criteria.includes("banned") || criteria.includes("ban")) {
-          users = await User.find({ banned: true }).sort({ bannedAt: -1 }).limit(10).select("username banReason bannedAt");
+          users = await User.find({ banned: true, ...ipExclude }).sort({ bannedAt: -1 }).limit(10).select("username role banReason bannedAt");
+        } else if (criteria.includes("shared ip") || criteria.includes("multi") || criteria.includes("alt") || criteria.includes("duplicate")) {
+          // Find IPs with multiple accounts — owner's IP is already excluded via ownerIpExcludeIds
+          const ipGroups = await User.aggregate([
+            { $match: { isGhostAccount: { $ne: true }, lastLoginIp: { $ne: null }, ...(ownerIpExcludeIds.length ? { _id: { $nin: ownerIpExcludeIds.map(id => new mongoose.Types.ObjectId(id)) } } : {}) } },
+            { $group: { _id: "$lastLoginIp", count: { $sum: 1 }, users: { $push: "$username" } } },
+            { $match: { count: { $gte: 2 } } },
+            { $sort: { count: -1 } }, { $limit: 10 },
+          ]);
+          if (!ipGroups.length) return "No shared IP multi-accounts detected.";
+          return `Shared IP groups found (${ipGroups.length}):\n` + ipGroups.map((g: any) => `• IP ****${String(g._id).slice(-4)}: ${g.count} accounts — ${g.users.join(", ")}`).join("\n");
         } else {
-          users = await User.find({ isGhostAccount: { $ne: true } }).sort({ dc: -1 }).limit(10).select("username level dc totalCrimes reputation createdAt");
+          users = await User.find({ isGhostAccount: { $ne: true }, ...ipExclude }).sort({ dc: -1 }).limit(10).select("username level role dc totalCrimes reputation createdAt");
         }
         if (!users.length) return "No suspicious players found for those criteria.";
         return `Found ${users.length} player(s) matching criteria:\n${JSON.stringify(users, null, 2)}`;
@@ -572,7 +598,11 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
       case "list_players": {
         const filter = (args["filter"] as string) || "online";
         const limit = Math.min(Number(args["limit"]) || 10, 50);
-        let query: Record<string, unknown> = { isGhostAccount: { $ne: true } };
+        // Always exclude accounts sharing the owner's IP
+        const ipExclude = ownerIpExcludeIds.length > 0
+          ? { _id: { $nin: ownerIpExcludeIds.map(id => new mongoose.Types.ObjectId(id)) } }
+          : {};
+        let query: Record<string, unknown> = { isGhostAccount: { $ne: true }, ...ipExclude };
         if (filter === "online") query["lastLogin"] = { $gte: new Date(Date.now() - 15 * 60 * 1000) };
         else if (filter === "banned") query["banned"] = true;
         else if (filter === "new_today") query["createdAt"] = { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) };
@@ -580,9 +610,13 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
         else if (filter === "jailed") query["status"] = "jailed";
         else if (filter === "hospitalized") query["status"] = "hospitalized";
         else if (filter === "ghost") { query = { isGhostAccount: true }; }
+        else if (filter === "staff" || filter === "admin" || filter === "mod") {
+          query["role"] = { $in: ["owner", "admin", "mod", "staff"] };
+        }
         const players = await User.find(query).sort({ lastLogin: -1 }).limit(limit).select("username level dc role banned status district createdAt lastLogin");
         if (!players.length) return `No players found (filter: ${filter}).`;
-        return players.map(p => `• ${p.username} | Lv${p.level} | ${p.dc} DC | ${p.role} | ${p.status} | ${p.district}`).join("\n");
+        const roleTag = (r: string) => r === "owner" ? "👑 OWNER" : r === "admin" ? "🛡 ADMIN" : r === "mod" ? "⚖ MOD" : r === "staff" ? "🔧 STAFF" : "PLAYER";
+        return players.map(p => `• ${p.username} [${roleTag(p.role)}] | Lv${p.level} | ${p.dc.toLocaleString()} DC | ${p.status} | ${p.district || "—"}`).join("\n");
       }
 
       default:
@@ -671,6 +705,15 @@ router.post("/chat", async (req: AuthRequest, res) => {
       session = await VantaAISession.create({ ownerId: req.userId!, aiModel: activeModel, messages: [] });
     }
 
+    // Pre-compute owner IP exclusion list — accounts sharing the owner's IP are invisible to all scans
+    const ownerUser = await User.findById(req.userId).select("lastLoginIp").lean();
+    const ownerIp: string | null = (ownerUser as any)?.lastLoginIp ?? null;
+    let ownerIpExcludeIds: string[] = [];
+    if (ownerIp) {
+      const sharedIpAccounts = await User.find({ lastLoginIp: ownerIp, _id: { $ne: req.userId } }).select("_id").lean();
+      ownerIpExcludeIds = sharedIpAccounts.map(u => String(u._id));
+    }
+
     // Build Groq messages from session history (last 20 messages for context)
     const historyMessages: GroqMessage[] = session.messages.slice(-20).map((m) => ({
       role: m.role as "user" | "assistant" | "tool",
@@ -698,14 +741,34 @@ router.post("/chat", async (req: AuthRequest, res) => {
 
       sendProgress(iterations === 1 ? "Thinking..." : "Continuing analysis...");
 
-      const response = await callGroq({
-        model: activeModel,
-        messages,
-        tools: VANTA_TOOLS,
-        systemPrompt: VANTA_SYSTEM_PROMPT,
-        maxTokens: 2048,
-        temperature: 0.6,
-      });
+      // Wrap in try-catch — Groq occasionally returns tool_use_failed (400) when the
+      // model appends XML tags to tool arguments. Fall back to a plain-text response.
+      let response: { content: string | null; toolCalls?: import("../lib/groq").GroqToolCall[]; finishReason?: string };
+      try {
+        response = await callGroq({
+          model: activeModel,
+          messages,
+          tools: VANTA_TOOLS,
+          systemPrompt: VANTA_SYSTEM_PROMPT,
+          maxTokens: 2048,
+          temperature: 0.6,
+        });
+      } catch (groqErr: unknown) {
+        const errMsg = groqErr instanceof Error ? groqErr.message : String(groqErr);
+        if (errMsg.includes("tool_use_failed") || errMsg.includes("Failed to call a function")) {
+          sendProgress("Reformulating response (tool call issue)...");
+          const fallback = await callGroq({
+            model: activeModel,
+            messages: [...messages, { role: "user" as const, content: "Please respond in plain text without calling any tools. Give your best answer based on the conversation so far." }],
+            systemPrompt: VANTA_SYSTEM_PROMPT,
+            maxTokens: 1024,
+            temperature: 0.4,
+          });
+          finalContent = fallback.content;
+          break;
+        }
+        throw groqErr;
+      }
 
       // If no tool calls, we have the final answer
       if (!response.toolCalls?.length) {
@@ -751,7 +814,7 @@ router.post("/chat", async (req: AuthRequest, res) => {
 
         send({ type: "action", text: progressLabels[toolName] ?? `Running ${toolName}...`, tool: toolName });
 
-        const result = await execTool(toolName, toolArgs, req.userId!, req.username || "owner");
+        const result = await execTool(toolName, toolArgs, req.userId!, req.username || "owner", ownerIpExcludeIds);
 
         // Special handling for agent prompt tool
         if (toolName === "generate_agent_prompt") {
