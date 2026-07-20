@@ -57,6 +57,8 @@ import businessesRouter from "./businesses";
 import factionsRouter from "./factions";
 import cosmeticsRouter from "./cosmetics";
 import eventsRouter from "./events";
+import battlePassRouter, { ownerBattlePassRouter } from "./battle-pass";
+import questsRouter from "./quests";
 
 const router: IRouter = Router();
 
@@ -118,5 +120,8 @@ router.use("/businesses", businessesRouter);
 router.use("/factions", factionsRouter);
 router.use("/cosmetics", cosmeticsRouter);
 router.use("/events", eventsRouter);
+router.use("/battle-pass", battlePassRouter);
+router.use("/quests", questsRouter);
+router.use("/owner/battle-pass", ownerBattlePassRouter);
 
 export default router;

@@ -87,6 +87,11 @@ export interface User {
   telegramNotifications: boolean;
   seasonXp: number;
   seasonPoints: number;
+  seasonLevel: number;
+  premiumPassEventId: string | null;
+  claimedPassRewards: string[];
+  dailyQuests: Array<{ questId: string; progress: number; completed: boolean; claimedAt: string | null; assignedAt: string | null }>;
+  weeklyQuests: Array<{ questId: string; progress: number; completed: boolean; claimedAt: string | null; assignedWeek: string | null }>;
   craftingXp: number;
   mutedUsers: string[];
   blockedUsers: string[];

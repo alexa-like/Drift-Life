@@ -707,7 +707,7 @@ In the owner panel, add an "Event Game Modes" section:
 ---
 
 ## TIER 5 — BATTLE PASS + SEASONS + DAILY & WEEKLY QUESTS
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Build the battle pass system (event-only, not pay-to-win), named seasons, and daily/weekly quests.
 

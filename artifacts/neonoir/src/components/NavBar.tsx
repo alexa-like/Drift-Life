@@ -3,7 +3,7 @@ import {
   Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard,
   BarChart2, Gavel, Building2, Dumbbell, Briefcase, Car, Globe, Cpu, Shield, Swords, Crosshair,
   Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark,
-  Wrench, Trophy, Gift, PawPrint, Bell, Settings, Flag, CalendarDays, type LucideIcon,
+  Wrench, Trophy, Gift, PawPrint, Bell, Settings, Flag, CalendarDays, Star, type LucideIcon,
 } from "lucide-react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
@@ -66,6 +66,7 @@ const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minS
   { id: "bank",         label: "Bank",     icon: Landmark,      statusFilter: "normal" },
   // { id: "crafting",  label: "Craft",    icon: Wrench,        statusFilter: "normal" }, // frozen
   { id: "events",       label: "Event",    icon: CalendarDays },
+  { id: "battle-pass",  label: "Pass",     icon: Star },
   { id: "achievements", label: "Achiev",   icon: Trophy },
   { id: "daily",        label: "Daily",    icon: Gift },
   // { id: "companions", label: "Allies",  icon: PawPrint,      statusFilter: "normal" }, // frozen

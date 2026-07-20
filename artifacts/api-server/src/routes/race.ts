@@ -19,6 +19,8 @@ import { fireMissionEvent } from "../lib/missionEvents";
 import { checkAchievements } from "./achievements";
 import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
 import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
+import { awardBattlePassXp } from "../lib/battlePassXp";
+import { updateQuestProgress } from "../lib/questProgress";
 
 const router = Router();
 
@@ -731,6 +733,8 @@ async function grantRaceRewards(match: any) {
     // Event points — "race_1st" for winner, "race_finish" for all placements
     const raceAction = placement === 1 ? "race_1st" : "race_finish";
     awardEventPoints({ userId: String(p.userId), username: u.username, action: raceAction, io: (match as any)._io }).catch(() => {});
+    awardBattlePassXp(String(p.userId), raceAction).catch(() => {});
+    updateQuestProgress(String(p.userId), placement === 1 ? "race_1st" : "race_finish").catch(() => {});
   }
 }
 

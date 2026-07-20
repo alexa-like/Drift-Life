@@ -53,6 +53,7 @@ import { StorePage } from "./pages/StorePage";
 import EventPage from "./pages/EventPage";
 import UpcomingEventsPage from "./pages/UpcomingEventsPage";
 import EventArchivePage from "./pages/EventArchivePage";
+import BattlePassPage from "./pages/BattlePassPage";
 import { NavBar } from "./components/NavBar";
 import { PageTransition } from "./components/PageTransition";
 import { ToastContainer } from "./components/ToastContainer";
@@ -312,6 +313,7 @@ function GameApp() {
       case "events":        return <EventPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "events-upcoming": return <UpcomingEventsPage onNavigate={setPage} />;
       case "events-archive":  return <EventArchivePage onNavigate={setPage} />;
+      case "battle-pass":     return <BattlePassPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "arena":         return <ArenaHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "arena-combat":  return <ArenaCombatPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "race-hub":      return <RaceHubPage user={user!} addToast={addToast} onNavigate={setPage} />;

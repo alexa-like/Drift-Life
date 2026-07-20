@@ -32,6 +32,8 @@ import { pursuitResolveSchema, crimesLaunderSchema } from "../lib/schemas";
 import Item from "../models/Item";
 import { getGameConfig } from "../lib/gameConfig";
 import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
+import { awardBattlePassXp } from "../lib/battlePassXp";
+import { updateQuestProgress } from "../lib/questProgress";
 
 const router = Router();
 
@@ -320,6 +322,8 @@ router.post("/district/:crimeId/commit", requireAuth, async (req: AuthRequest, r
       user.successfulCrimes += 1;
       narrative = `${crime.name} successful. +${dcGained} DC.`;
       awardEventPoints({ userId: String(req.userId), username: user.username, action: "crime_success", io: req.app.locals["io"] }).catch(() => {});
+      awardBattlePassXp(String(req.userId), "crime_success").catch(() => {});
+      updateQuestProgress(String(req.userId), "crime_success").catch(() => {});
     } else {
       // Jailed in this district
       const jailMult = DISTRICT_JAIL_MULTIPLIERS[user.currentLocation] ?? 1.0;
@@ -590,6 +594,8 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
 
     if (success) {
       awardEventPoints({ userId: String(req.userId), username: rewarded.username, action: "crime_success", io: req.app.locals["io"] }).catch(() => {});
+      awardBattlePassXp(String(req.userId), "crime_success").catch(() => {});
+      updateQuestProgress(String(req.userId), "crime_success").catch(() => {});
     }
     checkAchievements(String(req.userId)).catch(() => {});
     _incrementCrimeRuns(String(req.userId)); // track hourly rate limit

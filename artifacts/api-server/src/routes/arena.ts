@@ -20,6 +20,8 @@ import { checkAchievements } from "./achievements";
 import { emitFeedEvent } from "../lib/feedEvents";
 import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
 import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
+import { awardBattlePassXp } from "../lib/battlePassXp";
+import { updateQuestProgress } from "../lib/questProgress";
 
 const router = Router();
 
@@ -1724,6 +1726,8 @@ async function grantCombatRewards(match: any) {
     // Event points — arena_win for winner, arena_loss for loser
     const arenaAction = isDraw ? "arena_draw" : isWinner ? "arena_win" : "arena_loss";
     awardEventPoints({ userId, username: u.username, action: arenaAction, io: (match as any)._io }).catch(() => {});
+    awardBattlePassXp(userId, arenaAction).catch(() => {});
+    updateQuestProgress(userId, isWinner ? "arena_win" : "arena_fight").catch(() => {});
 
     const capNote = dcMult < 1 ? ` (${matchesToday >= HALF_CAP ? "XP only" : "50% cap"})` : "";
     const notifTitle = isDraw ? "Combat Draw" : isWinner ? "Combat Victory! 🏆" : "Combat Defeat";

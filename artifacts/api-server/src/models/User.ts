@@ -19,6 +19,11 @@ export interface IUser extends Document {
   prestigeXpBoost: number;   // e.g. 10 means +10% XP
   seasonXp: number;
   seasonPoints: number;
+  seasonLevel: number;
+  premiumPassEventId: string | null;
+  claimedPassRewards: string[];
+  dailyQuests: Array<{ questId: string; progress: number; completed: boolean; claimedAt: Date | null; assignedAt: Date | null }>;
+  weeklyQuests: Array<{ questId: string; progress: number; completed: boolean; claimedAt: Date | null; assignedWeek: string | null }>;
   dc: number;
   nc: number;
   dirtyDc: number;   // unclean cash from Runs — needs laundering
@@ -244,6 +249,25 @@ const UserSchema = new Schema<IUser>(
     prestigeXpBoost: { type: Number, default: 0 },
     seasonXp: { type: Number, default: 0 },
     seasonPoints: { type: Number, default: 0 },
+    seasonLevel: { type: Number, default: 0 },
+    premiumPassEventId: { type: String, default: null },
+    claimedPassRewards: [{ type: String }],
+    dailyQuests: [{
+      questId:    { type: String },
+      progress:   { type: Number, default: 0 },
+      completed:  { type: Boolean, default: false },
+      claimedAt:  { type: Date, default: null },
+      assignedAt: { type: Date, default: null },
+      _id: false,
+    }],
+    weeklyQuests: [{
+      questId:      { type: String },
+      progress:     { type: Number, default: 0 },
+      completed:    { type: Boolean, default: false },
+      claimedAt:    { type: Date, default: null },
+      assignedWeek: { type: String, default: null },
+      _id: false,
+    }],
     dc: { type: Number, default: 750 },
     nc: { type: Number, default: 0 },
     dirtyDc: { type: Number, default: 0 },
