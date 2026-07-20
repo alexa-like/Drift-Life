@@ -166,6 +166,9 @@ export interface IUser extends Document {
   gameTheme: string;                   // active UI theme id
   uiScale: number;                     // Settings > Appearance UI zoom (0.6–1.2), synced per-account
   uiTheme: 'dark' | 'light';           // Settings > Appearance color theme, synced per-account
+  navOrder: string[];                  // custom nav bar order; empty [] = use system/owner default
+  defaultPage: string | null;          // preferred landing page; null = system default
+  isGhostAccount: boolean;             // Vanta test account — invisible to all public endpoints
   // ── System 1: Daily Login Reward & Streak ───────────────────────────────
   loginStreak: number;
   lastLoginDate: Date | null;
@@ -392,6 +395,9 @@ const UserSchema = new Schema<IUser>(
     gameTheme: { type: String, default: "default" },
     uiScale: { type: Number, default: 0.85 },
     uiTheme: { type: String, enum: ["dark", "light"], default: "dark" },
+    navOrder: { type: [String], default: [] },
+    defaultPage: { type: String, default: null },
+    isGhostAccount: { type: Boolean, default: false, index: true },
     // ── System 1: Daily Login Reward & Streak ─────────────────────────────
     loginStreak: { type: Number, default: 0 },
     lastLoginDate: { type: Date, default: null },

@@ -110,6 +110,9 @@ export interface User {
   gameTheme: string;
   uiScale?: number;
   uiTheme?: "dark" | "light";
+  navOrder?: string[];
+  defaultPage?: string | null;
+  isGhostAccount?: boolean;
   // ── Mini-game currencies (Tier 2+) ─────────────────────────────────────────
   keys: number;
   keyShards: number;

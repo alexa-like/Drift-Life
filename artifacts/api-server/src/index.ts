@@ -15,6 +15,8 @@ import { expireMarketListings } from "./routes/market";
 import { postWeeklyRecap, pruneFeed } from "./routes/leaderboard";
 import { postWeeklyBanRecap } from "./lib/banRecap";
 import { tickBusinessIncome } from "./lib/businessIncomeWorker";
+import VantaScheduledTask from "./models/VantaScheduledTask";
+import { pushLog } from "./lib/logBuffer";
 
 const rawPort = process.env["PORT"] ?? "3000";
 const port = Number(rawPort);
@@ -273,6 +275,53 @@ async function start() {
 
     // Bot-operated auction house: periodically spins up new Epic/Legendary auctions.
     scheduleBotAuctions();
+
+    // ── Vanta scheduled tasks: check every 60s ────────────────────────────────
+    setInterval(async () => {
+      try {
+        const now = new Date();
+        const dueTasks = await VantaScheduledTask.find({ status: "pending", runAt: { $lte: now } });
+        for (const task of dueTasks) {
+          task.status = "running";
+          task.executedAt = new Date();
+          await task.save();
+          try {
+            let result = "";
+            const p = task.payload as Record<string, unknown>;
+            if (task.type === "scan_cheaters") {
+              const suspects = await (await import("./models/User")).default
+                .find({ dc: { $gte: 50_000_000 }, isGhostAccount: { $ne: true } })
+                .select("username dc totalCrimes createdAt").limit(20);
+              result = `Scan done. ${suspects.length} high-DC players: ${suspects.map((u: any) => `${u.username}(${u.dc.toLocaleString()}DC)`).join(", ")}`;
+            } else if (task.type === "mass_currency" && p["currency"] && Number(p["amount"]) > 0) {
+              const UserModel = (await import("./models/User")).default;
+              const r = await UserModel.updateMany({ banned: false, isGhostAccount: { $ne: true } }, { $inc: { [p["currency"] as string]: Number(p["amount"]) } });
+              result = `Mass currency done: +${p["amount"]} ${p["currency"]} to ${r.modifiedCount} players`;
+            } else if (task.type === "wipe_test_accounts") {
+              const UserModel = (await import("./models/User")).default;
+              const r = await UserModel.deleteMany({ isGhostAccount: true });
+              result = `Wiped ${r.deletedCount} ghost test accounts`;
+            } else if (task.type === "mass_ban_check") {
+              const UserModel = (await import("./models/User")).default;
+              const cnt = await UserModel.countDocuments({ banned: true });
+              result = `Ban check: ${cnt} accounts currently banned`;
+            } else {
+              result = `Task "${task.label}" executed (type: ${task.type})`;
+            }
+            task.status = "done";
+            task.result = result;
+            pushLog("info", `Vanta scheduled task "${task.label}" done`, result);
+          } catch (err: unknown) {
+            task.status = "failed";
+            task.errorMessage = String(err);
+            pushLog("error", `Vanta task "${task.label}" failed`, String(err));
+          }
+          await task.save();
+        }
+      } catch (err) {
+        logger.error({ err }, "Vanta scheduled task runner error");
+      }
+    }, 60_000);
 
     // ── Market listing expiry: run every hour ─────────────────────────────────
     setInterval(() => {

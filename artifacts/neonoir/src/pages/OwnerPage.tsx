@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
 import { formatDC } from "../lib/format";
@@ -90,7 +90,8 @@ interface EconomyGameConfig {
 }
 interface GameCatalog { runs: RunCatalogEntry[]; jobs: JobCatalogEntry[]; staffTiers: Record<string, StaffTierEntry>; }
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy" | "database";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy" | "database" | "vanta-ai" | "defaults";
+type VantaMsg = { role: "user" | "vanta" | "progress" | "action" | "result" | "agent_prompt" | "error"; text: string; tool?: string; summary?: string; prompt?: string; };
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
   const [tab, setTab] = useState<Tab>("stats");
@@ -203,6 +204,21 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [massReason, setMassReason] = useState("");
   const [massGranting, setMassGranting] = useState(false);
   const [massGrantConfirm, setMassGrantConfirm] = useState(false);
+  // ── Vanta AI state ──────────────────────────────────────────────────────────
+  const [vantaMessages, setVantaMessages] = useState<VantaMsg[]>([]);
+  const [vantaInput, setVantaInput] = useState("");
+  const [vantaAiLoading, setVantaAiLoading] = useState(false);
+  const [vantaSessionId, setVantaSessionId] = useState<string | null>(null);
+  const [vantaModel, setVantaModel] = useState("llama-3.3-70b-versatile");
+  const [vantaAiModels, setVantaAiModels] = useState<{ id: string; label: string; description: string }[]>([]);
+  const [vantaPingResult, setVantaPingResult] = useState<number | null>(null);
+  const [vantaPinging, setVantaPinging] = useState(false);
+  const vantaChatRef = useRef<HTMLDivElement>(null);
+  // ── Defaults tab state ──────────────────────────────────────────────────────
+  const [ownerDefaults, setOwnerDefaults] = useState<{ uiScale: number; navOrder: string[]; defaultPage: string } | null>(null);
+  const [savingDefaults, setSavingDefaults] = useState(false);
+  const [defaultsUiScale, setDefaultsUiScale] = useState(0.85);
+  const [defaultsDefaultPage, setDefaultsDefaultPage] = useState("dashboard");
   // Giveaways tab
   const [ownerGiveDc, setOwnerGiveDc] = useState("0");
   const [ownerGiveUc, setOwnerGiveUc] = useState("0");
@@ -465,6 +481,19 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   useEffect(() => { if (tab === "patch-notes") loadPatchNotes(); }, [tab, loadPatchNotes]);
   useEffect(() => { if (tab === "items") loadShopItems(); }, [tab, loadShopItems]);
   useEffect(() => {
+    if (tab === "vanta-ai" && !vantaAiModels.length) {
+      api.get<{ models: { id: string; label: string; description: string }[] }>("/vanta-ai/models")
+        .then(r => setVantaAiModels(r.models)).catch(() => {});
+    }
+  }, [tab]); // eslint-disable-line
+  useEffect(() => {
+    if (tab === "defaults") {
+      api.get<{ defaults: { uiScale: number; navOrder: string[]; defaultPage: string } }>("/owner/new-account-defaults")
+        .then(r => { setOwnerDefaults(r.defaults); setDefaultsUiScale(r.defaults.uiScale ?? 0.85); setDefaultsDefaultPage(r.defaults.defaultPage ?? "dashboard"); })
+        .catch(() => {});
+    }
+  }, [tab]);
+  useEffect(() => {
     if (tab === "grants") {
       api.get<{ active: boolean; multiplier: number; expiresAt?: string }>("/owner/xp-boost")
         .then(setXpBoostInfo).catch(() => {});
@@ -562,6 +591,85 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
       setMassDc("0"); setMassNc("0"); setMassKeys("0"); setMassReason("");
     } catch (e: any) { addToast(e.message, "error"); }
     finally { setMassGranting(false); }
+  }
+
+  // ── Vanta AI functions ─────────────────────────────────────────────────────
+  async function sendToVanta() {
+    const msg = vantaInput.trim();
+    if (!msg || vantaAiLoading) return;
+    setVantaInput("");
+    setVantaAiLoading(true);
+    setVantaMessages(prev => [...prev, { role: "user", text: msg }]);
+    const token = localStorage.getItem("accessToken");
+    try {
+      const resp = await fetch("/api/vanta-ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ message: msg, sessionId: vantaSessionId, model: vantaModel }),
+      });
+      if (!resp.ok || !resp.body) {
+        const e = await resp.json().catch(() => ({ message: "Request failed" }));
+        throw new Error(e.message);
+      }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) { try { handleVantaEvent(JSON.parse(line.slice(6))); } catch { /* ignore */ } }
+        }
+      }
+    } catch (err: any) {
+      setVantaMessages(prev => [...prev, { role: "error", text: err.message || "Connection error. Is the API server running?" }]);
+    } finally { setVantaAiLoading(false); }
+  }
+
+  function handleVantaEvent(data: Record<string, unknown>) {
+    const type = data["type"] as string;
+    const text = (data["text"] as string) || "";
+    if (type === "progress") {
+      setVantaMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "progress") return [...prev.slice(0, -1), { role: "progress" as const, text }];
+        return [...prev, { role: "progress" as const, text }];
+      });
+    } else if (type === "action") {
+      setVantaMessages(prev => [...prev, { role: "action" as const, text, tool: data["tool"] as string }]);
+    } else if (type === "result") {
+      setVantaMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "action") return [...prev.slice(0, -1), { role: "result" as const, text, tool: last.tool }];
+        return [...prev, { role: "result" as const, text }];
+      });
+    } else if (type === "message") {
+      setVantaMessages(prev => {
+        const filtered = [...prev];
+        if (filtered.length > 0 && filtered[filtered.length - 1].role === "progress") filtered.pop();
+        return [...filtered, { role: "vanta" as const, text }];
+      });
+    } else if (type === "agent_prompt") {
+      setVantaMessages(prev => [...prev, { role: "agent_prompt" as const, text: data["summary"] as string, summary: data["summary"] as string, prompt: data["prompt"] as string }]);
+    } else if (type === "done") {
+      if (data["sessionId"]) setVantaSessionId(data["sessionId"] as string);
+    } else if (type === "error") {
+      setVantaMessages(prev => [...prev, { role: "error" as const, text }]);
+    }
+    setTimeout(() => { vantaChatRef.current?.scrollTo({ top: vantaChatRef.current.scrollHeight, behavior: "smooth" }); }, 50);
+  }
+
+  async function saveOwnerDefaults() {
+    setSavingDefaults(true);
+    try {
+      const r = await api.patch<{ message: string; defaults: { uiScale: number; navOrder: string[]; defaultPage: string } }>("/owner/new-account-defaults", { uiScale: defaultsUiScale, defaultPage: defaultsDefaultPage });
+      setOwnerDefaults(r.defaults);
+      addToast("New account defaults saved!", "success");
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setSavingDefaults(false); }
   }
 
   async function banUser(userId: string) {
@@ -800,6 +908,14 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         <button onClick={() => setTab("mass-actions")} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "mass-actions" ? "#ff6b3518" : "#111118", color: tab === "mass-actions" ? "#ff6b35" : "#475569", border: `1px solid ${tab === "mass-actions" ? "#ff6b3540" : "#1e1e2e"}` }}>
           📢 Mass Actions
+        </button>
+        <button onClick={() => setTab("vanta-ai")} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "vanta-ai" ? "#a855f718" : "#111118", color: tab === "vanta-ai" ? "#a855f7" : "#475569", border: `1px solid ${tab === "vanta-ai" ? "#a855f740" : "#1e1e2e"}` }}>
+          🤖 Vanta AI
+        </button>
+        <button onClick={() => setTab("defaults")} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "defaults" ? "#f59e0b18" : "#111118", color: tab === "defaults" ? "#f59e0b" : "#475569", border: `1px solid ${tab === "defaults" ? "#f59e0b40" : "#1e1e2e"}` }}>
+          ⚙ Defaults
         </button>
       </div>
 
@@ -2457,6 +2573,170 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── VANTA AI TAB ─────────────────────────────────────────── */}
+      {tab === "vanta-ai" && (
+        <div style={{ display: "flex", flexDirection: "column", height: "75vh", gap: 8 }}>
+          {/* Header */}
+          <div style={{ padding: "10px 16px", background: "#0a0a12", border: "1px solid #a855f740", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <div>
+              <div className="font-mono font-bold" style={{ color: "#a855f7", fontSize: 14, letterSpacing: 2 }}>⬡ VANTA AI</div>
+              <div className="font-mono" style={{ color: "#64748b", fontSize: 10 }}>Private Intelligence · Owner Only</div>
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+              <select value={vantaModel} onChange={e => setVantaModel(e.target.value)}
+                style={{ background: "#111118", color: "#a855f7", border: "1px solid #a855f740", borderRadius: 4, padding: "4px 8px", fontSize: 11, fontFamily: "monospace" }}>
+                {(vantaAiModels.length ? vantaAiModels : [
+                  { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B (Versatile)" },
+                  { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B (Fast)" },
+                  { id: "gemma2-9b-it", label: "Gemma 2 9B" },
+                ]).map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+              <button
+                onClick={async () => {
+                  setVantaPinging(true); setVantaPingResult(null);
+                  try {
+                    const r = await api.post<{ ok: boolean; latencyMs: number }>("/vanta-ai/models/ping", { model: vantaModel });
+                    setVantaPingResult(r.ok ? r.latencyMs : -1);
+                  } catch { setVantaPingResult(-1); } finally { setVantaPinging(false); }
+                }}
+                disabled={vantaPinging}
+                style={{ background: "#a855f718", color: vantaPingResult === null ? "#a855f7" : vantaPingResult < 0 ? "#ff2d55" : "#39d353", border: "1px solid #a855f740", borderRadius: 4, padding: "4px 8px", fontSize: 11, fontFamily: "monospace", cursor: "pointer" }}>
+                {vantaPinging ? "..." : vantaPingResult === null ? "Ping" : vantaPingResult < 0 ? "✗ Err" : `✓ ${vantaPingResult}ms`}
+              </button>
+              <button
+                onClick={() => { api.delete("/vanta-ai/session").catch(() => {}); setVantaMessages([]); setVantaSessionId(null); }}
+                style={{ background: "#ff2d5518", color: "#ff2d55", border: "1px solid #ff2d5540", borderRadius: 4, padding: "4px 8px", fontSize: 11, fontFamily: "monospace", cursor: "pointer" }}>
+                New Chat
+              </button>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div ref={vantaChatRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: "4px 0" }}>
+            {vantaMessages.length === 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16 }}>
+                <div style={{ fontSize: 40, filter: "drop-shadow(0 0 20px #a855f760)" }}>⬡</div>
+                <div className="font-mono text-sm" style={{ color: "#a855f7" }}>Vanta is online</div>
+                <div className="font-mono text-xs" style={{ color: "#475569", textAlign: "center", maxWidth: 320 }}>
+                  Ask me to check features, manage players, scan for cheaters, schedule tasks, or read server logs.
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", maxWidth: 400 }}>
+                  {["Check the crimes system", "Give all players 500 DC", "Scan for suspicious players", "List scheduled tasks", "What features need attention?", "Create a test ghost account"].map(q => (
+                    <button key={q} onClick={() => setVantaInput(q)}
+                      style={{ background: "#a855f718", color: "#a855f7", border: "1px solid #a855f740", borderRadius: 4, padding: "4px 10px", fontSize: 10, fontFamily: "monospace", cursor: "pointer" }}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : vantaMessages.map((msg, i) => {
+              if (msg.role === "user") return (
+                <div key={i} style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div style={{ maxWidth: "75%", background: "#00d4ff18", border: "1px solid #00d4ff40", borderRadius: "12px 12px 0 12px", padding: "8px 12px", fontFamily: "monospace", fontSize: 12, color: "#e2e8f0", lineHeight: 1.5 }}>{msg.text}</div>
+                </div>
+              );
+              if (msg.role === "vanta") return (
+                <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#a855f720", border: "1px solid #a855f740", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0, marginTop: 2 }}>⬡</div>
+                  <div style={{ maxWidth: "80%", background: "#0a0a12", border: "1px solid #a855f730", borderRadius: "0 12px 12px 12px", padding: "8px 12px", fontFamily: "monospace", fontSize: 12, color: "#e2e8f0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{msg.text}</div>
+                </div>
+              );
+              if (msg.role === "progress") return (
+                <div key={i} style={{ textAlign: "center", color: "#a855f7", fontFamily: "monospace", fontSize: 11, padding: "2px 0", opacity: 0.85 }}>◌ {msg.text}</div>
+              );
+              if (msg.role === "action") return (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "#f59e0b10", border: "1px solid #f59e0b30", borderRadius: 4, margin: "0 8px" }}>
+                  <span style={{ color: "#f59e0b", fontSize: 10 }}>▶</span>
+                  <span style={{ fontFamily: "monospace", fontSize: 11, color: "#f59e0b" }}>{msg.tool ? `[${msg.tool}] ` : ""}{msg.text}</span>
+                </div>
+              );
+              if (msg.role === "result") return (
+                <div key={i} style={{ padding: "4px 10px", background: "#39d35308", border: "1px solid #39d35330", borderRadius: 4, margin: "0 8px" }}>
+                  <span style={{ fontFamily: "monospace", fontSize: 10, color: "#39d353" }}>✓ </span>
+                  <span style={{ fontFamily: "monospace", fontSize: 10, color: "#94a3b8" }}>{msg.text}</span>
+                </div>
+              );
+              if (msg.role === "agent_prompt") return (
+                <div key={i} style={{ background: "#ff6b3510", border: "2px solid #ff6b3550", borderRadius: 8, padding: 12, margin: "0 8px" }}>
+                  <div className="font-mono font-bold" style={{ color: "#ff6b35", fontSize: 11, marginBottom: 6 }}>⚡ AGENT FIX PROMPT</div>
+                  <div className="font-mono" style={{ color: "#e2e8f0", fontSize: 11, marginBottom: 8 }}>{msg.summary}</div>
+                  {msg.prompt && (
+                    <div style={{ background: "#0a0a12", borderRadius: 4, padding: "8px 10px", marginBottom: 8, fontFamily: "monospace", fontSize: 10, color: "#94a3b8", whiteSpace: "pre-wrap", maxHeight: 120, overflowY: "auto" }}>{msg.prompt}</div>
+                  )}
+                  <button onClick={() => { if (msg.prompt) { navigator.clipboard.writeText(msg.prompt!); addToast("Prompt copied!", "success"); } }}
+                    style={{ background: "#ff6b3520", color: "#ff6b35", border: "1px solid #ff6b3540", borderRadius: 4, padding: "4px 12px", fontSize: 11, fontFamily: "monospace", cursor: "pointer" }}>
+                    📋 Copy Prompt
+                  </button>
+                </div>
+              );
+              if (msg.role === "error") return (
+                <div key={i} style={{ fontFamily: "monospace", fontSize: 11, color: "#ff2d55", padding: "4px 10px", border: "1px solid #ff2d5530", borderRadius: 4, margin: "0 8px" }}>✗ {msg.text}</div>
+              );
+              return null;
+            })}
+            {vantaAiLoading && (vantaMessages.length === 0 || vantaMessages[vantaMessages.length - 1]?.role !== "progress") && (
+              <div style={{ textAlign: "center", color: "#a855f760", fontFamily: "monospace", fontSize: 11 }}>◌ Vanta is thinking...</div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={vantaInput} onChange={e => setVantaInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendToVanta(); } }}
+              placeholder="Ask Vanta anything — check features, manage players, schedule tasks..."
+              disabled={vantaAiLoading}
+              style={{ flex: 1, background: "#111118", color: "#e2e8f0", border: "1px solid #a855f740", borderRadius: 4, padding: "8px 12px", fontFamily: "monospace", fontSize: 12, outline: "none" }}
+            />
+            <button onClick={sendToVanta} disabled={vantaAiLoading || !vantaInput.trim()}
+              style={{ background: vantaAiLoading ? "#a855f740" : "#a855f7", color: "#fff", border: "none", borderRadius: 4, padding: "8px 20px", fontFamily: "monospace", fontSize: 12, cursor: vantaAiLoading ? "not-allowed" : "pointer", transition: "background 0.2s" }}>
+              {vantaAiLoading ? "●●●" : "Send ↵"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── DEFAULTS TAB ─────────────────────────────────────────── */}
+      {tab === "defaults" && (
+        <div className="space-y-4">
+          <div style={s}>
+            <div className="font-mono font-bold text-sm" style={{ color: "#f59e0b" }}>NEW ACCOUNT DEFAULTS</div>
+            <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>Settings applied to newly created accounts only. Existing players keep their own preferences.</div>
+          </div>
+          <div style={s} className="space-y-5">
+            <div>
+              <div className="font-mono text-xs mb-2" style={{ color: "#94a3b8" }}>Default UI Scale: <span style={{ color: "#f59e0b" }}>{defaultsUiScale.toFixed(2)}×</span></div>
+              <input type="range" min={0.6} max={1.2} step={0.05} value={defaultsUiScale}
+                onChange={e => setDefaultsUiScale(Number(e.target.value))}
+                style={{ width: "100%", accentColor: "#f59e0b" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "monospace", fontSize: 10, color: "#475569", marginTop: 4 }}>
+                <span>0.60 (small)</span><span>0.85 (default)</span><span>1.20 (large)</span>
+              </div>
+            </div>
+            <div>
+              <div className="font-mono text-xs mb-2" style={{ color: "#94a3b8" }}>Default Landing Page</div>
+              <select value={defaultsDefaultPage} onChange={e => setDefaultsDefaultPage(e.target.value)}
+                style={{ background: "#111118", color: "#e2e8f0", border: "1px solid #f59e0b40", borderRadius: 4, padding: "6px 10px", fontFamily: "monospace", fontSize: 11, width: "100%" }}>
+                {["dashboard","feed","chat","crimes","jobs","arena","garage","inventory","store","leaderboard","missions","travel","daily","achievements","friends","profile","settings","auction","guilds","faction","business","training","loadout","city"].map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+            {ownerDefaults && (
+              <div style={{ background: "#0a0a12", borderRadius: 4, padding: "8px 12px", border: "1px solid #1e1e2e" }}>
+                <div className="font-mono text-xs" style={{ color: "#475569" }}>Currently saved defaults:</div>
+                <div className="font-mono text-xs mt-1" style={{ color: "#94a3b8" }}>
+                  Scale: {ownerDefaults.uiScale}× · Page: {ownerDefaults.defaultPage} · Nav items: {ownerDefaults.navOrder?.length || "default"}
+                </div>
+              </div>
+            )}
+            <button onClick={saveOwnerDefaults} disabled={savingDefaults}
+              style={{ background: savingDefaults ? "#1e293b" : "#f59e0b", color: savingDefaults ? "#475569" : "#000", border: "none", borderRadius: 4, padding: "8px 20px", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", cursor: savingDefaults ? "not-allowed" : "pointer" }}>
+              {savingDefaults ? "Saving..." : "💾 Save Defaults for New Accounts"}
+            </button>
+          </div>
         </div>
       )}
 

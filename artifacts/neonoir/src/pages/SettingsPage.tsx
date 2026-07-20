@@ -51,7 +51,10 @@ const INPUT = {
 };
 
 export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
-  const [tab,        setTab]      = useState<"account" | "appearance" | "privacy" | "notifications" | "connect" | "password" | "reset">("account");
+  const [tab,        setTab]      = useState<"account" | "appearance" | "privacy" | "notifications" | "connect" | "password" | "reset" | "navigation">("account");
+  const [navOrder,    setNavOrder]    = useState<string[]>(user.navOrder ?? []);
+  const [defaultPage, setDefaultPage] = useState<string>(user.defaultPage ?? "dashboard");
+  const [savingNav,   setSavingNav]   = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("neonoir_sounds_enabled") === "true");
   const [current,   setCurrent]  = useState("");
@@ -164,6 +167,38 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
 
   const { scale, setScale, theme, setTheme } = usePreferences();
 
+  const ALL_NAV_ITEMS = [
+    { id: "dashboard", label: "Home" }, { id: "feed", label: "Feed" }, { id: "chat", label: "Chat" },
+    { id: "crimes", label: "Crimes" }, { id: "jobs", label: "Jobs" }, { id: "arena", label: "Arena" },
+    { id: "garage", label: "Garage" }, { id: "inventory", label: "Inventory" }, { id: "store", label: "Store" },
+    { id: "leaderboard", label: "Leaders" }, { id: "missions", label: "Missions" }, { id: "travel", label: "Travel" },
+    { id: "daily", label: "Daily" }, { id: "achievements", label: "Awards" }, { id: "friends", label: "Friends" },
+    { id: "profile", label: "Profile" }, { id: "settings", label: "Settings" }, { id: "auction", label: "Auction" },
+    { id: "guilds", label: "Crew" }, { id: "faction", label: "Faction" }, { id: "business", label: "Biz" },
+    { id: "training", label: "Training" }, { id: "loadout", label: "Loadout" }, { id: "city", label: "City" },
+    { id: "notifications", label: "Alerts" },
+  ];
+
+  const effectiveNavOrder = navOrder.length > 0 ? navOrder : ALL_NAV_ITEMS.map(n => n.id);
+
+  function moveNavItem(idx: number, dir: -1 | 1) {
+    const order = [...effectiveNavOrder];
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= order.length) return;
+    [order[idx], order[newIdx]] = [order[newIdx], order[idx]];
+    setNavOrder(order);
+  }
+
+  async function saveNavPrefs() {
+    setSavingNav(true);
+    try {
+      await api.patch("/settings/nav", { navOrder: effectiveNavOrder, defaultPage });
+      await refreshUser();
+      addToast("Navigation preferences saved!", "success");
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setSavingNav(false); }
+  }
+
   const TABS = [
     { id: "account"       as const, label: "Account"    },
     { id: "appearance"    as const, label: "Appearance" },
@@ -172,6 +207,7 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
     { id: "connect"       as const, label: "Connect"    },
     { id: "password"      as const, label: "Password"   },
     { id: "reset"         as const, label: "Reset"      },
+    { id: "navigation"    as const, label: "Nav"        },
   ];
 
   return (
@@ -563,6 +599,48 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
               </button>
             </>
           )}
+        </AnimatedCard>
+      )}
+
+      {/* Navigation */}
+      {tab === "navigation" && (
+        <AnimatedCard accent="#00d4ff" className="flex flex-col gap-4">
+          <div>
+            <div className="font-mono font-bold text-sm mb-1" style={{ color: "#00d4ff" }}>NAV CUSTOMIZATION</div>
+            <div className="font-mono text-xs mb-4" style={{ color: "#64748b" }}>Reorder your nav bar icons with the ↑↓ buttons. Changes apply after saving.</div>
+            <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+              {effectiveNavOrder.map((id, i) => {
+                const item = ALL_NAV_ITEMS.find(n => n.id === id);
+                if (!item) return null;
+                return (
+                  <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#111118", borderRadius: 4, border: "1px solid #1e1e2e" }}>
+                    <span className="font-mono text-xs" style={{ color: "#64748b", width: 20, textAlign: "right", flexShrink: 0 }}>{i + 1}</span>
+                    <span className="font-mono text-xs" style={{ color: "#e2e8f0", flex: 1 }}>{item.label}</span>
+                    <button onClick={() => moveNavItem(i, -1)} disabled={i === 0}
+                      style={{ background: "none", border: "none", cursor: i === 0 ? "default" : "pointer", color: i === 0 ? "#1e293b" : "#64748b", fontFamily: "monospace", fontSize: 16, padding: "0 4px", lineHeight: 1 }}>↑</button>
+                    <button onClick={() => moveNavItem(i, 1)} disabled={i === effectiveNavOrder.length - 1}
+                      style={{ background: "none", border: "none", cursor: i === effectiveNavOrder.length - 1 ? "default" : "pointer", color: i === effectiveNavOrder.length - 1 ? "#1e293b" : "#64748b", fontFamily: "monospace", fontSize: 16, padding: "0 4px", lineHeight: 1 }}>↓</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <div className="font-mono text-xs mb-2" style={{ color: "#94a3b8" }}>Default Landing Page</div>
+            <select value={defaultPage} onChange={e => setDefaultPage(e.target.value)}
+              style={{ background: "#111118", color: "#e2e8f0", border: "1px solid #00d4ff40", borderRadius: 4, padding: "6px 10px", fontFamily: "monospace", fontSize: 11, width: "100%" }}>
+              {["dashboard","feed","chat","crimes","jobs","arena","garage","inventory","store","leaderboard","missions","travel","daily","achievements","friends","profile","settings","auction","guilds","faction","business","training","loadout","city"].map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+          <CyberButton variant="primary" loading={savingNav} onClick={saveNavPrefs}>
+            💾 Save Navigation
+          </CyberButton>
+          <button className="font-mono text-xs" onClick={() => setNavOrder([])}
+            style={{ color: "#475569", background: "none", border: "none", cursor: "pointer", alignSelf: "center" }}>
+            ↺ Reset to Default Order
+          </button>
         </AnimatedCard>
       )}
     </div>

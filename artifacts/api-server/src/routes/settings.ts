@@ -78,4 +78,19 @@ router.patch("/", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// PATCH /api/settings/nav — save player nav order & default page
+router.patch("/nav", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { navOrder, defaultPage } = req.body as { navOrder?: string[]; defaultPage?: string | null };
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (navOrder !== undefined && Array.isArray(navOrder)) (user as any).navOrder = navOrder;
+    if (defaultPage !== undefined) (user as any).defaultPage = defaultPage ?? null;
+    await user.save();
+    res.json({ message: "Navigation preferences saved", navOrder: (user as any).navOrder, defaultPage: (user as any).defaultPage });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

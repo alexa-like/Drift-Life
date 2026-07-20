@@ -2,6 +2,7 @@ import { Router } from "express";
 import { fireVantaEvent } from "../lib/vanta";
 import bcrypt from "bcryptjs";
 import User, { generateTag, generateReferralCode, levelUp, activeBuffTotal, computeMaxHp } from "../models/User";
+import ServerConfig from "../models/ServerConfig";
 import { signAccess, signRefresh, verifyRefresh } from "../lib/jwt";
 import { generateOtp, sendOtpEmail } from "../lib/mailer";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
@@ -107,6 +108,8 @@ export function safeUser(user: InstanceType<typeof User>) {
     telegramUsername: (user as any).telegramUsername ?? null,
     gameTheme: (user as any).gameTheme ?? "default",
     uiScale: (user as any).uiScale ?? 0.85,
+    navOrder: (user as any).navOrder ?? [],
+    defaultPage: (user as any).defaultPage ?? null,
     uiTheme: (user as any).uiTheme ?? "dark",
     // ── 10.14 Mentor system ─────────────────────────────────────────────────
     isMentor:  (user as any).isMentor  ?? false,
@@ -179,6 +182,19 @@ router.post("/register", async (req, res) => {
       referredBy: referralCode || null,
       nc: 25, // welcome bonus — 25 Nova Credits for new players
     });
+
+    // Apply owner-configured new-account defaults (zoom, nav order, default page)
+    try {
+      const defaultsConfig = await ServerConfig.findOne({ key: "newAccountDefaults" });
+      if (defaultsConfig?.value) {
+        const d = defaultsConfig.value as Record<string, unknown>;
+        let changed = false;
+        if (typeof d["uiScale"] === "number") { (user as any).uiScale = d["uiScale"]; changed = true; }
+        if (Array.isArray(d["navOrder"]) && (d["navOrder"] as string[]).length > 0) { (user as any).navOrder = d["navOrder"]; changed = true; }
+        if (typeof d["defaultPage"] === "string") { (user as any).defaultPage = d["defaultPage"]; changed = true; }
+        if (changed) await user.save();
+      }
+    } catch { /* non-fatal — defaults are optional */ }
 
     // Referral bonus
     if (referralCode) {

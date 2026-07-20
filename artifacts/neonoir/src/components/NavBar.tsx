@@ -392,7 +392,18 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
 
       {/* Nav Icons */}
       <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-        {NAV.filter(item => {
+        {(user.navOrder && (user.navOrder as string[]).length > 0
+          ? [...NAV].sort((a, b) => {
+              const order = user.navOrder as string[];
+              const ia = order.indexOf(a.id);
+              const ib = order.indexOf(b.id);
+              if (ia === -1 && ib === -1) return 0;
+              if (ia === -1) return 1;
+              if (ib === -1) return -1;
+              return ia - ib;
+            })
+          : NAV
+        ).filter(item => {
           const minStage = item.minStage ?? 0;
           if ((user.onboardingStage ?? 0) < minStage) return false;
           if (item.roles && !item.roles.includes(user.role)) return false;

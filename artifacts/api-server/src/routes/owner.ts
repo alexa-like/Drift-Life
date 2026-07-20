@@ -13,6 +13,22 @@ import PlayerReport from "../models/PlayerReport";
 import BanAppeal from "../models/BanAppeal";
 import VantaLog from "../models/VantaLog";
 import { STAFF_TIERS, STAFF_TASKS, getSubscriptionExpiry } from "../lib/staffTiers";
+// Deep-delete imports
+import ChatMessage from "../models/ChatMessage";
+import Notification from "../models/Notification";
+import CrimeLog from "../models/CrimeLog";
+import PlayerGarage from "../models/PlayerGarage";
+import PlayerLoadout from "../models/PlayerLoadout";
+import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
+import FriendRequest from "../models/FriendRequest";
+import Achievement from "../models/Achievement";
+import SupportTicket from "../models/SupportTicket";
+import PushSubscription from "../models/PushSubscription";
+import AuctionListing from "../models/AuctionListing";
+import CombatMatch from "../models/CombatMatch";
+import RaceMatch from "../models/RaceMatch";
+import Guild from "../models/Guild";
+import Faction from "../models/Faction";
 
 const router = Router();
 router.use(requireStaff as any);
@@ -128,7 +144,7 @@ router.get("/notifications/summary", async (req: AuthRequest, res) => {
   }
 });
 
-// DELETE /api/owner/players/:id — owner only: permanently delete a player account
+// DELETE /api/owner/players/:id — owner only: deep-delete a player account and all related data
 router.delete("/players/:id", requireOwner as any, async (req: AuthRequest, res) => {
   try {
     const target = await User.findById(req.params.id);
@@ -136,20 +152,101 @@ router.delete("/players/:id", requireOwner as any, async (req: AuthRequest, res)
     if (target.role === "owner") return res.status(403).json({ message: "Cannot delete an owner account" });
     if (String(target._id) === req.userId) return res.status(400).json({ message: "Cannot delete your own account" });
 
-    const { username, _id } = target;
-    await User.deleteOne({ _id });
+    const { username } = target;
+    const userId = target._id as mongoose.Types.ObjectId;
+
+    // Deep delete across all collections in parallel
+    const results = await Promise.allSettled([
+      Item.deleteMany({ $or: [{ owner: userId }, { ownerId: userId }] }),
+      ChatMessage.deleteMany({ senderId: userId }),
+      FeedEvent.deleteMany({ actorId: userId }),
+      Notification.deleteMany({ userId }),
+      CrimeLog.deleteMany({ userId }),
+      PlayerGarage.deleteMany({ userId }),
+      PlayerLoadout.deleteMany({ userId }),
+      PlayerMiniGameInventory.deleteMany({ userId }),
+      FriendRequest.deleteMany({ $or: [{ from: userId }, { to: userId }] }),
+      Achievement.deleteMany({ userId }),
+      VantaLog.deleteMany({ playerId: String(userId) }),
+      BanAppeal.deleteMany({ userId }),
+      SupportTicket.deleteMany({ playerId: userId }),
+      PushSubscription.deleteMany({ userId }),
+      CombatMatch.deleteMany({ $or: [{ player1Id: userId }, { player2Id: userId }] }),
+      RaceMatch.deleteMany({ $or: [{ "participants.userId": userId }, { winnerId: userId }] }),
+      // Remove from guild/faction arrays
+      Guild.updateMany({}, { $pull: { members: userId, officers: userId, recruits: userId } }),
+      Faction.updateMany({}, { $pull: { members: { userId } } }),
+    ]);
+
+    function getCount(r: PromiseSettledResult<any>): number {
+      return r.status === "fulfilled" ? (r.value?.deletedCount ?? r.value?.modifiedCount ?? 0) : 0;
+    }
+
+    const [items, chat, feed, notifs, crimes, garage, loadout, arena, friends, achievements,
+      vanta, appeals, tickets, push, combat, races] = results;
+
+    const summary = {
+      items: getCount(items), chatMessages: getCount(chat), feedEvents: getCount(feed),
+      notifications: getCount(notifs), crimeLogs: getCount(crimes),
+      garageRecords: getCount(garage), loadout: getCount(loadout), arenaInventory: getCount(arena),
+      friendRequests: getCount(friends), achievements: getCount(achievements),
+      vantaFlags: getCount(vanta), banAppeals: getCount(appeals), supportTickets: getCount(tickets),
+      pushSubscriptions: getCount(push), combatMatches: getCount(combat), raceMatches: getCount(races),
+    };
+
+    await User.deleteOne({ _id: userId });
 
     logAdminAction({
-      actorId: req.userId!,
-      actorUsername: req.username || "unknown",
-      action: "delete-account",
-      targetId: String(_id),
-      targetUsername: username,
+      actorId: req.userId!, actorUsername: req.username || "unknown",
+      action: "delete-account-deep", targetId: String(userId), targetUsername: username,
+      details: summary,
     });
 
-    res.json({ message: `${username} permanently deleted` });
+    res.json({ message: `${username} permanently and deeply deleted`, deleted: summary });
   } catch (err: any) {
     req.log.error({ err }, "delete account error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/owner/new-account-defaults
+router.get("/new-account-defaults", requireOwner as any, async (_req, res) => {
+  try {
+    const config = await ServerConfig.findOne({ key: "newAccountDefaults" });
+    const defaults = config?.value ?? { uiScale: 0.85, navOrder: [], defaultPage: "dashboard" };
+    res.json({ defaults });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /api/owner/new-account-defaults
+router.patch("/new-account-defaults", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { uiScale, navOrder, defaultPage } = req.body as { uiScale?: number; navOrder?: string[]; defaultPage?: string };
+    const current = await ServerConfig.findOne({ key: "newAccountDefaults" });
+    const existing = (current?.value ?? {}) as Record<string, unknown>;
+    const updated: Record<string, unknown> = { ...existing };
+    if (uiScale !== undefined) {
+      if (typeof uiScale !== "number" || uiScale < 0.6 || uiScale > 1.2)
+        return res.status(400).json({ message: "uiScale must be 0.6–1.2" });
+      updated["uiScale"] = uiScale;
+    }
+    if (navOrder !== undefined) {
+      if (!Array.isArray(navOrder)) return res.status(400).json({ message: "navOrder must be an array" });
+      updated["navOrder"] = navOrder;
+    }
+    if (defaultPage !== undefined) {
+      updated["defaultPage"] = defaultPage;
+    }
+    await ServerConfig.findOneAndUpdate(
+      { key: "newAccountDefaults" },
+      { value: updated, updatedAt: new Date() },
+      { upsert: true }
+    );
+    logAdminAction({ actorId: req.userId!, actorUsername: req.username || "unknown", action: "update-new-account-defaults", details: updated });
+    res.json({ message: "New account defaults updated", defaults: updated });
+  } catch (err: any) {
     res.status(500).json({ message: "Internal server error" });
   }
 });
