@@ -19,7 +19,7 @@ import { fireMissionEvent } from "../lib/missionEvents";
 import { checkAchievements } from "./achievements";
 import { emitFeedEvent } from "../lib/feedEvents";
 import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
-import { getActiveFlashEvent } from "../lib/eventEngine";
+import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
 
 const router = Router();
 
@@ -1721,6 +1721,9 @@ async function grantCombatRewards(match: any) {
     if (isWinner) fireMissionEvent(userId, "combat_win").catch(() => {});
     if (isWinner && dcEarned > 0) fireMissionEvent(userId, "dc_earned", dcEarned).catch(() => {});
     checkAchievements(userId).catch(() => {});
+    // Event points — arena_win for winner, arena_loss for loser
+    const arenaAction = isDraw ? "arena_draw" : isWinner ? "arena_win" : "arena_loss";
+    awardEventPoints({ userId, username: u.username, action: arenaAction, io: (match as any)._io }).catch(() => {});
 
     const capNote = dcMult < 1 ? ` (${matchesToday >= HALF_CAP ? "XP only" : "50% cap"})` : "";
     const notifTitle = isDraw ? "Combat Draw" : isWinner ? "Combat Victory! 🏆" : "Combat Defeat";
@@ -1819,6 +1822,115 @@ router.post("/match/:id/taunt", requireAuth, async (req: AuthRequest, res) => {
     res.json({ success: true, taunt: VALID_TAUNTS[tauntId] });
   } catch (err) {
     req.log.error({ err }, "arena taunt error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/arena/queue-pve — instant PvE fight vs event NPC ───────────────
+// Available only during an active boss_raid event with pveNpcs configured.
+// Combat resolves instantly server-side; result returned immediately.
+
+router.post("/queue-pve", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { getActiveEvent } = await import("../lib/eventEngine");
+    const EventProgress = (await import("../models/EventProgress")).default;
+    const FeedEvent     = (await import("../models/FeedEvent")).default;
+    const Notification  = (await import("../models/Notification")).default;
+
+    const event = await getActiveEvent();
+    if (!event || event.type !== "boss_raid") {
+      return res.status(400).json({ message: "No active boss raid event" });
+    }
+
+    const pveNpcs = (event as any).pveNpcs as Array<{
+      tier: string; name: string; eventPoints: number;
+      stats: { hp: number; attack: number; defense: number };
+      loot?: { dc?: number; itemId?: string; label?: string };
+    }> | undefined;
+    if (!pveNpcs?.length) {
+      return res.status(400).json({ message: "No PvE NPCs configured for this event" });
+    }
+
+    const user = await User.findById(req.userId).select("username level prestige strength energy maxEnergy").lean() as any;
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Pick NPC whose HP is closest to player-level × 50 (auto-scales difficulty)
+    const playerPower = user.level * 50;
+    const npc = [...pveNpcs].sort((a, b) =>
+      Math.abs(a.stats.hp - playerPower) - Math.abs(b.stats.hp - playerPower)
+    )[0];
+
+    // Compute player combat stats
+    const playerMaxHp  = computeMaxHp(user.level, user.prestige ?? 0);
+    const playerAtk    = Math.max(10, Math.floor((user.strength ?? 10) * 2 + user.level * 3));
+    const playerDef    = Math.max(5,  Math.floor(user.level * 2));
+
+    let playerHp = playerMaxHp;
+    let npcHp    = npc.stats.hp;
+    let rounds   = 0;
+    const MAX_ROUNDS = 30;
+
+    while (playerHp > 0 && npcHp > 0 && rounds < MAX_ROUNDS) {
+      // Player strikes first
+      const playerDmg = Math.max(1, playerAtk - npc.stats.defense + Math.floor(Math.random() * 15) - 5);
+      npcHp -= playerDmg;
+      if (npcHp <= 0) break;
+      // NPC retaliates
+      const npcDmg = Math.max(1, npc.stats.attack - playerDef + Math.floor(Math.random() * 15) - 5);
+      playerHp -= npcDmg;
+      rounds++;
+    }
+
+    const playerWon = playerHp > 0 && npcHp <= 0;
+    const eventPoints = playerWon ? npc.eventPoints : Math.max(1, Math.floor(npc.eventPoints * 0.2));
+
+    // Persist event progress
+    const now = new Date();
+    await EventProgress.findOneAndUpdate(
+      { eventId: event._id, userId: req.userId },
+      {
+        $inc: { points: eventPoints },
+        $set: { username: user.username, lastActionAt: now },
+        $setOnInsert: { eventId: event._id, userId: req.userId },
+      },
+      { upsert: true }
+    );
+
+    // Feed post for boss / final tier wins
+    if (playerWon && (npc.tier === "boss" || npc.tier === "final")) {
+      FeedEvent.create({
+        type: "system", actor: "System", actorId: null,
+        message: `[EVENT] ${user.username} defeated the ${npc.name} in the Event Arena! ⚡`,
+        dc: 0, xp: 0, actorLevel: 0,
+      }).catch(() => {});
+    }
+
+    // Loot on win: small DC grant + notification
+    let lootGranted: { dc?: number; label?: string } | null = null;
+    if (playerWon && npc.loot && Math.random() < 0.3) {
+      lootGranted = npc.loot;
+      if (npc.loot.dc && npc.loot.dc > 0) {
+        await User.findByIdAndUpdate(req.userId, { $inc: { dc: npc.loot.dc } });
+      }
+      await Notification.create({
+        userId: req.userId, type: "achievement",
+        message: `Loot drop from ${npc.name}: ${npc.loot.label ?? `+${npc.loot.dc ?? 0} DC`}!`,
+        read: false,
+      });
+    }
+
+    res.json({
+      won:                playerWon,
+      npcName:            npc.name,
+      npcTier:            npc.tier,
+      roundsFought:       rounds + 1,
+      playerHpRemaining:  Math.max(0, playerHp),
+      npcHpRemaining:     Math.max(0, npcHp),
+      eventPointsEarned:  eventPoints,
+      loot:               lootGranted,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "pve fight error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

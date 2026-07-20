@@ -18,7 +18,7 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { fireMissionEvent } from "../lib/missionEvents";
 import { checkAchievements } from "./achievements";
 import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
-import { getActiveFlashEvent } from "../lib/eventEngine";
+import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
 
 const router = Router();
 
@@ -728,6 +728,9 @@ async function grantRaceRewards(match: any) {
     if (placement === 1) fireMissionEvent(String(p.userId), "race_win").catch(() => {});
     if (dcEarned > 0) fireMissionEvent(String(p.userId), "dc_earned", dcEarned).catch(() => {});
     checkAchievements(String(p.userId)).catch(() => {});
+    // Event points — "race_1st" for winner, "race_finish" for all placements
+    const raceAction = placement === 1 ? "race_1st" : "race_finish";
+    awardEventPoints({ userId: String(p.userId), username: u.username, action: raceAction, io: (match as any)._io }).catch(() => {});
   }
 }
 

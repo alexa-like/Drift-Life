@@ -12,7 +12,7 @@ import FeedEvent from "../models/FeedEvent";
 import Notification from "../models/Notification";
 import CosmeticItem from "../models/CosmeticItem";
 import ServerConfig from "../models/ServerConfig";
-import { getActiveEvent, invalidateActiveEventCache, endEvent, activateEvent, distributeEventRewards, getActiveFlashEvent, invalidateFlashCache } from "../lib/eventEngine";
+import { getActiveEvent, invalidateActiveEventCache, endEvent, activateEvent, distributeEventRewards, getActiveFlashEvent, invalidateFlashCache, applyBossAbilityEffect } from "../lib/eventEngine";
 
 const router = Router();
 
@@ -175,6 +175,13 @@ router.post("/strike-boss", requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: "The boss has already been defeated" });
     }
 
+    // Check boss freeze (from freeze_strikes_5min ability)
+    const freezeDoc = await ServerConfig.findOne({ key: "bossFreezeStrikesUntil" }).lean();
+    if (freezeDoc?.value && new Date(freezeDoc.value as any) > new Date()) {
+      const secsLeft = Math.ceil((new Date(freezeDoc.value as any).getTime() - Date.now()) / 1000);
+      return res.status(400).json({ message: `Boss ability active — strikes frozen for ${secsLeft}s`, frozenSeconds: secsLeft });
+    }
+
     // Check cooldown
     const progress = await EventProgress.findOne({ eventId: event._id, userId: req.userId });
     if (progress?.lastStrikeAt) {
@@ -224,7 +231,7 @@ router.post("/strike-boss", requireAuth, async (req: AuthRequest, res) => {
 
     const newHp = updatedEvent ? Math.max(0, updatedEvent.boss!.currentHp) : 0;
 
-    // Check for phase transition
+    // Check for phase transition + apply ability effect
     let phaseChange: string | null = null;
     if (updatedEvent?.boss) {
       const totalHp = updatedEvent.boss.totalHp;
@@ -233,6 +240,14 @@ router.post("/strike-boss", requireAuth, async (req: AuthRequest, res) => {
       for (const phase of updatedEvent.boss.phases ?? []) {
         if (prevHpPct > phase.triggerAtHpPercent && newHpPct <= phase.triggerAtHpPercent) {
           phaseChange = phase.name;
+          if (phase.abilityEffect) {
+            applyBossAbilityEffect(phase.abilityEffect, io).catch(() => {});
+          }
+          await FeedEvent.create({
+            type: "system", actor: "System", actorId: null,
+            message: `[BOSS] Phase transition: "${phase.name}"! ${phase.description}`,
+            dc: 0, xp: 0, actorLevel: 0,
+          });
           break;
         }
       }
@@ -328,7 +343,57 @@ router.post("/collect", requireAuth, async (req: AuthRequest, res) => {
     );
 
     const myProgress = await EventProgress.findOne({ eventId: event._id, userId: req.userId }).lean();
-    const setComplete = myProgress && myProgress.collectiblesFound >= event.collectible.setSize;
+    const setComplete = !!(myProgress && myProgress.collectiblesFound >= event.collectible.setSize);
+    const alreadyClaimed = myProgress?.oneTimeRewardsClaimed?.includes("set_complete") ?? false;
+
+    if (setComplete && !alreadyClaimed) {
+      // Post feed
+      FeedEvent.create({
+        type: "system", actor: "System", actorId: null,
+        message: `[EVENT] ${username} completed the full ${event.collectible.name} set! 🏆`,
+        dc: 0, xp: 0, actorLevel: 0,
+      }).catch(() => {});
+
+      // Check oneTimeRewards for a set-completion reward (condition.type === "collectibles_found")
+      const setReward = event.oneTimeRewards?.find(
+        r => r.condition.type === "collectibles_found"
+          && r.condition.value <= (myProgress?.collectiblesFound ?? 0)
+          && !(myProgress?.oneTimeRewardsClaimed?.includes(r.id))
+      );
+
+      if (setReward) {
+        const inc: Record<string, number> = {};
+        if (setReward.reward.dc > 0) inc.dc = setReward.reward.dc;
+        if (setReward.reward.nc > 0) inc.nc = setReward.reward.nc;
+        if (Object.keys(inc).length) await User.findByIdAndUpdate(req.userId, { $inc: inc });
+        if (setReward.reward.titles?.length) {
+          await User.findByIdAndUpdate(req.userId, { $addToSet: { titles: { $each: setReward.reward.titles } } });
+        }
+        await EventProgress.findOneAndUpdate(
+          { eventId: event._id, userId: req.userId },
+          { $addToSet: { oneTimeRewardsClaimed: { $each: [setReward.id, "set_complete"] } } }
+        );
+        await Notification.create({
+          userId: req.userId, type: "achievement",
+          message: `You completed the ${event.collectible.name} set! Reward: ${[
+            setReward.reward.dc > 0 ? `${setReward.reward.dc} DC` : "",
+            setReward.reward.nc > 0 ? `${setReward.reward.nc} NC` : "",
+            ...(setReward.reward.titles ?? []).map(t => `title: ${t}`),
+          ].filter(Boolean).join(", ")}.`,
+          read: false,
+        });
+      } else {
+        await EventProgress.findOneAndUpdate(
+          { eventId: event._id, userId: req.userId },
+          { $addToSet: { oneTimeRewardsClaimed: "set_complete" } }
+        );
+        await Notification.create({
+          userId: req.userId, type: "achievement",
+          message: `You completed the full ${event.collectible.name} set! Your reward will be distributed at event end. 🏆`,
+          read: false,
+        });
+      }
+    }
 
     res.json({
       found: true,

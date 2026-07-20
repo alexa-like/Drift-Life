@@ -54,6 +54,14 @@ export interface IOneTimeReward {
   claimLimit: "once_per_player" | "once_per_event";
 }
 
+export interface IPveNpc {
+  tier: "minion" | "lieutenant" | "boss" | "final";
+  name: string;
+  stats: { hp: number; attack: number; defense: number };
+  eventPoints: number;
+  loot?: { dc?: number; itemId?: string; label?: string };
+}
+
 export interface IEvent extends Document {
   name: string;
   slug: string;
@@ -87,6 +95,8 @@ export interface IEvent extends Document {
   }>;
 
   teams?: Array<{ id: string; name: string; color: string }>;
+
+  pveNpcs?: IPveNpc[];
 
   lottery?: {
     ticketSource: string;
@@ -181,6 +191,21 @@ const EventSchema = new Schema<IEvent>({
     id:    { type: String, required: true },
     name:  { type: String, required: true },
     color: { type: String, default: "#00E0FF" },
+  }],
+  pveNpcs: [{
+    tier:   { type: String, enum: ["minion", "lieutenant", "boss", "final"], required: true },
+    name:   { type: String, required: true },
+    stats: {
+      hp:      { type: Number, default: 500 },
+      attack:  { type: Number, default: 50 },
+      defense: { type: Number, default: 20 },
+    },
+    eventPoints: { type: Number, default: 50 },
+    loot: {
+      dc:     { type: Number },
+      itemId: { type: String },
+      label:  { type: String },
+    },
   }],
   lottery: {
     ticketSource:     { type: String },

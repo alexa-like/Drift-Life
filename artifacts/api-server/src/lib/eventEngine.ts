@@ -166,6 +166,77 @@ export async function distributeEventRewards(eventId: string): Promise<void> {
     }
   }
 
+  // Handle lottery: weighted random draw from ticketsEarned
+  if (event.type === "lottery" && event.lottery && event.lottery.winnersCount > 0) {
+    const pool = participants.filter(p => (p.ticketsEarned ?? 0) > 0);
+    if (pool.length > 0) {
+      const totalTickets = pool.reduce((sum, p) => sum + (p.ticketsEarned ?? 0), 0);
+      const winnerBracket = event.leaderboardRewards.find(b => b.rankFrom === 1 && b.rankTo === 1);
+      const drawn = new Set<number>();
+
+      for (let w = 0; w < Math.min(event.lottery.winnersCount, pool.length); w++) {
+        let roll = Math.random() * totalTickets;
+        for (let i = 0; i < pool.length; i++) {
+          if (drawn.has(i)) continue;
+          roll -= pool[i].ticketsEarned ?? 0;
+          if (roll <= 0) {
+            drawn.add(i);
+            const winner = pool[i];
+            if (winnerBracket) {
+              const { reward } = winnerBracket;
+              const inc: Record<string, number> = {};
+              if (reward.dc > 0) inc.dc = reward.dc;
+              if (reward.nc > 0) inc.nc = reward.nc;
+              if (Object.keys(inc).length) await User.findByIdAndUpdate(winner.userId, { $inc: inc });
+            }
+            await Notification.create({
+              userId: winner.userId,
+              type: "achievement",
+              message: `🎰 You won the ${event.name} lottery! You earned ${winner.ticketsEarned} ticket${winner.ticketsEarned === 1 ? "" : "s"} and beat the odds.`,
+              read: false,
+            });
+            await FeedEvent.create({
+              type: "system", actor: "System", actorId: null,
+              message: `[LOTTERY] ${winner.username} wins the ${event.name} lottery! 🎰`,
+              dc: 0, xp: 0, actorLevel: 0,
+            });
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Handle sports: announce winning team + bonus notification
+  if (event.type === "sports" && event.teams?.length) {
+    const teamScoreDoc = await ServerConfig.findOne({ key: "eventTeamScores" }).lean();
+    if (teamScoreDoc?.value) {
+      const scores = teamScoreDoc.value as Record<string, number>;
+      let winningTeamId = "";
+      let highScore = -1;
+      for (const [teamId, score] of Object.entries(scores)) {
+        if ((score as number) > highScore) { highScore = score as number; winningTeamId = teamId; }
+      }
+      if (winningTeamId) {
+        const winningTeam = event.teams.find(t => t.id === winningTeamId);
+        const teamWinners = participants.filter(p => p.teamId === winningTeamId);
+        for (const winner of teamWinners) {
+          await Notification.create({
+            userId: winner.userId,
+            type: "achievement",
+            message: `Your team (${winningTeam?.name ?? winningTeamId}) won the ${event.name} sports event! Team victory bonus applied. 🏆`,
+            read: false,
+          });
+        }
+        await FeedEvent.create({
+          type: "system", actor: "System", actorId: null,
+          message: `[EVENT] Team ${winningTeam?.name ?? winningTeamId} wins the ${event.name} sports event! 🏆`,
+          dc: 0, xp: 0, actorLevel: 0,
+        });
+      }
+    }
+  }
+
   // Freeze archive
   const finalLeaderboard = participants.slice(0, 100).map((p, i) => ({
     rank: i + 1,
@@ -302,5 +373,207 @@ export async function tickEventScheduler(io?: unknown): Promise<void> {
       invalidateFlashCache();
       logger.info("Flash event expired and cleaned up");
     }
+  }
+
+  // Milestone checking: distribute rewards when thresholds are crossed
+  const milestoneEvent = await Event.findOne({ status: "active", type: "milestone" }).lean() as IEvent | null;
+  if (milestoneEvent?.milestones?.length) {
+    const progressDoc = await ServerConfig.findOne({ key: "eventMilestoneProgress" }).lean();
+    const currentTotal: number = (progressDoc?.value as any)?.total ?? 0;
+
+    const reachedDoc = await ServerConfig.findOne({ key: "eventMilestonesReached" }).lean();
+    const reachedSet = new Set<number>(((reachedDoc?.value as any)?.reached ?? []) as number[]);
+
+    let anyNewlyReached = false;
+    for (let idx = 0; idx < milestoneEvent.milestones.length; idx++) {
+      const milestone = milestoneEvent.milestones[idx];
+      if (currentTotal >= milestone.target && !reachedSet.has(idx)) {
+        reachedSet.add(idx);
+        anyNewlyReached = true;
+
+        const allParticipants = await EventProgress.find({ eventId: milestoneEvent._id });
+        for (const p of allParticipants) {
+          const inc: Record<string, number> = {};
+          if (milestone.rewardAll.dc > 0) inc["dc"] = milestone.rewardAll.dc;
+          if (milestone.rewardAll.nc > 0) inc["nc"] = milestone.rewardAll.nc;
+          if (Object.keys(inc).length > 0) await User.findByIdAndUpdate(p.userId, { $inc: inc });
+          if (milestone.rewardAll.title) {
+            await User.findByIdAndUpdate(p.userId, { $addToSet: { titles: milestone.rewardAll.title } });
+          }
+          await Notification.create({
+            userId: p.userId,
+            type: "achievement",
+            message: `[MILESTONE] "${milestone.label}" reached! You earn: ${[
+              milestone.rewardAll.dc  > 0 ? `${milestone.rewardAll.dc} DC`  : "",
+              milestone.rewardAll.nc  > 0 ? `${milestone.rewardAll.nc} NC`  : "",
+              milestone.rewardAll.title ? `title: ${milestone.rewardAll.title}` : "",
+            ].filter(Boolean).join(", ")}.`,
+            read: false,
+          });
+        }
+
+        await FeedEvent.create({
+          type: "system", actor: "System", actorId: null,
+          message: `[MILESTONE] "${milestone.label}" achieved! All ${allParticipants.length} participants are rewarded!`,
+          dc: 0, xp: 0, actorLevel: 0,
+        });
+        logger.info({ milestoneLabel: milestone.label, eventId: milestoneEvent._id }, "Milestone reached");
+      }
+    }
+
+    if (anyNewlyReached) {
+      await ServerConfig.findOneAndUpdate(
+        { key: "eventMilestonesReached" },
+        { key: "eventMilestonesReached", value: { reached: Array.from(reachedSet) }, updatedAt: now },
+        { upsert: true }
+      );
+    }
+  }
+}
+
+// ── Boss ability effects (called from /strike-boss on phase transition) ──────
+
+export async function applyBossAbilityEffect(effect: string, io?: unknown): Promise<void> {
+  const now = new Date();
+
+  if (effect === "all_damage_2x_10min") {
+    const expiresAt = new Date(now.getTime() + 10 * 60_000);
+    await ServerConfig.findOneAndUpdate(
+      { key: "flashEvent" },
+      { key: "flashEvent", value: { label: "Boss Enraged — 2× Damage!", effect: "all_damage_2x_10min", expiresAt }, updatedAt: now },
+      { upsert: true }
+    );
+    invalidateFlashCache();
+    if (io) (io as any).emit("flash_event", { label: "Boss Enraged — 2× Damage!", effect: "all_damage_2x_10min", expiresAt });
+    await FeedEvent.create({ type: "system", actor: "System", actorId: null, message: "[BOSS] The boss is enraged — all damage doubled for 10 minutes! ⚡", dc: 0, xp: 0, actorLevel: 0 });
+
+  } else if (effect === "freeze_strikes_5min") {
+    const freezeUntil = new Date(now.getTime() + 5 * 60_000);
+    await ServerConfig.findOneAndUpdate(
+      { key: "bossFreezeStrikesUntil" },
+      { key: "bossFreezeStrikesUntil", value: freezeUntil.toISOString(), updatedAt: now },
+      { upsert: true }
+    );
+    if (io) (io as any).emit("boss_ability", { effect: "freeze_strikes_5min", freezeUntil });
+    await FeedEvent.create({ type: "system", actor: "System", actorId: null, message: "[BOSS] The boss freezes all strikes — no hitting back for 5 minutes! ❄️", dc: 0, xp: 0, actorLevel: 0 });
+
+  } else if (effect === "energy_drain") {
+    await User.updateMany({}, [{ $set: { energy: { $max: [0, { $floor: { $multiply: ["$energy", 0.8] } }] } } }]);
+    if (io) (io as any).emit("boss_ability", { effect: "energy_drain" });
+    await FeedEvent.create({ type: "system", actor: "System", actorId: null, message: "[BOSS] The boss drains the energy of every fighter in the city! −20% energy. 🔋", dc: 0, xp: 0, actorLevel: 0 });
+  }
+}
+
+// ── Award event points from any game action ───────────────────────────────────
+// Called by crimes.ts, arena.ts, and race.ts after their action completes.
+// Handles: passive boss HP damage, milestone counter, team scoring, lottery tickets,
+// and leaderboard feed posts. Fire-and-forget (never throws).
+
+export async function awardEventPoints(opts: {
+  userId: string;
+  username: string;
+  action: string;
+  io?: unknown;
+}): Promise<void> {
+  const { userId, username, action, io } = opts;
+
+  try {
+    const event = await getActiveEvent();
+    if (!event) return;
+
+    const pointSource = event.pointSources.find(p => p.action === action);
+    if (!pointSource || pointSource.points <= 0) return;
+
+    const points = pointSource.points;
+    const now = new Date();
+
+    // Snapshot previous progress for feed-post comparisons
+    const prevProgress = await EventProgress.findOne({ eventId: event._id, userId }).lean();
+    const prevPoints = prevProgress?.points ?? 0;
+
+    // Build EventProgress update
+    const inc: Record<string, number> = { points };
+    const set: Record<string, unknown> = { username, lastActionAt: now };
+
+    // ── Boss raid: passive damage ──────────────────────────────────────────────
+    if (event.type === "boss_raid" && event.boss && event.boss.currentHp > 0) {
+      inc.bossDamageDealt = points;
+      const updated = await Event.findOneAndUpdate(
+        { _id: event._id, "boss.currentHp": { $gt: 0 } },
+        { $inc: { "boss.currentHp": -points } },
+        { new: true }
+      );
+      invalidateActiveEventCache();
+      const newHp = Math.max(0, updated?.boss?.currentHp ?? 0);
+      if (io) {
+        (io as any).emit("boss_hp_update", {
+          eventId: String(event._id),
+          currentHp: newHp,
+          totalHp: event.boss.totalHp,
+          bossKilled: newHp <= 0,
+          phaseChange: null,
+        });
+      }
+    }
+
+    // ── Lottery: award tickets ──────────────────────────────────────────────────
+    if (event.type === "lottery" && event.lottery) {
+      inc.ticketsEarned = event.lottery.ticketsPerAction ?? 1;
+    }
+
+    // ── Sports: assign team on first action, update team scores ────────────────
+    if (event.type === "sports" && event.teams?.length) {
+      let teamId = prevProgress?.teamId;
+      if (!teamId) {
+        const teamCounts = await Promise.all(
+          event.teams.map(t => EventProgress.countDocuments({ eventId: event._id, teamId: t.id }))
+        );
+        const minIdx = teamCounts.indexOf(Math.min(...teamCounts));
+        teamId = event.teams[minIdx].id;
+        set.teamId = teamId;
+      }
+      await ServerConfig.findOneAndUpdate(
+        { key: "eventTeamScores" },
+        { $inc: { [`value.${teamId}`]: points }, updatedAt: now },
+        { upsert: true }
+      );
+    }
+
+    // ── Milestone counter ───────────────────────────────────────────────────────
+    if (event.type === "milestone" && event.milestones?.length) {
+      const matches = event.milestones.filter(m => m.action === action || m.action === "any");
+      if (matches.length > 0) {
+        await ServerConfig.findOneAndUpdate(
+          { key: "eventMilestoneProgress" },
+          { $inc: { "value.total": points }, updatedAt: now },
+          { upsert: true }
+        );
+      }
+    }
+
+    // Persist progress
+    await EventProgress.findOneAndUpdate(
+      { eventId: event._id, userId },
+      { $inc: inc, $set: set, $setOnInsert: { eventId: event._id, userId } },
+      { upsert: true }
+    );
+
+    // ── Leaderboard grind: feed posts for top-10 entry and rank-1 change ───────
+    if (event.type === "leaderboard_grind") {
+      const newPoints = prevPoints + points;
+      if (prevPoints === 0) {
+        const aboveCount = await EventProgress.countDocuments({ eventId: event._id, points: { $gt: newPoints } });
+        if (aboveCount < 10) {
+          FeedEvent.create({ type: "system", actor: "System", actorId: null, message: `[EVENT] ${username} has entered the Top 10 in ${event.name}! 🏆`, dc: 0, xp: 0, actorLevel: 0 }).catch(() => {});
+        }
+      }
+      // Check if they just took the lead
+      const leader = await EventProgress.findOne({ eventId: event._id, userId: { $ne: userId } }).sort({ points: -1 }).lean();
+      if (leader && newPoints > leader.points) {
+        FeedEvent.create({ type: "system", actor: "System", actorId: null, message: `[EVENT] ${username} has taken the lead in ${event.name}! Can anyone stop them? 🔥`, dc: 0, xp: 0, actorLevel: 0 }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    logger.error({ err, userId, action }, "awardEventPoints error (non-fatal)");
   }
 }

@@ -540,7 +540,7 @@ Flash events are micro-events lasting 1–2 hours:
 ---
 
 ## TIER 3 — EVENT TYPES & BOSS FIGHT
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Implement all 6 event type mechanics, the dedicated Boss Fight page, Event Arena PvE mode, and the Strike Boss action.
 
