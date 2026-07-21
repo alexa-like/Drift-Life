@@ -11,6 +11,7 @@ import User from "./models/User";
 import { verifyAccess } from "./lib/jwt";
 import { allowedOrigins } from "./lib/cors";
 import { closeExpiredAuctions, scheduleBotAuctions } from "./routes/auction";
+import { expireBounties } from "./routes/bounties";
 import { expireMarketListings } from "./routes/market";
 import { postWeeklyRecap, pruneFeed } from "./routes/leaderboard";
 import { postWeeklyBanRecap } from "./lib/banRecap";
@@ -393,6 +394,16 @@ async function start() {
     }, 60 * 60 * 1000);
     pruneFeed().catch((err) =>
       logger.error({ err }, "feed prune startup error"),
+    );
+
+    // ── Bounty expiry: refund overdue bounties, check hourly ──────────────────
+    setInterval(() => {
+      expireBounties().catch((err) =>
+        logger.error({ err }, "bounty expiry interval error"),
+      );
+    }, 60 * 60 * 1000);
+    expireBounties().catch((err) =>
+      logger.error({ err }, "bounty expiry startup error"),
     );
 
     // ── Daily quests reset notification: once per UTC day, checked hourly ─────

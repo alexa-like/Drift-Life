@@ -7,6 +7,9 @@ import { safeUser } from "./auth";
 import FeedEvent from "../models/FeedEvent";
 import PlayerGarage from "../models/PlayerGarage";
 import MiniGameLeaderboard from "../models/MiniGameLeaderboard";
+import EventProgress from "../models/EventProgress";
+import Event from "../models/Event";
+import { BattlePass } from "../models/BattlePass";
 
 const router = Router();
 
@@ -151,6 +154,73 @@ router.get("/:tag", requireAuth, async (req: AuthRequest, res) => {
     });
   } catch (err: any) {
     req.log.error({ err }, "profile/:tag error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/profile/event-history — last 10 events the player participated in
+router.get("/event-history", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const progresses = await EventProgress.find({ userId: req.userId })
+      .sort({ updatedAt: -1 })
+      .limit(10)
+      .lean();
+
+    if (progresses.length === 0) return res.json([]);
+
+    const eventIds = progresses.map(p => p.eventId);
+    const events   = await Event.find({ _id: { $in: eventIds } })
+      .select("name type endsAt status")
+      .lean();
+    const eventMap = new Map(events.map(e => [String(e._id), e]));
+
+    const history = progresses.map(p => {
+      const ev = eventMap.get(String(p.eventId));
+      return {
+        eventId:        p.eventId,
+        eventName:      ev?.name  ?? "Unknown Event",
+        eventType:      (ev as any)?.type  ?? "unknown",
+        endedAt:        (ev as any)?.endsAt ?? null,
+        status:         (ev as any)?.status ?? "ended",
+        points:         p.points,
+        bossDamageDealt: p.bossDamageDealt,
+        collectiblesFound: p.collectiblesFound,
+        lastActionAt:   p.lastActionAt,
+      };
+    });
+
+    res.json(history);
+  } catch (err: any) {
+    req.log.error({ err }, "profile/event-history error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/profile/season-history — current battle pass season info
+router.get("/season-history", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId)
+      .select("seasonXp seasonLevel battlePassPremium premiumPassEventId")
+      .lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const [activePasses, endedPasses] = await Promise.all([
+      BattlePass.find({ status: "active"  }).sort({ startsAt: -1 }).limit(1).lean(),
+      BattlePass.find({ status: "ended"   }).sort({ endsAt:   -1 }).limit(5).lean(),
+    ]);
+
+    const currentSeason = activePasses[0]
+      ? {
+          seasonName: activePasses[0].seasonName,
+          level:      user.seasonLevel ?? 0,
+          hasPremium: !!(user.battlePassPremium && user.premiumPassEventId === String(activePasses[0]._id)),
+          endsAt:     activePasses[0].endsAt,
+        }
+      : null;
+
+    res.json({ currentSeason, pastSeasons: endedPasses.map(p => ({ seasonName: p.seasonName, endsAt: p.endsAt })) });
+  } catch (err: any) {
+    req.log.error({ err }, "profile/season-history error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

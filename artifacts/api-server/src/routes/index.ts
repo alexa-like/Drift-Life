@@ -59,6 +59,7 @@ import cosmeticsRouter from "./cosmetics";
 import eventsRouter from "./events";
 import battlePassRouter, { ownerBattlePassRouter } from "./battle-pass";
 import questsRouter from "./quests";
+import bountiesRouter from "./bounties";
 
 const router: IRouter = Router();
 
@@ -122,6 +123,7 @@ router.use("/cosmetics", cosmeticsRouter);
 router.use("/events", eventsRouter);
 router.use("/battle-pass", battlePassRouter);
 router.use("/quests", questsRouter);
+router.use("/bounties", bountiesRouter);
 router.use("/owner/battle-pass", ownerBattlePassRouter);
 
 export default router;

@@ -22,6 +22,7 @@ import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
 import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
 import { awardBattlePassXp } from "../lib/battlePassXp";
 import { updateQuestProgress } from "../lib/questProgress";
+import { claimBounty } from "./bounties";
 
 const router = Router();
 
@@ -1751,6 +1752,16 @@ async function grantCombatRewards(match: any) {
   await grant(match.player1Id?.toString() ?? null, p1Won, p2Level);
   if (!match.isPlayer2AI) {
     await grant(match.player2Id?.toString() ?? null, p2Won, p1Level);
+  }
+
+  // ── Bounty claiming: check if the winner defeated a bounty target ───────────
+  if (!isDraw && !match.isPlayer2AI && match.winnerId) {
+    const loserId = p1Won
+      ? match.player2Id?.toString() ?? null
+      : match.player1Id?.toString() ?? null;
+    if (loserId) {
+      claimBounty(match.winnerId.toString(), loserId).catch(() => {});
+    }
   }
 }
 

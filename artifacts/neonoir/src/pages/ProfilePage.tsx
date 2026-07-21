@@ -46,6 +46,10 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const [achievements, setAchievements] = useState<any[]>([]);
   const [pinnedBadges, setPinnedBadges] = useState<string[]>((user as any).pinnedBadges ?? []);
   const [pinningId, setPinningId] = useState<string | null>(null);
+  const [bountyTotal, setBountyTotal]   = useState(0);
+  const [eventHistory, setEventHistory] = useState<any[]>([]);
+  const [seasonInfo, setSeasonInfo]     = useState<any>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   // Prestige
   const [showPrestigeModal, setShowPrestigeModal] = useState(false);
@@ -100,7 +104,24 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
     if (activeTab === "achievements") {
       api.get<any[]>("/achievements").then(setAchievements).catch(() => {});
     }
+    if (activeTab === "history" && !historyLoaded) {
+      setHistoryLoaded(true);
+      api.get<any[]>("/profile/event-history").then(setEventHistory).catch(() => {});
+      api.get<any>("/profile/season-history").then(setSeasonInfo).catch(() => {});
+    }
   }, [activeTab]);
+
+  // Fetch active bounties on this player for the header badge
+  useEffect(() => {
+    api.get<any>("/bounties/mine")
+      .then(d => {
+        const total = (d.onMe ?? [])
+          .filter((b: any) => b.status === "active")
+          .reduce((s: number, b: any) => s + b.amount, 0);
+        setBountyTotal(total);
+      })
+      .catch(() => {});
+  }, []);
 
   const accent = "#3A3A5C";
 

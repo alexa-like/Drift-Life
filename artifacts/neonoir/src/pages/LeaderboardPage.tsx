@@ -8,7 +8,79 @@ import { CyberButton } from "../components/CyberButton";
 import { PrestigeBadge } from "../components/PrestigeBadge";
 
 type SortType = "level" | "dc" | "wins" | "crimes";
-type BoardTab = "city" | "minigame";
+type BoardTab = "city" | "minigame" | "mostWanted";
+
+interface BountyEntry {
+  id: string;
+  placerName: string;
+  targetId: string;
+  targetName: string;
+  amount: number;
+  expiresAt: string;
+  createdAt: string;
+}
+
+function MostWanted() {
+  const [bounties, setBounties] = useState<BountyEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get<BountyEntry[]>("/bounties?page=0")
+      .then(data => setBounties(data.slice(0, 10)))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return <div className="text-center py-16 font-mono text-xs animate-pulse" style={{ color: "#334155" }}>Scanning the city...</div>;
+  }
+  if (bounties.length === 0) {
+    return <div className="text-center py-16 font-mono text-xs" style={{ color: "#475569" }}>No active bounties. The city is quiet... for now.</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="font-mono text-xs mb-4" style={{ color: "#64748b" }}>
+        Top 10 players with active bounties — claimed automatically via Arena
+      </div>
+      {bounties.map((b, i) => {
+        const daysLeft = Math.max(0, Math.ceil((new Date(b.expiresAt).getTime() - Date.now()) / 86_400_000));
+        return (
+          <div key={b.id} style={{
+            background: "#111118",
+            border: "1px solid #ff2d5530",
+            borderLeft: `3px solid #ff2d55${i === 0 ? "cc" : i < 3 ? "88" : "44"}`,
+            borderRadius: 8,
+            padding: "12px 16px",
+            display: "flex", alignItems: "center", gap: 12,
+          }}>
+            <div className="font-mono font-bold flex-shrink-0" style={{ width: 24, fontSize: 12, color: "#334155" }}>
+              {i + 1}
+            </div>
+            <div style={{
+              width: 36, height: 36, borderRadius: "50%", background: "#1A1A24", flexShrink: 0,
+              border: "2px solid #ff2d5530", display: "flex", alignItems: "center",
+              justifyContent: "center", fontSize: 14, color: "#ff2d55",
+            }}>
+              💀
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-mono font-bold" style={{ fontSize: 14, color: "#ff2d55" }}>{b.targetName}</div>
+              <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>
+                Placed by {b.placerName} · {daysLeft}d left
+              </div>
+            </div>
+            <div className="font-mono font-bold flex-shrink-0 text-right">
+              <div style={{ fontSize: 16, color: "#f59e0b" }}>{b.amount.toLocaleString()}</div>
+              <div style={{ fontSize: 10, color: "#64748b" }}>DC</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 type MiniLBType = "combat_wins" | "combat_streak" | "race_wins" | "race_fastest_2p" | "race_fastest_4p";
 interface MiniLBEntry { _id: string; userId: string; username: string; avatar: string; score: number; rank: number }
@@ -312,9 +384,13 @@ export function LeaderboardPage() {
         </div>
       </div>
 
-      {/* Main tab: City vs Mini-Game */}
-      <div className="flex gap-2 mb-5">
-        {([["city", "City Rankings", "#f59e0b"], ["minigame", "Mini-Game Weekly", "#00d4ff"]] as const).map(([id, label, color]) => (
+      {/* Main tab: City vs Mini-Game vs Most Wanted */}
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {([
+          ["city",       "City Rankings",    "#f59e0b"],
+          ["minigame",   "Mini-Game Weekly", "#00d4ff"],
+          ["mostWanted", "Most Wanted 💀",   "#ff2d55"],
+        ] as const).map(([id, label, color]) => (
           <button
             key={id}
             onClick={() => setTab(id as BoardTab)}
@@ -333,6 +409,9 @@ export function LeaderboardPage() {
 
       {/* Mini-game leaderboard */}
       {tab === "minigame" && <MiniLeaderboard />}
+
+      {/* Most Wanted */}
+      {tab === "mostWanted" && <MostWanted />}
 
       {/* City rankings */}
       {tab === "city" && <>
