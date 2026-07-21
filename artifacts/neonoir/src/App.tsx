@@ -207,6 +207,7 @@ function GameApp() {
   const [navHeight, setNavHeight] = useState(210);
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
   const [shopStoreId, setShopStoreId] = useState<string | null>(null);
+  const [tradeWithPlayer, setTradeWithPlayer] = useState<{ id: string; username: string } | null>(null);
   // Live arena HP override: keeps the NavBar HP bar in sync during a fight
   const [arenaHp, setArenaHp] = useState<{ current: number; max: number } | null>(null);
   const handleArenaHpChange = useCallback((current: number, max: number) => {
@@ -308,7 +309,7 @@ function GameApp() {
       case "business":      return <BusinessPage user={user!} refreshUser={refreshUser} addToast={addToast} />;
       case "auction":       return <AuctionPage {...pageProps} />;
       case "loadout":       return <LoadoutPage user={user!} addToast={addToast} />;
-      case "trade":         return <TradePage user={user!} addToast={addToast} />;
+      case "trade":         return <TradePage user={user!} addToast={addToast} prefilledPlayer={tradeWithPlayer} onTradeOpened={() => setTradeWithPlayer(null)} />;
       case "friends":       return <FriendsPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       // Wire Cartel pages
       case "training":
@@ -402,6 +403,12 @@ function GameApp() {
             targetId={inspectUserId}
             currentUser={user!}
             onClose={() => setInspectUserId(null)}
+            onNav={navTo}
+            onTradeWith={(player) => {
+              setTradeWithPlayer(player);
+              setInspectUserId(null);
+              navTo("trade");
+            }}
             addToast={addToast}
           />
         )}

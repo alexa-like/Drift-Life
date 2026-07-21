@@ -374,7 +374,7 @@ Replace with an actual rendered `MessageCard` preview:
 ---
 
 ## TIER 8 — PLAYER TRADING + GANG WARS
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Activate two systems whose models already exist — player-to-player item/DC trading and organized gang wars.
 

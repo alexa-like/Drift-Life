@@ -29,6 +29,8 @@ interface PlayerResult {
 interface Props {
   user: User;
   addToast: (msg: string, type?: "success" | "error" | "info") => void;
+  prefilledPlayer?: { id: string; username: string } | null;
+  onTradeOpened?: () => void;
 }
 
 const RARITY_COLOR: Record<string, string> = {
@@ -51,7 +53,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced;
 }
 
-export function TradePage({ user, addToast }: Props) {
+export function TradePage({ user, addToast, prefilledPlayer, onTradeOpened }: Props) {
   const qc = useQueryClient();
 
   // New offer state
@@ -66,6 +68,18 @@ export function TradePage({ user, addToast }: Props) {
     requestDc: 0,
     offerItemIds: [] as string[],
   });
+
+  // Auto-open offer form when arriving from a player's profile
+  useEffect(() => {
+    if (prefilledPlayer && prefilledPlayer.id !== user.id) {
+      const p: PlayerResult = { id: prefilledPlayer.id, username: prefilledPlayer.username, level: 0, faction: null };
+      setSelectedPlayer(p);
+      setPlayerSearch(prefilledPlayer.username);
+      setForm(f => ({ ...f, targetId: prefilledPlayer.id }));
+      setShowOffer(true);
+      onTradeOpened?.();
+    }
+  }, [prefilledPlayer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Counter offer state
   const [counterTradeId, setCounterTradeId] = useState<string | null>(null);

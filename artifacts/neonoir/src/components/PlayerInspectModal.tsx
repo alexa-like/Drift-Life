@@ -36,12 +36,13 @@ interface Props {
   currentUser: User;
   onClose: () => void;
   onNav?: (page: string) => void;
+  onTradeWith?: (player: { id: string; username: string }) => void;
   addToast: (msg: string, t?: string) => void;
 }
 
 type ActionModal = "gift-dc" | "gift-nc" | null;
 
-export function PlayerInspectModal({ targetId, currentUser, onClose, onNav, addToast }: Props) {
+export function PlayerInspectModal({ targetId, currentUser, onClose, onNav, onTradeWith, addToast }: Props) {
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionModal, setActionModal] = useState<ActionModal>(null);
@@ -326,7 +327,14 @@ export function PlayerInspectModal({ targetId, currentUser, onClose, onNav, addT
                     {/* Action buttons row 2 */}
                     <div style={{ display: "flex", gap: 6 }}>
                       <button
-                        onClick={() => { onClose(); onNav?.("trade"); }}
+                        onClick={() => {
+                          onClose();
+                          if (profile && onTradeWith) {
+                            onTradeWith({ id: profile.id, username: profile.username });
+                          } else {
+                            onNav?.("trade");
+                          }
+                        }}
                         style={btnStyle("#f59e0b")}
                       >
                         🤝 Trade
