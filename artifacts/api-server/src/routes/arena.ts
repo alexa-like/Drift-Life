@@ -1763,6 +1763,19 @@ async function grantCombatRewards(match: any) {
       claimBounty(match.winnerId.toString(), loserId).catch(() => {});
     }
   }
+
+  // ── Gang war scoring — arena wins vs enemy guild member ───────────────────
+  if (!isDraw && !match.isPlayer2AI && match.winnerId) {
+    const winnerId = match.winnerId.toString();
+    const loserId = p1Won
+      ? match.player2Id?.toString() ?? null
+      : match.player1Id?.toString() ?? null;
+    if (loserId) {
+      import("../lib/warScoring").then(({ awardArenaWarPoints }) =>
+        awardArenaWarPoints(winnerId, loserId, (match as any)._io)
+      ).catch(() => {});
+    }
+  }
 }
 
 function getWeekStart(): Date {

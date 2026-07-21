@@ -25,6 +25,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       basePrice: i.basePrice,
       quantity: i.quantity,
       equipped: i.equipped,
+      inTrade: (i as any).inTrade ?? false,
       slot: i.slot,
       marketListed: i.marketListed,
       blackMarket: i.blackMarket,
@@ -43,6 +44,7 @@ router.post("/:id/equip", requireAuth, async (req: AuthRequest, res) => {
     if (!item) return res.status(404).json({ message: "Item not found" });
     if (!item.slot) return res.status(400).json({ message: "Item cannot be equipped" });
     if (item.marketListed) return res.status(400).json({ message: "Cancel market listing before equipping" });
+    if ((item as any).inTrade) return res.status(400).json({ message: "Cancel the pending trade offer before equipping" });
 
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -231,6 +233,7 @@ router.post("/:id/salvage", requireAuth, async (req: AuthRequest, res) => {
     if (!item) return res.status(404).json({ message: "Item not found" });
     if (item.equipped) return res.status(400).json({ message: "Unequip the item before salvaging" });
     if (item.marketListed) return res.status(400).json({ message: "Cancel market listing before salvaging" });
+    if ((item as any).inTrade) return res.status(400).json({ message: "Cancel the pending trade offer before salvaging" });
 
     const salvageValue = Math.floor((item.basePrice || 0) * 0.15);
     const user = await User.findById(req.userId);
@@ -280,6 +283,7 @@ router.post("/:id/list", requireAuth, async (req: AuthRequest, res) => {
     if (!item) return res.status(404).json({ message: "Item not found" });
     if (item.equipped) return res.status(400).json({ message: "Unequip before listing" });
     if (item.marketListed) return res.status(400).json({ message: "Already listed on market" });
+    if ((item as any).inTrade) return res.status(400).json({ message: "Cancel the pending trade offer before listing" });
 
     item.marketListed = true;
     item.marketPrice = listPrice;

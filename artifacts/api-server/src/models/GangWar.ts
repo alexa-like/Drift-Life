@@ -2,6 +2,13 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export type GangWarStatus = "pending" | "active" | "completed" | "declined";
 
+export interface IWarContribution {
+  userId: mongoose.Types.ObjectId;
+  username: string;
+  guildId: mongoose.Types.ObjectId;
+  points: number;
+}
+
 export interface IGangWar extends Document {
   _id: mongoose.Types.ObjectId;
   challengerGuildId: mongoose.Types.ObjectId;
@@ -15,9 +22,20 @@ export interface IGangWar extends Document {
   winnerId:   mongoose.Types.ObjectId | null;
   loserTreasuryTransfer: number; // DC taken from loser treasury on settlement
   settled: boolean;
+  contributions: IWarContribution[];
   createdAt: Date;
   updatedAt: Date;
 }
+
+const WarContributionSchema = new Schema<IWarContribution>(
+  {
+    userId:   { type: Schema.Types.ObjectId, ref: "User", required: true },
+    username: { type: String, required: true },
+    guildId:  { type: Schema.Types.ObjectId, ref: "Guild", required: true },
+    points:   { type: Number, default: 0 },
+  },
+  { _id: false }
+);
 
 const GangWarSchema = new Schema<IGangWar>(
   {
@@ -32,6 +50,7 @@ const GangWarSchema = new Schema<IGangWar>(
     winnerId:          { type: Schema.Types.ObjectId, ref: "Guild", default: null },
     loserTreasuryTransfer: { type: Number, default: 0 },
     settled:           { type: Boolean, default: false },
+    contributions:     { type: [WarContributionSchema], default: [] },
   },
   { timestamps: true }
 );

@@ -62,6 +62,13 @@ interface GangUpgradesData {
   treasury: number;
 }
 
+interface WarContribution {
+  userId: string;
+  username: string;
+  guildId: string;
+  points: number;
+}
+
 interface GangWar {
   id: string;
   attackerGuildId: string;
@@ -74,6 +81,7 @@ interface GangWar {
   endsAt: string | null;
   winnerId: string | null;
   isAttacker: boolean;
+  contributions?: WarContribution[];
 }
 
 interface Props {
@@ -528,6 +536,53 @@ export function GuildsPage({ user, addToast }: Props) {
                 </div>
               </div>
             </AnimatedCard>
+
+            {/* ⚔️ Active War Banner */}
+            {activeWar && (
+              <AnimatedCard accent="#ff2d55">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-mono text-xs px-1.5 py-0.5 rounded" style={{ background: "#ff2d5533", color: "#ff2d55" }}>⚔ AT WAR</span>
+                  <span className="font-mono text-xs" style={{ color: "#94a3b8" }}>
+                    vs {activeWar.isAttacker ? activeWar.defenderGuildName : activeWar.attackerGuildName}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="text-center">
+                    <div className="font-mono text-2xl font-bold" style={{ color: "#00d4ff" }}>
+                      {activeWar.isAttacker ? activeWar.attackerPoints : activeWar.defenderPoints}
+                    </div>
+                    <div className="font-mono text-xs" style={{ color: "#64748b" }}>Your side</div>
+                  </div>
+                  <div>
+                    {(() => {
+                      const myPts = activeWar.isAttacker ? activeWar.attackerPoints : activeWar.defenderPoints;
+                      const theirPts = activeWar.isAttacker ? activeWar.defenderPoints : activeWar.attackerPoints;
+                      const total = myPts + theirPts || 1;
+                      const myPct = Math.round((myPts / total) * 100);
+                      return (
+                        <div style={{ width: 120, height: 6, background: "#ff2d5533", borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ width: `${myPct}%`, height: "100%", background: "#00d4ff", borderRadius: 3, transition: "width 0.4s" }} />
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <div className="text-center">
+                    <div className="font-mono text-2xl font-bold" style={{ color: "#ff2d55" }}>
+                      {activeWar.isAttacker ? activeWar.defenderPoints : activeWar.attackerPoints}
+                    </div>
+                    <div className="font-mono text-xs" style={{ color: "#64748b" }}>Enemy</div>
+                  </div>
+                </div>
+                {activeWar.endsAt && (
+                  <div className="font-mono text-xs text-center" style={{ color: "#64748b" }}>
+                    <WarCountdown endsAt={activeWar.endsAt} />
+                  </div>
+                )}
+                <div className="font-mono text-xs mt-2" style={{ color: "#475569" }}>
+                  Earn points: Arena wins vs enemy (200 pts) · Crimes in their turf (50 pts) · Any crime (20 pts)
+                </div>
+              </AnimatedCard>
+            )}
 
             <AnimatedCard>
               <CyberSectionHeader title="MEMBERS" accent="#64748b" size="sm" />
@@ -996,23 +1051,23 @@ export function GuildsPage({ user, addToast }: Props) {
                 {/* Active War */}
                 {activeWar && (
                   <AnimatedCard accent="#ff2d55">
-                    <div className="font-mono text-xs px-1.5 py-0.5 rounded inline-block mb-2"
+                    <div className="font-mono text-xs px-1.5 py-0.5 rounded inline-block mb-3"
                       style={{ background: "#ff2d5533", color: "#ff2d55" }}>
                       ⚔ ACTIVE WAR
                     </div>
-                    <div className="flex items-center justify-center gap-4 flex-wrap text-center mt-2">
-                      <div>
-                        <div className="font-mono font-bold text-lg" style={{ color: "#e2e8f0" }}>
+                    {/* Score */}
+                    <div className="flex items-center justify-between gap-3 flex-wrap text-center">
+                      <div className="flex-1 text-center">
+                        <div className="font-mono font-bold text-sm truncate" style={{ color: "#e2e8f0" }}>
                           {activeWar.isAttacker ? myGuild.name : activeWar.attackerGuildName}
                         </div>
                         <div className="font-mono text-3xl font-bold mt-1" style={{ color: "#00d4ff" }}>
                           {activeWar.isAttacker ? activeWar.attackerPoints : activeWar.defenderPoints}
                         </div>
-        
                       </div>
-                      <div className="font-mono text-xl font-bold" style={{ color: "#334155" }}>VS</div>
-                      <div>
-                        <div className="font-mono font-bold text-lg" style={{ color: "#e2e8f0" }}>
+                      <div className="font-mono text-lg font-bold flex-shrink-0" style={{ color: "#334155" }}>VS</div>
+                      <div className="flex-1 text-center">
+                        <div className="font-mono font-bold text-sm truncate" style={{ color: "#e2e8f0" }}>
                           {activeWar.isAttacker ? activeWar.defenderGuildName : myGuild.name}
                         </div>
                         <div className="font-mono text-3xl font-bold mt-1" style={{ color: "#ff2d55" }}>
@@ -1020,11 +1075,56 @@ export function GuildsPage({ user, addToast }: Props) {
                         </div>
                       </div>
                     </div>
+                    {/* Live score bar */}
+                    {(() => {
+                      const myPts = activeWar.isAttacker ? activeWar.attackerPoints : activeWar.defenderPoints;
+                      const theirPts = activeWar.isAttacker ? activeWar.defenderPoints : activeWar.attackerPoints;
+                      const total = myPts + theirPts;
+                      const myPct = total > 0 ? Math.round((myPts / total) * 100) : 50;
+                      return (
+                        <div className="mt-3 mb-1">
+                          <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", background: "#1e1e2e" }}>
+                            <div style={{ width: `${myPct}%`, background: "#00d4ff", transition: "width 0.5s ease" }} />
+                            <div style={{ width: `${100 - myPct}%`, background: "#ff2d55", transition: "width 0.5s ease" }} />
+                          </div>
+                          <div className="flex justify-between font-mono text-xs mt-1" style={{ color: "#475569" }}>
+                            <span>{myPct}%</span>
+                            <span>{100 - myPct}%</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {activeWar.endsAt && (
-                      <div className="text-center mt-3 font-mono text-xs" style={{ color: "#64748b" }}>
+                      <div className="text-center mt-2 font-mono text-xs" style={{ color: "#64748b" }}>
                         Time remaining: <WarCountdown endsAt={activeWar.endsAt} />
                       </div>
                     )}
+                    {/* Member contributions */}
+                    {activeWar.contributions && activeWar.contributions.length > 0 && (
+                      <div className="mt-3 pt-3" style={{ borderTop: "1px solid #1e1e2e" }}>
+                        <div className="font-mono text-xs mb-2 font-bold" style={{ color: "#64748b" }}>MEMBER CONTRIBUTIONS</div>
+                        <div className="space-y-1">
+                          {[...activeWar.contributions]
+                            .filter(c => c.guildId === (activeWar.isAttacker ? activeWar.attackerGuildId : activeWar.defenderGuildId))
+                            .sort((a, b) => b.points - a.points)
+                            .slice(0, 8)
+                            .map((c, i) => (
+                              <div key={c.userId} className="flex items-center justify-between font-mono text-xs py-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span style={{ color: i === 0 ? "#f59e0b" : "#475569", minWidth: 16 }}>
+                                    {i === 0 ? "⭐" : `#${i + 1}`}
+                                  </span>
+                                  <span style={{ color: "#e2e8f0" }}>{c.username}</span>
+                                </div>
+                                <span style={{ color: "#00d4ff" }}>{c.points.toLocaleString()} pts</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="font-mono text-xs mt-3" style={{ color: "#334155" }}>
+                      Arena win vs enemy: 200 pts · Crime in enemy turf: 50 pts · Any crime: 20 pts
+                    </div>
                   </AnimatedCard>
                 )}
 

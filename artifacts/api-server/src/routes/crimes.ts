@@ -324,6 +324,10 @@ router.post("/district/:crimeId/commit", requireAuth, async (req: AuthRequest, r
       awardEventPoints({ userId: String(req.userId), username: user.username, action: "crime_success", io: req.app.locals["io"] }).catch(() => {});
       awardBattlePassXp(String(req.userId), "crime_success").catch(() => {});
       updateQuestProgress(String(req.userId), "crime_success").catch(() => {});
+      // Gang war scoring — district crimes
+      import("../lib/warScoring").then(({ awardCrimeWarPoints }) =>
+        awardCrimeWarPoints(String(req.userId), user.username, user.currentLocation ?? "downtown", req.app.locals["io"])
+      ).catch(() => {});
     } else {
       // Jailed in this district
       const jailMult = DISTRICT_JAIL_MULTIPLIERS[user.currentLocation] ?? 1.0;
@@ -596,6 +600,10 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
       awardEventPoints({ userId: String(req.userId), username: rewarded.username, action: "crime_success", io: req.app.locals["io"] }).catch(() => {});
       awardBattlePassXp(String(req.userId), "crime_success").catch(() => {});
       updateQuestProgress(String(req.userId), "crime_success").catch(() => {});
+      // Gang war scoring — runs
+      import("../lib/warScoring").then(({ awardCrimeWarPoints }) =>
+        awardCrimeWarPoints(String(req.userId), rewarded.username, rewarded.currentLocation ?? "downtown", req.app.locals["io"])
+      ).catch(() => {});
     }
     checkAchievements(String(req.userId)).catch(() => {});
     _incrementCrimeRuns(String(req.userId)); // track hourly rate limit

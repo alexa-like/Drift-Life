@@ -274,6 +274,7 @@ export interface Item {
   basePrice: number;
   quantity: number;
   equipped: boolean;
+  inTrade: boolean;
   slot: "enhancement" | "clothing" | "vehicle" | null;
   marketListed: boolean;
   imageUrl?: string | null;

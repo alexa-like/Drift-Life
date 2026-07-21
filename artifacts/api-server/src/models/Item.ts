@@ -25,6 +25,7 @@ export interface IItem extends Document {
   iconUrl: string | null;
   ownerId: mongoose.Types.ObjectId | null;
   auctionId: mongoose.Types.ObjectId | null;
+  inTrade: boolean;
   createdAt: Date;
   arenaListingMeta: {
     kind: "arena" | "arena_ammo";
@@ -69,6 +70,7 @@ const ItemSchema = new Schema<IItem>(
     iconUrl: { type: String, default: null },
     ownerId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     auctionId: { type: Schema.Types.ObjectId, ref: "AuctionListing", default: null },
+    inTrade: { type: Boolean, default: false },
     arenaListingMeta: { type: Schema.Types.Mixed, default: null },
   },
   { timestamps: true }

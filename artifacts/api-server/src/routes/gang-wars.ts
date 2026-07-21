@@ -1,87 +1,64 @@
-import { Router, Request } from "express";
+import { Router } from "express";
 import mongoose from "mongoose";
-import GangWar, { IGangWar } from "../models/GangWar";
+import GangWar from "../models/GangWar";
 import Guild from "../models/Guild";
 import User from "../models/User";
-import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { logger } from "../lib/logger";
-import { sendPushToUser } from "../lib/sendPushToUser";
-import { notifyTelegram } from "../lib/telegram";
+import { notifyUser } from "../lib/notifyUser";
+import { postToSystemFeed } from "../lib/systemFeed";
+import { resolveExpiredWar } from "../lib/warScoring";
 
 const router = Router();
 
-// ── War resolution helper ─────────────────────────────────────────────────────
-async function resolveWar(war: IGangWar): Promise<void> {
-  const isDraw = war.challengerPoints === war.defenderPoints;
-
-  if (!isDraw) {
-    const challengerWon = war.challengerPoints > war.defenderPoints;
-    const winnerId = challengerWon ? war.challengerGuildId : war.defenderGuildId;
-    const loserId = challengerWon ? war.defenderGuildId : war.challengerGuildId;
-
-    const transfer = war.loserTreasuryTransfer;
-    if (transfer > 0) {
-      await Guild.findOneAndUpdate(
-        { _id: loserId, treasury: { $gte: transfer } },
-        { $inc: { treasury: -transfer } }
-      );
-      await Guild.findByIdAndUpdate(winnerId, { $inc: { treasury: transfer } });
-    }
-
-    war.winnerId = winnerId;
-  }
-
-  war.status = "completed";
-  war.settled = true;
-  await war.save();
-
-  // Notify all members of both guilds
-  const [challengerGuild, defenderGuild] = await Promise.all([
-    Guild.findById(war.challengerGuildId).select("name leaderId officers members recruits"),
-    Guild.findById(war.defenderGuildId).select("name leaderId officers members recruits"),
-  ]);
-
-  const resultMessage = isDraw
-    ? `Gang war between ${challengerGuild?.name} and ${defenderGuild?.name} ended in a DRAW! No treasury transfer.`
-    : war.winnerId?.equals(war.challengerGuildId)
-    ? `Gang war result: ${challengerGuild?.name} defeated ${defenderGuild?.name}! Winner takes ${war.loserTreasuryTransfer.toLocaleString()} DC.`
-    : `Gang war result: ${defenderGuild?.name} defeated ${challengerGuild?.name}! Winner takes ${war.loserTreasuryTransfer.toLocaleString()} DC.`;
-
-  const allMemberIds: mongoose.Types.ObjectId[] = [];
-  for (const guild of [challengerGuild, defenderGuild]) {
-    if (!guild) continue;
-    allMemberIds.push(guild.leaderId, ...guild.officers, ...guild.members, ...guild.recruits);
-  }
-
-  await Promise.all(
-    allMemberIds.map((uid) =>
-      Notification.create({ userId: uid, type: "gang_war", message: resultMessage })
-    )
-  );
-}
-
-// GET /api/gang-wars — active + recent wars involving user's guild
+// ── GET /api/gang-wars — active + recent wars for user's guild ───────────────
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId).select("guildId");
     if (!user || !user.guildId) return res.status(400).json({ message: "Not in a guild" });
 
     const guildId = user.guildId;
+    const [challengerGuild, defenderGuild] = await Promise.all([
+      Guild.findById(guildId).select("name tag"),
+    ]).then(([g]) => [g, null]);
+
     const wars = await GangWar.find({
       $or: [{ challengerGuildId: guildId }, { defenderGuildId: guildId }],
-    })
-      .sort({ createdAt: -1 })
-      .limit(20);
+      status: { $ne: "declined" },
+    }).sort({ createdAt: -1 }).limit(20);
 
-    res.json(wars);
+    // Enrich with guild names
+    const guildIds = new Set<string>();
+    wars.forEach(w => {
+      guildIds.add(w.challengerGuildId.toString());
+      guildIds.add(w.defenderGuildId.toString());
+    });
+    const guilds = await Guild.find({ _id: { $in: [...guildIds] } }).select("name tag").lean();
+    const guildMap = Object.fromEntries(guilds.map(g => [g._id.toString(), { name: g.name, tag: g.tag }]));
+
+    res.json(wars.map(w => ({
+      id: w._id,
+      attackerGuildId: w.challengerGuildId,
+      defenderGuildId: w.defenderGuildId,
+      attackerGuildName: guildMap[w.challengerGuildId.toString()]?.name ?? "Unknown",
+      defenderGuildName: guildMap[w.defenderGuildId.toString()]?.name ?? "Unknown",
+      attackerPoints: w.challengerPoints,
+      defenderPoints: w.defenderPoints,
+      status: w.status,
+      startedAt: w.startedAt,
+      endsAt: w.endsAt,
+      winnerId: w.winnerId,
+      loserTreasuryTransfer: w.loserTreasuryTransfer,
+      isAttacker: w.challengerGuildId.equals(guildId),
+      contributions: w.contributions,
+    })));
   } catch (err) {
     logger.error({ err }, "gang-wars GET /");
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// GET /api/gang-wars/active — check if my guild is in an active war
+// ── GET /api/gang-wars/active — active war status for my guild ───────────────
 router.get("/active", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId).select("guildId");
@@ -92,15 +69,83 @@ router.get("/active", requireAuth, async (req: AuthRequest, res) => {
       $or: [{ challengerGuildId: guildId }, { defenderGuildId: guildId }],
       status: "active",
     });
+    if (!war) return res.json({ active: false, war: null, myGuildId: guildId });
 
-    res.json({ active: !!war, war, myGuildId: guildId });
+    // Check if war has expired
+    if (war.endsAt && Date.now() >= war.endsAt.getTime()) {
+      await resolveExpiredWar(war);
+      return res.json({ active: false, war: null, myGuildId: guildId });
+    }
+
+    const guildIds = [war.challengerGuildId.toString(), war.defenderGuildId.toString()];
+    const guilds = await Guild.find({ _id: { $in: guildIds } }).select("name tag").lean();
+    const guildMap = Object.fromEntries(guilds.map(g => [g._id.toString(), { name: g.name, tag: g.tag }]));
+
+    res.json({
+      active: true,
+      myGuildId: guildId,
+      war: {
+        id: war._id,
+        attackerGuildId: war.challengerGuildId,
+        defenderGuildId: war.defenderGuildId,
+        attackerGuildName: guildMap[war.challengerGuildId.toString()]?.name ?? "Unknown",
+        defenderGuildName: guildMap[war.defenderGuildId.toString()]?.name ?? "Unknown",
+        attackerPoints: war.challengerPoints,
+        defenderPoints: war.defenderPoints,
+        status: war.status,
+        endsAt: war.endsAt,
+        winnerId: war.winnerId,
+        isAttacker: war.challengerGuildId.equals(guildId),
+        contributions: war.contributions,
+      },
+    });
   } catch (err) {
     logger.error({ err }, "gang-wars GET /active");
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// POST /api/gang-wars/declare — declare war on another guild
+// ── GET /api/gang-wars/history — completed wars for my guild ─────────────────
+router.get("/history", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("guildId");
+    if (!user || !user.guildId) return res.status(400).json({ message: "Not in a guild" });
+
+    const guildId = user.guildId;
+    const wars = await GangWar.find({
+      $or: [{ challengerGuildId: guildId }, { defenderGuildId: guildId }],
+      status: "completed",
+    }).sort({ updatedAt: -1 }).limit(20);
+
+    const guildIds = new Set<string>();
+    wars.forEach(w => {
+      guildIds.add(w.challengerGuildId.toString());
+      guildIds.add(w.defenderGuildId.toString());
+    });
+    const guilds = await Guild.find({ _id: { $in: [...guildIds] } }).select("name tag").lean();
+    const guildMap = Object.fromEntries(guilds.map(g => [g._id.toString(), { name: g.name, tag: g.tag }]));
+
+    res.json(wars.map(w => ({
+      id: w._id,
+      attackerGuildId: w.challengerGuildId,
+      defenderGuildId: w.defenderGuildId,
+      attackerGuildName: guildMap[w.challengerGuildId.toString()]?.name ?? "Unknown",
+      defenderGuildName: guildMap[w.defenderGuildId.toString()]?.name ?? "Unknown",
+      attackerPoints: w.challengerPoints,
+      defenderPoints: w.defenderPoints,
+      winnerId: w.winnerId,
+      loserTreasuryTransfer: w.loserTreasuryTransfer,
+      isAttacker: w.challengerGuildId.equals(guildId),
+      weWon: w.winnerId ? w.winnerId.equals(guildId) : false,
+      endedAt: w.updatedAt,
+    })));
+  } catch (err) {
+    logger.error({ err }, "gang-wars GET /history");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/gang-wars/declare — declare war on another guild ───────────────
 router.post("/declare", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { targetGuildId } = req.body as { targetGuildId: string };
@@ -117,8 +162,8 @@ router.post("/declare", requireAuth, async (req: AuthRequest, res) => {
     if (!targetGuild) return res.status(404).json({ message: "Target guild not found" });
     if (myGuild._id.equals(targetGuild._id)) return res.status(400).json({ message: "Cannot declare war on your own guild" });
 
-    const targetMemberCount = 1 + targetGuild.officers.length + targetGuild.members.length + targetGuild.recruits.length;
-    if (targetMemberCount < 3) return res.status(400).json({ message: "Target guild must have at least 3 members" });
+    const myMemberCount = 1 + myGuild.officers.length + myGuild.members.length + myGuild.recruits.length;
+    if (myMemberCount < 3) return res.status(400).json({ message: "Your guild must have at least 3 members to declare war" });
 
     const existingWar = await GangWar.findOne({
       $or: [
@@ -148,36 +193,31 @@ router.post("/declare", requireAuth, async (req: AuthRequest, res) => {
 
     // Notify all target guild members
     const targetMemberIds = [targetGuild.leaderId, ...targetGuild.officers, ...targetGuild.members, ...targetGuild.recruits];
-    await Promise.all(
-      targetMemberIds.map((uid) =>
-        Notification.create({
+    await Promise.allSettled(
+      targetMemberIds.map(uid =>
+        notifyUser({
           userId: uid,
-          type: "gang_war",
+          type: "faction",
           message: `[${myGuild.tag}] ${myGuild.name} has declared war on your gang! Your leader has 24h to accept or decline.`,
+          link: "/guilds",
+          push: { title: `⚔️ War Declared — [${myGuild.tag}]`, body: `${myGuild.name} declared war on your gang!` },
         })
       )
     );
-    // Push + Telegram notification to each target guild member
-    for (const uid of targetMemberIds) {
-      sendPushToUser(uid, {
-        title: `⚔️ War Declared — [${myGuild.tag}]`,
-        body: `${myGuild.name} has declared war on your gang! Your leader has 24h to accept or decline.`,
-        link: "/guilds",
-        tag: "faction",
-      }, "faction").catch(() => {});
-      User.findById(uid).select("telegramId telegramNotifications").lean()
-        .then(u => notifyTelegram(u as any, `⚔️ <b>War Declared!</b>\n\n<b>[${myGuild.tag}] ${myGuild.name}</b> has declared war on your gang! Your leader has 24 hours to accept or decline.`))
-        .catch(() => {});
-    }
 
-    res.status(201).json(war);
+    postToSystemFeed(
+      "gang_war",
+      `[⚔️ WAR DECLARED] [${myGuild.tag}] ${myGuild.name} has challenged [${targetGuild.tag}] ${targetGuild.name}! The city watches.`
+    ).catch(() => {});
+
+    res.status(201).json({ message: "War declared — awaiting their response", war });
   } catch (err) {
     logger.error({ err }, "gang-wars POST /declare");
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// POST /api/gang-wars/:id/accept — defender leader accepts the war
+// ── POST /api/gang-wars/:id/accept — defender leader accepts ─────────────────
 router.post("/:id/accept", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId).select("guildId guildRole");
@@ -197,34 +237,38 @@ router.post("/:id/accept", requireAuth, async (req: AuthRequest, res) => {
     await war.save();
 
     const [challengerGuild, defenderGuild] = await Promise.all([
-      Guild.findById(war.challengerGuildId).select("name leaderId officers members recruits"),
-      Guild.findById(war.defenderGuildId).select("name leaderId officers members recruits"),
+      Guild.findById(war.challengerGuildId).select("name tag leaderId officers members recruits"),
+      Guild.findById(war.defenderGuildId).select("name tag leaderId officers members recruits"),
     ]);
+
+    const startMsg = `[⚔️ WAR ACTIVE] [${challengerGuild?.tag}] ${challengerGuild?.name} vs [${defenderGuild?.tag}] ${defenderGuild?.name}! 48 hours on the clock. Winner takes ${war.loserTreasuryTransfer.toLocaleString()} DC.`;
+    postToSystemFeed("gang_war", startMsg).catch(() => {});
 
     const allMemberIds: mongoose.Types.ObjectId[] = [];
     for (const guild of [challengerGuild, defenderGuild]) {
       if (!guild) continue;
       allMemberIds.push(guild.leaderId, ...guild.officers, ...guild.members, ...guild.recruits);
     }
-
-    await Promise.all(
-      allMemberIds.map((uid) =>
-        Notification.create({
+    await Promise.allSettled(
+      allMemberIds.map(uid =>
+        notifyUser({
           userId: uid,
-          type: "gang_war",
-          message: `Gang war is now ACTIVE! [${challengerGuild?.tag}] ${challengerGuild?.name} vs [${defenderGuild?.tag}] ${defenderGuild?.name}. 48 hours on the clock.`,
+          type: "faction",
+          message: startMsg,
+          link: "/guilds",
+          push: { title: "⚔️ War is Active!", body: `${challengerGuild?.name} vs ${defenderGuild?.name}` },
         })
       )
     );
 
-    res.json(war);
+    res.json({ message: "War accepted — battle begins!", war });
   } catch (err) {
     logger.error({ err }, "gang-wars POST /:id/accept");
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// POST /api/gang-wars/:id/decline — defender leader declines
+// ── POST /api/gang-wars/:id/decline — defender leader declines ───────────────
 router.post("/:id/decline", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = await User.findById(req.userId).select("guildId guildRole");
@@ -246,32 +290,50 @@ router.post("/:id/decline", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/gang-wars/:id/add-points — internal endpoint called from arena
-router.post("/:id/add-points", async (req: Request, res) => {
+// ── POST /api/gang-wars/:id/add-points — internal endpoint (arena/crimes) ────
+// Called internally with x-internal header; awards points and tracks contributions.
+router.post("/:id/add-points", async (req, res) => {
   try {
-    if (req.headers["x-internal"] !== "neonoir-internal")
+    if (req.headers["x-internal"] !== "neonoir-internal") {
       return res.status(403).json({ message: "Forbidden" });
+    }
 
-    const { winnerUserId, loserUserId } = req.body as { winnerUserId: string; loserUserId: string };
+    const { winnerUserId, points = 200 } = req.body as { winnerUserId: string; points?: number };
 
     const war = await GangWar.findById(req.params.id);
     if (!war) return res.status(404).json({ message: "War not found" });
     if (war.status !== "active") return res.status(400).json({ message: "War is not active" });
 
-    const [winner, loser] = await Promise.all([
-      User.findById(winnerUserId).select("guildId"),
-      User.findById(loserUserId).select("guildId"),
-    ]);
+    const winner = await User.findById(winnerUserId).select("guildId username").lean();
+    if (!winner?.guildId) return res.status(400).json({ message: "User not in a guild" });
 
-    if (winner?.guildId?.equals(war.challengerGuildId)) {
-      war.challengerPoints += 1;
-    } else if (winner?.guildId?.equals(war.defenderGuildId)) {
-      war.defenderPoints += 1;
+    const isChallenger = (war.challengerGuildId as mongoose.Types.ObjectId).equals(winner.guildId as mongoose.Types.ObjectId);
+    if (isChallenger) {
+      war.challengerPoints += points;
+    } else if ((war.defenderGuildId as mongoose.Types.ObjectId).equals(winner.guildId as mongoose.Types.ObjectId)) {
+      war.defenderPoints += points;
+    } else {
+      return res.status(400).json({ message: "User is not in either warring guild" });
     }
 
-    // Check if war should end
+    // Track individual contribution
+    const contrib = war.contributions.find(c =>
+      (c.userId as mongoose.Types.ObjectId).equals(winnerUserId)
+    );
+    if (contrib) {
+      contrib.points += points;
+    } else {
+      war.contributions.push({
+        userId: new mongoose.Types.ObjectId(winnerUserId),
+        username: winner.username,
+        guildId: winner.guildId as mongoose.Types.ObjectId,
+        points,
+      });
+    }
+    war.markModified("contributions");
+
     if (war.endsAt && Date.now() >= war.endsAt.getTime()) {
-      await resolveWar(war);
+      await resolveExpiredWar(war);
     } else {
       await war.save();
     }

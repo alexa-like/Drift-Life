@@ -290,6 +290,23 @@ async function start() {
       logger.error({ err }, "event scheduler startup error"),
     );
 
+    // ── Gang war expiry: check every 60s for active wars past endsAt ─────────
+    setInterval(async () => {
+      try {
+        const { default: GangWar } = await import("./models/GangWar");
+        const { resolveExpiredWar } = await import("./lib/warScoring");
+        const expiredWars = await GangWar.find({
+          status: "active",
+          endsAt: { $lt: new Date() },
+        });
+        for (const war of expiredWars) {
+          await resolveExpiredWar(war);
+        }
+      } catch (err) {
+        logger.error({ err }, "gang-war expiry tick error");
+      }
+    }, 60_000);
+
     // ── Auction auto-close: run every 1 minute ────────────────────────────────
     setInterval(() => {
       closeExpiredAuctions().catch((err) =>
