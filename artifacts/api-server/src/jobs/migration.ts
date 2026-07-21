@@ -210,7 +210,8 @@ export async function runLegacyCarRefundMigration(): Promise<{
   // isolated to this migration so the rest of the codebase never imports it.
   let Car: mongoose.Model<any>;
   try {
-    Car = (await import("../models/Car")).default;
+    const carModelPath = "../models/Car";
+    Car = (await import(carModelPath)).default;
   } catch {
     logger.info("Migration: legacy Car model not present, skipping");
     return { carsRemoved: 0, usersRefunded: 0, totalDcGranted: 0 };

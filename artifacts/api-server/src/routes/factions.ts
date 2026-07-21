@@ -945,7 +945,7 @@ router.get("/crimes", requireAuth, async (req: AuthRequest, res) => {
         ...c.toObject(),
         def: FACTION_CRIME_DEFS[c.crimeType],
         participants: c.participants.map((p) => ({
-          ...p.toObject(),
+          ...(p as any),
           username: uMap[p.userId.toString()] ?? "Unknown",
         })),
       }));
@@ -991,7 +991,7 @@ router.post("/crimes/start", requireAuth, async (req: AuthRequest, res) => {
     });
     if (existing) return res.status(400).json({ message: "Your faction already has an active crime operation" });
 
-    const crime = await FactionCrime.create({
+    const crime = await (FactionCrime.create as Function)({
       factionId: (user as any).factionId,
       crimeType,
       status: "gathering",
@@ -1011,9 +1011,9 @@ router.post("/crimes/start", requireAuth, async (req: AuthRequest, res) => {
       completedAt: null,
       totalPayout: 0,
       failureReason: null,
-    });
+    }) as InstanceType<typeof FactionCrime>;
 
-    res.status(201).json({ ...crime.toObject(), def });
+    res.status(201).json({ ...(crime as any).toObject(), def });
   } catch (err) {
     req.log.error({ err }, "POST /factions/crimes/start error");
     res.status(500).json({ message: "Internal server error" });

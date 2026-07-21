@@ -52,7 +52,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     if (dupCheck)
       return res.status(409).json({ message: "You have already filed a report against this player recently." });
 
-    const report = await PlayerReport.create({
+    const report = await (PlayerReport.create as Function)({
       reporterId: req.userId,
       reporterName: (reporter as any).username,
       targetId,
@@ -60,7 +60,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       category,
       description: description.trim(),
       evidence: evidence?.trim() || null,
-    });
+    }) as InstanceType<typeof PlayerReport>;
 
     res.status(201).json({ message: "Report submitted. Our moderation team will review it.", id: report._id });
   } catch (err: any) {

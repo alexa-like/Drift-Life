@@ -671,7 +671,8 @@ router.post("/grant/keys", requireOwner as any, async (req: AuthRequest, res) =>
 // ── GET /api/owner/royale-logs — paginated royale spin history ─────────────────
 router.get("/royale-logs", async (req: AuthRequest, res) => {
   try {
-    const PlayerRoyaleLog = (await import("../models/PlayerRoyaleLog")).default;
+    const royaleLogPath = "../models/PlayerRoyaleLog";
+    const PlayerRoyaleLog = (await import(royaleLogPath)).default;
     const page     = Math.max(1, Number(req.query.page) || 1);
     const limit    = Math.min(50, Number(req.query.limit) || 20);
     const userId   = req.query.userId as string | undefined;
@@ -682,7 +683,7 @@ router.get("/royale-logs", async (req: AuthRequest, res) => {
     ]);
     // Attach username to each log
     const userIds = [...new Set(logs.map((l: any) => l.userId?.toString()))];
-    const users   = await User.find({ _id: { $in: userIds } }).select("username").lean();
+    const users   = await User.find({ _id: { $in: userIds as any[] } }).select("username").lean();
     const userMap = Object.fromEntries(users.map(u => [u._id.toString(), u.username]));
     res.json({
       logs: logs.map((l: any) => ({ ...l, username: userMap[l.userId?.toString()] ?? "?" })),
@@ -1234,7 +1235,7 @@ router.post("/db-smart-cleanup", requireOwner as any, async (req: AuthRequest, r
 // DELETE /api/owner/db-clear/:collection — wipe all documents (keeps collection + indexes)
 router.delete("/db-clear/:collection", requireOwner as any, async (req: AuthRequest, res) => {
   try {
-    const { collection } = req.params;
+    const collection = req.params.collection as string;
     if (DB_PROTECTED.has(collection))
       return res.status(403).json({ message: `'${collection}' is protected and cannot be cleared` });
     const db = mongoose.connection.db;
@@ -1284,7 +1285,7 @@ router.patch("/db-limit", requireOwner as any, async (req: AuthRequest, res) => 
 // POST /api/owner/db-drop/:collection — permanently drop collection (requires owner code)
 router.post("/db-drop/:collection", requireOwner as any, async (req: AuthRequest, res) => {
   try {
-    const { collection } = req.params;
+    const collection = req.params.collection as string;
     const { confirmCode } = req.body as { confirmCode?: string };
     if (confirmCode !== "Hayatulahi3222")
       return res.status(403).json({ message: "Invalid confirmation code — collection not dropped" });

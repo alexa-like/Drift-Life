@@ -350,7 +350,7 @@ In `artifacts/neonoir/src/pages/SettingsPage.tsx`, add a **Telegram** section:
 ---
 
 ## TIER 7 — BOUNTY SYSTEM + FULL PROFILE + ACHIEVEMENTS
-**Status: 🔧 Mostly done — one minor visual gap**
+**Status: ✅ Done**
 
 ### What IS built (do not rebuild):
 - Full Bounty system (model, routes, arena auto-claim, scheduler expiry, feed posts, Most Wanted leaderboard tab)

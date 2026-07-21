@@ -63,7 +63,7 @@ export async function getActiveFlashEvent(): Promise<FlashEvent | null> {
   try {
     const doc = await ServerConfig.findOne({ key: "flashEvent" }).lean();
     if (!doc?.value) { _flashCache = null; _flashCacheAt = now; return null; }
-    const f = doc.value as FlashEvent;
+    const f = (doc.value as unknown) as FlashEvent;
     _flashCache = f;
     _flashCacheAt = now;
     if (new Date(f.expiresAt) > new Date()) return f;

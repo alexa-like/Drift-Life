@@ -72,7 +72,7 @@ async function payStaffEarnings(): Promise<number> {
 
   // Write a single audit log entry for the batch payout
   await AdminAuditLog.create({
-    actorId: null,
+    actorId: "SYSTEM",
     actorUsername: "SYSTEM",
     action: "staff_auto_payout",
     details: {

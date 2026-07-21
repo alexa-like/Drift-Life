@@ -75,8 +75,7 @@ router.post("/buy-premium", async (req: any, res: any) => {
     notifyUser({
       userId: String(userId),
       type: "general",
-      title: "🌟 Premium Battle Pass Unlocked!",
-      message: `You unlocked the ${pass.seasonName} premium track. Cosmetics & titles await!`,
+      message: `🌟 Premium Battle Pass Unlocked! You unlocked the ${pass.seasonName} premium track. Cosmetics & titles await!`,
     }).catch(() => {});
 
     return res.json({ ok: true, ncRemaining: result.nc });

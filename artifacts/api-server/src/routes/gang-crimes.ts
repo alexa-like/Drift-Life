@@ -163,7 +163,7 @@ router.post("/:id/commit", requireAuth, async (req: AuthRequest, res) => {
 // POST /api/gang-crimes/:id/resolve — resolve a completed crime
 router.post("/:id/resolve", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId as mongoose.Types.ObjectId;
+    const userId = new mongoose.Types.ObjectId(req.userId as string);
     const crime = await GangCrime.findById(req.params.id);
     if (!crime) return res.status(404).json({ message: "Crime not found" });
     if (crime.status !== "in_progress") return res.status(400).json({ message: "Crime is not in progress" });
@@ -240,7 +240,7 @@ router.post("/:id/resolve", requireAuth, async (req: AuthRequest, res) => {
 // DELETE /api/gang-crimes/:id/cancel — cancel a gathering crime
 router.delete("/:id/cancel", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId as mongoose.Types.ObjectId;
+    const userId = new mongoose.Types.ObjectId(req.userId as string);
     const user = await User.findById(userId).select("guildId guildRole");
     if (!user || !user.guildId) return res.status(400).json({ message: "Not in a guild" });
 

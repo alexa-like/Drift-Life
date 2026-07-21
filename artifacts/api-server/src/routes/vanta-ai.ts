@@ -434,7 +434,7 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
         return JSON.stringify({
           username: user.username, tag: user.tag, email: user.email,
           level: user.level, xp: user.xp,
-          currencies: { dc: user.dc, nc: user.nc, bank: user.bankBalance, energy: user.energy, adrenaline: user.adrenaline, nitro: user.nitro, merit: user.merit, keys: user.keys, keyShards: user.keyShards, spinTokens: user.spinTokens, dirtyDc: user.dirtyDc, sim: user.sim },
+          currencies: { dc: user.dc, nc: user.nc, bank: user.bankBalance, energy: user.energy, adrenaline: (user as any).adrenaline, nitro: user.nitro, merit: user.merit, keys: user.keys, keyShards: user.keyShards, spinTokens: user.spinTokens, dirtyDc: user.dirtyDc, sim: user.sim },
           health: user.health, status: user.status, role: user.role,
           banned: user.banned, banReason: user.banReason,
           jailedUntil: user.jailedUntil, hospitalizedUntil: user.hospitalizedUntil,
@@ -785,8 +785,8 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
 
       case "get_event_calendar": {
         const statusFilter = (args["status"] as string) || "all";
-        const filter = statusFilter === "all" ? {} : { status: statusFilter };
-        const events = await Event.find(filter).sort({ startsAt: 1 }).select("name type status startsAt endsAt archive").lean();
+        const filter: Record<string, unknown> = statusFilter === "all" ? {} : { status: statusFilter };
+        const events = await Event.find(filter as any).sort({ startsAt: 1 }).select("name type status startsAt endsAt archive").lean();
         if (!events.length) return `No events found${statusFilter !== "all" ? ` with status "${statusFilter}"` : ""}.`;
         const statusIcon: Record<string, string> = { draft: "📝", scheduled: "⏰", active: "🔥", ended: "✅", archived: "📦" };
         return `**Event Calendar** (${events.length}):\n\n` +

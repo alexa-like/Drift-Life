@@ -36,13 +36,13 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     if (openCount >= 3)
       return res.status(429).json({ message: "You already have 3 open tickets. Please wait for them to be resolved." });
 
-    const ticket = await SupportTicket.create({
+    const ticket = await (SupportTicket.create as Function)({
       playerId: req.userId,
       playerName: (user as any).username,
       category,
       subject: subject.trim(),
       body: body.trim(),
-    });
+    }) as InstanceType<typeof SupportTicket>;
 
     res.status(201).json({ message: "Ticket created. Our team will respond soon.", id: ticket._id });
   } catch (err: any) {

@@ -169,8 +169,7 @@ router.post("/accept-reset", requireAuth, async (req: any, res: any) => {
     // Notify
     notifyUser({
       userId: String(userId),
-      type:   "achievement",
-      title:  "↺ Season Reset Complete",
+      type:   "achievements",
       message: `Your stats have been reset to base values. You received 1,000 NC and the "Season Veteran" title. DC wallet set to 10,000 DC.`,
     }).catch(() => {});
 
