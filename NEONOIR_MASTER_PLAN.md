@@ -213,7 +213,7 @@ All items confirmed built: EventPage with all 6 type panels (Boss, Collection, M
 ---
 
 ## TIER 5 — BATTLE PASS + SEASONS + DAILY & WEEKLY QUESTS
-**Status: 🔧 Half-built — core built, season/Hall of Fame/stat reset never implemented**
+**Status: ✅ Done**
 
 ### What IS built (do not rebuild):
 - BattlePass model, all battle pass routes (buy-premium, claim, owner create/edit/activate)
