@@ -5,7 +5,7 @@ import { logger } from "./lib/logger";
 import { connectDB } from "./lib/db";
 import { startKeepAlive, stopKeepAlive } from "./lib/keepAlive";
 import { seed } from "./lib/seed";
-import { registerWebhook, setMyCommands } from "./lib/telegram";
+import { registerWebhook, setMyCommands, broadcastTelegramToLinkedUsers } from "./lib/telegram";
 import { registerGuildCommands } from "./lib/discord";
 import User from "./models/User";
 import { verifyAccess } from "./lib/jwt";
@@ -394,6 +394,46 @@ async function start() {
     pruneFeed().catch((err) =>
       logger.error({ err }, "feed prune startup error"),
     );
+
+    // ── Daily quests reset notification: once per UTC day, checked hourly ─────
+    // Uses an in-memory marker so we only broadcast once after midnight UTC.
+    // Skips the very first check on startup (don't spam players each deploy).
+    let _questResetDay = (() => {
+      const d = new Date();
+      return `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()}`;
+    })();
+    setInterval(async () => {
+      const d = new Date();
+      const today = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()}`;
+      if (_questResetDay === today) return;
+      _questResetDay = today;
+      try {
+        // Push notification to all subscribed players (re-use eventEngine's
+        // broadcastPushToAll pattern inline to avoid a circular import)
+        const { isWebPushConfigured, sendPushNotification } = await import("./lib/webPush");
+        const PushSubscription = (await import("./models/PushSubscription")).default;
+        if (isWebPushConfigured()) {
+          const subs = await PushSubscription.find({}).lean();
+          await Promise.allSettled(
+            subs.map((sub) =>
+              sendPushNotification({ endpoint: sub.endpoint, keys: (sub as any).keys }, {
+                title: "📅 Daily Quests Reset",
+                body: "New daily missions are ready. Log in to earn rewards!",
+                link: "/daily",
+                tag: "general",
+              }).catch(() => {}),
+            ),
+          );
+        }
+        // Telegram notification to all linked players
+        await broadcastTelegramToLinkedUsers(
+          "📅 <b>Daily Quests Reset!</b>\n\nNew missions are available. Log in to Neonoir and earn your daily rewards!",
+        );
+        logger.info("Daily quests reset notification sent");
+      } catch (err) {
+        logger.error({ err }, "daily quests reset notification error");
+      }
+    }, 60 * 60 * 1000); // check hourly
 
 
     // Register Telegram webhook once the server is live and accepting traffic.
