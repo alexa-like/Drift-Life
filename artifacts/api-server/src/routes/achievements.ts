@@ -50,6 +50,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         case "totalRaces": return (user as any).totalRaces ?? 0;
         case "royaleSpins": return (user as any).totalRoyaleSpins ?? 0;
         case "combatWinStreak": return (user as any).maxCombatWinStreak ?? 0;
+        case "totalBossDamage": return (user as any).totalBossDamage ?? 0;
+        case "eventRank1Count": return (user as any).eventRank1Count ?? 0;
         default: return 0;
       }
     }
@@ -108,6 +110,8 @@ export async function checkAchievements(userId: string): Promise<void> {
         case "totalRaces": return (user as any).totalRaces ?? 0;
         case "royaleSpins": return (user as any).totalRoyaleSpins ?? 0;
         case "combatWinStreak": return (user as any).maxCombatWinStreak ?? 0;
+        case "totalBossDamage": return (user as any).totalBossDamage ?? 0;
+        case "eventRank1Count": return (user as any).eventRank1Count ?? 0;
         default: return progressMap[`_${stat}`]?.progress ?? 0;
       }
     }

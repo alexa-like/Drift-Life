@@ -70,6 +70,18 @@ export const ACHIEVEMENT_CATALOG: IAchievementDef[] = [
   // ARENA STREAKS (progress = max Arena win streak ever achieved)
   { id: "arena_streak_5",   name: "Hot Streak",          description: "Reach a 5 Arena win streak.",             category: "arena",  dcReward: 500,   keyReward: 2, target: 5,   stat: "combatWinStreak" },
   { id: "arena_streak_10",  name: "Unstoppable",         description: "Reach a 10 Arena win streak.",            category: "arena",  dcReward: 2000,  keyReward: 5, target: 10,  stat: "combatWinStreak" },
+
+  // PRESTIGE (additional tiers beyond P1)
+  { id: "prestige_3",       name: "Established",         description: "Reach Prestige 3.",                       category: "exploration", dcReward: 150000, target: 3,       stat: "prestige" },
+  { id: "prestige_5",       name: "Legend",              description: "Reach Prestige 5.",                       category: "exploration", dcReward: 500000, target: 5,       stat: "prestige" },
+
+  // BOSS DAMAGE (event system)
+  { id: "boss_damage_10k",  name: "Challenger",          description: "Deal 10,000 total damage to event bosses.",    category: "exploration", dcReward: 1000,  target: 10000,   stat: "totalBossDamage" },
+  { id: "boss_damage_100k", name: "Destroyer",           description: "Deal 100,000 total damage to event bosses.",   category: "exploration", dcReward: 5000,  target: 100000,  stat: "totalBossDamage" },
+  { id: "boss_damage_1m",   name: "Whale Hunter",        description: "Deal 1,000,000 total damage to event bosses.", category: "exploration", dcReward: 25000, target: 1000000, stat: "totalBossDamage" },
+
+  // EVENTS
+  { id: "event_rank_1",     name: "Champion of the City", description: "Rank #1 in any event.",                  category: "exploration", dcReward: 10000, target: 1,       stat: "eventRank1Count" },
 ];
 
 export interface IUserAchievement extends Document {

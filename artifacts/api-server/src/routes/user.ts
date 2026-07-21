@@ -3,6 +3,7 @@ import sanitizeHtml from "sanitize-html";
 import User, { computeMaxHp, levelUp } from "../models/User";
 import Item from "../models/Item";
 import UserAchievement from "../models/Achievement";
+import { checkAchievements } from "./achievements";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen } from "../lib/regen";
 import { safeUser, fetchActiveEventTheme } from "./auth";
@@ -426,6 +427,9 @@ router.post("/prestige", requireAuth, async (req: AuthRequest, res) => {
     if (!user.titles.includes(badgeId)) user.titles.push(badgeId);
 
     await user.save();
+
+    // Check prestige achievements async (fire-and-forget)
+    checkAchievements(String(req.userId)).catch(() => {});
 
     const prestigeMessages: Record<number, string> = {
       1: `@${user.username} reached Prestige 1! The city takes notice.`,

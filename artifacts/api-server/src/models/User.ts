@@ -185,6 +185,9 @@ export interface IUser extends Document {
   lastEncounterAt: Date | null;
   // ── Revive system ─────────────────────────────────────────────────────────
   revivesReceived: number;
+  // ── Tier 7 Achievement tracking ──────────────────────────────────────────
+  totalBossDamage?: number;
+  eventRank1Count?: number;
   // ── 10.14 Mentor system ──────────────────────────────────────────────────
   isMentor?: boolean;
   mentorId?: string | null;
@@ -438,7 +441,9 @@ const UserSchema = new Schema<IUser>(
     weeklyReset: { type: Date, default: null },
     combatMatchesCompleted: { type: Number, default: 0 },
     lastEncounterAt: { type: Date, default: null },
-    revivesReceived: { type: Number, default: 0 },
+    revivesReceived:  { type: Number, default: 0 },
+    totalBossDamage:  { type: Number, default: 0 },
+    eventRank1Count:  { type: Number, default: 0 },
     implants: {
       type: [{
         id: { type: String, required: true },

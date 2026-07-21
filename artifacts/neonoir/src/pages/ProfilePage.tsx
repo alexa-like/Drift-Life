@@ -32,7 +32,7 @@ const FACTION_DESC: Record<string, string> = {
   grid: "-10% Energy cost on all jobs, +5% Data Breach/Scam success, Grid market access",
 };
 
-type Tab = "overview" | "stats" | "inventory" | "history" | "achievements";
+type Tab = "overview" | "stats" | "inventory" | "history" | "achievements" | "cosmetics";
 
 interface Props { user: User; refreshUser: () => void; addToast: (msg: string, t?: string) => void; }
 
@@ -47,9 +47,11 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const [pinnedBadges, setPinnedBadges] = useState<string[]>((user as any).pinnedBadges ?? []);
   const [pinningId, setPinningId] = useState<string | null>(null);
   const [bountyTotal, setBountyTotal]   = useState(0);
-  const [eventHistory, setEventHistory] = useState<any[]>([]);
-  const [seasonInfo, setSeasonInfo]     = useState<any>(null);
+  const [eventHistory, setEventHistory]   = useState<any[]>([]);
+  const [seasonInfo, setSeasonInfo]       = useState<any>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [ownedCosmetics, setOwnedCosmetics] = useState<any[]>([]);
+  const [cosmeticsLoaded, setCosmeticsLoaded] = useState(false);
 
   // Prestige
   const [showPrestigeModal, setShowPrestigeModal] = useState(false);
@@ -108,6 +110,10 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
       setHistoryLoaded(true);
       api.get<any[]>("/profile/event-history").then(setEventHistory).catch(() => {});
       api.get<any>("/profile/season-history").then(setSeasonInfo).catch(() => {});
+    }
+    if (activeTab === "cosmetics" && !cosmeticsLoaded) {
+      setCosmeticsLoaded(true);
+      api.get<any[]>("/cosmetics").then(data => setOwnedCosmetics(data.filter((c: any) => c.owned))).catch(() => {});
     }
   }, [activeTab]);
 
@@ -244,6 +250,24 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                   ♛ APEX
                 </span>
               )}
+              {/* Active bounty badge */}
+              {bountyTotal > 0 && (
+                <span className="font-mono px-1.5 py-0.5 rounded" style={{
+                  fontSize: 9, background: "#f59e0b20",
+                  color: "#f59e0b", border: "1px solid #f59e0b40",
+                }}>
+                  💰 Wanted — {bountyTotal.toLocaleString()} DC
+                </span>
+              )}
+              {/* Equipped message card preview */}
+              {(user as any).equippedMessageCard && (
+                <span className="font-mono px-1.5 py-0.5 rounded" style={{
+                  fontSize: 9, background: "#00E0FF15",
+                  color: "#00E0FF", border: "1px solid #00E0FF30",
+                }}>
+                  🃏 {(user as any).equippedMessageCard}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               {user.faction && (
@@ -282,6 +306,11 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
         </div>
         <div className="font-mono mt-1" style={{ fontSize: 10, color: "#64748b" }}>
           District: {user.district.replace(/-/g, " ")}
+          {(user as any).createdAt && (
+            <span style={{ marginLeft: 12 }}>
+              · Member since {new Date((user as any).createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short" })}
+            </span>
+          )}
         </div>
         {/* Presence / last active */}
         {(() => {
@@ -351,11 +380,12 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
       <div style={{ background: "#111118", borderBottom: "1px solid #1e1e2e" }}>
         <div className="flex overflow-x-auto" style={{ scrollbarWidth: "none" }}>
           {([
-            { id: "overview",      label: "Overview"   },
-            { id: "stats",         label: "Stats"      },
-            { id: "inventory",     label: "Inventory"  },
-            { id: "history",       label: "History"    },
-            { id: "achievements",  label: "Achievements" },
+            { id: "overview",      label: "Overview"      },
+            { id: "stats",         label: "Stats"         },
+            { id: "inventory",     label: "Inventory"     },
+            { id: "history",       label: "History"       },
+            { id: "achievements",  label: "Achievements"  },
+            { id: "cosmetics",     label: "Cosmetics"     },
           ] as { id: Tab; label: string }[]).map(tab => {
             const isActive = activeTab === tab.id;
             return (
@@ -572,39 +602,112 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
           <InventoryPage user={user} refreshUser={refreshUser as any} addToast={addToast} />
         )}
 
-        {/* ── HISTORY (combat log) ── */}
+        {/* ── HISTORY ── */}
         {activeTab === "history" && (
-          <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderLeft: "3px solid #2A2A3A", borderRadius: 8, padding: 20 }}>
-            <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>COMBAT RECORD</div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              {[
-                { label: "WINS",         value: user.wins,                         color: "#39d353" },
-                { label: "LOSSES",       value: user.losses,                       color: "#ff2d55" },
-                { label: "TOTAL FIGHTS", value: (user as any).totalFights || 0,    color: "#00d4ff" },
-                { label: "PVP TODAY",    value: user.attacksToday || 0,            color: "#94a3b8" },
-                { label: "CRIMES",       value: user.successfulCrimes,             color: "#ff6b35" },
-                { label: "TOTAL CRIMES", value: (user as any).totalCrimes || 0,   color: "#475569" },
-              ].map(s => (
-                <div key={s.label} style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
-                  <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>{s.label}</div>
-                  <div className="font-mono font-bold text-lg" style={{ color: s.color }}>{s.value}</div>
-                </div>
-              ))}
-            </div>
-            {user.wins + user.losses > 0 && (
-              <div style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
-                <div className="font-mono text-xs" style={{ color: "#64748b" }}>WIN RATE</div>
-                <div className="font-mono font-bold" style={{ color: "#e2e8f0" }}>
-                  {Math.round((user.wins / (user.wins + user.losses)) * 100)}%
-                </div>
-                <div style={{ background: "#1e1e2e", borderRadius: 4, height: 4, marginTop: 6, overflow: "hidden" }}>
-                  <div style={{
-                    width: `${Math.round((user.wins / (user.wins + user.losses)) * 100)}%`,
-                    height: "100%", background: "#39d353",
-                  }} />
-                </div>
+          <div className="space-y-4">
+            {/* Combat record */}
+            <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderLeft: "3px solid #2A2A3A", borderRadius: 8, padding: 20 }}>
+              <div className="font-mono text-xs font-bold mb-4" style={{ color: "#64748b", letterSpacing: "0.1em" }}>COMBAT RECORD</div>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {[
+                  { label: "WINS",         value: user.wins,                         color: "#39d353" },
+                  { label: "LOSSES",       value: user.losses,                       color: "#ff2d55" },
+                  { label: "TOTAL FIGHTS", value: (user as any).totalFights || 0,    color: "#00d4ff" },
+                  { label: "PVP TODAY",    value: user.attacksToday || 0,            color: "#94a3b8" },
+                  { label: "CRIMES",       value: user.successfulCrimes,             color: "#ff6b35" },
+                  { label: "TOTAL CRIMES", value: (user as any).totalCrimes || 0,   color: "#475569" },
+                ].map(s => (
+                  <div key={s.label} style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
+                    <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>{s.label}</div>
+                    <div className="font-mono font-bold text-lg" style={{ color: s.color }}>{s.value}</div>
+                  </div>
+                ))}
               </div>
-            )}
+              {user.wins + user.losses > 0 && (
+                <div style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
+                  <div className="font-mono text-xs" style={{ color: "#64748b" }}>WIN RATE</div>
+                  <div className="font-mono font-bold" style={{ color: "#e2e8f0" }}>
+                    {Math.round((user.wins / (user.wins + user.losses)) * 100)}%
+                  </div>
+                  <div style={{ background: "#1e1e2e", borderRadius: 4, height: 4, marginTop: 6, overflow: "hidden" }}>
+                    <div style={{
+                      width: `${Math.round((user.wins / (user.wins + user.losses)) * 100)}%`,
+                      height: "100%", background: "#39d353",
+                    }} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Event history */}
+            <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderLeft: "3px solid #a855f7", borderRadius: 8, padding: 20 }}>
+              <div className="font-mono text-xs font-bold mb-3" style={{ color: "#a855f7", letterSpacing: "0.1em" }}>EVENT HISTORY</div>
+              {!historyLoaded ? (
+                <div className="font-mono text-xs animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+              ) : eventHistory.length === 0 ? (
+                <div className="font-mono text-xs" style={{ color: "#475569" }}>No event participation yet.</div>
+              ) : (
+                <div className="space-y-2">
+                  {eventHistory.map((ev: any, i: number) => (
+                    <div key={i} style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{ev.eventName}</div>
+                        <div className="font-mono" style={{ fontSize: 10, color: "#475569" }}>
+                          {ev.eventType?.replace(/_/g, " ")}
+                          {ev.endedAt ? ` · ${new Date(ev.endedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}` : ""}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="font-mono text-xs font-bold" style={{ color: "#a855f7" }}>{ev.points?.toLocaleString()} pts</div>
+                        {ev.bossDamageDealt > 0 && (
+                          <div className="font-mono" style={{ fontSize: 9, color: "#64748b" }}>{ev.bossDamageDealt?.toLocaleString()} dmg</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Season history */}
+            <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderLeft: "3px solid #f59e0b", borderRadius: 8, padding: 20 }}>
+              <div className="font-mono text-xs font-bold mb-3" style={{ color: "#f59e0b", letterSpacing: "0.1em" }}>SEASON HISTORY</div>
+              {!historyLoaded ? (
+                <div className="font-mono text-xs animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+              ) : !seasonInfo ? (
+                <div className="font-mono text-xs" style={{ color: "#475569" }}>No season data yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {seasonInfo.currentSeason && (
+                    <div style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px", border: "1px solid #f59e0b30" }}>
+                      <div className="font-mono text-xs font-bold mb-1" style={{ color: "#f59e0b" }}>
+                        {seasonInfo.currentSeason.seasonName} <span style={{ color: "#39d353", fontSize: 10 }}>(Active)</span>
+                      </div>
+                      <div className="font-mono" style={{ fontSize: 10, color: "#94a3b8" }}>
+                        Level {seasonInfo.currentSeason.level}
+                        {seasonInfo.currentSeason.hasPremium && <span style={{ color: "#a855f7", marginLeft: 8 }}>✓ Premium</span>}
+                        {seasonInfo.currentSeason.endsAt && (
+                          <span style={{ color: "#64748b", marginLeft: 8 }}>
+                            · Ends {new Date(seasonInfo.currentSeason.endsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {(seasonInfo.pastSeasons ?? []).length === 0 && !seasonInfo.currentSeason && (
+                    <div className="font-mono text-xs" style={{ color: "#475569" }}>No seasons completed yet.</div>
+                  )}
+                  {(seasonInfo.pastSeasons ?? []).map((s: any, i: number) => (
+                    <div key={i} style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
+                      <div className="font-mono text-xs" style={{ color: "#94a3b8" }}>
+                        {s.seasonName}
+                        {s.endsAt && <span style={{ color: "#475569", marginLeft: 8, fontSize: 10 }}>· {new Date(s.endsAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -671,6 +774,83 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
             })()}
           </div>
         )}
+        {/* ── COSMETICS ── */}
+        {activeTab === "cosmetics" && (
+          <div className="space-y-4">
+            {/* Equipped */}
+            <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderLeft: "3px solid #00E0FF", borderRadius: 8, padding: 20 }}>
+              <div className="font-mono text-xs font-bold mb-3" style={{ color: "#00E0FF", letterSpacing: "0.1em" }}>EQUIPPED</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
+                  <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>NAME FLAIR</div>
+                  <div className="font-mono text-xs font-bold mt-1" style={{ color: (user as any).equippedNameFlair ? "#39d353" : "#334155" }}>
+                    {(user as any).equippedNameFlair || "None equipped"}
+                  </div>
+                </div>
+                <div style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
+                  <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>MESSAGE CARD</div>
+                  <div className="font-mono text-xs font-bold mt-1" style={{ color: (user as any).equippedMessageCard ? "#39d353" : "#334155" }}>
+                    {(user as any).equippedMessageCard || "None equipped"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Owned cosmetics grid */}
+            <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderLeft: "3px solid #2A2A3A", borderRadius: 8, padding: 20 }}>
+              <div className="font-mono text-xs font-bold mb-3" style={{ color: "#64748b", letterSpacing: "0.1em" }}>COLLECTION</div>
+              {!cosmeticsLoaded ? (
+                <div className="font-mono text-xs animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+              ) : ownedCosmetics.length === 0 ? (
+                <div className="font-mono text-xs" style={{ color: "#475569" }}>
+                  No cosmetics owned yet. Visit the Store to purchase them.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {ownedCosmetics.map((c: any) => {
+                    const isEquipped = c.equipped;
+                    const expiresAt  = c.expiresAt ? new Date(c.expiresAt) : null;
+                    const daysLeft   = expiresAt ? Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000) : null;
+                    const rarityColor: Record<string, string> = {
+                      common: "#64748b", rare: "#00d4ff", epic: "#a855f7", legendary: "#f59e0b", event: "#ff6b35",
+                    };
+                    return (
+                      <div key={c.id} style={{
+                        background: "#0a0a0f", borderRadius: 6, padding: "10px 12px",
+                        border: `1px solid ${isEquipped ? "#39d35340" : "#1e1e2e"}`,
+                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                      }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-mono text-xs font-bold" style={{ color: isEquipped ? "#39d353" : "#e2e8f0" }}>
+                            {isEquipped && <span style={{ marginRight: 6 }}>✓</span>}{c.name}
+                          </div>
+                          <div className="font-mono" style={{ fontSize: 9, color: "#475569" }}>
+                            {c.type?.replace(/_/g, " ")}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="font-mono px-1.5 py-0.5 rounded" style={{
+                            fontSize: 8, background: (rarityColor[c.rarity] ?? "#64748b") + "20",
+                            color: rarityColor[c.rarity] ?? "#64748b",
+                            border: `1px solid ${(rarityColor[c.rarity] ?? "#64748b")}40`,
+                          }}>
+                            {c.rarity?.toUpperCase()}
+                          </span>
+                          {daysLeft !== null && (
+                            <span className="font-mono" style={{ fontSize: 9, color: daysLeft <= 3 ? "#ff2d55" : "#64748b" }}>
+                              {daysLeft}d left
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
 

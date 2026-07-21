@@ -140,6 +140,11 @@ export async function distributeEventRewards(eventId: string): Promise<void> {
       await User.findByIdAndUpdate(participant.userId, updates);
     }
 
+    // Track event rank 1 for achievements (checked next time player acts)
+    if (rank === 1) {
+      User.findByIdAndUpdate(participant.userId, { $inc: { eventRank1Count: 1 } }).catch(() => {});
+    }
+
     // Grant cosmetics (via ownedCosmetics + cosmeticInventory)
     if (reward.cosmetics && reward.cosmetics.length > 0) {
       for (const c of reward.cosmetics) {

@@ -17,6 +17,7 @@ import { isWebPushConfigured, sendPushNotification, type PushPayload } from "../
 import PushSubscription from "../models/PushSubscription";
 import { logger } from "../lib/logger";
 import { broadcastTelegramToLinkedUsers } from "../lib/telegram";
+import { checkAchievements } from "./achievements";
 
 async function broadcastPushToAll(payload: PushPayload): Promise<void> {
   if (!isWebPushConfigured()) return;
@@ -302,6 +303,11 @@ router.post("/strike-boss", requireAuth, async (req: AuthRequest, res) => {
       },
       { upsert: true }
     );
+
+    // Track total boss damage on User for achievements (fire-and-forget)
+    User.findByIdAndUpdate(req.userId, { $inc: { totalBossDamage: damage } })
+      .then(() => checkAchievements(String(req.userId)))
+      .catch(() => {});
 
     // Boss retaliation damage (HP loss for the player)
     let retaliationHpLoss = 0;
