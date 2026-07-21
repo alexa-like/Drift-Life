@@ -71,6 +71,12 @@ export interface IBusinessEmployee {
   jobPosition: JobPosition;
 }
 
+export interface IBusinessBuff {
+  type: string;
+  multiplier: number;
+  expiresAt: Date;
+}
+
 export interface IBusiness extends Document {
   _id: mongoose.Types.ObjectId;
   ownerId:    mongoose.Types.ObjectId;
@@ -94,6 +100,21 @@ export interface IBusiness extends Document {
   environment: number;
   /** When the owner last ran an advertising campaign */
   lastAdvertAt: Date | null;
+  // ── Tier 10 passive income system ────────────────────────────────────────
+  /** Passive income tier (1–5); advanced via upgradeProgress */
+  tier: number;
+  /** Cumulative DC invested toward the next tier threshold */
+  upgradeProgress: number;
+  /** Stored passive DC/hr (based on tier). Read-only convenience; recompute from tier when needed. */
+  passiveIncomePerHour: number;
+  /** When owner last collected tier-based passive income */
+  lastCollectedAt: Date | null;
+  /** Hours between laundering operations (starts at 6h, −0.5h per tier gained) */
+  launderingCooldownHours: number;
+  /** When owner last laundered dirty DC through this business */
+  lastLaunderedAt: Date | null;
+  /** Active income/stat buffs (e.g. +25% during events) */
+  activeBuffs: IBusinessBuff[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -143,6 +164,21 @@ const BusinessSchema = new Schema<IBusiness>(
     popularity:          { type: Number, default: 50,  min: 0, max: 100 },
     environment:         { type: Number, default: 100, min: 0, max: 100 },
     lastAdvertAt:        { type: Date, default: null },
+    // ── Tier 10 passive income system ────────────────────────────────────────
+    tier:                    { type: Number, default: 1, min: 1, max: 5 },
+    upgradeProgress:         { type: Number, default: 0 },
+    passiveIncomePerHour:    { type: Number, default: 200 },
+    lastCollectedAt:         { type: Date, default: null },
+    launderingCooldownHours: { type: Number, default: 6 },
+    lastLaunderedAt:         { type: Date, default: null },
+    activeBuffs: {
+      type: [{
+        type:       { type: String, required: true },
+        multiplier: { type: Number, required: true },
+        expiresAt:  { type: Date,   required: true },
+      }],
+      default: [],
+    },
   },
   { timestamps: true }
 );
@@ -249,3 +285,19 @@ export const BUSINESS_DEFS: Record<BusinessType, {
 
 export const BUSINESS_CREATE_COST  = 100_000;
 export const BUSINESS_CREATE_LEVEL = 20;
+
+// ── Tier 10 constants ─────────────────────────────────────────────────────────
+/** Passive income (DC/hr) at each tier level */
+export const TIER_INCOME_PER_HOUR: Record<number, number> = {
+  1: 200, 2: 500, 3: 1_200, 4: 3_000, 5: 7_500,
+};
+
+/** Cumulative upgradeProgress DC required to reach each tier */
+export const TIER_UPGRADE_THRESHOLDS: Record<number, number> = {
+  2: 50_000, 3: 200_000, 4: 750_000, 5: 2_500_000,
+};
+
+export const TIER_MAX = 5;
+export const LAUNDER_FEE_PCT = 0.15;          // 15% laundering fee
+export const LAUNDER_BASE_COOLDOWN_HOURS = 6;  // hours
+export const LAUNDER_COOLDOWN_REDUCTION_PER_TIER = 0.5; // hours per tier gained

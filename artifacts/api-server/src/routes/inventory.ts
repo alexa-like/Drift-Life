@@ -325,4 +325,42 @@ router.post("/trade", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ── POST /api/inventory/buy-loadout-slot — 300 NC × (slot#), max +3 extra slots
+router.post("/buy-loadout-slot", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId)
+      .select("nc purchasedLoadoutSlots")
+      .lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const currentSlots = (user as any).purchasedLoadoutSlots ?? 0;
+    if (currentSlots >= 3)
+      return res.status(400).json({ message: "Maximum 3 additional loadout slots already purchased" });
+
+    const ncCost = 300 * (currentSlots + 1); // 300, 600, 900
+
+    const updated = await User.findOneAndUpdate(
+      { _id: req.userId, nc: { $gte: ncCost } },
+      { $inc: { nc: -ncCost, purchasedLoadoutSlots: 1 } },
+      { returnDocument: "after" },
+    );
+    if (!updated)
+      return res.status(400).json({
+        message: `Not enough NC — slot costs ${ncCost} NC`,
+        notEnoughNc: true,
+        ncRequired: ncCost,
+      });
+
+    const newSlots = (updated as any).purchasedLoadoutSlots ?? 0;
+    res.json({
+      purchasedLoadoutSlots: newSlots,
+      ncSpent: ncCost,
+      newNc: (updated as any).nc,
+      message: `Loadout slot unlocked! You now have ${newSlots} extra slot${newSlots !== 1 ? "s" : ""}.`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

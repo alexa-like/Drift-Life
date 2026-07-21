@@ -296,6 +296,7 @@ const UserSchema = new Schema<IUser>(
     dc: { type: Number, default: 750 },
     nc: { type: Number, default: 0 },
     dirtyDc: { type: Number, default: 0 },
+    purchasedLoadoutSlots: { type: Number, default: 0, min: 0, max: 3 },
     sim: { type: Number, default: 0 },
     bankBalance: { type: Number, default: 0 },
     merit: { type: Number, default: 0 },

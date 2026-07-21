@@ -386,4 +386,44 @@ router.post("/gift-nc", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ── POST /api/store/refill-energy — 2 NC per missing energy point, min 10 NC ──
+router.post("/refill-energy", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).select("nc energy maxEnergy").lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const currentEnergy = (user as any).energy ?? 0;
+    const maxEnergy     = (user as any).maxEnergy ?? 200;
+    const energyNeeded  = maxEnergy - currentEnergy;
+
+    if (energyNeeded <= 0)
+      return res.status(400).json({ message: "Energy is already full" });
+
+    const ncCost = Math.max(10, energyNeeded * 2);
+
+    const updated = await User.findOneAndUpdate(
+      { _id: req.userId, nc: { $gte: ncCost } },
+      { $inc: { nc: -ncCost }, $set: { energy: maxEnergy, energyRegenAt: new Date() } },
+      { returnDocument: "after" },
+    );
+    if (!updated)
+      return res.status(400).json({
+        message: `Not enough NC — refilling ${energyNeeded} energy costs ${ncCost} NC`,
+        notEnoughNc: true,
+        ncRequired: ncCost,
+      });
+
+    res.json({
+      energyRestored: energyNeeded,
+      ncSpent: ncCost,
+      newEnergy: maxEnergy,
+      newNc: (updated as any).nc,
+      message: `Restored ${energyNeeded} energy for ${ncCost} NC`,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "refill-energy error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

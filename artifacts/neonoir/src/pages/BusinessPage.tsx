@@ -97,6 +97,21 @@ interface MyJob {
   cooldownUntil: string | null;
 }
 
+interface TierBizData {
+  id: string;
+  tier: number;
+  upgradeProgress: number;
+  passiveIncomePerHour: number;
+  pendingTierIncome: number;
+  lastCollectedAt: string | null;
+  launderingCooldownHours: number;
+  lastLaunderedAt: string | null;
+  activeBuffs: { type: string; multiplier: number; expiresAt: string }[];
+  nextTier: number | null;
+  nextThreshold: number | null;
+  progressToNext: number; // 0–100
+}
+
 // ── Static business type definitions (for create form) ────────────────────────
 const BUSINESS_TYPES = [
   {
@@ -352,6 +367,9 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
   const [transferTargetId, setTransferTargetId] = useState("");
   const [showTransferForm, setShowTransferForm] = useState(false);
 
+  // Tier 10 state
+  const [investAmount, setInvestAmount] = useState<number>(10_000);
+
   // ── Catalog query (perk descriptions) ─────────────────────────────────────
   const { data: catalog = [] } = useQuery<
     {
@@ -407,6 +425,15 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
     queryFn: () => api.get("/businesses/board"),
     enabled: mainTab === "job-board",
   });
+
+  // Tier 10 — tier/passive income data for owner's business
+  const { data: tierBizList = [] } = useQuery<TierBizData[]>({
+    queryKey: ["businesses", "tier"],
+    queryFn: () => api.get<TierBizData[]>("/businesses"),
+    enabled: !!myBusiness,
+    refetchInterval: 60_000, // refresh every minute to update pending income
+  });
+  const tierBiz: TierBizData | null = tierBizList[0] ?? null;
 
   // Sync settings form when business loads
   useEffect(() => {
@@ -571,6 +598,66 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
     onSuccess: (r) => {
       addToast(r.message ?? "You've resigned.", "info");
       qc.invalidateQueries({ queryKey: ["businesses"] });
+      refreshUser();
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  // ── Tier 10 mutations ─────────────────────────────────────────────────────
+
+  const collectTierIncome = useMutation({
+    mutationFn: (bizId: string) =>
+      api.post<{ collected: number; newDc: number }>(`/businesses/${bizId}/collect`, {}),
+    onSuccess: (r) => {
+      addToast(`+${formatDC(r.collected)} DC tier income collected`, "success");
+      qc.invalidateQueries({ queryKey: ["businesses", "tier"] });
+      refreshUser();
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const investInTier = useMutation({
+    mutationFn: ({ bizId, dcAmount }: { bizId: string; dcAmount: number }) =>
+      api.post<{ invested: number; newProgress: number; tier: number; tierAdvanced: boolean; passiveIncomePerHour: number; newDc: number }>(
+        `/businesses/${bizId}/upgrade`,
+        { dcAmount }
+      ),
+    onSuccess: (r) => {
+      if (r.tierAdvanced) {
+        addToast(`🔥 Tier ${r.tier} reached! Income: ${r.passiveIncomePerHour.toLocaleString()} DC/hr`, "success");
+      } else {
+        addToast(`Invested ${formatDC(r.invested)} DC toward Tier ${r.tier + 1}`, "success");
+      }
+      qc.invalidateQueries({ queryKey: ["businesses", "tier"] });
+      qc.invalidateQueries({ queryKey: ["businesses", "mine"] });
+      refreshUser();
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const launderDC = useMutation({
+    mutationFn: (bizId: string) =>
+      api.post<{ laundered: number; received: number; fee: number; newDc: number }>(
+        `/businesses/${bizId}/launder`,
+        {}
+      ),
+    onSuccess: (r) => {
+      addToast(`Laundered ${formatDC(r.laundered)} DC → received ${formatDC(r.received)} DC (fee: ${formatDC(r.fee)})`, "success");
+      qc.invalidateQueries({ queryKey: ["businesses", "tier"] });
+      refreshUser();
+    },
+    onError: (e: Error) => addToast(e.message, "error"),
+  });
+
+  const skipLaunder = useMutation({
+    mutationFn: (bizId: string) =>
+      api.post<{ ncSpent: number; remainingMinsSkipped: number; newNc: number }>(
+        `/businesses/${bizId}/skip-launder`,
+        {}
+      ),
+    onSuccess: (r) => {
+      addToast(`Cooldown skipped for ${r.ncSpent} NC`, "success");
+      qc.invalidateQueries({ queryKey: ["businesses", "tier"] });
       refreshUser();
     },
     onError: (e: Error) => addToast(e.message, "error"),
@@ -945,6 +1032,168 @@ export function BusinessPage({ user, refreshUser, addToast }: Props) {
             })}
           </div>
         </div>
+
+        {/* ── Tier 10: Passive Income ───────────────────────────────────────── */}
+        {tierBiz && (
+          <AnimatedCard accent="#a855f7">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+                    Tier {tierBiz.tier} Passive Income
+                    {tierBiz.activeBuffs.some(
+                      (b) => b.type === "event_income" && new Date(b.expiresAt) > new Date()
+                    ) && (
+                      <span
+                        className="ml-2 px-1.5 py-0.5 rounded font-mono text-xs"
+                        style={{
+                          background: "#f59e0b18",
+                          border: "1px solid #f59e0b40",
+                          color: "#f59e0b",
+                        }}
+                      >
+                        ⚡ +25% EVENT
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-mono text-2xl font-bold" style={{ color: "#a855f7" }}>
+                    {formatDC(tierBiz.pendingTierIncome)} DC
+                  </div>
+                  <div className="font-mono text-xs mt-0.5" style={{ color: "#475569" }}>
+                    {tierBiz.passiveIncomePerHour.toLocaleString()} DC/hr (capped 24h)
+                  </div>
+                </div>
+                <CyberButton
+                  variant="purple"
+                  size="sm"
+                  disabled={tierBiz.pendingTierIncome < 1 || collectTierIncome.isPending}
+                  loading={collectTierIncome.isPending}
+                  onClick={() => collectTierIncome.mutate(tierBiz.id)}
+                >
+                  Collect Tier Income
+                </CyberButton>
+              </div>
+
+              {/* Tier progress bar */}
+              <div>
+                <div className="flex justify-between font-mono text-xs mb-1" style={{ color: "#64748b" }}>
+                  <span>Tier {tierBiz.tier}{tierBiz.tier < 5 ? ` → ${tierBiz.tier + 1}` : " (MAX)"}</span>
+                  {tierBiz.nextThreshold && (
+                    <span>
+                      {formatDC(tierBiz.upgradeProgress)} / {formatDC(tierBiz.nextThreshold)} DC
+                    </span>
+                  )}
+                </div>
+                <div
+                  className="h-2 rounded-full overflow-hidden"
+                  style={{ background: "#1e1e2e", border: "1px solid #2d2d3e" }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${tierBiz.tier >= 5 ? 100 : tierBiz.progressToNext}%`,
+                      background: "linear-gradient(90deg, #a855f7, #7c3aed)",
+                    }}
+                  />
+                </div>
+                <div className="font-mono text-xs mt-0.5 text-right" style={{ color: "#475569" }}>
+                  {tierBiz.tier >= 5 ? "Maximum tier reached" : `${tierBiz.progressToNext}%`}
+                </div>
+              </div>
+
+              {/* Invest in tier */}
+              {tierBiz.tier < 5 && (
+                <div className="flex gap-2 flex-wrap">
+                  <input
+                    type="number"
+                    value={investAmount}
+                    min={1000}
+                    step={1000}
+                    onChange={(e) => setInvestAmount(Math.max(1, Number(e.target.value)))}
+                    className="flex-1 min-w-0 px-3 py-1.5 rounded font-mono text-sm"
+                    style={{
+                      background: "#0a0a0f",
+                      border: "1px solid #2d2d3e",
+                      color: "#a855f7",
+                      outline: "none",
+                    }}
+                  />
+                  <CyberButton
+                    variant="purple"
+                    size="sm"
+                    disabled={
+                      investAmount < 1 ||
+                      user.dc < investAmount ||
+                      investInTier.isPending
+                    }
+                    loading={investInTier.isPending}
+                    onClick={() =>
+                      investInTier.mutate({ bizId: tierBiz.id, dcAmount: investAmount })
+                    }
+                  >
+                    Invest DC → T{tierBiz.tier + 1}
+                  </CyberButton>
+                </div>
+              )}
+            </div>
+          </AnimatedCard>
+        )}
+
+        {/* ── Tier 10: Laundering ──────────────────────────────────────────── */}
+        {tierBiz && user.dirtyDc > 0 && (
+          <AnimatedCard accent="#ff6b35">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <div className="font-mono text-xs" style={{ color: "#64748b" }}>
+                    Dirty DC
+                  </div>
+                  <div className="font-mono text-xl font-bold" style={{ color: "#ff6b35" }}>
+                    {formatDC(user.dirtyDc)} DC
+                  </div>
+                  <div className="font-mono text-xs mt-0.5" style={{ color: "#475569" }}>
+                    15% fee · cooldown {tierBiz.launderingCooldownHours}h
+                  </div>
+                </div>
+                {(() => {
+                  const now = Date.now();
+                  const lastL = tierBiz.lastLaunderedAt
+                    ? new Date(tierBiz.lastLaunderedAt).getTime()
+                    : 0;
+                  const cooldownMs = tierBiz.launderingCooldownHours * 3_600_000;
+                  const remainingMs = Math.max(0, lastL + cooldownMs - now);
+                  const remainingMins = Math.ceil(remainingMs / 60_000);
+                  const onCooldown = remainingMs > 0;
+                  return (
+                    <div className="flex flex-col gap-2">
+                      <CyberButton
+                        variant="warning"
+                        size="sm"
+                        disabled={onCooldown || launderDC.isPending}
+                        loading={launderDC.isPending}
+                        onClick={() => launderDC.mutate(tierBiz.id)}
+                      >
+                        Launder
+                        {onCooldown ? ` (${remainingMins}m)` : ""}
+                      </CyberButton>
+                      {onCooldown && (
+                        <CyberButton
+                          variant="danger"
+                          size="sm"
+                          disabled={skipLaunder.isPending}
+                          loading={skipLaunder.isPending}
+                          onClick={() => skipLaunder.mutate(tierBiz.id)}
+                        >
+                          Skip ({Math.max(5, remainingMins)} NC)
+                        </CyberButton>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </AnimatedCard>
+        )}
 
         {/* Roles legend */}
         <AnimatedCard accent="#1e1e2e">

@@ -355,6 +355,25 @@ export async function activateEvent(event: IEvent, io?: unknown): Promise<void> 
     `⚡ <b>Event Started: ${event.name}</b>\n\nA new event is live in New Vanta! Jump in now at /events`,
   ).catch(() => {});
 
+  // ── Tier 10.6: apply +25% passive income buff to all businesses ─────────────
+  if (event.type === "boss_raid" || event.type === "leaderboard_grind") {
+    try {
+      const { default: Business } = await import("../models/Business");
+      // Clear any stale event_income buff first, then push a fresh one
+      await Business.updateMany(
+        {},
+        { $pull: { activeBuffs: { type: "event_income" } } },
+      );
+      await Business.updateMany(
+        {},
+        { $push: { activeBuffs: { type: "event_income", multiplier: 1.25, expiresAt: event.endsAt } } },
+      );
+      logger.info({ eventType: event.type }, "Applied +25% business income event buff");
+    } catch (buffErr) {
+      logger.warn({ buffErr }, "Failed to apply business income buff (non-fatal)");
+    }
+  }
+
   logger.info({ eventId: event._id, name: event.name }, "Event activated");
 }
 
@@ -498,6 +517,18 @@ export async function endEvent(event: IEvent, io?: unknown): Promise<void> {
   broadcastTelegramToLinkedUsers(
     `🏁 <b>Event Ended: ${event.name}</b>\n\nThe event is over — check your rewards in Neonoir!`,
   ).catch(() => {});
+
+  // ── Tier 10.6: clear event income buffs from all businesses ─────────────────
+  try {
+    const { default: Business } = await import("../models/Business");
+    await Business.updateMany(
+      {},
+      { $pull: { activeBuffs: { type: "event_income" } } },
+    );
+    logger.info("Cleared event_income buffs from all businesses");
+  } catch (buffErr) {
+    logger.warn({ buffErr }, "Failed to clear business event income buffs (non-fatal)");
+  }
 
   // Distribute rewards in background (don't block the response)
   distributeEventRewards(String(event._id)).catch(err => {

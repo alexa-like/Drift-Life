@@ -93,4 +93,49 @@ router.patch("/nav", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ── POST /api/settings/change-username — 500 NC, uniqueness check ─────────────
+router.post("/change-username", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { newUsername } = req.body as { newUsername?: string };
+    if (!newUsername || typeof newUsername !== "string")
+      return res.status(400).json({ message: "newUsername is required" });
+
+    const trimmed = newUsername.trim();
+    if (trimmed.length < 3 || trimmed.length > 20)
+      return res.status(400).json({ message: "Username must be 3-20 characters" });
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmed))
+      return res
+        .status(400)
+        .json({ message: "Username may only contain letters, numbers, and underscores" });
+
+    const NC_COST = 500;
+
+    // Uniqueness check (case-insensitive). Escape special regex chars first.
+    const escaped = trimmed.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+    const taken = await User.exists({
+      username: { $regex: "^" + escaped + "$", $options: "i" },
+      _id: { $ne: req.userId },
+    });
+    if (taken)
+      return res.status(400).json({ message: "That username is already taken" });
+
+    const updated = await User.findOneAndUpdate(
+      { _id: req.userId, nc: { $gte: NC_COST } },
+      { $inc: { nc: -NC_COST }, $set: { username: trimmed } },
+      { returnDocument: "after" },
+    );
+    if (!updated)
+      return res.status(400).json({
+        message: "Not enough NC - username change costs " + NC_COST + " NC",
+        notEnoughNc: true,
+        ncRequired: NC_COST,
+      });
+
+    res.json({ username: trimmed, ncSpent: NC_COST, newNc: (updated as any).nc });
+  } catch (err: any) {
+    req.log.error({ err }, "change-username error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;

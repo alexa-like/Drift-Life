@@ -449,7 +449,7 @@ When a player initiates a travel action (uses `POST /api/city/travel` or distric
   - **Mysterious Contact** (uncommon) — receive a tip: temporary 2x crime payout for 30 minutes on a specific crime type
   - **Police Checkpoint** (common) — pay bribe (200 DC) OR get jailed for 10 minutes
   - **Black Market Trader** (rare) — offered a random item at 30% below NPC store price (one-time, expires in 10 minutes)
-  - **Rival Gang Lookout** (uncommon) — adds heat; if player is in enemy gang territory during a war, also gives war points to enemy
+  - **Rival Gang Lookout**7 (uncommon) — adds heat; if player is in enemy gang territory during a war, also gives war points to enemy
   - **Friendly Mentor** (rare) — if player is level < 20, an NPC mentor gives them 500 free XP and a tip
 
 During active events with a boss_raid: add event-specific encounters:
@@ -487,7 +487,7 @@ Mentor badge: active mentors get a "Mentor" title and badge shown on their profi
 ---
 
 ## TIER 10 — BUSINESS SYSTEM OVERHAUL
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Expand the existing Business system into a meaningful passive income mechanic with upgrades, event tie-ins, and NC utility.
 

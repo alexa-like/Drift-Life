@@ -30,6 +30,10 @@ import Business, {
   BUSINESS_CREATE_COST,
   BUSINESS_CREATE_LEVEL,
   JOB_POSITION_LIMITS,
+  TIER_INCOME_PER_HOUR,
+  TIER_UPGRADE_THRESHOLDS,
+  TIER_MAX,
+  LAUNDER_FEE_PCT,
   type JobPosition,
 } from "../models/Business";
 import User from "../models/User";
@@ -1184,5 +1188,302 @@ router.post("/employees/:userId/position", requireAuth, async (req: AuthRequest,
     res.status(500).json({ message: "Internal server error" });
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TIER 10 — Business System Overhaul routes
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MAX_TIER_INCOME_HOURS = 24; // cap passive income accumulation
+
+/** Returns effective multiplier from unexpired activeBuffs */
+function getBuffMultiplier(activeBuffs: { multiplier: number; expiresAt: Date }[]): number {
+  const now = new Date();
+  return activeBuffs
+    .filter((b) => new Date(b.expiresAt) > now)
+    .reduce((acc, b) => acc * b.multiplier, 1);
+}
+
+/** Compute pending tier-based passive income for a business document */
+function calcTierPendingIncome(business: any): number {
+  const since = business.lastCollectedAt ?? business.createdAt;
+  const hoursElapsed = Math.min(
+    (Date.now() - new Date(since).getTime()) / 3_600_000,
+    MAX_TIER_INCOME_HOURS,
+  );
+  const basePH = TIER_INCOME_PER_HOUR[business.tier ?? 1] ?? 200;
+  const mult   = getBuffMultiplier(business.activeBuffs ?? []);
+  return Math.floor(hoursElapsed * basePH * mult);
+}
+
+// ── GET /api/businesses — list owner's business with tier income data ──────────
+router.get("/", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const businessId = (user as any).businessId;
+    if (!businessId) return res.json([]);
+
+    const biz = await Business.findById(businessId).lean();
+    if (!biz) return res.json([]);
+
+    const tier            = (biz as any).tier ?? 1;
+    const basePH          = TIER_INCOME_PER_HOUR[tier] ?? 200;
+    const mult            = getBuffMultiplier((biz as any).activeBuffs ?? []);
+    const effectivePH     = Math.floor(basePH * mult);
+    const pendingTierIncome = calcTierPendingIncome(biz);
+
+    const nextTier      = Math.min(tier + 1, TIER_MAX);
+    const nextThreshold = TIER_THRESHOLDS[nextTier] ?? null;
+    const progress      = (biz as any).upgradeProgress ?? 0;
+    const progressToNext = nextThreshold ? Math.round((progress / nextThreshold) * 100) : 100;
+
+    res.json([{
+      ...biz,
+      id:                       (biz._id as any).toString(),
+      tier,
+      upgradeProgress:          progress,
+      passiveIncomePerHour:     effectivePH,
+      pendingTierIncome,
+      lastCollectedAt:          (biz as any).lastCollectedAt ?? null,
+      launderingCooldownHours:  (biz as any).launderingCooldownHours ?? 6,
+      lastLaunderedAt:          (biz as any).lastLaunderedAt ?? null,
+      activeBuffs:              (biz as any).activeBuffs ?? [],
+      nextTier:                 tier < TIER_MAX ? nextTier : null,
+      nextThreshold,
+      progressToNext,
+    }]);
+  } catch (err) {
+    logger.error({ err }, "GET /businesses error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/businesses/:id/collect — collect tier-based passive income ───────
+router.post("/:id/collect", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const businessId = (user as any).businessId;
+    if (!businessId || businessId.toString() !== req.params.id)
+      return res.status(403).json({ message: "You do not own this business" });
+
+    const biz = await Business.findById(req.params.id).lean();
+    if (!biz) return res.status(404).json({ message: "Business not found" });
+
+    const income = calcTierPendingIncome(biz);
+    if (income <= 0)
+      return res.status(400).json({ message: "No passive income to collect yet" });
+
+    // Optimistic lock on lastCollectedAt to prevent double-collect
+    const updated = await Business.findOneAndUpdate(
+      { _id: biz._id, lastCollectedAt: (biz as any).lastCollectedAt ?? null },
+      { $set: { lastCollectedAt: new Date() } },
+      { returnDocument: "after" },
+    );
+    if (!updated)
+      return res.status(409).json({ message: "Collection conflict — please try again" });
+
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: req.userId },
+      { $inc: { dc: income } },
+      { returnDocument: "after" },
+    );
+
+    res.json({ collected: income, newDc: updatedUser?.dc ?? 0 });
+  } catch (err) {
+    logger.error({ err }, "POST /businesses/:id/collect error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/businesses/:id/upgrade — invest DC into tier upgradeProgress ────
+router.post("/:id/upgrade", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { dcAmount } = req.body as { dcAmount?: number };
+    if (!dcAmount || typeof dcAmount !== "number" || dcAmount < 1)
+      return res.status(400).json({ message: "dcAmount must be a positive integer" });
+
+    const amount = Math.floor(dcAmount);
+
+    const user = await User.findById(req.userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const businessId = (user as any).businessId;
+    if (!businessId || businessId.toString() !== req.params.id)
+      return res.status(403).json({ message: "You do not own this business" });
+
+    const biz = await Business.findById(req.params.id).lean();
+    if (!biz) return res.status(404).json({ message: "Business not found" });
+
+    const currentTier = (biz as any).tier ?? 1;
+    if (currentTier >= TIER_MAX)
+      return res.status(400).json({ message: "Business is already at maximum tier" });
+
+    // Atomically deduct DC
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: req.userId, dc: { $gte: amount } },
+      { $inc: { dc: -amount } },
+      { returnDocument: "after" },
+    );
+    if (!updatedUser)
+      return res
+        .status(400)
+        .json({ message: `Insufficient DC — need ${amount.toLocaleString()} DC` });
+
+    const prevProgress = (biz as any).upgradeProgress ?? 0;
+    const newProgress  = prevProgress + amount;
+    const nextTier     = currentTier + 1;
+    const threshold    = TIER_UPGRADE_THRESHOLDS[nextTier];
+    const tierAdvanced = newProgress >= threshold;
+    const newTier      = tierAdvanced ? nextTier : currentTier;
+
+    const newLaunderCooldown = tierAdvanced
+      ? Math.max(1, ((biz as any).launderingCooldownHours ?? 6) - 0.5)
+      : ((biz as any).launderingCooldownHours ?? 6);
+    const newPassivePH = TIER_INCOME_PER_HOUR[newTier] ?? 200;
+
+    await Business.updateOne(
+      { _id: biz._id },
+      {
+        $set: {
+          tier:                    newTier,
+          upgradeProgress:         newProgress,
+          passiveIncomePerHour:    newPassivePH,
+          launderingCooldownHours: newLaunderCooldown,
+        },
+      },
+    );
+
+    if (tierAdvanced) {
+      Notification.create({
+        userId:  req.userId,
+        type:    "system",
+        message: `${(biz as any).name} reached Tier ${newTier}! Income: ${newPassivePH.toLocaleString()} DC/hr. Laundering cooldown reduced.`,
+      }).catch(() => {});
+    }
+
+    res.json({
+      invested: amount,
+      newProgress,
+      tier: newTier,
+      tierAdvanced,
+      nextThreshold: TIER_UPGRADE_THRESHOLDS[Math.min(newTier + 1, TIER_MAX)] ?? null,
+      passiveIncomePerHour: newPassivePH,
+      launderingCooldownHours: newLaunderCooldown,
+      newDc: updatedUser.dc,
+    });
+  } catch (err) {
+    logger.error({ err }, "POST /businesses/:id/upgrade error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/businesses/:id/launder — launder dirty DC through business ───────
+router.post("/:id/launder", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const businessId = (user as any).businessId;
+    if (!businessId || businessId.toString() !== req.params.id)
+      return res.status(403).json({ message: "You do not own this business" });
+
+    const biz = await Business.findById(req.params.id).lean();
+    if (!biz) return res.status(404).json({ message: "Business not found" });
+
+    const dirtyDc = (user as any).dirtyDc ?? 0;
+    if (dirtyDc <= 0)
+      return res.status(400).json({ message: "No dirty DC to launder" });
+
+    const cooldownHours  = (biz as any).launderingCooldownHours ?? 6;
+    const lastLaunderedAt: Date | null = (biz as any).lastLaunderedAt ?? null;
+    if (lastLaunderedAt) {
+      const msSinceLast = Date.now() - new Date(lastLaunderedAt).getTime();
+      const cooldownMs  = cooldownHours * 3_600_000;
+      if (msSinceLast < cooldownMs) {
+        const remainingMins = Math.ceil((cooldownMs - msSinceLast) / 60_000);
+        return res.status(400).json({
+          message: `Laundering on cooldown. Try again in ${remainingMins} minutes.`,
+          cooldownRemainingMinutes: remainingMins,
+        });
+      }
+    }
+
+    // 15% fee — convert 85% of dirtyDc to clean DC
+    const fee     = Math.floor(dirtyDc * LAUNDER_FEE_PCT);
+    const cleanDc = dirtyDc - fee;
+
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: req.userId, dirtyDc: { $gte: dirtyDc } },
+      { $inc: { dc: cleanDc, dirtyDc: -dirtyDc } },
+      { returnDocument: "after" },
+    );
+    if (!updatedUser)
+      return res.status(400).json({ message: "Laundering failed — try again" });
+
+    await Business.updateOne({ _id: biz._id }, { $set: { lastLaunderedAt: new Date() } });
+
+    res.json({ laundered: dirtyDc, received: cleanDc, fee, newDc: updatedUser.dc });
+  } catch (err) {
+    logger.error({ err }, "POST /businesses/:id/launder error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── POST /api/businesses/:id/skip-launder — NC to clear laundering cooldown ───
+router.post("/:id/skip-launder", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await User.findById(req.userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const businessId = (user as any).businessId;
+    if (!businessId || businessId.toString() !== req.params.id)
+      return res.status(403).json({ message: "You do not own this business" });
+
+    const biz = await Business.findById(req.params.id).lean();
+    if (!biz) return res.status(404).json({ message: "Business not found" });
+
+    const cooldownHours   = (biz as any).launderingCooldownHours ?? 6;
+    const lastLaunderedAt: Date | null = (biz as any).lastLaunderedAt ?? null;
+
+    let remainingMins = 0;
+    if (lastLaunderedAt) {
+      const msSinceLast = Date.now() - new Date(lastLaunderedAt).getTime();
+      const cooldownMs  = cooldownHours * 3_600_000;
+      const remainingMs = Math.max(0, cooldownMs - msSinceLast);
+      remainingMins = Math.ceil(remainingMs / 60_000);
+    }
+
+    if (remainingMins === 0)
+      return res.status(400).json({ message: "Laundering is not on cooldown" });
+
+    const ncCost = Math.max(5, remainingMins);
+
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: req.userId, nc: { $gte: ncCost } },
+      { $inc: { nc: -ncCost } },
+      { returnDocument: "after" },
+    );
+    if (!updatedUser)
+      return res.status(400).json({
+        message: `Not enough NC — need ${ncCost} NC to skip ${remainingMins}-minute cooldown`,
+        notEnoughNc: true,
+        ncRequired: ncCost,
+      });
+
+    // Clear lastLaunderedAt so laundering is available immediately
+    await Business.updateOne({ _id: biz._id }, { $set: { lastLaunderedAt: null } });
+
+    res.json({ ncSpent: ncCost, remainingMinsSkipped: remainingMins, newNc: updatedUser.nc });
+  } catch (err) {
+    logger.error({ err }, "POST /businesses/:id/skip-launder error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ── Re-export TIER_UPGRADE_THRESHOLDS under alias for routes ─────────────────
+const TIER_THRESHOLDS = TIER_UPGRADE_THRESHOLDS;
 
 export default router;

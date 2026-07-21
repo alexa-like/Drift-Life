@@ -307,6 +307,54 @@ async function start() {
       }
     }, 60_000);
 
+    // ── Gang war business damage: 5% chance/hr each active enemy's business ────
+    // Reduces upgradeProgress by 1% (capped at 5,000 DC) per hour.
+    setInterval(async () => {
+      try {
+        const { default: GangWar }  = await import("./models/GangWar");
+        const { default: Business } = await import("./models/Business");
+        const { default: Guild }    = await import("./models/Guild");
+        const { default: User }     = await import("./models/User");
+
+        const activeWars = await GangWar.find({ status: "active" }).lean();
+        if (activeWars.length === 0) return;
+
+        for (const war of activeWars) {
+          const [guild1, guild2] = await Promise.all([
+            Guild.findById((war as any).challengerGuildId).select("members").lean(),
+            Guild.findById((war as any).defenderGuildId).select("members").lean(),
+          ]);
+          const memberIds: string[] = [
+            ...((guild1 as any)?.members?.map((m: any) =>
+              m.userId?.toString() ?? m.toString()) ?? []),
+            ...((guild2 as any)?.members?.map((m: any) =>
+              m.userId?.toString() ?? m.toString()) ?? []),
+          ];
+
+          for (const memberId of memberIds) {
+            if (Math.random() >= 0.05) continue; // 5% chance of damage
+            const memberUser = await User.findById(memberId)
+              .select("businessId")
+              .lean();
+            if (!(memberUser as any)?.businessId) continue;
+            const biz = await Business.findById((memberUser as any).businessId)
+              .select("upgradeProgress")
+              .lean();
+            if (!biz) continue;
+            const progress = (biz as any).upgradeProgress ?? 0;
+            if (progress <= 0) continue;
+            const damage = Math.min(5_000, Math.max(1, Math.floor(progress * 0.01)));
+            await Business.updateOne(
+              { _id: biz._id },
+              { $inc: { upgradeProgress: -damage } },
+            );
+          }
+        }
+      } catch (err) {
+        logger.error({ err }, "gang war business damage tick error");
+      }
+    }, 60 * 60 * 1000); // every hour
+
     // ── Auction auto-close: run every 1 minute ────────────────────────────────
     setInterval(() => {
       closeExpiredAuctions().catch((err) =>
