@@ -185,918 +185,191 @@ After finishing a tier, verifying the build, and pushing to GitHub — edit only
 ---
 
 ## TIER 1 — COSMETICS SYSTEM
-**Status: ✅ Done**
+**Status: ✅ Done — fully verified in codebase**
 
-**Goal:** Build the full cosmetics system — name flairs, chat message card designs, the cosmetics store, and the rendering infrastructure used by all future tiers.
-
-### 1.1 — CosmeticItem Model
-Create `artifacts/api-server/src/models/CosmeticItem.ts`:
-```typescript
-{
-  id: string;           // slug e.g. "hero-gold"
-  name: string;         // display name e.g. "Hero Gold"
-  type: "name_flair" | "message_card";
-  color: string;        // hex, for name_flair
-  animation: "none" | "pulse" | "glow" | "rainbow" | "glitch" | "gradient";
-  cssKey: string;       // CSS class key applied to username/card
-  priceNC: number;      // 0 = not purchasable in store
-  purchasable: boolean; // shows in cosmetics store
-  eventRewardable: boolean; // can be given as event reward
-  rarity: "common" | "rare" | "epic" | "legendary" | "event";
-  previewDescription: string; // shown in store card
-}
-```
-Seed initial catalog on first load (check if collection is empty before seeding):
-- **Cyan Pulse** — name_flair, `#00E0FF`, pulse, 400 NC, purchasable
-- **Magenta Drift** — name_flair, `#FF00CC`, gradient, 800 NC, purchasable
-- **Glitch Flicker** — name_flair, `#FFFFFF`, glitch, 1200 NC, purchasable
-- **Neon Green** — name_flair, `#39FF14`, glow, 600 NC, purchasable
-- **Default Card** — message_card, no color, none, 0 NC, not purchasable (base style)
-- **Subscriber Card** — message_card, `#00E0FF`, glow, 0 NC, not purchasable (subscription-gated)
-- **Event Card** — message_card, `#FFD700`, pulse, 0 NC, not purchasable (event reward only)
-- **Staff Card** — message_card, `#FF4444`, none, 0 NC, not purchasable (role-gated)
-
-### 1.2 — Update User Model
-Add to `User` model in `artifacts/api-server/src/models/User.ts`:
-```typescript
-cosmeticInventory: [{
-  cosmeticId: string;
-  acquiredAt: Date;
-  expiresAt: Date | null;   // null = permanent
-  source: "purchase" | "event_reward" | "subscription" | "owner_grant";
-}];
-equippedNameFlair: string | null;    // cosmeticId of equipped name_flair
-equippedMessageCard: string | null;  // cosmeticId of equipped message_card
-ownedCosmetics: string[];            // flat array of cosmeticIds for fast lookup
-```
-Add to schema with safe defaults (empty arrays, null equipped fields).
-
-### 1.3 — Cosmetics Routes
-Create `artifacts/api-server/src/routes/cosmetics.ts`, register in `index.ts`:
-
-- `GET /api/cosmetics` — return full catalog + for each item: `owned: bool`, `equipped: bool`, `expiresAt`
-- `POST /api/cosmetics/:id/buy` — atomic NC deduction (`nc: { $gte: priceNC }`), validate `purchasable: true`, `$addToSet` into `ownedCosmetics`, push to `cosmeticInventory` with `source: "purchase"`, `expiresAt: null`
-- `POST /api/cosmetics/:id/equip` — validate ownership, set `equippedNameFlair` or `equippedMessageCard` depending on type. Body `{ equip: false }` to unequip (set to null)
-- `GET /api/cosmetics/check-expired` — internal: called by auth middleware on login, removes expired cosmetics from `cosmeticInventory`, unequips if currently equipped. Run this on every auth check.
-
-Owner routes (add to `owner.ts`):
-- `POST /api/owner/cosmetics/grant` — grant any cosmetic to a player: `{ userId, cosmeticId, expiresAt? }` — adds to inventory + ownedCosmetics, logs admin action
-- `POST /api/owner/cosmetics/catalog` — add a new cosmetic to the catalog (owner can create custom event cosmetics)
-- `PATCH /api/owner/cosmetics/:id` — edit an existing cosmetic (name, price, rarity, etc.)
-
-### 1.4 — PlayerNameBadge Component
-In `artifacts/neonoir/src/components/`, create `PlayerNameBadge.tsx`. This replaces `SubscriberNameBadge` everywhere:
-
-Props: `{ username: string, subscriptionTier?: string | null, equippedNameFlair?: string | null, cosmeticData?: CosmeticItem }`
-
-Priority order (highest wins):
-1. If `subscriptionTier` is set → render subscription styling (existing behavior, unchanged)
-2. If `equippedNameFlair` is set → render flair color + animation CSS class
-3. Otherwise → plain username
-
-CSS classes per animation type (add to global CSS):
-- `flair-pulse` — keyframe gentle pulse on color
-- `flair-glow` — text-shadow glow effect
-- `flair-rainbow` — hue-rotate animation
-- `flair-glitch` — occasional glitch transform
-- `flair-gradient` — background-clip gradient sweep
-
-Update every page/component that currently renders a username directly (Chat, Leaderboard, Profile, Friends, Feed, Arena, Race, Owner panel) to use `PlayerNameBadge` instead of `SubscriberNameBadge`.
-
-### 1.5 — Chat Message Card Variants
-Create `artifacts/neonoir/src/components/MessageCard.tsx` with 5 variants:
-- `default` — current plain card look
-- `subscriber` — colored name + subtle cyan glow border
-- `event` — event-themed golden border + faint event background tint
-- `staff` — red/orange left border + small role badge
-- `own` — your own messages: right-aligned, slightly different background
-
-Variant selection logic (in order):
-1. If sender `role` is `staff | admin | owner` → `staff`
-2. If it's the current user's message → `own`
-3. If sender has `subscriptionTier` → `subscriber`
-4. If an event is active and sender has event cosmetic equipped → `event`
-5. Otherwise → `default`
-
-Replace existing chat message rendering with `MessageCard` in the Chat page.
-
-### 1.6 — Cosmetics Store UI
-Add a **"Cosmetics"** tab to the existing Store page (`artifacts/neonoir/src/pages/StorePage.tsx`):
-- Grid of cosmetic cards — each shows: live preview of player's own username in that style, item name, rarity badge, price in NC
-- States per card: Buy (price button), Owned + Equip, Equipped (checkmark)
-- Unequip button on currently equipped items
-- Insufficient NC state — clear error message matching existing `notEnoughNc` pattern
-- Show `expiresAt` countdown on temporary cosmetics ("Expires in 6 days")
-
-### 1.7 — Verify
-- Build and restart API server and frontend
-- Confirm catalog seeded on startup
-- Confirm buy/equip/unequip routes work
-- Confirm username renders with flair in chat
-- Confirm message card variants render correctly
-- Confirm expired cosmetics are removed on login
+All items confirmed built: CosmeticItem model (with `seasonExclusive`), User model fields, all cosmetics routes, owner grant/catalog/patch routes, PlayerNameBadge component (all 5 CSS animations), MessageCard component, Cosmetics Store tab. No remaining work.
 
 ---
 
 ## TIER 2 — EVENT ENGINE
-**Status: ✅ Done**
+**Status: ✅ Done — fully verified in codebase**
 
-**Goal:** Build the complete event creation, scheduling, theming, and management system. Owner can create any event type, schedule it, change the game's name and look, and Vanta can plan a full year of events.
-
-### 2.1 — Event Model
-Create `artifacts/api-server/src/models/Event.ts`:
-```typescript
-{
-  // Identity
-  name: string;                // "Garou Invasion", "Christmas 2025"
-  slug: string;                // url-safe id
-  type: "boss_raid" | "leaderboard_grind" | "collection_hunt" | "milestone" | "sports" | "lottery";
-  description: string;
-  status: "draft" | "scheduled" | "active" | "ended" | "archived";
-
-  // Scheduling
-  startsAt: Date;
-  endsAt: Date;
-  createdBy: string;           // owner username
-  lastEditedAt: Date;
-
-  // Theme (applied to frontend while active)
-  theme: {
-    gameDisplayName: string;   // e.g. "Neonoir × One Punch Man"
-    primaryColor: string;      // hex
-    accentColor: string;       // hex
-    backgroundColor: string;   // hex
-    bannerImageUrl: string;    // URL to event banner image
-    chatBadgeText: string;     // short text shown in chat badge e.g. "OPM EVENT"
-    chatBadgeColor: string;    // hex
-  };
-
-  // Activities that earn event points (configurable per event)
-  pointSources: [{
-    action: string;            // "arena_win" | "crime" | "race_win" | "boss_strike" | "collection_find" | etc.
-    points: number;
-  }];
-
-  // Boss (boss_raid only)
-  boss?: {
-    name: string;              // "Garou — Human Monster"
-    imageUrl: string;
-    totalHp: number;
-    currentHp: number;
-    phases: [{
-      name: string;            // "Awakened" 
-      triggerAtHpPercent: number; // 50 = triggers at 50% HP
-      description: string;    // shown to players
-      abilityEffect?: string; // e.g. "all_damage_2x_10min"
-    }];
-    strikeEnergyCost: number;  // adrenaline cost per strike
-    strikeCooldownSeconds: number;
-    strikeBaseDamage: { min: number; max: number };
-    bossRetaliationDamage: { min: number; max: number };
-  };
-
-  // Collection hunt (collection_hunt only)
-  collectible?: {
-    name: string;              // "Gift Box"
-    dropSources: string[];     // which actions can drop it
-    dropChance: number;        // 0–1
-    setSize: number;           // how many = full set
-  };
-
-  // Milestone (milestone only)
-  milestones?: [{
-    label: string;
-    target: number;
-    action: string;            // what players collectively do
-    rewardAll: {               // reward for everyone who participated
-      dc: number; nc: number; cosmeticId?: string; title?: string;
-    };
-  }];
-
-  // Sports (sports only)
-  teams?: [{
-    id: string; name: string; color: string;
-  }];
-
-  // Lottery (lottery only)
-  lottery?: {
-    ticketSource: string;      // what earns tickets
-    ticketsPerAction: number;
-    winnersCount: number;
-  };
-
-  // Rewards (all types)
-  leaderboardRewards: [{
-    rankFrom: number;
-    rankTo: number;
-    reward: {
-      dc: number;
-      nc: number;
-      cosmetics: [{ id: string; durationDays: number }]; // 0 = permanent
-      titles: string[];
-      eventPoints?: number;
-    };
-  }];
-
-  oneTimeRewards: [{
-    id: string;
-    label: string;             // "Defeat the boss once"
-    condition: {
-      type: string;            // "boss_damage_total" | "collection_count" | "crime_count" etc.
-      value: number;
-    };
-    reward: {
-      dc: number; nc: number;
-      cosmetics: [{ id: string; durationDays: number }];
-      titles: string[];
-    };
-    claimLimit: "once_per_player" | "once_per_event";
-  }];
-
-  // Archive data (filled when event ends)
-  archive?: {
-    finalLeaderboard: [{ rank: number; userId: string; username: string; points: number }];
-    bossKilled: boolean;
-    bossKilledAt?: Date;
-    milestoneReached?: number;
-    totalParticipants: number;
-    totalDamageDealt?: number;
-  };
-}
-```
-
-### 2.2 — Player Event Progress Model
-Create `artifacts/api-server/src/models/EventProgress.ts`:
-```typescript
-{
-  eventId: ObjectId;
-  userId: ObjectId;
-  username: string;
-  points: number;
-  bossDamageDealt: number;
-  collectiblesFound: number;
-  ticketsEarned: number;
-  teamId?: string;
-  oneTimeRewardsClaimed: string[]; // reward ids claimed
-  lastActionAt: Date;
-}
-```
-Index on `{ eventId, points: -1 }` for leaderboard queries. Index on `{ eventId, userId }` unique.
-
-### 2.3 — Event Routes (Backend)
-Create `artifacts/api-server/src/routes/events.ts`, register in `index.ts`:
-
-**Public routes (any authenticated player):**
-- `GET /api/events/active` — return active event with theme, boss current HP, player's own progress
-- `GET /api/events/upcoming` — scheduled events (name, type, startsAt, reward preview, theme colors)
-- `GET /api/events/archive` — past ended/archived events
-- `GET /api/events/archive/:slug` — single past event full details (frozen leaderboard, boss result)
-- `GET /api/events/leaderboard` — current event leaderboard (top 100 + your rank)
-- `POST /api/events/strike-boss` — active strike on boss: validate active boss_raid event, cooldown, energy cost, deal damage, update boss HP, check phase transitions, update player progress, broadcast HP update via WebSocket. Returns: damage dealt, boss HP remaining, phase change (if any), boss retaliation HP loss
-- `POST /api/events/collect` — attempt to find a collectible (collection_hunt): roll drop chance, add to progress
-
-**Owner routes (add to owner.ts):**
-- `POST /api/owner/events` — create new event (all fields, status: draft)
-- `PATCH /api/owner/events/:id` — edit any field at any time (even mid-event)
-- `POST /api/owner/events/:id/activate` — change status to active (validates start/end dates)
-- `POST /api/owner/events/:id/end` — manually end event, trigger reward distribution
-- `POST /api/owner/events/:id/archive` — archive ended event
-- `DELETE /api/owner/events/:id` — delete draft events only (cannot delete active/ended)
-- `POST /api/owner/events/flash` — trigger instant flash event: `{ label, effect, durationHours }` — stored in ServerConfig, expires automatically
-- `POST /api/owner/broadcast` — send a message to all online players via WebSocket + post to feed
-
-### 2.4 — Game Display Name (Frontend Theming)
-In `ServerConfig`, store `gameDisplayName` (default: `"Neonoir"`).
-
-When an event is active:
-- Auth endpoint includes active event theme in its response
-- Frontend reads `theme.gameDisplayName` and applies it everywhere:
-  - `<title>` tag
-  - Navbar logo/title
-  - Login screen title
-  - PWA manifest name (update dynamically where possible)
-  - OG meta tags
-- Theme colors applied as CSS variables: `--event-primary`, `--event-accent`, `--event-bg`
-- Event banner rendered on City/Home page with countdown
-- Small chat badge rendered in chat input area while event is active
-
-When event ends → all revert to defaults automatically.
-
-### 2.5 — Event Scheduling & Auto-Activation
-Add a cron job to the existing regen/scheduler in the API server:
-- Every minute: check scheduled events where `startsAt <= now` and `status = "scheduled"` → set `status = "active"`, apply theme to ServerConfig, post feed event: "[EVENT] {name} has begun!"
-- Every minute: check active events where `endsAt <= now` → trigger reward distribution (§2.6), set `status = "ended"`, post feed event: "[EVENT] {name} has ended. Rewards are being distributed."
-- Every minute: check flash events in ServerConfig where `expiresAt <= now` → remove them
-
-### 2.6 — Reward Distribution (Auto at Event End)
-When an event ends (triggered by scheduler or owner manually):
-1. Query `EventProgress` sorted by points descending → assign ranks
-2. For each leaderboard reward bracket: find players in that rank range, grant rewards (DC atomic add, NC atomic add, cosmetics via owner-grant logic, titles push to `User.titles`)
-3. For each player: create a `Notification` — "The {eventName} has ended. You ranked #{rank} and earned: {reward summary}"
-4. If `boss.currentHp <= 0` (boss was killed): grant bonus cosmetics/DC to all participants who dealt damage
-5. Freeze leaderboard into `event.archive.finalLeaderboard`
-6. Set `archive.totalParticipants`, `archive.bossKilled`, etc.
-
-### 2.7 — Vanta Year Planner
-Add new tools to `routes/vanta-ai.ts`:
-
-**`plan_year_of_events`** — Owner tells Vanta: "Plan me a full year of events starting now"
-- Vanta uses its AI knowledge of the calendar to generate 12 months of events
-- Real-world dates respected: Christmas (Dec 24–Jan 1), Halloween (Oct), Valentine's (Feb 14), Easter (variable), New Year, Summer (Jul–Aug), major football tournaments (World Cup years, Champions League final, etc.)
-- Collaboration events (OPM, Dragon Ball, etc.) can be requested separately and inserted between calendar events
-- Each generated event includes: name, type, theme colors, description, duration, suggested boss (if boss_raid), suggested rewards
-- Returns a calendar array for owner review
-- Owner approves each event → saved as draft/scheduled
-
-**`schedule_event`** — Create a specific event from owner's description
-- Owner: "Add a Dragon Ball collaboration in March, Beerus as boss, 3 weeks"
-- Vanta creates the full event config and checks for date conflicts with existing scheduled events
-- If conflict: Vanta warns owner and suggests adjusted dates
-
-**`get_event_calendar`** — Return all scheduled/active/ended events in chronological order
-
-**`modify_event`** — Owner describes a change in plain English: "Increase boss HP by 20%" → Vanta makes the specific field update
-
-**`broadcast_message`** — Send a message to all online players
-
-**`end_event_early`** — Manually trigger event end + reward distribution
-
-### 2.8 — Flash Events
-Flash events are micro-events lasting 1–2 hours:
-- Stored in `ServerConfig` key `"flashEvent"`: `{ label, effect, expiresAt }`
-- Effects: `"2x_crime_payout"`, `"2x_arena_rewards"`, `"3x_boss_damage"`, `"2x_event_points"`, `"free_boss_strikes"`, `"2x_race_prizes"`
-- Each relevant route checks `flashEvent` from ServerConfig and applies the multiplier if not expired
-- Feed auto-posts when a flash event starts: "[⚡ FLASH EVENT] {label} — active for the next {X} hours!"
-- All online players get a WebSocket push notification when flash event starts
-
-### 2.9 — Verify
-- Build and restart both services
-- Confirm event creation, scheduling, and auto-activation work
-- Confirm boss HP updates via WebSocket
-- Confirm theme changes apply to frontend on event activation
-- Confirm reward distribution runs at event end
-- Confirm flash events apply multipliers correctly
+All items confirmed built: Event + EventProgress models, all player/owner routes, frontend theming (CSS variables, gameDisplayName, EventBanner), auto-activation scheduler in `index.ts` (60s interval: scheduled→active, active→ended, flash expiry), reward distribution in `eventEngine.ts`, all 6 Vanta Year Planner tools, flash events wired in crimes/arena/race/events routes. No remaining work.
 
 ---
 
 ## TIER 3 — EVENT TYPES & BOSS FIGHT
-**Status: ✅ Done**
+**Status: ✅ Done — fully verified in codebase**
 
-**Goal:** Implement all 6 event type mechanics, the dedicated Boss Fight page, Event Arena PvE mode, and the Strike Boss action.
-
-### 3.1 — Boss Raid Mechanics
-**Passive damage (automatic):**
-- When a player wins an arena match during a `boss_raid` event: add `pointSources["arena_win"].points` boss damage to their `EventProgress.bossDamageDealt` and `points`. Update `boss.currentHp` by the same amount (atomic `$inc: -damageAmount` with `$max: 0` floor).
-- Same for crimes, races — read `pointSources` config from the active event.
-- After every passive damage update: broadcast updated boss HP to all connected clients via WebSocket channel `event:boss_hp`.
-
-**Active Strike (`POST /api/events/strike-boss`):**
-1. Validate: active `boss_raid` event exists, player not on cooldown (store `lastBossStrikeAt` on EventProgress, check `strikeCooldownSeconds`), player has enough adrenaline energy
-2. Deduct `strikeEnergyCost` adrenaline from player
-3. Calculate damage: random between `boss.strikeBaseDamage.min` and `boss.strikeBaseDamage.max`, modified by player's equipped weapon strength bonus
-4. If flash event `"3x_boss_damage"` is active: triple the damage
-5. Atomic decrement `boss.currentHp` (floor at 0)
-6. Add damage to `EventProgress.bossDamageDealt` and `points`
-7. Boss retaliation: deduct random HP from player between `bossRetaliationDamage.min` and `max` (cannot kill, floor at 1 HP)
-8. Check phase transitions: if HP crossed a phase threshold → apply phase effect, broadcast phase change to all clients, post to feed
-9. If `boss.currentHp === 0` → boss killed: post dramatic feed event, unlock bonus reward for all participants
-10. Return: `{ damageDone, bossHpRemaining, playerHpRemaining, phaseChange, bossKilled }`
-
-**Boss Abilities:**
-- Stored on phase: `abilityEffect` string
-- Implemented effects: `"all_damage_2x_10min"` → set flash event for 10 min; `"freeze_strikes_5min"` → set a ServerConfig flag that blocks strike-boss for 5 min; `"energy_drain"` → reduce all online players' adrenaline by 20%
-
-### 3.2 — Leaderboard Grind Mechanics
-- Points awarded per `pointSources` config when any listed action completes
-- EventProgress updated on every qualifying action
-- No special additional logic — pure points accumulation
-- Feed posts: when a player enters the top 10 for the first time; when top rank changes
-
-### 3.3 — Collection Hunt Mechanics
-`POST /api/events/collect` called after qualifying actions (the frontend calls this after crimes, jobs, etc. complete):
-1. Check active `collection_hunt` event and player hasn't exceeded `setSize` collectibles
-2. Roll `Math.random() < collectible.dropChance`
-3. On drop: increment `EventProgress.collectiblesFound`, add points
-4. If `collectiblesFound === collectible.setSize`: auto-grant set-completion reward, post to feed: "{username} completed the full {name} set!"
-5. Return: `{ found: bool, total: number, setComplete: bool }`
-
-### 3.4 — Milestone Mechanics
-- Each milestone has an `action` and `target` (collective server total)
-- On each qualifying action: update a shared server counter in `ServerConfig` key `"eventMilestoneProgress"` (atomic `$inc`)
-- Scheduler checks every minute: if counter crossed a milestone threshold → grant all participants the `rewardAll` reward, post dramatic feed event, lock that milestone as reached
-- Milestone progress exposed via `GET /api/events/active`
-
-### 3.5 — Sports / Football Mechanics
-- On event creation, teams are defined
-- Players pick a team once on their first action during the event (stored on `EventProgress.teamId`). Cannot change.
-- Points earned by a player add to both their individual total and their team's total (stored in `ServerConfig "eventTeamScores"`)
-- `GET /api/events/leaderboard` returns: individual leaderboard + team standings
-- At event end: winning team's players get the team-winner bonus reward in addition to their rank reward
-
-### 3.6 — Lottery Mechanics
-- Qualifying actions earn tickets (stored in `EventProgress.ticketsEarned`, added to `points` proportionally)
-- `GET /api/events/active` shows player their ticket count and estimated odds
-- At event end: weighted random draw from all players (weight = ticket count), select `lottery.winnersCount` winners, grant rewards, post winners to feed
-
-### 3.7 — Event Arena PvE Mode (Boss NPC Fights)
-New queue mode on the existing arena system:
-
-**Owner configures PvE NPCs when creating a boss_raid event:**
-- Stored on event: `pveNpcs: [{ tier: "minion"|"lieutenant"|"boss"|"final", name, stats: { hp, attack, defense }, eventPoints, loot }]`
-- Players can queue for "Event Arena" (separate from normal arena)
-- Matchmaking pairs player vs random NPC from the configured pool
-- Combat uses the EXISTING Tier 3 combat engine — NPC stats treated as a player loadout
-- On win: grant event points, possible loot drop, feed post for boss/final tier wins only
-- On loss: small consolation event points, no loot
-- NPC difficulty scales with player level (higher level players matched against harder NPCs)
-
-**New route:** `POST /api/arena/queue-pve` — queue for event PvE fight (validates active boss_raid event)
-
-### 3.8 — Verify
-- All 6 event type mechanics work end-to-end
-- Boss HP decrements correctly with concurrent updates (test with 2 ghost accounts)
-- Phase transitions fire and broadcast correctly
-- Reward distribution correct for each event type
-- PvE arena queue and combat resolves correctly
+All items confirmed built: Boss raid mechanics (passive damage, active strike, phase transitions, abilities), all 6 event type mechanics (boss_raid, leaderboard_grind, collection_hunt, milestone, sports, lottery), Event Arena PvE mode (`POST /api/arena/queue-pve`). No remaining work.
 
 ---
 
 ## TIER 4 — EVENT FRONTEND
-**Status: ✅ Done**
+**Status: ✅ Done — fully verified in codebase**
 
-**Goal:** Build all player-facing event UI — the event page, boss fight interface, archive, upcoming events, and custom game mode builder for owners.
-
-### 4.1 — Active Event Page (`/event`)
-Create `artifacts/neonoir/src/pages/EventPage.tsx`:
-
-**When no event is active:** Show "No active event — check upcoming events" + link to upcoming events page.
-
-**When event is active:** Full themed page using event CSS variables:
-- Event banner image (full-width) with event name and type badge
-- Countdown timer to event end (live, updates every second)
-- Your stats: your rank, your points, your boss damage (if boss_raid), your collectibles (if collection_hunt)
-- Type-specific main panel (see below)
-- Event leaderboard (your rank highlighted) — paginated top 100
-- Reward preview: what you'll earn at your current rank
-
-**Boss Raid Panel:**
-- Giant boss HP bar — real-time via WebSocket, animated on damage
-- Phase indicator (current phase name + description)
-- Boss ability status (if an ability is active, show countdown)
-- Recent damage feed: last 20 hits from all players scrolling in real-time
-- **STRIKE BOSS button** — big, prominent, disabled + cooldown timer when on cooldown
-- On strike: animated hit effect, damage number floats up, boss HP bar animates down
-- If boss retaliation: show HP loss on player's HP bar
-
-**Collection Hunt Panel:** Progress bar (collectibles found / set size), recent finds feed
-
-**Milestone Panel:** Giant collective progress bar across all milestones, your contribution count
-
-**Sports Panel:** Team standings + your team's color, switch to individual leaderboard tab
-
-**Lottery Panel:** Your ticket count, estimated odds, time remaining
-
-### 4.2 — Boss Fight Animations
-Using Framer Motion (already installed):
-- Boss HP bar animates smoothly on damage
-- Strike button has a satisfying press + recoil animation
-- Damage numbers float up and fade out
-- Phase change: dramatic screen flash + phase name appears
-- Boss kill: full-screen celebration animation
-
-### 4.3 — Upcoming Events Page (`/events/upcoming`)
-Create `artifacts/neonoir/src/pages/UpcomingEventsPage.tsx`:
-- Cards for each scheduled event: name, type icon, start countdown, reward tier preview (top prize cosmetic/title shown), theme color accent
-- "Coming Soon" mystery cards for events without confirmed details
-
-### 4.4 — Past Events Archive (`/events/archive`)
-Create `artifacts/neonoir/src/pages/EventArchivePage.tsx`:
-- Grid of all past events, sorted by most recent
-- Each card: event name, dates, type, total participants
-- Click to open archive detail page:
-  - Full event description + theme
-  - Final top 10 leaderboard (frozen, with usernames and scores)
-  - Boss: was it killed? How long did it take? Total damage dealt
-  - Milestone: which tiers were reached
-  - Rewards that were available (full reward table)
-
-### 4.5 — Event Chat Badge
-In the Chat page and chat components: while an event is active, render a small colored badge next to the chat input and in the chat header showing `theme.chatBadgeText` in `theme.chatBadgeColor`. Small and non-intrusive.
-
-### 4.6 — Event NavBar Entry
-Add "Event" to the NavBar (visible when an event is active or upcoming):
-- Active event: shows with a pulsing indicator
-- No active event: shows with "Upcoming" label linking to upcoming page
-
-### 4.7 — Custom Event Game Mode Builder (Owner Panel)
-In the owner panel, add an "Event Game Modes" section:
-- Owner can define custom game logic per event type using a JSON config editor
-- Pre-built templates: `boss_raid`, `leaderboard_grind`, `collection_hunt`, `milestone`, `sports`, `lottery`
-- Custom mode: owner defines the rules in JSON (action triggers, scoring formula, win conditions)
-- The custom mode is stored on the event and the backend reads it to apply custom logic
-- This is the foundation — complex custom modes (heist, survival) are added here as pre-built templates in future tiers
-
-### 4.8 — Verify
-- All 6 event pages render correctly
-- Boss HP bar updates in real-time via WebSocket
-- Strike button respects cooldown, energy, and phase effects
-- Archive page shows correct frozen data
-- Upcoming page shows correct countdowns
-- NavBar event entry shows/hides correctly
+All items confirmed built: EventPage with all 6 type panels (Boss, Collection, Milestone, Sports, Lottery), Framer Motion boss fight animations, UpcomingEventsPage, EventArchivePage with detail view, event chat badge (EventBanner component), Event NavBar entry, Custom Event Game Mode Builder tab in owner panel (EventGameModesTab). No remaining work.
 
 ---
 
 ## TIER 5 — BATTLE PASS + SEASONS + DAILY & WEEKLY QUESTS
-**Status: ✅ Done**
+**Status: 🔧 Half-built — core built, season/Hall of Fame/stat reset never implemented**
 
-**Goal:** Build the battle pass system (event-only, not pay-to-win), named seasons, and daily/weekly quests.
+### What IS built (do not rebuild):
+- BattlePass model, all battle pass routes (buy-premium, claim, owner create/edit/activate)
+- User fields: `seasonLevel`, `battlePassPremium`, `premiumPassEventId`, `claimedPassRewards`, `dailyQuests`, `weeklyQuests`
+- `lib/battlePassXp.ts` XP hook wired to arena, crimes, race, boss strike, event collect
+- BattlePassPage.tsx with full 50-level track, premium upgrade, 2x XP badge, claim buttons
+- Daily/weekly quest display on BattlePassPage
+- Quest model + `seedQuestTemplates()` with 20+ templates seeded
+- `lib/questProgress.ts` wired to qualifying actions
 
-### 5.1 — Key Rules (Non-Negotiable)
-- **Battle pass runs only when an event is active.** No standalone battle pass without an event.
-- **Premium track = cosmetics, titles, NC only. Zero stat advantages.** Never grant strength, health, speed, damage, energy cap, or any gameplay-affecting stat on the premium track.
-- **XP rate is identical for free and premium players.** No XP boosts purchasable.
-- **Premium pass purchased with NC** (not DC).
-
-### 5.2 — BattlePass Model
-Create `artifacts/api-server/src/models/BattlePass.ts`:
-```typescript
-{
-  eventId: ObjectId;      // battle pass belongs to an event
-  seasonName: string;     // e.g. "Garou Season"
-  ncCost: number;         // owner sets this per season
-  totalLevels: number;    // default 50
-  levels: [{
-    level: number;
-    xpRequired: number;   // cumulative XP to reach this level
-    freeReward: { dc: number; nc: number; cosmeticId?: string; title?: string; badge?: string };
-    premiumReward: { dc: number; nc: number; cosmeticId?: string; title?: string; badge?: string };
-    isMilestone: boolean; // level 10, 25, 50 = milestone (bigger rewards)
-  }];
-  xpSources: [{
-    action: string;       // "arena_win" | "crime" | "race_win" | "daily_quest" | "boss_strike" | etc.
-    xp: number;
-  }];
-  status: "draft" | "active" | "ended";
-  startsAt: Date;         // same as event start
-  endsAt: Date;           // same as event end
-}
-```
-
-### 5.3 — User Battle Pass Progress
+### 5.6 — Seasons System (NOT BUILT — never implemented)
 Add to User model:
 ```typescript
-seasonXP: number;           // resets each season
-seasonLevel: number;        // current level in active pass
-hasPremiumPass: boolean;    // paid for premium track this season
-premiumPassEventId: string | null; // which event's pass they bought
-claimedPassRewards: string[]; // "level_N_free" | "level_N_premium"
-```
-
-### 5.4 — Battle Pass Routes
-Add to events routes or create `routes/battle-pass.ts`:
-- `GET /api/battle-pass/active` — return active pass: all levels, rewards, player's current level, claimed rewards, premium status
-- `POST /api/battle-pass/buy-premium` — atomic NC deduction (`nc: { $gte: ncCost }`), set `hasPremiumPass: true`, `premiumPassEventId`
-- `POST /api/battle-pass/claim/:level/:track` — claim a reward (free or premium): validate level reached, track unlocked, not already claimed, grant reward atomically
-
-Owner routes:
-- `POST /api/owner/battle-pass` — create pass for an event (owner sets all 50 levels)
-- `PATCH /api/owner/battle-pass/:id` — edit pass (add bonus rewards, change XP rates, run 2x XP weekend by doubling all `xpSources` values)
-- `POST /api/owner/battle-pass/:id/activate` — activate with event
-
-Vanta tools:
-- `generate_battle_pass` — owner describes theme, Vanta generates all 50 levels with appropriate rewards
-- `battle_pass_report` — query: how many players are at each level, % premium conversion, will any players hit max level before event ends
-- `adjust_xp_rate` — multiply all xpSources by a factor (e.g. 2x weekend)
-
-### 5.5 — XP Hooks
-Add XP award calls to every qualifying route. Create `lib/battlePassXp.ts` helper:
-```typescript
-export async function awardBattlePassXp(userId: string, action: string): Promise<void>
-```
-- Looks up active battle pass `xpSources` for `action`
-- Atomically adds XP to `User.seasonXP`
-- Checks if new XP total crosses any level threshold → increments `User.seasonLevel`
-- On level-up: sends notification "You reached Battle Pass Level {N}!"
-- Call this helper from: arena match completion, crime completion, race completion, daily quest completion, boss strike, event collect
-
-### 5.6 — Seasons System
-Each active event that has a battle pass is considered a **Season**:
-- Season name comes from `BattlePass.seasonName`
-- When season ends (event ends): current `seasonXP` and `seasonLevel` are archived to `User.seasonHistory` array: `[{ seasonName, eventId, finalLevel, hasPremiumPass, endedAt }]`
-- Reset `User.seasonXP` and `User.seasonLevel` to 0 for next season
-- Feed post when season ends: "Season '{name}' has ended. Check your final rewards!"
-- Profile page shows season history (final level per season)
-
-**Season Hall of Fame:**
-- At season end, take a snapshot of the top 50 players by event points and store it permanently on the `BattlePass` document as `hallOfFame: [{ rank, userId, username, points, seasonLevel, teamId? }]`
-- Create `artifacts/neonoir/src/pages/HallOfFamePage.tsx` (`/hall-of-fame`):
-  - Shows a dropdown to select any past season by name
-  - Displays the frozen top 50 leaderboard for that season with: rank, username (with PlayerNameBadge flair), points, final battle pass level
-  - Top 3 displayed with gold/silver/bronze visual treatment
-  - Player can see if they appear in any past Hall of Fame on their own profile ("Hall of Fame appearances" section)
-- Add a "Hall of Fame" link to the leaderboard page tabs and the event archive
-- Rank 1 of each season gets a permanent "Hall of Fame" title added to their `User.titles` at season end
-
-**Optional Stat Reset (Season Soft-Prestige):**
-- At season end, every player above level 30 is offered a one-time choice (expires 72 hours after season ends):
-  - **Accept the reset:** all stats (strength, defense, speed, intelligence) return to level-1 defaults. DC balance resets to 10,000 DC. NC is NOT reset. All items kept. Level and XP kept. In return: receive a permanent "Season Veteran" cosmetic name flair + a DC multiplier title specific to that season (e.g. "Garou Season Reborn") + 1,000 NC
-  - **Decline:** nothing changes — play continues as normal
-- Reset is irreversible. Player must explicitly confirm twice ("Are you sure? This cannot be undone.")
-- Route: `POST /api/seasons/accept-reset` — validates the offer window is still open, performs the stat reset atomically, grants rewards, marks `User.lastSeasonResetAt`
-- Players who have done a stat reset get a small "↺" icon on their profile indicating they've gone through at least one reset
-- This is strictly optional — never forced, never required for progression
-
-**Season-Exclusive Cosmetics:**
-- Any cosmetic with `rarity: "event"` can be flagged as `seasonExclusive: true` on the CosmeticItem model (add this boolean field in Tier 11)
-- Season-exclusive cosmetics are only obtainable as rewards during the specific season they're tied to. After the season ends, they can never be purchased, granted by owner, or earned again
-- When displaying cosmetics in the store or on profiles: season-exclusive ones show a "Season {name} Exclusive" badge
-- Each season should have at least one season-exclusive cosmetic in its top reward tier (rank 1 or max battle pass level)
-
-### 5.7 — Daily Quests
-Create `artifacts/api-server/src/models/DailyQuest.ts` (shared quest templates):
-```typescript
-{
-  id: string;
-  label: string;           // "Win 2 Arena matches"
-  action: string;          // "arena_win"
-  targetCount: number;     // 2
-  reward: { dc: number; nc: number; seasonXp: number; eventPoints?: number };
-  difficulty: "easy" | "medium" | "hard";
-}
-```
-
-Add to User model:
-```typescript
-dailyQuests: [{
-  questId: string;
-  progress: number;
-  completed: boolean;
-  claimedAt: Date | null;
-  assignedAt: Date;        // the day these were assigned
+seasonHistory: [{
+  seasonName: string;
+  eventId: string;
+  finalLevel: number;
+  hasPremiumPass: boolean;
+  endedAt: Date;
 }];
-weeklyQuests: [{
-  questId: string;
-  progress: number;
-  completed: boolean;
-  claimedAt: Date | null;
-  assignedWeek: string;    // ISO week string e.g. "2025-W03"
+lastSeasonResetAt: Date | null;
+```
+
+When an event with a battle pass ends (hook into the event end flow in `lib/eventEngine.ts`):
+1. Push current season to `User.seasonHistory`: `{ seasonName: pass.seasonName, eventId, finalLevel: user.seasonLevel, hasPremiumPass: user.battlePassPremium, endedAt: now }`
+2. Reset `User.seasonLevel` to 0, `User.battlePassPremium` to false, `User.premiumPassEventId` to null, `User.claimedPassRewards` to `[]`
+3. Feed post: "Season '{name}' has ended. Check your final rewards!"
+
+### 5.6b — Season Hall of Fame (NOT BUILT — never implemented)
+Add to BattlePass model:
+```typescript
+hallOfFame: [{
+  rank: number;
+  userId: string;
+  username: string;
+  points: number;
+  seasonLevel: number;
+  teamId?: string;
 }];
 ```
 
-Scheduler (midnight UTC daily): assign 3 new daily quests to every player from the quest template pool (randomly selected, seeded quest pool so same difficulty distribution). If a player's `dailyQuests[0].assignedAt` is a different day, replace them.
+At season end: take snapshot of top 50 EventProgress sorted by points, store on BattlePass doc as `hallOfFame`.
 
-Scheduler (Monday 00:00 UTC weekly): assign 3 new weekly quests.
+Rank 1 of each season: push permanent `"Hall of Fame"` title to `User.titles`.
 
-Routes:
-- `GET /api/quests` — player's current daily + weekly quests with progress
-- `POST /api/quests/:id/claim` — claim completed quest reward
-- Quest progress updated automatically whenever a qualifying action completes (same hook system as battle pass XP — add to `lib/questProgress.ts` helper)
+Create `artifacts/neonoir/src/pages/HallOfFamePage.tsx` (`/hall-of-fame`):
+- Dropdown to select any past season by name (query ended BattlePass docs)
+- Frozen top 50 leaderboard for selected season: rank, username (with PlayerNameBadge), points, final battle pass level
+- Top 3: gold/silver/bronze visual treatment
+- Profile shows "Hall of Fame appearances" count
 
-**Seed quest templates:** Create at least 20 quest templates covering all major systems (crimes, arena, racing, market, gym, jobs, boss strike, collection, etc.).
+Add "Hall of Fame" link to:
+- LeaderboardPage tabs (alongside city/mostWanted tabs)
+- EventArchivePage detail view
 
-### 5.8 — Battle Pass UI
-Create `artifacts/neonoir/src/pages/BattlePassPage.tsx`:
-- Full horizontal track visualization — 50 levels scrollable
-- Each level shows: free reward (always visible) + premium reward (grayed out if not premium)
-- Claimed rewards show checkmark
-- Current level highlighted with progress bar to next level
-- "Upgrade to Premium" button (NC cost) — clearly labeled "Cosmetics & Titles only — no gameplay advantages"
-- Milestone levels (10, 25, 50) visually distinct with bigger reward icons
-- 2x XP badge visible when 2x weekend is active
+### 5.6c — Optional Stat Reset (NOT BUILT — never implemented)
+Add to User model: `lastSeasonResetAt: Date | null`
 
-Daily/Weekly quests section on the same page (or a quests tab):
-- 3 daily quest cards with progress bars
-- 3 weekly quest cards
-- Claim button when completed
-- Reset countdown for each
+At season end: for every player above level 30, set a 72-hour reset offer window on their User doc (`resetOfferExpiresAt: Date`).
 
-### 5.9 — Verify
-- Battle pass only exists when an event is active
-- XP awards fire correctly for all 6+ action types
-- Level-up notifications send
-- Premium purchase works, premium track unlocks
-- Daily quests reset correctly at midnight
-- Weekly quests reset Monday
-- Season archives correctly when event ends
+Route: `POST /api/seasons/accept-reset`
+1. Validate: `resetOfferExpiresAt` exists and hasn't expired
+2. Require double-confirm (frontend sends `{ confirm: true }`)
+3. Atomically: reset strength/defense/speed/intelligence to level-1 defaults, reset DC to 10,000, keep NC/items/level/XP
+4. Grant: permanent "Season Veteran" cosmetic name flair + season-specific DC multiplier title + 1,000 NC
+5. Set `lastSeasonResetAt: now`, clear `resetOfferExpiresAt`
+
+Profile page: players who have reset get a small "↺" icon next to their username.
+
+Frontend: Double-confirm modal with two "Are you sure?" steps before calling the route.
+
+### 5.6c Verify
+- Season archives correctly when event ends (seasonHistory entry created, fields reset)
+- Hall of Fame snapshot taken at season end with correct top 50
+- Rank 1 receives "Hall of Fame" title
+- HallOfFamePage loads and displays frozen leaderboard correctly
+- Stat reset validates window, performs atomic reset, grants rewards
+- "↺" icon shows on profile for players who have reset
 
 ---
 
 ## TIER 6 — LIVE PRESENCE + PUSH NOTIFICATIONS + CHAT UPGRADES + TELEGRAM
-**Status: ⏳ Not started**
+**Status: 🔧 Half-built — core infrastructure built, three specific UI features missing**
 
-**Goal:** Make the game feel alive — players see who's online, get phone notifications, chat is richer, and Telegram is linked for power users.
+### What IS built (do not rebuild):
+- Online count route (`GET /api/world/online-count`) + City page display (WebSocket + polling)
+- Profile online status using `lastActiveAt` ("Online now" / "Active Xm ago" / "Last seen Xd ago")
+- Push notifications wired for: auction outbid, auction item sold, DM received, gang war declared, battle pass level-up — with per-category notification preferences on User + Settings page
+- Chat reactions (frontend picker + backend toggle, 8 curated emojis)
+- Chat reply-to (quoted preview frontend + backend `replyToId`/`replyToPreview`)
+- Event chat room + Faction chat room (backend routes + frontend tabs)
+- `lib/mentions.ts` — `notifyMentions()` backend helper (stores mentions on ChatMessage, sends in-app notification)
+- Telegram bot: webhook, account linking (`/link-init`, `/unlink`), bot commands (`/balance`, `/status`, `/event`, `/quests`), owner Vanta forwarding, Telegram notifications for auction outbid + DM
 
-### 6.1 — Live Online Presence
-Add to User model: `lastSeenAt: Date` (updated on every authenticated request via middleware).
+### 6.3a — @Mention Frontend Rendering (NOT BUILT — never implemented)
+In the chat message renderer (ChatPage.tsx, inside the message bubble render logic):
 
-In `lib/presence.ts`:
-- Store online players in-memory (WebSocket connection map already exists): `Set<userId>`
-- On WebSocket connect: add to set, broadcast count update
-- On WebSocket disconnect: remove from set, broadcast count update
+Parse message `content` text for `@username` tokens:
+- Regex: `/@(\w+)/g`
+- For each match: if the username appears in `message.mentions[]` (already returned by API), render as `<span className="text-cyan-400 cursor-pointer hover:underline" onClick={() => navigate('/profile/' + username)}>@username</span>`
+- If username NOT in `mentions[]` array: render as plain text (prevents false highlighting)
 
-`GET /api/world/online-count` — return `{ count: number }` (public endpoint, no auth needed)
+This is a pure frontend change — the backend already stores `mentions` on ChatMessage.
 
-Expose via auth response: `isOnline: bool` for any user whose `lastSeenAt` is within 5 minutes.
+### 6.3b — /Location Links in Chat (NOT BUILT — never implemented)
+In the same chat message renderer, after @mention parsing:
 
-On City/Home page: display "X players online right now" (polls every 30 seconds or uses WebSocket).
+Parse for `/path` tokens:
+- Regex: `/\/([\w-]+)/g`
+- Only match known valid routes: `arena`, `market`, `auction`, `crimes`, `race`, `gym`, `bank`, `profile`, `event`, `leaderboard`, `chat`, `jobs`, `store`
+- Render matched tokens as `<span className="text-orange-400 cursor-pointer hover:underline" onClick={() => navigate('/' + path)}>/path</span>`
+- Unknown paths: render as plain text
 
-On profile page: show "Online now" / "Active X minutes ago" / "Last seen X days ago" based on `lastSeenAt`.
+### 6.4a — Settings Page "Link Telegram" UI (NOT BUILT — never implemented)
+In `artifacts/neonoir/src/pages/SettingsPage.tsx`, add a **Telegram** section:
 
-### 6.2 — Push Notifications (Wire Existing Infrastructure)
-VAPID keys are already in `.replit` env. `PushSubscription` model already exists.
+**When not linked:**
+- "Link Telegram" button → calls `POST /api/telegram/link-init`
+- Shows the returned 6-digit code prominently: "Send `/link XXXXXX` to @NeonoirBot on Telegram"
+- Code expires after 10 minutes — show countdown
+- Polling every 5 seconds: `GET /api/telegram/status` — when `linked: true`, show success state
 
-Check existing push infrastructure in `routes/notifications.ts` — wire real game events to it:
+**When linked:**
+- Shows: "✅ Linked as @{telegramUsername}"
+- "Unlink Telegram" button → calls `POST /api/telegram/unlink` with confirmation dialog
 
-Send push notifications for:
-- Someone outbids the player at auction
-- Player's auction item sells
-- Event starts (all players)
-- Boss enters a new phase (all players)
-- Event ends (all players)
-- Daily quests reset (all players, once per day)
-- Player receives a direct message
-- Gang war declared against player's gang
-- Player's event rewards are ready to claim
-- Battle pass level-up
-- Bounty placed on player (Tier 17)
-
-Notification preference: players can toggle push notifications on/off per category in settings.
-
-### 6.3 — Chat Upgrades
-**@username mentions:**
-- In chat message send route: scan message text for `@username` pattern
-- Resolve each mentioned username to a userId
-- Store `mentions: [{ userId, username }]` on the `ChatMessage` document
-- Frontend chat renderer: parse `@username` tokens → render as cyan clickable links → navigate to profile on click
-- Send push notification to mentioned player: "You were mentioned in chat by {sender}"
-
-**`/location` links:**
-- Scan message text for `/path` pattern (e.g. `/arena`, `/auction`)
-- Frontend renderer: parse `/path` tokens → render as orange clickable links → navigate to that route on click
-
-**Message Reactions:**
-- Add `reactions: [{ emoji: string; userIds: string[] }]` to `ChatMessage` model
-- `POST /api/chat/:id/react` — `{ emoji }` — toggle reaction (add if not there, remove if already reacted). Only allow a curated set of emojis: 👍 🔥 💀 😂 🏆 ⚡ 💰 🎯
-- Frontend: render reaction counts below each message, tap to add/remove
-
-**Reply-to-message:**
-- Add `replyToId: ObjectId | null` and `replyToPreview: string | null` (first 50 chars of original message) to `ChatMessage`
-- `POST /api/chat` message send: accept optional `replyToId` field
-- Frontend: render a small quoted preview above the message if it's a reply; tap the quote to scroll to original
-
-**Chat Rooms:**
-- Already have Global chat. Add:
-- `Event` chat room: only visible when an event is active, auto-posts event system messages (boss phase changes, milestones, kills)
-- `Faction` chat room: only for players in a faction, persists independently
-
-Route: `GET /api/chat?room=global|event|faction` — existing route extended with `room` filter.
-
-### 6.4 — Telegram Bot Integration
-**Setup:**
-- Requires `TELEGRAM_BOT_TOKEN` secret (ask owner before writing any Telegram code)
-- Bot uses webhook (not polling) — register webhook to `$REPLIT_DEV_DOMAIN/api/telegram/webhook`
-
-**Account Linking (player-initiated, optional):**
-- Player goes to Settings page → "Link Telegram" → shown a unique 6-digit link code (stored on User with 10min expiry)
-- Player sends `/link XXXXXX` to the bot
-- Bot verifies code → links Telegram `chat_id` to player account
-- One Telegram account per Neonoir account (enforce uniqueness on `telegram.chatId`)
-- Player can unlink at any time from Settings
-
-**Notifications via Telegram (linked players only):**
-- All the same events as push notifications (§6.2) — send as Telegram message to linked players
-- Player can configure which notifications to receive in Settings (same toggles as push)
-
-**Owner via Telegram:**
-- Owner's linked Telegram account has elevated access to Vanta
-- Owner DMs the bot → messages forwarded to Vanta AI → Vanta responds → response sent back via Telegram
-- Owner can: broadcast messages, check event status, see economy stats, trigger flash events — all from phone
-
-**Game info via bot (all linked players):**
-- `/balance` — shows DC and NC
-- `/status` — shows HP, energy, location, active status
-- `/event` — shows active event, boss HP, your rank
-- `/quests` — shows today's daily quests and progress
-
-### 6.5 — Verify
-- Online count updates correctly via WebSocket
-- Presence shows correctly on profile pages
-- Push notifications send for all 8+ event types
-- @mentions render as clickable links, push notification sent to mentioned player
-- /location links render and navigate correctly
-- Reactions work (add/remove/display)
-- Reply-to renders quoted preview
-- Event and Faction chat rooms work
-- Telegram linking flow works end-to-end
-- Bot notifications send to linked players
-- Owner can message Vanta via Telegram
+### 6 Verify
+- @mention tokens in chat render as cyan clickable links, click navigates to profile
+- Unrecognized @tokens render as plain text
+- /location tokens render as orange clickable links for known routes
+- Settings page shows Telegram link flow end-to-end
+- Linking via bot command updates status correctly in settings
 
 ---
 
 ## TIER 7 — BOUNTY SYSTEM + FULL PROFILE + ACHIEVEMENTS
-**Status: ✅ Done**
+**Status: 🔧 Mostly done — one minor visual gap**
 
-**Goal:** Add social depth — players can put bounties on each other, profiles become showcase pages, and achievements fire automatically from game actions.
+### What IS built (do not rebuild):
+- Full Bounty system (model, routes, arena auto-claim, scheduler expiry, feed posts, Most Wanted leaderboard tab)
+- Profile page: bounty badge, pinned badges in header, event history, season history, online status, stats, achievements grid, cosmetics section
+- Achievement system: `checkAchievements()` wired to arena, crimes, race, daily, events routes; seeded definitions
+- Pinned badges: pin/unpin routes + shown in profile header + chat
 
-### 7.1 — Bounty System
-Create `artifacts/api-server/src/models/Bounty.ts`:
-```typescript
-{
-  placerId: ObjectId;      // who placed it
-  placerName: string;
-  targetId: ObjectId;      // who it's on
-  targetName: string;
-  amount: number;          // DC amount
-  claimedById: ObjectId | null;
-  claimedByName: string | null;
-  claimedAt: Date | null;
-  status: "active" | "claimed" | "expired" | "cancelled";
-  expiresAt: Date;         // 7 days from placement
-  createdAt: Date;
-}
-```
+### 7.2a — MessageCard Visual Preview on Profile (HALF BUILT — text-only, component not rendered)
+Currently the profile page shows `equippedMessageCard` as a text label only (`🃏 subscriber-card`).
 
-Routes in new `routes/bounties.ts`:
-- `POST /api/bounties` — place bounty: `{ targetId, amount }`. Validate: amount >= 1000 DC minimum, player has enough DC, no existing active bounty on same target from same placer. Atomic DC deduction. Feed post: "[💰 BOUNTY] {placer} has placed a {amount} DC bounty on {target}!"
-- `GET /api/bounties` — list all active bounties (paginated, sorted by amount desc)
-- `GET /api/bounties/mine` — player's placed + bounties on them
-- `POST /api/bounties/:id/cancel` — placer can cancel if unclaimed → refund DC
-- Bounty claimed automatically: when a player beats the target in an arena match, check if there's an active bounty → transfer DC to winner, update status, send notifications, feed post: "[💰 BOUNTY CLAIMED] {winner} collected the {amount} DC bounty on {target}!"
+Replace with an actual rendered `MessageCard` preview:
+- Import `MessageCard` from `../components/MessageCard`
+- Render a sample message using the player's equipped card variant: `<MessageCard variant={equippedCardVariant} message={{ sender: user.username, content: "This is how your chat messages look.", role: user.role, subscriptionTier: user.subscriptionTier }} />`
+- Map `equippedMessageCard` cosmetic ID to the correct `MessageCard` variant prop
+- Show this preview in the "Cosmetics showcase" section of the profile, labeled "Chat Card Preview"
 
-Scheduler: expire bounties older than 7 days → refund DC to placer.
-
-"Most Wanted" tab on the Leaderboard page: top 10 players with highest active bounty amounts on them.
-
-### 7.2 — Full Profile Page Overhaul
-Redesign `artifacts/neonoir/src/pages/ProfilePage.tsx`:
-
-**Header section:**
-- Username with `PlayerNameBadge` (flair applied)
-- Equipped `MessageCard` preview (shows how their chat messages look)
-- Equipped title
-- Online status indicator
-- Active bounty badge (if a bounty is active on them: "💰 Wanted — {amount} DC")
-
-**Stats section:**
-- Total crimes committed / success rate
-- Arena W/L record + win streak
-- Races won / total races
-- Prestige level
-- Member since date
-
-**Cosmetics showcase:**
-- Currently equipped flair + card previews
-- Grid of all owned cosmetics (show earned/purchased/event labels)
-- Temporary cosmetics show expiry countdown
-
-**Achievements section:**
-- Pinned badges (up to 3) shown prominently in header
-- Full achievement grid below with earned/locked states
-- Rare achievement unlocks shown with earn date
-
-**Event history:**
-- List of past events participated in: event name, final rank, rewards earned, season level reached
-
-**Season history:**
-- Battle pass seasons: season name, final level, had premium pass or not
-
-### 7.3 — Achievements System (Wire Existing Model)
-`Achievement.ts` model exists. Create achievement definitions and wire them to game actions.
-
-Create `lib/achievements.ts`:
-```typescript
-export async function checkAchievements(userId: string, trigger: string, value: number): Promise<void>
-```
-- Looks up all achievement definitions for this trigger
-- Checks if player has already earned each one
-- If not earned and condition met → grant achievement, send notification, post to feed (rare/epic only)
-
-Achievement triggers to wire (add `checkAchievements` call at the completion point of each):
-- `arena_wins` — "First Blood" (1 win), "Fighter" (10), "Champion" (50), "Undefeated Legend" (100)
-- `race_wins` — "Rookie Driver" (1), "Speed Demon" (10), "Street King" (50)
-- `crimes_committed` — "First Step" (1), "The Grind" (100), "Career Criminal" (1000)
-- `prestige_reached` — "Rising" (P1), "Established" (P3), "Legend" (P5)
-- `boss_damage` — "Challenger" (10k damage), "Destroyer" (100k), "Whale Hunter" (1M)
-- `event_rank_1` — "Champion of the City" (rank 1 in any event)
-- `level_reached` — "Getting Started" (L10), "Veteran" (L50), "Max Power" (L100)
-
-Seed achievement definitions on startup (check if collection empty before seeding).
-
-### 7.4 — Pinned Badges
-Add to User model: `pinnedBadges: string[]` (max 3 achievement ids).
-
-Routes:
-- `POST /api/achievements/:id/pin` — add to pinnedBadges (max 3)
-- `POST /api/achievements/:id/unpin` — remove from pinnedBadges
-
-Show pinned badges in chat next to username (small icon) and in profile header (prominent).
-
-### 7.5 — Verify
-- Bounty placement, claiming via arena, expiry, cancellation all work
-- Feed posts for bounty events appear correctly
-- Profile page renders all sections with correct data
-- Achievements fire correctly for all defined triggers
-- Pinned badges show in chat and profile
+### 7 Verify
+- Profile MessageCard preview renders the actual styled card, not just a text label
+- Preview updates correctly when a different card is equipped
 
 ---
 
