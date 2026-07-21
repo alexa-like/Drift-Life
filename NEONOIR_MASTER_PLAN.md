@@ -994,7 +994,7 @@ Route: `GET /api/chat?room=global|event|faction` — existing route extended wit
 ---
 
 ## TIER 7 — BOUNTY SYSTEM + FULL PROFILE + ACHIEVEMENTS
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Add social depth — players can put bounties on each other, profiles become showcase pages, and achievements fire automatically from game actions.
 
