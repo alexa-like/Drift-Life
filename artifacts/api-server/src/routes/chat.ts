@@ -6,7 +6,7 @@ import ChatReport from "../models/ChatReport";
 import CosmeticItem from "../models/CosmeticItem";
 import { requireAuth, requireOwner, AuthRequest } from "../middlewares/auth";
 import mongoose from "mongoose";
-import { notifyMentions } from "../lib/mentions";
+import { notifyMentions, parseMentions } from "../lib/mentions";
 import { getActiveTier } from "../lib/subscription";
 import { scanMessage } from "../lib/chatMod";
 import { fireVantaEvent } from "../lib/vanta";
@@ -116,6 +116,7 @@ router.get("/global", requireAuth, async (req: AuthRequest, res) => {
         level: (m as any).senderLevel || 1,
         pinnedBadges: (m as any).senderPinnedBadges ?? [],
         content: m.content,
+        mentions: (m as any).mentions ?? [],
         at: m.createdAt,
         role: flair?.role ?? "player",
         equippedNameFlair: flair?.equippedNameFlair ?? null,
@@ -164,6 +165,9 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
       ? { color: senderFlairItem.color, animation: senderFlairItem.animation, cssKey: senderFlairItem.cssKey }
       : null;
 
+    // Parse @mentions from message text (stored on document; returned to clients for highlight gating)
+    const globalMentions = parseMentions(content);
+
     // Auto-moderation scan
     const modGlobal = scanMessage(content);
     if (!modGlobal.ok) {
@@ -196,6 +200,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
       senderLevel: user.level,
       senderPinnedBadges: senderBadges,
       content,
+      mentions: globalMentions,
       replyToId: globalReplyToId,
       replyToPreview: globalReplyToPreview,
     });
@@ -216,6 +221,7 @@ router.post("/global", requireAuth, async (req: AuthRequest, res) => {
         equippedMessageCard: (user as any).equippedMessageCard ?? null,
         flairData: senderFlairData,
         content,
+        mentions: globalMentions,
         at: message.createdAt,
         replyToId: globalReplyToId,
         replyToPreview: globalReplyToPreview,
@@ -261,6 +267,7 @@ router.get("/district/:districtId", requireAuth, async (req: AuthRequest, res) =
         level: (m as any).senderLevel || 1,
         pinnedBadges: (m as any).senderPinnedBadges ?? [],
         content: m.content,
+        mentions: (m as any).mentions ?? [],
         at: m.createdAt,
         districtId: m.districtId,
         role: flair?.role ?? "player",
@@ -312,6 +319,8 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
       ? { color: distFlairItem.color, animation: distFlairItem.animation, cssKey: distFlairItem.cssKey }
       : null;
 
+    const districtMentions = parseMentions(content);
+
     // Auto-moderation scan
     const modDistrict = scanMessage(content);
     if (!modDistrict.ok) {
@@ -333,6 +342,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
       senderLevel: user.level,
       senderPinnedBadges: districtBadges,
       content,
+      mentions: districtMentions,
     }) as any;
 
     const io = req.app.locals["io"];
@@ -351,6 +361,7 @@ router.post("/district/:districtId", requireAuth, async (req: AuthRequest, res) 
         equippedMessageCard: (user as any).equippedMessageCard ?? null,
         flairData: distFlairData,
         content,
+        mentions: districtMentions,
         at: message.createdAt,
         districtId: dId,
       });
@@ -397,6 +408,7 @@ router.get("/faction", requireAuth, async (req: AuthRequest, res) => {
         level: (m as any).senderLevel || 1,
         pinnedBadges: (m as any).senderPinnedBadges ?? [],
         content: m.content,
+        mentions: (m as any).mentions ?? [],
         at: m.createdAt,
         role: flair?.role ?? "player",
         equippedNameFlair: flair?.equippedNameFlair ?? null,
@@ -449,6 +461,8 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
       ? { color: factionFlairItem.color, animation: factionFlairItem.animation, cssKey: factionFlairItem.cssKey }
       : null;
 
+    const factionMentions = parseMentions(content);
+
     // Auto-moderation scan
     const modFaction = scanMessage(content);
     if (!modFaction.ok) {
@@ -470,6 +484,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
       senderLevel: user.level,
       senderPinnedBadges: factionBadges,
       content,
+      mentions: factionMentions,
     });
 
     const io = req.app.locals["io"];
@@ -488,6 +503,7 @@ router.post("/faction", requireAuth, async (req: AuthRequest, res) => {
         equippedMessageCard: (user as any).equippedMessageCard ?? null,
         flairData: factionFlairData,
         content,
+        mentions: factionMentions,
         at: message.createdAt,
       });
     }
@@ -841,6 +857,7 @@ router.get("/event", requireAuth, async (req: AuthRequest, res) => {
         level: (m as any).senderLevel || 1,
         pinnedBadges: (m as any).senderPinnedBadges ?? [],
         content: m.content,
+        mentions: (m as any).mentions ?? [],
         at: m.createdAt,
         role: flair?.role ?? "player",
         equippedNameFlair: flair?.equippedNameFlair ?? null,

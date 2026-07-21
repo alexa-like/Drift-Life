@@ -20,10 +20,22 @@ export const GAME_EMOJIS: Record<string, { displayName: string; emoji: string; t
 
 // ── 6.3b — Valid in-game route locations for /location link parsing ────────────
 // Only these known routes render as clickable orange links; all others are plain text.
+// Slugs players type in chat (e.g. /event, /race) mapped to the actual
+// App.tsx page key when they differ. Anything not in this map navigates as-is.
+const LOCATION_ALIASES: Record<string, string> = {
+  event: "events",   // App uses "events", not "event"
+  race:  "race-hub", // App uses "race-hub", not "race"
+};
+
 const VALID_LOCATIONS = new Set([
   "arena", "market", "auction", "crimes", "race", "gym", "bank",
   "profile", "event", "leaderboard", "chat", "jobs", "store",
 ]);
+
+/** Resolve a user-typed slug to the actual App.tsx page key */
+function resolveLocationPage(slug: string): string {
+  return LOCATION_ALIASES[slug] ?? slug;
+}
 
 interface Props {
   text: string;
@@ -83,7 +95,7 @@ export function MentionText({ text, mentions, onUserClick, onLocationClick }: Pr
             // 6.3b — orange (#f97316) to match text-orange-400
             <button
               key={i}
-              onClick={() => onLocationClick?.(part.value)}
+              onClick={() => onLocationClick?.(resolveLocationPage(part.value))}
               style={{
                 color: "#f97316",
                 background: "rgba(249,115,22,0.08)",

@@ -17,6 +17,7 @@ export interface IChatMessage extends Document {
   senderLevel: number;
   senderPinnedBadges: string[];
   content: string;
+  mentions: string[];
   deleted: boolean;
   replyToId: mongoose.Types.ObjectId | null;
   replyToPreview: string | null;
@@ -36,6 +37,7 @@ const ChatMessageSchema = new Schema<IChatMessage>(
     senderLevel:          { type: Number, default: 1 },
     senderPinnedBadges:   [{ type: String }],
     content:              { type: String, required: true, maxlength: 256 },
+    mentions:             [{ type: String }],
     deleted:         { type: Boolean, default: false },
     replyToId:       { type: Schema.Types.ObjectId, ref: "ChatMessage", default: null },
     replyToPreview:  { type: String, default: null },

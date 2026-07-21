@@ -296,7 +296,7 @@ Frontend: Double-confirm modal with two "Are you sure?" steps before calling the
 ---
 
 ## TIER 6 — LIVE PRESENCE + PUSH NOTIFICATIONS + CHAT UPGRADES + TELEGRAM
-**Status: 🔧 Half-built — core infrastructure built, three specific UI features missing**
+**Status: ✅ Done**
 
 ### What IS built (do not rebuild):
 - Online count route (`GET /api/world/online-count`) + City page display (WebSocket + polling)
