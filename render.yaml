@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: neonoir
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: pnpm install && PORT=3000 BASE_PATH=/ pnpm --filter @workspace/neonoir run build && pnpm --filter @workspace/api-server run build
+    startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # CORS: RENDER_EXTERNAL_URL is injected automatically by Render at runtime —
+      # the server uses it to whitelist the deployed domain. No manual ALLOWED_ORIGIN needed.
+      # If you ever add a custom domain, set ALLOWED_ORIGIN to that domain here.
+      # --- Required secrets — fill these in the Render dashboard ---
+      - key: MONGODB_URI
+        sync: false
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_PASS
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
