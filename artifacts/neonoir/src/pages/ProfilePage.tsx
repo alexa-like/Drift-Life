@@ -1,6 +1,6 @@
 // ─── Profile Page ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
 import { formatDC } from "../lib/format";
@@ -11,6 +11,16 @@ import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { PlayerNameBadge, type SubscriberTier } from "../components/PlayerNameBadge";
 import { PrestigeConfirmModal } from "../components/PrestigeConfirmModal";
+import { MessageCard, type MessageCardVariant } from "../components/MessageCard";
+
+/** Map cosmetic ID → MessageCard variant */
+function cardVariantFromId(cosmeticId: string | null): MessageCardVariant {
+  if (!cosmeticId) return "default";
+  if (cosmeticId === "subscriber-card") return "subscriber";
+  if (cosmeticId === "event-card")      return "event";
+  if (cosmeticId === "staff-card")      return "staff";
+  return "default";
+}
 
 // Inject header CSS for banner zone (APEX shimmer + Sovereign weave)
 const PRESTIGE_GLOW_CSS = `
@@ -53,9 +63,39 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
   const [ownedCosmetics, setOwnedCosmetics] = useState<any[]>([]);
   const [cosmeticsLoaded, setCosmeticsLoaded] = useState(false);
 
+  // Season reset offer + Hall of Fame count
+  const [resetStatus, setResetStatus] = useState<{
+    hasOffer: boolean;
+    offerExpiresAt: string | null;
+    lastSeasonResetAt: string | null;
+  } | null>(null);
+  const [hofCount, setHofCount] = useState<number>(0);
+
+  // Stat reset modal state (2-step)
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetStep, setResetStep]           = useState(1); // 1 = first confirm, 2 = final confirm
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetCountdown, setResetCountdown]   = useState<string>("");
+
   // Prestige
   const [showPrestigeModal, setShowPrestigeModal] = useState(false);
   const [prestiging, setPrestiging]               = useState(false);
+
+  async function handleStatReset() {
+    setConfirmingReset(true);
+    try {
+      await api.post("/seasons/accept-reset", { confirm: true });
+      addToast("↺ Stats reset! You received the Season Veteran title and 1,000 NC.", "success");
+      setShowResetModal(false);
+      setResetStep(1);
+      setResetStatus(prev => prev ? { ...prev, hasOffer: false, offerExpiresAt: null, lastSeasonResetAt: new Date().toISOString() } : null);
+      refreshUser();
+    } catch (e: any) {
+      addToast(e.message || "Reset failed", "error");
+    } finally {
+      setConfirmingReset(false);
+    }
+  }
 
   async function handlePrestige() {
     setPrestiging(true);
@@ -110,12 +150,36 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
       setHistoryLoaded(true);
       api.get<any[]>("/profile/event-history").then(setEventHistory).catch(() => {});
       api.get<any>("/profile/season-history").then(setSeasonInfo).catch(() => {});
+      api.get<{ count: number }>("/seasons/hof-count").then(d => setHofCount(d.count)).catch(() => {});
     }
     if (activeTab === "cosmetics" && !cosmeticsLoaded) {
       setCosmeticsLoaded(true);
       api.get<any[]>("/cosmetics").then(data => setOwnedCosmetics(data.filter((c: any) => c.owned))).catch(() => {});
     }
   }, [activeTab]);
+
+  // Load reset status on mount
+  useEffect(() => {
+    api.get<{ hasOffer: boolean; offerExpiresAt: string | null; lastSeasonResetAt: string | null }>(
+      "/seasons/reset-status"
+    ).then(setResetStatus).catch(() => {});
+  }, []);
+
+  // Countdown for reset offer expiry
+  const resetIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!resetStatus?.offerExpiresAt) { setResetCountdown(""); return; }
+    function calcCountdown() {
+      const diff = new Date(resetStatus!.offerExpiresAt!).getTime() - Date.now();
+      if (diff <= 0) { setResetCountdown("Expired"); return; }
+      const h = Math.floor(diff / 3_600_000);
+      const m = Math.floor((diff % 3_600_000) / 60_000);
+      setResetCountdown(`${h}h ${m}m`);
+    }
+    calcCountdown();
+    resetIntervalRef.current = setInterval(calcCountdown, 60_000);
+    return () => { if (resetIntervalRef.current) clearInterval(resetIntervalRef.current); };
+  }, [resetStatus?.offerExpiresAt]);
 
   // Fetch active bounties on this player for the header badge
   useEffect(() => {
@@ -259,13 +323,18 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                   💰 Wanted — {bountyTotal.toLocaleString()} DC
                 </span>
               )}
-              {/* Equipped message card preview */}
-              {(user as any).equippedMessageCard && (
-                <span className="font-mono px-1.5 py-0.5 rounded" style={{
-                  fontSize: 9, background: "#00E0FF15",
-                  color: "#00E0FF", border: "1px solid #00E0FF30",
-                }}>
-                  🃏 {(user as any).equippedMessageCard}
+              {/* Season reset indicator */}
+              {(user as any).lastSeasonResetAt && (
+                <span
+                  className="font-mono px-1.5 py-0.5 rounded"
+                  title={`Season veteran · reset on ${new Date((user as any).lastSeasonResetAt).toLocaleDateString()}`}
+                  style={{
+                    fontSize: 9, background: "#f59e0b15",
+                    color: "#f59e0b", border: "1px solid #f59e0b30",
+                    cursor: "default",
+                  }}
+                >
+                  ↺ Season Veteran
                 </span>
               )}
             </div>
@@ -669,6 +738,21 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
               )}
             </div>
 
+            {/* Hall of Fame count */}
+            {hofCount > 0 && (
+              <div style={{ background: "#FFD70008", border: "1px solid #FFD70030", borderLeft: "3px solid #FFD700", borderRadius: 8, padding: "12px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 20 }}>🏆</span>
+                <div>
+                  <div className="font-mono text-xs font-bold" style={{ color: "#FFD700", letterSpacing: "0.08em" }}>
+                    HALL OF FAME — {hofCount} Appearance{hofCount !== 1 ? "s" : ""}
+                  </div>
+                  <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>
+                    This player has been a top-50 finisher in {hofCount} season{hofCount !== 1 ? "s" : ""}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Season history */}
             <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderLeft: "3px solid #f59e0b", borderRadius: 8, padding: 20 }}>
               <div className="font-mono text-xs font-bold mb-3" style={{ color: "#f59e0b", letterSpacing: "0.1em" }}>SEASON HISTORY</div>
@@ -788,10 +872,20 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                   </div>
                 </div>
                 <div style={{ background: "#0a0a0f", borderRadius: 6, padding: "10px 12px" }}>
-                  <div className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>MESSAGE CARD</div>
-                  <div className="font-mono text-xs font-bold mt-1" style={{ color: (user as any).equippedMessageCard ? "#39d353" : "#334155" }}>
-                    {(user as any).equippedMessageCard || "None equipped"}
-                  </div>
+                  <div className="font-mono" style={{ fontSize: 10, color: "#64748b", marginBottom: 8 }}>CHAT CARD PREVIEW</div>
+                  {(user as any).equippedMessageCard ? (
+                    <MessageCard
+                      variant={cardVariantFromId((user as any).equippedMessageCard)}
+                      isOwn={false}
+                    >
+                      <span className="font-mono text-xs" style={{ color: "#e2e8f0" }}>
+                        <span className="font-bold" style={{ color: "#00d4ff" }}>{user.username}</span>
+                        {": "}This is how your chat messages look.
+                      </span>
+                    </MessageCard>
+                  ) : (
+                    <div className="font-mono text-xs font-bold" style={{ color: "#334155" }}>None equipped</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -862,6 +956,159 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
         onConfirm={handlePrestige}
         confirming={prestiging}
       />
+    )}
+
+    {/* Stat Reset offer panel */}
+    {resetStatus?.hasOffer && (
+      <div
+        style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          zIndex: 999, width: "calc(100% - 32px)", maxWidth: 420,
+          background: "#0d0d15",
+          border: "1px solid #f59e0b60",
+          borderTop: "3px solid #f59e0b",
+          borderRadius: 8,
+          padding: "16px 20px",
+          boxShadow: "0 8px 40px #f59e0b20",
+        }}
+      >
+        <div className="flex items-start gap-3">
+          <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>↺</span>
+          <div className="flex-1 min-w-0">
+            <div className="font-mono font-bold text-sm" style={{ color: "#f59e0b" }}>Season Reset Available</div>
+            <div className="font-mono text-xs mt-1" style={{ color: "#94a3b8" }}>
+              Reset your stats to level-1 defaults & receive the <strong style={{ color: "#f59e0b" }}>Season Veteran</strong> title + 1,000 NC. DC wallet set to 10,000.
+            </div>
+            <div className="font-mono" style={{ fontSize: 10, color: "#475569", marginTop: 4 }}>
+              Expires in {resetCountdown}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <CyberButton
+            onClick={() => { setShowResetModal(true); setResetStep(1); }}
+            variant="accent"
+            size="sm"
+            className="flex-1"
+            style={{ borderColor: "#f59e0b", color: "#f59e0b", background: "#f59e0b10" } as any}
+          >
+            Review Reset
+          </CyberButton>
+          <button
+            onClick={() => setResetStatus(prev => prev ? { ...prev, hasOffer: false } : null)}
+            className="font-mono text-xs px-3 py-1.5 rounded"
+            style={{ background: "transparent", border: "1px solid #1e1e2e", color: "#475569", cursor: "pointer" }}
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Stat Reset double-confirm modal */}
+    {showResetModal && (
+      <div
+        style={{
+          position: "fixed", inset: 0, zIndex: 1000,
+          background: "rgba(0,0,0,0.85)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 16,
+        }}
+        onClick={e => { if (e.target === e.currentTarget) { setShowResetModal(false); setResetStep(1); } }}
+      >
+        <div
+          style={{
+            background: "#0d0d15",
+            border: "1px solid #f59e0b50",
+            borderTop: "3px solid #f59e0b",
+            borderRadius: 8,
+            padding: 24,
+            maxWidth: 440,
+            width: "100%",
+          }}
+        >
+          {resetStep === 1 ? (
+            <>
+              <div className="font-mono font-black text-lg mb-1" style={{ color: "#f59e0b" }}>↺ Stat Reset</div>
+              <div className="font-mono text-xs mb-4" style={{ color: "#94a3b8" }}>
+                Read carefully before proceeding.
+              </div>
+              <div style={{ background: "#111118", borderRadius: 6, padding: 14, marginBottom: 16 }}>
+                <div className="font-mono text-xs font-bold mb-2" style={{ color: "#ff2d55", letterSpacing: "0.08em" }}>WHAT RESETS</div>
+                {[
+                  ["Strength", `${user.strength} → 10`],
+                  ["Charisma", `${user.charisma} → 5`],
+                  ["Intelligence", `${user.intelligence} → 5`],
+                  ["Street Cred", `${user.streetCred} → 0`],
+                  ["DC Wallet", `${user.dc.toLocaleString()} → 10,000`],
+                ].map(([label, val]) => (
+                  <div key={label} className="flex justify-between font-mono text-xs py-0.5" style={{ color: "#94a3b8" }}>
+                    <span>{label}</span>
+                    <span style={{ color: "#ff2d55" }}>{val}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: "#111118", borderRadius: 6, padding: 14, marginBottom: 16 }}>
+                <div className="font-mono text-xs font-bold mb-2" style={{ color: "#39d353", letterSpacing: "0.08em" }}>WHAT YOU GET</div>
+                {[
+                  ["NC Bonus", "+1,000 NC"],
+                  ["Title", '"Season Veteran"'],
+                  ["Name Flair", "season-veteran"],
+                  ["Level/XP/Items", "Preserved"],
+                ].map(([label, val]) => (
+                  <div key={label} className="flex justify-between font-mono text-xs py-0.5" style={{ color: "#94a3b8" }}>
+                    <span>{label}</span>
+                    <span style={{ color: "#39d353" }}>{val}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <CyberButton
+                  onClick={() => setResetStep(2)}
+                  variant="accent"
+                  size="sm"
+                  className="flex-1"
+                  style={{ borderColor: "#f59e0b", color: "#f59e0b", background: "#f59e0b10" } as any}
+                >
+                  I Understand — Continue
+                </CyberButton>
+                <button
+                  onClick={() => { setShowResetModal(false); setResetStep(1); }}
+                  className="font-mono text-xs px-4 py-2 rounded"
+                  style={{ background: "transparent", border: "1px solid #1e1e2e", color: "#475569", cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="font-mono font-black text-lg mb-1" style={{ color: "#ff2d55" }}>⚠ Final Confirmation</div>
+              <div className="font-mono text-xs mb-6" style={{ color: "#94a3b8" }}>
+                This is irreversible. Your stats will be permanently reset to level-1 defaults and your DC wallet cleared to 10,000. Are you absolutely sure?
+              </div>
+              <div className="flex gap-2">
+                <CyberButton
+                  onClick={handleStatReset}
+                  variant="danger"
+                  size="sm"
+                  className="flex-1"
+                  disabled={confirmingReset}
+                >
+                  {confirmingReset ? "Resetting…" : "YES — Reset My Stats"}
+                </CyberButton>
+                <button
+                  onClick={() => { setShowResetModal(false); setResetStep(1); }}
+                  className="font-mono text-xs px-4 py-2 rounded"
+                  style={{ background: "transparent", border: "1px solid #1e1e2e", color: "#475569", cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     )}
     </>
   );

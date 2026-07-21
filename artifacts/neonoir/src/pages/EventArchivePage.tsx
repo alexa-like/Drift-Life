@@ -272,6 +272,7 @@ export default function EventArchivePage({ onNavigate }: Props) {
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => onNavigate("events")} className="font-mono text-xs px-4 py-1.5 clip-btn uppercase tracking-widest" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>← Active Event</button>
         <button onClick={() => onNavigate("events-upcoming")} className="font-mono text-xs px-4 py-1.5 clip-btn uppercase tracking-widest" style={{ color: "#64748b", border: "1px solid #1e1e2e" }}>Upcoming</button>
+        <button onClick={() => onNavigate("hall-of-fame")} className="font-mono text-xs px-4 py-1.5 clip-btn uppercase tracking-widest" style={{ color: "#FFD700", border: "1px solid #FFD70040" }}>🏆 Hall of Fame</button>
       </div>
 
       {/* Grid */}

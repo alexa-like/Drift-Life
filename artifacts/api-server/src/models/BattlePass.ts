@@ -27,6 +27,14 @@ export interface IBattlePass extends Document {
   status: "draft" | "active" | "ended";
   startsAt: Date;
   endsAt: Date;
+  hallOfFame: Array<{
+    rank: number;
+    userId: string;
+    username: string;
+    points: number;
+    seasonLevel: number;
+    teamId?: string;
+  }>;
 }
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
@@ -80,6 +88,18 @@ const BattlePassSchema = new Schema<IBattlePass>(
     status:         { type: String, enum: ["draft", "active", "ended"], default: "draft" },
     startsAt:       { type: Date, required: true },
     endsAt:         { type: Date, required: true },
+    hallOfFame: {
+      type: [{
+        rank:        { type: Number, required: true },
+        userId:      { type: String, required: true },
+        username:    { type: String, required: true },
+        points:      { type: Number, default: 0 },
+        seasonLevel: { type: Number, default: 0 },
+        teamId:      { type: String, default: null },
+        _id: false,
+      }],
+      default: () => [],
+    },
   },
   { timestamps: true }
 );

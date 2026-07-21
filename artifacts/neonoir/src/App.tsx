@@ -53,6 +53,7 @@ import { StorePage } from "./pages/StorePage";
 import EventPage from "./pages/EventPage";
 import UpcomingEventsPage from "./pages/UpcomingEventsPage";
 import EventArchivePage from "./pages/EventArchivePage";
+import HallOfFamePage from "./pages/HallOfFamePage";
 import BattlePassPage from "./pages/BattlePassPage";
 import { NavBar } from "./components/NavBar";
 import { PageTransition } from "./components/PageTransition";
@@ -294,7 +295,7 @@ function GameApp() {
                               ? <NpcStorePage key={shopStoreId} storeId={shopStoreId} onBack={() => { setShopStoreId(null); }} />
                               : <ShopHubPage onSelectStore={(id) => setShopStoreId(id)} />;
       case "inventory":    return <InventoryPage {...pageProps} />;
-      case "leaderboard":  return <LeaderboardPage />;
+      case "leaderboard":  return <LeaderboardPage onNavigate={setPage} />;
       case "hospital":     return <HospitalPage {...pageProps} />;
       case "profile":      return <ProfilePage {...pageProps} />;
       case "settings":     return <SettingsPage {...pageProps} onLogout={handleLogout} />;
@@ -320,6 +321,7 @@ function GameApp() {
       case "events":        return <EventPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "events-upcoming": return <UpcomingEventsPage onNavigate={setPage} />;
       case "events-archive":  return <EventArchivePage onNavigate={setPage} />;
+      case "hall-of-fame":    return <HallOfFamePage />;
       case "battle-pass":     return <BattlePassPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "arena":         return <ArenaHubPage user={user!} addToast={addToast} onNavigate={setPage} />;
       case "arena-combat":  return <ArenaCombatPage user={user!} addToast={addToast} onUserUpdate={refreshUser} onNavigate={setPage} onHpChange={handleArenaHpChange} />;

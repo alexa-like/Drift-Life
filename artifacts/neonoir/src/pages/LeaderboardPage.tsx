@@ -8,7 +8,7 @@ import { CyberButton } from "../components/CyberButton";
 import { PrestigeBadge } from "../components/PrestigeBadge";
 
 type SortType = "level" | "dc" | "wins" | "crimes";
-type BoardTab = "city" | "minigame" | "mostWanted";
+type BoardTab = "city" | "minigame" | "mostWanted" | "hallOfFame";
 
 interface BountyEntry {
   id: string;
@@ -345,7 +345,7 @@ const SORT_OPTS: { id: SortType; label: string; color: string }[] = [
   { id: "crimes", label: "Crime",  color: "#ff2d55" },
 ];
 
-export function LeaderboardPage() {
+export function LeaderboardPage({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
   const [tab, setTab] = useState<BoardTab>("city");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [sortType, setSortType] = useState<SortType>("level");
@@ -384,16 +384,23 @@ export function LeaderboardPage() {
         </div>
       </div>
 
-      {/* Main tab: City vs Mini-Game vs Most Wanted */}
+      {/* Main tab: City vs Mini-Game vs Most Wanted vs Hall of Fame */}
       <div className="flex gap-2 mb-5 flex-wrap">
         {([
           ["city",       "City Rankings",    "#f59e0b"],
           ["minigame",   "Mini-Game Weekly", "#00d4ff"],
           ["mostWanted", "Most Wanted 💀",   "#ff2d55"],
+          ["hallOfFame", "🏆 Hall of Fame",  "#FFD700"],
         ] as const).map(([id, label, color]) => (
           <button
             key={id}
-            onClick={() => setTab(id as BoardTab)}
+            onClick={() => {
+              if (id === "hallOfFame") {
+                onNavigate?.("hall-of-fame");
+              } else {
+                setTab(id as BoardTab);
+              }
+            }}
             className="font-mono font-bold text-xs"
             style={{
               padding: "6px 14px", borderRadius: 4, cursor: "pointer",

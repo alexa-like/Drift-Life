@@ -60,6 +60,7 @@ import eventsRouter from "./events";
 import battlePassRouter, { ownerBattlePassRouter } from "./battle-pass";
 import questsRouter from "./quests";
 import bountiesRouter from "./bounties";
+import seasonsRouter from "./seasons";
 
 const router: IRouter = Router();
 
@@ -124,6 +125,7 @@ router.use("/events", eventsRouter);
 router.use("/battle-pass", battlePassRouter);
 router.use("/quests", questsRouter);
 router.use("/bounties", bountiesRouter);
+router.use("/seasons", seasonsRouter);
 router.use("/owner/battle-pass", ownerBattlePassRouter);
 
 export default router;

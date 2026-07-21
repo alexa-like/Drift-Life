@@ -221,6 +221,16 @@ export interface IUser extends Document {
   businessId: mongoose.Types.ObjectId | null;
   employerBusinessId: mongoose.Types.ObjectId | null;
   businessShiftCooldowns: Record<string, Date>;
+  // ── Season system (Tier 5) ────────────────────────────────────────────────
+  seasonHistory: Array<{
+    seasonName: string;
+    eventId: string;
+    finalLevel: number;
+    hasPremiumPass: boolean;
+    endedAt: Date;
+  }>;
+  lastSeasonResetAt: Date | null;
+  resetOfferExpiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   getEffectiveStats(): EffectiveStats;
@@ -486,6 +496,20 @@ const UserSchema = new Schema<IUser>(
     businessId:              { type: Schema.Types.ObjectId, ref: "Business", default: null },
     employerBusinessId:      { type: Schema.Types.ObjectId, ref: "Business", default: null },
     businessShiftCooldowns:  { type: Schema.Types.Mixed, default: {} },
+    // ── Season system (Tier 5) ───────────────────────────────────────────────
+    seasonHistory: {
+      type: [{
+        seasonName:     { type: String, required: true },
+        eventId:        { type: String, required: true },
+        finalLevel:     { type: Number, default: 0 },
+        hasPremiumPass: { type: Boolean, default: false },
+        endedAt:        { type: Date, default: Date.now },
+        _id: false,
+      }],
+      default: () => [],
+    },
+    lastSeasonResetAt:   { type: Date, default: null },
+    resetOfferExpiresAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

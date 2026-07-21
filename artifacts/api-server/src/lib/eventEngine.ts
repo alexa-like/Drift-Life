@@ -11,6 +11,7 @@ import CosmeticItem from "../models/CosmeticItem";
 import FeedEvent from "../models/FeedEvent";
 import Notification from "../models/Notification";
 import ServerConfig from "../models/ServerConfig";
+import { BattlePass } from "../models/BattlePass";
 import { logger } from "./logger";
 import { sendPushToUser } from "./sendPushToUser";
 import { isWebPushConfigured, sendPushNotification, type PushPayload } from "./webPush";
@@ -357,6 +358,106 @@ export async function activateEvent(event: IEvent, io?: unknown): Promise<void> 
   logger.info({ eventId: event._id, name: event.name }, "Event activated");
 }
 
+// ── Season archive (called at event end if a BattlePass is linked) ────────────
+
+async function archiveSeasonIfBattlePass(eventId: string): Promise<void> {
+  try {
+    const pass = await BattlePass.findOne({ eventId, status: "active" });
+    if (!pass) return; // no pass linked to this event
+
+    const now = new Date();
+
+    // 1. Snapshot top 50 EventProgress → hallOfFame
+    const top50 = await EventProgress.find({ eventId })
+      .sort({ points: -1 })
+      .limit(50)
+      .lean();
+
+    // Get season levels for these players
+    const userIds = top50.map(p => p.userId);
+    const userLevels = await User.find(
+      { _id: { $in: userIds } },
+      { seasonLevel: 1 }
+    ).lean();
+    const levelMap: Record<string, number> = {};
+    for (const u of userLevels) levelMap[String(u._id)] = u.seasonLevel ?? 0;
+
+    const hallOfFame = top50.map((p, i) => ({
+      rank:        i + 1,
+      userId:      String(p.userId),
+      username:    p.username,
+      points:      p.points,
+      seasonLevel: levelMap[String(p.userId)] ?? 0,
+      teamId:      p.teamId ?? undefined,
+    }));
+
+    // Store hallOfFame on BattlePass and mark it ended
+    await BattlePass.findByIdAndUpdate(pass._id, {
+      $set: { hallOfFame, status: "ended" },
+    });
+
+    // 2. Rank 1 earns permanent "Hall of Fame" title
+    if (hallOfFame.length > 0) {
+      await User.findOneAndUpdate(
+        { _id: hallOfFame[0].userId },
+        { $addToSet: { titles: "Hall of Fame" } }
+      );
+    }
+
+    // 3. Push seasonHistory entry + reset season fields for every participant who has seasonLevel > 0
+    const seasonName = pass.seasonName;
+
+    const participants = await User.find(
+      { seasonLevel: { $gt: 0 } },
+      { _id: 1, seasonLevel: 1, battlePassPremium: 1, premiumPassEventId: 1, level: 1 }
+    ).lean();
+
+    for (const u of participants) {
+      const hasPremium = !!(u.battlePassPremium && u.premiumPassEventId === String(pass._id));
+
+      // Offer stat reset to players above level 30
+      const resetOfferUpdate: Record<string, unknown> = {};
+      if ((u.level ?? 1) >= 30) {
+        resetOfferUpdate.resetOfferExpiresAt = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+      }
+
+      await User.findByIdAndUpdate(u._id, {
+        $push: {
+          seasonHistory: {
+            seasonName,
+            eventId:      String(eventId),
+            finalLevel:   u.seasonLevel ?? 0,
+            hasPremiumPass: hasPremium,
+            endedAt:      now,
+          },
+        },
+        $set: {
+          seasonLevel:        0,
+          battlePassPremium:  false,
+          premiumPassEventId: null,
+          claimedPassRewards: [],
+          seasonXp:           0,
+          ...resetOfferUpdate,
+        },
+      });
+    }
+
+    // 4. Feed post
+    await FeedEvent.create({
+      type: "system", actor: "System", actorId: null,
+      message: `[SEASON] Season '${seasonName}' has ended. Check your final rewards!`,
+      dc: 0, xp: 0, actorLevel: 0,
+    });
+
+    logger.info(
+      { eventId, seasonName, hofSize: hallOfFame.length, participantsReset: participants.length },
+      "Season archived"
+    );
+  } catch (err) {
+    logger.error({ err, eventId }, "archiveSeasonIfBattlePass error (non-fatal)");
+  }
+}
+
 // ── End event ─────────────────────────────────────────────────────────────────
 
 export async function endEvent(event: IEvent, io?: unknown): Promise<void> {
@@ -401,6 +502,11 @@ export async function endEvent(event: IEvent, io?: unknown): Promise<void> {
   // Distribute rewards in background (don't block the response)
   distributeEventRewards(String(event._id)).catch(err => {
     logger.error({ err, eventId: event._id }, "Event reward distribution error");
+  });
+
+  // Archive season if a BattlePass is linked to this event
+  archiveSeasonIfBattlePass(String(event._id)).catch(err => {
+    logger.error({ err, eventId: event._id }, "Season archive error (non-fatal)");
   });
 
   logger.info({ eventId: event._id, name: event.name }, "Event ended");
