@@ -192,6 +192,18 @@ export interface IUser extends Document {
   isMentor?: boolean;
   mentorId?: string | null;
   menteeIds?: string[];
+  mentorRating: number;
+  mentorRatingCount: number;
+  // ── Hacking system (Tier 9) ───────────────────────────────────────────
+  hackDefenseLevel: number;
+  lastHackedAt: Date | null;
+  hackCooldowns: Map<string, Date>;
+  // ── Pending NPC encounter (Tier 9) ───────────────────────────────────
+  pendingEncounter: {
+    kind: "mugger" | "checkpoint" | "black_market";
+    data: Record<string, unknown>;
+    expiresAt: Date;
+  } | null;
   // ── 10.15 Pinned achievement badges ─────────────────────────────────────
   pinnedBadges?: string[];
   // ── 11 Cosmetics system ──────────────────────────────────────────────────
@@ -464,9 +476,27 @@ const UserSchema = new Schema<IUser>(
       default: [],
     },
     // ── 10.14 Mentor system ────────────────────────────────────────────────
-    isMentor:   { type: Boolean, default: false },
-    mentorId:   { type: Schema.Types.ObjectId, ref: "User", default: null },
-    menteeIds:  [{ type: Schema.Types.ObjectId, ref: "User" }],
+    isMentor:          { type: Boolean, default: false },
+    mentorId:          { type: Schema.Types.ObjectId, ref: "User", default: null },
+    menteeIds:         [{ type: Schema.Types.ObjectId, ref: "User" }],
+    mentorRating:      { type: Number, default: 0, min: 0, max: 5 },
+    mentorRatingCount: { type: Number, default: 0 },
+    // ── Hacking system (Tier 9) ───────────────────────────────────────────
+    hackDefenseLevel: { type: Number, default: 0, min: 0 },
+    lastHackedAt:     { type: Date, default: null },
+    hackCooldowns:    { type: Map, of: Date, default: () => ({}) },
+    // ── Pending NPC encounter (Tier 9) ───────────────────────────────────
+    pendingEncounter: {
+      type: new Schema(
+        {
+          kind:      { type: String, enum: ["mugger", "checkpoint", "black_market"], required: true },
+          data:      { type: Schema.Types.Mixed, default: {} },
+          expiresAt: { type: Date, required: true },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
     // ── 10.15 Pinned achievement badges (max 3) ────────────────────────────
     pinnedBadges: [{ type: String }],
     // ── 11 Cosmetics system ────────────────────────────────────────────────
