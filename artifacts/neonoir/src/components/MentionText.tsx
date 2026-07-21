@@ -18,18 +18,45 @@ export const GAME_EMOJIS: Record<string, { displayName: string; emoji: string; t
   botscan:       { displayName: "Bot Scan",       emoji: "🤖", theme: "tech" },
 };
 
+// ── 6.3b — Valid in-game route locations for /location link parsing ────────────
+// Only these known routes render as clickable orange links; all others are plain text.
+const VALID_LOCATIONS = new Set([
+  "arena", "market", "auction", "crimes", "race", "gym", "bank",
+  "profile", "event", "leaderboard", "chat", "jobs", "store",
+]);
+
 interface Props {
   text: string;
+  /**
+   * 6.3a — usernames stored in message.mentions[] by the backend.
+   * When provided, only @tokens whose username appears in this array
+   * are rendered as cyan clickable links. All other @tokens render as
+   * plain text (prevents false highlighting of arbitrary @words).
+   * When omitted (e.g. DMs), all @tokens are rendered as plain links
+   * for backward-compatibility.
+   */
+  mentions?: string[];
   onUserClick?: (username: string) => void;
   onLocationClick?: (location: string) => void;
 }
 
-export function MentionText({ text, onUserClick, onLocationClick }: Props) {
+export function MentionText({ text, mentions, onUserClick, onLocationClick }: Props) {
+  // Build a lower-case Set for fast lookup when mentions[] is provided
+  const mentionSet = mentions
+    ? new Set(mentions.map(m => m.toLowerCase()))
+    : null; // null → no filtering (backward-compat)
+
   const parts = tokenize(text);
+
   return (
     <>
       {parts.map((part, i) => {
         if (part.type === "mention") {
+          // 6.3a — only highlight if username is in the mentions array
+          const isVerified = mentionSet === null || mentionSet.has(part.value.toLowerCase());
+          if (!isVerified) {
+            return <span key={i}>@{part.value}</span>;
+          }
           return (
             <button
               key={i}
@@ -50,14 +77,16 @@ export function MentionText({ text, onUserClick, onLocationClick }: Props) {
             </button>
           );
         }
+
         if (part.type === "location") {
           return (
+            // 6.3b — orange (#f97316) to match text-orange-400
             <button
               key={i}
               onClick={() => onLocationClick?.(part.value)}
               style={{
-                color: "#a855f7",
-                background: "rgba(168,85,247,0.08)",
+                color: "#f97316",
+                background: "rgba(249,115,22,0.08)",
                 border: "none",
                 padding: "0 2px",
                 borderRadius: 3,
@@ -71,6 +100,7 @@ export function MentionText({ text, onUserClick, onLocationClick }: Props) {
             </button>
           );
         }
+
         if (part.type === "emoji") {
           const def = GAME_EMOJIS[part.value];
           if (def) {
@@ -99,6 +129,7 @@ export function MentionText({ text, onUserClick, onLocationClick }: Props) {
           // Unknown slug — render raw
           return <span key={i}>:{part.value}:</span>;
         }
+
         return <span key={i}>{part.value}</span>;
       })}
     </>
@@ -110,17 +141,10 @@ interface Token {
   value: string;
 }
 
-const VALID_LOCATIONS = new Set([
-  "feed","chat","crimes","combat","jobs","market","bank","hospital",
-  "garage","gym","faction","district","auction","leaderboard",
-  "inventory","skills","profile","hack","properties","crafting",
-  "races",
-]);
-
 function tokenize(text: string): Token[] {
   const tokens: Token[] = [];
   // Match @mention, /location, or :emoji_slug:
-  const re = /(@[\w]+|\/[\w]+|:([\w]+):)/g;
+  const re = /(@[\w]+|\/[\w-]+|:([\w]+):)/g;
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -132,6 +156,7 @@ function tokenize(text: string): Token[] {
       const slug = m[2];
       tokens.push({ type: "emoji", value: slug });
     } else {
+      // /location — only emit as "location" token for known routes
       const loc = raw.slice(1);
       if (VALID_LOCATIONS.has(loc)) {
         tokens.push({ type: "location", value: loc });

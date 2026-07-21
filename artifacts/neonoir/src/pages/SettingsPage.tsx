@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
 import {
@@ -50,8 +50,215 @@ const INPUT = {
   boxSizing: "border-box" as const, fontFamily: "monospace", fontSize: 13,
 };
 
+// ── 6.4a — Telegram Link / Unlink Section ─────────────────────────────────────
+function TelegramSection({
+  user,
+  addToast,
+  refreshUser,
+}: {
+  user: User;
+  addToast: (msg: string, t?: string) => void;
+  refreshUser: () => Promise<User | null>;
+}) {
+  const [linked,       setLinked]       = useState(user.telegramLinked ?? false);
+  const [tgUsername,   setTgUsername]   = useState<string | null>(user.telegramUsername ?? null);
+  const [code,         setCode]         = useState<string | null>(null);
+  const [countdown,    setCountdown]    = useState(0);
+  const [linkLoading,  setLinkLoading]  = useState(false);
+  const [unlinkConfirm, setUnlinkConfirm] = useState(false);
+  const [unlinkLoading, setUnlinkLoading] = useState(false);
+  const pollRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll /api/telegram/status every 5 s while waiting for user to send bot code
+  useEffect(() => {
+    if (!code || linked) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await api.get<{ linked: boolean; telegramUsername: string | null }>("/telegram/status");
+        if (res.linked) {
+          clearInterval(pollRef.current!);
+          clearInterval(timerRef.current!);
+          setLinked(true);
+          setTgUsername(res.telegramUsername);
+          setCode(null);
+          addToast("Telegram linked! You'll now receive bot notifications.", "success");
+          refreshUser().catch(() => {});
+        }
+      } catch { /* silent — do not surface poll errors */ }
+    }, 5000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [code, linked]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Countdown tick
+  useEffect(() => {
+    if (countdown <= 0) return;
+    timerRef.current = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) {
+          clearInterval(timerRef.current!);
+          clearInterval(pollRef.current!);
+          setCode(null);
+          addToast("Link code expired. Generate a new one.", "warning");
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [countdown > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleLinkInit() {
+    setLinkLoading(true);
+    try {
+      const res = await api.post<{ code: string; expiresInMinutes: number }>("/telegram/link-init");
+      setCode(res.code);
+      setCountdown((res.expiresInMinutes ?? 10) * 60);
+    } catch (e: any) {
+      addToast(e.message || "Failed to generate link code", "error");
+    } finally {
+      setLinkLoading(false);
+    }
+  }
+
+  async function handleUnlink() {
+    setUnlinkLoading(true);
+    try {
+      await api.post("/telegram/unlink");
+      setLinked(false);
+      setTgUsername(null);
+      setUnlinkConfirm(false);
+      addToast("Telegram unlinked.", "success");
+      refreshUser().catch(() => {});
+    } catch (e: any) {
+      addToast(e.message || "Failed to unlink Telegram", "error");
+    } finally {
+      setUnlinkLoading(false);
+    }
+  }
+
+  function fmtCountdown(s: number) {
+    const m = Math.floor(s / 60);
+    return `${m}:${(s % 60).toString().padStart(2, "0")}`;
+  }
+
+  // ── Linked state ───────────────────────────────────────────────────────────
+  if (linked) {
+    return (
+      <AnimatedCard accent="#00d4ff" className="flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <span style={{ fontSize: 24 }}>📱</span>
+          <div>
+            <div className="font-mono text-xs font-bold" style={{ color: "#39d353" }}>✅ TELEGRAM LINKED</div>
+            {tgUsername && (
+              <div className="font-mono text-xs mt-0.5" style={{ color: "#94a3b8" }}>@{tgUsername}</div>
+            )}
+          </div>
+        </div>
+        <div className="font-mono text-xs" style={{ color: "#64748b", lineHeight: 1.6 }}>
+          Notifications for DMs, auction bids, gang wars and more are sent to your Telegram. You can also use{" "}
+          <span style={{ color: "#00d4ff" }}>/balance</span>,{" "}
+          <span style={{ color: "#00d4ff" }}>/status</span>, and{" "}
+          <span style={{ color: "#00d4ff" }}>/quests</span> in the bot.
+        </div>
+        {!unlinkConfirm ? (
+          <CyberButton variant="danger" size="sm" onClick={() => setUnlinkConfirm(true)}>
+            Unlink Telegram
+          </CyberButton>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="font-mono text-xs" style={{ color: "#ff2d55" }}>
+              Are you sure? You'll lose Telegram notifications and bot access.
+            </div>
+            <div className="flex gap-2">
+              <CyberButton variant="danger" size="sm" loading={unlinkLoading} onClick={handleUnlink}>
+                Confirm Unlink
+              </CyberButton>
+              <CyberButton variant="ghost" size="sm" onClick={() => setUnlinkConfirm(false)}>
+                Cancel
+              </CyberButton>
+            </div>
+          </div>
+        )}
+      </AnimatedCard>
+    );
+  }
+
+  // ── Code shown — waiting for user to send to bot ───────────────────────────
+  if (code) {
+    return (
+      <AnimatedCard accent="#00d4ff" className="flex flex-col gap-4">
+        <div className="font-mono text-xs font-bold" style={{ color: "#00d4ff" }}>LINK TELEGRAM</div>
+        <div className="font-mono text-xs" style={{ color: "#94a3b8", lineHeight: 1.6 }}>
+          Open <span style={{ color: "#00d4ff" }}>@NeonoirBot</span> on Telegram and send:
+        </div>
+        {/* Prominent code display */}
+        <div
+          className="font-mono text-center py-4 clip-card"
+          style={{
+            background: "#0a0a0f",
+            border: "1px solid #00d4ff50",
+            letterSpacing: 6,
+            fontSize: 22,
+            color: "#fff",
+            fontWeight: 700,
+          }}
+        >
+          /link {code}
+        </div>
+        <div className="flex items-center justify-between">
+          <div
+            className="font-mono text-xs"
+            style={{ color: countdown < 60 ? "#ff2d55" : "#64748b" }}
+          >
+            Expires in {fmtCountdown(countdown)}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#39d353] animate-pulse" />
+            <span className="font-mono text-xs" style={{ color: "#39d353" }}>Waiting…</span>
+          </div>
+        </div>
+        <CyberButton
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (pollRef.current) clearInterval(pollRef.current);
+            if (timerRef.current) clearInterval(timerRef.current);
+            setCode(null);
+            setCountdown(0);
+          }}
+        >
+          Cancel
+        </CyberButton>
+      </AnimatedCard>
+    );
+  }
+
+  // ── Default — not linked ───────────────────────────────────────────────────
+  return (
+    <AnimatedCard accent="#00d4ff" className="flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <span style={{ fontSize: 24 }}>📱</span>
+        <div>
+          <div className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>LINK TELEGRAM</div>
+          <div className="font-mono text-xs mt-0.5" style={{ color: "#64748b" }}>
+            Connect your Telegram account to Neonoir
+          </div>
+        </div>
+      </div>
+      <div className="font-mono text-xs" style={{ color: "#64748b", lineHeight: 1.6 }}>
+        Linking gives you notifications for DMs, bids, gang wars, and more — even when the game is closed.
+        Also enables NC pack and subscription purchases via Telegram Stars.
+      </div>
+      <CyberButton variant="primary" loading={linkLoading} onClick={handleLinkInit}>
+        Link Telegram
+      </CyberButton>
+    </AnimatedCard>
+  );
+}
+
 export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
-  const [tab,        setTab]      = useState<"account" | "appearance" | "privacy" | "notifications" | "connect" | "password" | "reset" | "navigation">("account");
+  const [tab,        setTab]      = useState<"account" | "appearance" | "privacy" | "notifications" | "connect" | "password" | "reset" | "navigation" | "telegram">("account");
   const [navOrder,    setNavOrder]    = useState<string[]>(user.navOrder ?? []);
   const [defaultPage, setDefaultPage] = useState<string>(user.defaultPage ?? "dashboard");
   const [savingNav,   setSavingNav]   = useState(false);
@@ -206,6 +413,7 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
     { id: "privacy"       as const, label: "Privacy"    },
     { id: "notifications" as const, label: "Notifs"     },
     { id: "connect"       as const, label: "Connect"    },
+    { id: "telegram"      as const, label: "Telegram"   },
     { id: "password"      as const, label: "Password"   },
     { id: "reset"         as const, label: "Reset"      },
     { id: "navigation"    as const, label: "Nav"        },
@@ -531,6 +739,11 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
         <div style={{ margin: "0 -16px" }}>
           <ConnectionsPage user={user} />
         </div>
+      )}
+
+      {/* 6.4a — Telegram link/unlink flow */}
+      {tab === "telegram" && (
+        <TelegramSection user={user} addToast={addToast} refreshUser={refreshUser} />
       )}
 
       {/* Password */}

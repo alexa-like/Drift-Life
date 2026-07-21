@@ -987,7 +987,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
         <div className="flex gap-2 mt-3">
           <CyberButton
             onClick={() => { setShowResetModal(true); setResetStep(1); }}
-            variant="accent"
+            variant="ghost"
             size="sm"
             className="flex-1"
             style={{ borderColor: "#f59e0b", color: "#f59e0b", background: "#f59e0b10" } as any}
@@ -1065,7 +1065,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
               <div className="flex gap-2">
                 <CyberButton
                   onClick={() => setResetStep(2)}
-                  variant="accent"
+                  variant="ghost"
                   size="sm"
                   className="flex-1"
                   style={{ borderColor: "#f59e0b", color: "#f59e0b", background: "#f59e0b10" } as any}

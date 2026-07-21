@@ -223,8 +223,10 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onRe
         })}
         isOwn={isOwn}
       >
+        {/* 6.3a — pass mentions[] so only verified @tags render as cyan links */}
         <MentionText
           text={message.content}
+          mentions={message.mentions}
           onUserClick={handleMentionUser}
           onLocationClick={handleLocNav}
         />

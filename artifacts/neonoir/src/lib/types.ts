@@ -82,6 +82,9 @@ export interface User {
     crimes: boolean;
     faction: boolean;
     banking: boolean;
+    auction: boolean;
+    events: boolean;
+    mentions: boolean;
   };
   devMode: boolean;
   battlePassPremium: boolean;
@@ -352,10 +355,11 @@ export interface ChatMessage {
   equippedNameFlair?: string | null;
   equippedMessageCard?: string | null;
   flairData?: FlairData | null;
-  // ── Tier 6 — reply-to & reactions ────────────────────────────────────────
+  // ── Tier 6 — reply-to, reactions & mentions ──────────────────────────────
   replyToId?: string | null;
   replyToPreview?: string | null;
   reactions?: { emoji: string; count: number; userIds: string[] }[];
+  mentions?: string[]; // usernames mentioned in this message (stored by backend)
 }
 
 export interface ChatReport {
