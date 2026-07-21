@@ -1,11 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { User, District } from "../lib/types";
 import { api } from "../lib/api";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { CyberButton } from "../components/CyberButton";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { formatDC } from "../lib/format";
+
+interface EncounterOption { id: string; label: string; description: string; }
+interface Encounter {
+  kind: string;
+  title: string;
+  description: string;
+  immediateEffects?: Record<string, unknown>;
+  options?: EncounterOption[];
+  expiresInMs?: number;
+}
 
 interface Props {
   user: User;
@@ -43,6 +53,9 @@ export function TravelPage({ user, refreshUser, addToast, onNavigate }: Props) {
   const [loading, setLoading]       = useState(true);
   const [departing, setDeparting]   = useState<string | null>(null);
   const [returning, setReturning]   = useState(false);
+  const [encounter, setEncounter]   = useState<Encounter | null>(null);
+  const [resolving, setResolving]   = useState(false);
+  const [encounterResult, setEncounterResult] = useState<string | null>(null);
 
   const countdown = useTravelCountdown(user.travelArrivesAt);
   const isTraveling = user.status === "traveling";
@@ -82,14 +95,36 @@ export function TravelPage({ user, refreshUser, addToast, onNavigate }: Props) {
 
   async function handleTravel(districtId: string) {
     setDeparting(districtId);
+    setEncounter(null);
+    setEncounterResult(null);
     try {
       const data = await api.post<any>(`/districts/${districtId}/travel`, {});
       addToast(data.message, "info");
+      if (data.encounter) {
+        setEncounter(data.encounter);
+      }
       await refreshUser();
     } catch (err: any) {
       addToast(err.message || "Travel failed", "error");
     } finally {
       setDeparting(null);
+    }
+  }
+
+  async function handleResolveEncounter(choiceId: string) {
+    setResolving(true);
+    try {
+      const data = await api.post<{ outcome: string; dcChange: number }>("/districts/resolve-encounter", { choiceId });
+      setEncounterResult(data.outcome);
+      setEncounter(null);
+      if (data.dcChange !== 0) {
+        await refreshUser();
+      }
+    } catch (err: any) {
+      addToast(err.message || "Failed to resolve encounter", "error");
+      setEncounter(null);
+    } finally {
+      setResolving(false);
     }
   }
 
@@ -118,6 +153,79 @@ export function TravelPage({ user, refreshUser, addToast, onNavigate }: Props) {
       }} />
 
       <CyberSectionHeader title="TRAVEL" accent="#38bdf8" cursor />
+
+      {/* Encounter result toast */}
+      <AnimatePresence>
+        {encounterResult && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="p-4 rounded-lg border border-amber-800/50 bg-amber-950/20 font-mono text-sm text-amber-300 flex items-start gap-3"
+          >
+            <span className="text-xl">🗺️</span>
+            <div className="flex-1">{encounterResult}</div>
+            <button onClick={() => setEncounterResult(null)} className="text-slate-600 hover:text-slate-400">✕</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* NPC Encounter Modal */}
+      <AnimatePresence>
+        {encounter && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="rounded-xl border p-5 space-y-4"
+            style={{ background: "#0a0814", borderColor: "#f59e0b60", boxShadow: "0 0 30px #f59e0b15" }}
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">⚡</span>
+              <div>
+                <div className="font-mono font-bold text-amber-400 text-base">{encounter.title}</div>
+                <div className="font-mono text-xs text-slate-300 mt-1 leading-relaxed">{encounter.description}</div>
+              </div>
+            </div>
+
+            {/* Immediate effect (no choice needed) */}
+            {!encounter.options && encounter.immediateEffects && (
+              <div className="flex items-center gap-3">
+                {encounter.immediateEffects?.xpGain != null && (
+                  <span className="font-mono text-xs text-green-400">+{String(encounter.immediateEffects.xpGain)} XP</span>
+                )}
+                {encounter.immediateEffects?.buff != null && (
+                  <span className="font-mono text-xs text-purple-400">Buff active: {String(encounter.immediateEffects.buff)}</span>
+                )}
+                {encounter.immediateEffects?.heatGain != null && (
+                  <span className="font-mono text-xs text-red-400">Heat +{String(encounter.immediateEffects.heatGain)}</span>
+                )}
+                <div className="flex-1" />
+                <CyberButton variant="ghost" size="sm" onClick={() => setEncounter(null)}>
+                  Continue
+                </CyberButton>
+              </div>
+            )}
+
+            {/* Player-choice encounter */}
+            {encounter.options && (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {encounter.options.map(opt => (
+                  <button
+                    key={opt.id}
+                    disabled={resolving}
+                    onClick={() => handleResolveEncounter(opt.id)}
+                    className="flex-1 px-4 py-3 rounded-lg border border-amber-800/40 bg-amber-950/10 text-left hover:border-amber-600/60 hover:bg-amber-950/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="font-mono font-bold text-sm text-amber-300">{opt.label}</div>
+                    <div className="font-mono text-xs text-slate-400 mt-1">{opt.description}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Status banner */}
       {isTraveling && (

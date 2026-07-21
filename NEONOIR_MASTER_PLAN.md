@@ -422,7 +422,7 @@ Gang War UI: banner on gang page when at war, live score tracker, member contrib
 ---
 
 ## TIER 9 — HACKING + NPC ENCOUNTERS + MENTOR SYSTEM
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Activate three more existing model foundations — hacking, random world encounters, and player mentorship.
 
@@ -920,11 +920,11 @@ Work through each tier systematically. For each tier listed as ✅ Done:
 - [ ] War ends correctly at 48hr, winning gang gets prize pool
 
 **Tier 9 (Hacking + NPC + Mentor):**
-- [ ] Hacking success rate is formula-correct (not always win or always lose)
-- [ ] 6-hour cooldown enforced per target player
-- [ ] NPC travel encounters trigger at ~15% rate (test 30 travels)
-- [ ] Mentor/mentee XP bonus of +15% is applied correctly
-- [ ] Mentor DC bonus triggers at mentee level 10, 20, 30
+- [x] Hacking success rate is formula-correct (not always win or always lose)
+- [x] 6-hour cooldown enforced per target player
+- [x] NPC travel encounters trigger at ~15% rate (test 30 travels)
+- [x] Mentor/mentee XP bonus of +15% is applied correctly
+- [x] Mentor DC bonus triggers at mentee level 10, 20, 30
 
 **Tier 10 (Business):**
 - [ ] Passive income accumulates by the hour (test by checking timestamps)

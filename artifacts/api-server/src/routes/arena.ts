@@ -22,6 +22,7 @@ import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
 import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
 import { awardBattlePassXp } from "../lib/battlePassXp";
 import { updateQuestProgress } from "../lib/questProgress";
+import { checkMentorLevelBonus } from "../lib/mentorBonus";
 import { claimBounty } from "./bounties";
 
 const router = Router();

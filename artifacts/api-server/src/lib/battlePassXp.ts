@@ -3,6 +3,9 @@ import User from "../models/User";
 import { notifyUser } from "./notifyUser";
 import { notifyTelegram } from "./telegram";
 
+/** Mentor XP bonus multiplier — both mentor and mentee earn +15% battle pass XP. */
+const MENTOR_XP_BONUS = 1.15;
+
 /**
  * Award battle-pass XP to a user for the given action key.
  * Handles XP accumulation, level-up detection, and level-up notifications.
@@ -18,11 +21,15 @@ export async function awardBattlePassXp(userId: string, action: string): Promise
   const source = pass.xpSources.find(s => s.action === action);
   if (!source || source.xp <= 0) return;
 
-  const earnedXp = Math.round(source.xp * (pass.xpMultiplier ?? 1.0));
-
   // Load the user (just what we need)
-  const user = await User.findById(userId).select("seasonXp seasonLevel").lean();
+  const user = await User.findById(userId).select("seasonXp seasonLevel mentorId menteeIds").lean();
   if (!user) return;
+
+  // Apply mentor/mentee XP bonus (+15% if in an active mentorship)
+  const hasMentorship = !!(user.mentorId || ((user.menteeIds ?? []).length > 0));
+  const mentorMultiplier = hasMentorship ? MENTOR_XP_BONUS : 1.0;
+
+  const earnedXp = Math.round(source.xp * (pass.xpMultiplier ?? 1.0) * mentorMultiplier);
 
   const oldXp    = user.seasonXp ?? 0;
   const oldLevel = user.seasonLevel ?? 0;

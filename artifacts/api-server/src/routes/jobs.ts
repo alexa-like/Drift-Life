@@ -12,6 +12,7 @@ import { jobsMinigameCompleteSchema } from "../lib/schemas";
 import { getEmployerPerk } from "../lib/employeePerks";
 
 import { getGameConfig } from "../lib/gameConfig";
+import { checkMentorLevelBonus } from "../lib/mentorBonus";
 
 const router = Router();
 
@@ -157,6 +158,9 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
     if (!rewarded) return res.status(500).json({ message: "Internal server error" });
 
     const leveled = levelUp(rewarded);
+    if (leveled) {
+      checkMentorLevelBonus(String(req.userId), (rewarded.level ?? 1) - 1, rewarded.level ?? 1).catch(() => {});
+    }
 
     // Server-issued minigame session — bonus completion must present this exact
     // token; the client can never just POST an arbitrary multiplier for free DC.

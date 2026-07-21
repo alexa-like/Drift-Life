@@ -34,6 +34,7 @@ import { getGameConfig } from "../lib/gameConfig";
 import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
 import { awardBattlePassXp } from "../lib/battlePassXp";
 import { updateQuestProgress } from "../lib/questProgress";
+import { checkMentorLevelBonus } from "../lib/mentorBonus";
 
 const router = Router();
 
@@ -596,6 +597,9 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
+    if (leveled) {
+      checkMentorLevelBonus(String(req.userId), (rewarded.level ?? 1) - 1, rewarded.level ?? 1).catch(() => {});
+    }
     if (success) {
       awardEventPoints({ userId: String(req.userId), username: rewarded.username, action: "crime_success", io: req.app.locals["io"] }).catch(() => {});
       awardBattlePassXp(String(req.userId), "crime_success").catch(() => {});

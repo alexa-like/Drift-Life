@@ -6,6 +6,7 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { checkAchievements } from "./achievements";
 import { levelUp } from "../lib/regen";
 import { fireMissionEvent } from "../lib/missionEvents";
+import { checkMentorLevelBonus } from "../lib/mentorBonus";
 
 const router = Router();
 
@@ -170,6 +171,7 @@ router.post("/claim", requireAuth, async (req: AuthRequest, res) => {
           maxNerve: updated.maxNerve,
         },
       });
+      checkMentorLevelBonus(String(req.userId), (updated.level ?? 1) - 1, updated.level ?? 1).catch(() => {});
     }
 
     // Item drop — isolated so a failed grant on milestone days never aborts the whole claim

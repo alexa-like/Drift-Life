@@ -4,6 +4,8 @@ import Item from "../models/Item";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen } from "../lib/regen";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
+import { rollEncounter, resolveEncounter, EncounterKind } from "../lib/npcEncounters";
+import EventModel from "../models/Event";
 
 const router = Router();
 
@@ -225,12 +227,58 @@ router.post("/:id/travel", requireAuth, async (req: AuthRequest, res) => {
       });
     }
 
+    // ── NPC Encounter Roll (15% chance) ──────────────────────────────────────
+    let encounter = null;
+    try {
+      const now2 = new Date();
+      const activeEvent = await EventModel.findOne({ status: "active", startsAt: { $lte: now2 }, endsAt: { $gt: now2 } })
+        .select("eventType").lean();
+      const hasActiveBossEvent = (activeEvent as any)?.eventType === "boss_raid";
+
+      encounter = await rollEncounter({
+        userId: String(req.userId),
+        level: updated.level,
+        strength: updated.strength,
+        intelligence: updated.intelligence,
+        dc: updated.dc,
+        district: district.id,
+        hasActiveBossEvent,
+      });
+
+      // Store player-choice encounters so they can be resolved via the resolve-encounter endpoint
+      if (encounter?.options) {
+        const kindMap: Record<string, string> = {
+          mugger: "mugger",
+          police_checkpoint: "checkpoint",
+          black_market_trader: "black_market",
+        };
+        const storedKind = kindMap[encounter.kind] ?? "mugger";
+        await User.findByIdAndUpdate(req.userId, {
+          $set: {
+            pendingEncounter: {
+              kind: storedKind,
+              data: encounter.immediateEffects ?? {},
+              expiresAt: new Date(Date.now() + (encounter.expiresInMs ?? 5 * 60_000)),
+            },
+            lastEncounterAt: new Date(),
+          },
+        });
+      } else if (encounter) {
+        // Immediate-effect encounter — just mark the time
+        await User.findByIdAndUpdate(req.userId, { $set: { lastEncounterAt: new Date() } });
+      }
+    } catch {
+      // Encounter roll is non-critical — travel still succeeds
+      encounter = null;
+    }
+
     res.json({
       message: `Traveling to ${district.name} — arriving in ${Math.ceil(travelMs / 1000)}s`,
       district: district.id,
       energyCost: district.travelEnergyCost,
       travelArrivesAt: updated.travelArrivesAt,
       travelTimeReductionPct: reductionPct,
+      encounter,
       user: {
         energy:          updated.energy,
         maxEnergy:       updated.maxEnergy,
@@ -408,6 +456,45 @@ router.post("/:slug/shop/buy", requireAuth, async (req: AuthRequest, res) => {
     });
   } catch (err: any) {
     req.log.error({ err }, "district shop buy error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/districts/resolve-encounter — player resolves a pending NPC encounter choice
+router.post("/resolve-encounter", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { choiceId } = req.body as { choiceId?: string };
+    if (!choiceId) return res.status(400).json({ message: "choiceId required" });
+
+    const user = await User.findById(req.userId)
+      .select("pendingEncounter strength dc");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.pendingEncounter) {
+      return res.status(400).json({ message: "No pending encounter" });
+    }
+    if (user.pendingEncounter.expiresAt < new Date()) {
+      await User.findByIdAndUpdate(req.userId, { $set: { pendingEncounter: null } });
+      return res.status(400).json({ message: "Encounter expired" });
+    }
+
+    // Map stored kind → EncounterKind
+    const kindMap: Record<string, EncounterKind> = {
+      mugger:      "mugger",
+      checkpoint:  "police_checkpoint",
+      black_market: "black_market_trader",
+    };
+    const encounterKind = kindMap[user.pendingEncounter.kind] ?? "mugger";
+
+    const result = await resolveEncounter(
+      String(req.userId),
+      encounterKind,
+      choiceId,
+      { strength: user.strength, dc: user.dc },
+    );
+
+    res.json(result);
+  } catch (err: any) {
+    req.log.error({ err }, "resolve-encounter error");
     res.status(500).json({ message: "Internal server error" });
   }
 });

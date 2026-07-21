@@ -55,6 +55,8 @@ import UpcomingEventsPage from "./pages/UpcomingEventsPage";
 import EventArchivePage from "./pages/EventArchivePage";
 import HallOfFamePage from "./pages/HallOfFamePage";
 import BattlePassPage from "./pages/BattlePassPage";
+import HackPage from "./pages/HackPage";
+import MentorPage from "./pages/MentorPage";
 import { NavBar } from "./components/NavBar";
 import { PageTransition } from "./components/PageTransition";
 import { ToastContainer } from "./components/ToastContainer";
@@ -335,6 +337,8 @@ function GameApp() {
       case "travel":        return <TravelPage user={user!} refreshUser={refreshUser} addToast={addToast} onNavigate={setPage} />;
       case "district-hub":  return <DistrictHubPage {...pageProps} />;
       case "match-history": return <MatchHistoryPage />;
+      case "hack":          return <HackPage {...pageProps} />;
+      case "mentor":        return <MentorPage {...pageProps} />;
       case "owner":
         return (user!.role === "owner" || user!.role === "admin")
           ? <OwnerPage {...pageProps} onNav={setPage} />

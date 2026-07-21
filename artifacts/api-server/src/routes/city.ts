@@ -7,6 +7,7 @@ import User from "../models/User";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp } from "../models/User";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
+import { checkMentorLevelBonus } from "../lib/mentorBonus";
 
 const router = Router();
 
@@ -76,6 +77,9 @@ router.post("/careers/:careerId/work", requireAuth, async (req: AuthRequest, res
 
     const leveled = levelUp(gated);
     await gated.save();
+    if (leveled) {
+      checkMentorLevelBonus(String(req.userId), (gated.level ?? 1) - 1, gated.level ?? 1).catch(() => {});
+    }
 
     res.json({
       salary: career.salaryPerShift, statGain: career.statGain, energy: gated.energy,
