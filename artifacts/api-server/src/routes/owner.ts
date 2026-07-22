@@ -29,6 +29,7 @@ import CombatMatch from "../models/CombatMatch";
 import RaceMatch from "../models/RaceMatch";
 import Guild from "../models/Guild";
 import Faction from "../models/Faction";
+import EconomyLog from "../models/EconomyLog";
 
 const router = Router();
 router.use(requireStaff as any);
@@ -1637,6 +1638,156 @@ router.post("/events/:id/archive", requireOwner as any, async (req: AuthRequest,
     await Event.findByIdAndUpdate(event._id, { status: "archived" });
     logAdminAction({ actorId: req.userId!, actorUsername: req.username || "owner", action: "archive-event", details: { eventId: String(event._id), name: event.name } });
     res.json({ message: `Event "${event.name}" archived` });
+  } catch (err: any) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/owner/economy-dashboard — live economy metrics
+router.get("/economy-dashboard", requireOwner as any, async (_req, res) => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const weekStart  = new Date(now); weekStart.setDate(now.getDate() - 7);
+    const day14Start = new Date(now); day14Start.setDate(now.getDate() - 14);
+
+    const [
+      circulationResult,
+      ncResult,
+      dcInToday,
+      dcOutToday,
+      ncInToday,
+      ncOutToday,
+      top10DcEarners,
+      top10NcSpenders,
+      activeAuctions,
+      auctionEscrow,
+      eventStats,
+      bountyPool,
+      registrationsRaw,
+      retentionNow,
+      retention7dAgo,
+    ] = await Promise.all([
+      // Total DC in circulation (wallet + bank)
+      User.aggregate([{ $group: { _id: null, total: { $sum: { $add: ["$dc", "$bankBalance"] } } } }]),
+      // Total NC in circulation
+      User.aggregate([{ $group: { _id: null, total: { $sum: "$nc" } } }]),
+      // DC in today
+      EconomyLog.aggregate([
+        { $match: { type: "dc_in", createdAt: { $gte: todayStart } } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]),
+      // DC out today
+      EconomyLog.aggregate([
+        { $match: { type: "dc_out", createdAt: { $gte: todayStart } } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]),
+      // NC in today
+      EconomyLog.aggregate([
+        { $match: { type: "nc_in", createdAt: { $gte: todayStart } } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]),
+      // NC out today
+      EconomyLog.aggregate([
+        { $match: { type: "nc_out", createdAt: { $gte: todayStart } } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]),
+      // Top 10 DC earners this week
+      User.find({ weeklyDc: { $gt: 0 } })
+        .select("username weeklyDc level")
+        .sort({ weeklyDc: -1 })
+        .limit(10)
+        .lean(),
+      // Top 10 NC spenders — approximate via users with lowest NC who had any NC
+      User.find({})
+        .select("username nc level")
+        .sort({ nc: 1 })
+        .limit(10)
+        .lean(),
+      // Active auctions count
+      AuctionListing.countDocuments({ status: "active" }),
+      // Total DC in auction escrow
+      AuctionListing.aggregate([
+        { $match: { status: "active" } },
+        { $group: { _id: null, total: { $sum: "$currentBid" } } },
+      ]),
+      // Event stats: total event participants vs premium pass holders (last 7 days)
+      (async () => {
+        const EventProgress = (await import("../models/EventProgress")).default;
+        const Event        = (await import("../models/Event")).default;
+        const activeEvent  = await Event.findOne({ status: "active" }).lean();
+        if (!activeEvent) return { eventId: null, totalParticipants: 0, premiumHolders: 0, activePlayers: 0 };
+        const [totalParticipants, premiumHolders, activePlayers] = await Promise.all([
+          EventProgress.countDocuments({ eventId: (activeEvent as any)._id }),
+          User.countDocuments({ premiumPassEventId: String((activeEvent as any)._id) }),
+          User.countDocuments({ lastLogin: { $gte: weekStart } }),
+        ]);
+        return { eventId: String((activeEvent as any)._id), totalParticipants, premiumHolders, activePlayers };
+      })(),
+      // Bounty pool
+      (async () => {
+        const Bounty = (await import("../models/Bounty")).default;
+        const result = await Bounty.aggregate([
+          { $match: { status: "active" } },
+          { $group: { _id: null, total: { $sum: "$amount" } } },
+        ]);
+        return result[0]?.total ?? 0;
+      })(),
+      // New registrations per day — last 14 days
+      User.aggregate([
+        { $match: { createdAt: { $gte: day14Start } } },
+        { $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 },
+        } },
+        { $sort: { _id: 1 } },
+      ]),
+      // Retention: players who logged in TODAY
+      User.countDocuments({ lastLogin: { $gte: todayStart } }),
+      // Retention: players who logged in 7 days ago (within that day)
+      (async () => {
+        const d7 = new Date(todayStart); d7.setDate(d7.getDate() - 7);
+        const d7end = new Date(d7); d7end.setDate(d7end.getDate() + 1);
+        return User.countDocuments({ lastLogin: { $gte: d7, $lt: d7end } });
+      })(),
+    ]);
+
+    // Top 10 market items by source from EconomyLog
+    const topItems = await EconomyLog.aggregate([
+      { $match: { source: "market_purchase", createdAt: { $gte: weekStart } } },
+      { $group: { _id: "$username", count: { $sum: 1 }, dcSpent: { $sum: "$amount" } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+    ]);
+
+    const participationRate = eventStats.activePlayers > 0
+      ? Math.round((eventStats.totalParticipants / eventStats.activePlayers) * 100)
+      : 0;
+    const conversionRate = eventStats.totalParticipants > 0
+      ? Math.round((eventStats.premiumHolders / eventStats.totalParticipants) * 100)
+      : 0;
+
+    res.json({
+      totalDcCirculation:   circulationResult[0]?.total ?? 0,
+      totalNcCirculation:   ncResult[0]?.total ?? 0,
+      dcCreatedToday:       dcInToday[0]?.total ?? 0,
+      dcDestroyedToday:     dcOutToday[0]?.total ?? 0,
+      ncCreatedToday:       ncInToday[0]?.total ?? 0,
+      ncDestroyedToday:     ncOutToday[0]?.total ?? 0,
+      top10DcEarners,
+      top10NcSpenders,
+      activeAuctionCount:   activeAuctions,
+      totalAuctionEscrow:   auctionEscrow[0]?.total ?? 0,
+      eventParticipationRate: participationRate,
+      battlePassConversionRate: conversionRate,
+      bountyPoolTotal:      bountyPool,
+      registrationsPerDay:  registrationsRaw,
+      playersOnlineToday:   retentionNow,
+      retentionRate:        retention7dAgo > 0
+        ? Math.round((retentionNow / retention7dAgo) * 100)
+        : 0,
+      topMarketSpenders:    topItems,
+    });
   } catch (err: any) {
     res.status(500).json({ message: "Internal server error" });
   }

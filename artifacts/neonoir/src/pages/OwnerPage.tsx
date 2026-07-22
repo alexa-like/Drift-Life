@@ -91,7 +91,7 @@ interface EconomyGameConfig {
 }
 interface GameCatalog { runs: RunCatalogEntry[]; jobs: JobCatalogEntry[]; staffTiers: Record<string, StaffTierEntry>; }
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "event-game-modes" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy" | "database" | "vanta-ai" | "defaults";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "event-game-modes" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy" | "eco-dash" | "database" | "vanta-ai" | "defaults";
 type VantaMsg = { role: "user" | "vanta" | "progress" | "action" | "result" | "agent_prompt" | "error"; text: string; tool?: string; summary?: string; prompt?: string; };
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
@@ -232,6 +232,9 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   const [ownerGiveCreating, setOwnerGiveCreating] = useState(false);
   const [liveOwnerGiveaways, setLiveOwnerGiveaways] = useState<any[]>([]);
   const [ownerGiveawaysLoading, setOwnerGiveawaysLoading] = useState(false);
+  // Economy Dashboard tab
+  const [ecoDash, setEcoDash] = useState<Record<string, any> | null>(null);
+  const [ecoDashLoading, setEcoDashLoading] = useState(false);
   // Economy tab
   const [gameConfig, setGameConfig] = useState<EconomyGameConfig | null>(null);
   const [gameCatalog, setGameCatalog] = useState<GameCatalog | null>(null);
@@ -326,6 +329,15 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
     } catch (e: any) { addToast(e.message, "error"); }
     finally { setSavingSection(null); }
   }
+
+  const loadEcoDash = useCallback(async () => {
+    setEcoDashLoading(true);
+    try {
+      const res = await api.get<Record<string, any>>("/owner/economy-dashboard");
+      setEcoDash(res);
+    } catch (e: any) { addToast(e.message, "error"); }
+    finally { setEcoDashLoading(false); }
+  }, [addToast]);
 
   const loadDbStats = useCallback(async () => {
     setDbStatsLoading(true);
@@ -924,6 +936,10 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
         <button onClick={() => { setTab("economy"); if (!gameConfig) loadGameConfig(); }} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "economy" ? "#39d35318" : "#111118", color: tab === "economy" ? "#39d353" : "#475569", border: `1px solid ${tab === "economy" ? "#39d35340" : "#1e1e2e"}` }}>
           ⚙️ Economy
+        </button>
+        <button onClick={() => { setTab("eco-dash"); if (!ecoDash) loadEcoDash(); }} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "eco-dash" ? "#f59e0b18" : "#111118", color: tab === "eco-dash" ? "#f59e0b" : "#475569", border: `1px solid ${tab === "eco-dash" ? "#f59e0b40" : "#1e1e2e"}` }}>
+          📊 Eco Dashboard
         </button>
         <button onClick={() => { setTab("database"); if (!dbStats) loadDbStats(); loadDbLimit(); }} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "database" ? "#ff2d5518" : "#111118", color: tab === "database" ? "#ff2d55" : "#475569", border: `1px solid ${tab === "database" ? "#ff2d5540" : "#1e1e2e"}` }}>
@@ -3023,6 +3039,122 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
           onConfirm={() => { setMassGrantConfirm(false); massGrant(); }}
           onCancel={() => setMassGrantConfirm(false)}
         />
+      )}
+
+      {/* ── ECO DASHBOARD TAB ─────────────────────────────────────── */}
+      {tab === "eco-dash" && (
+        <div className="space-y-4">
+          <div style={s}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-mono font-bold text-sm" style={{ color: "#f59e0b" }}>ECONOMY DASHBOARD</div>
+                <div className="font-mono text-xs mt-1" style={{ color: "#64748b" }}>Live economy metrics — refreshed on demand.</div>
+              </div>
+              <button onClick={loadEcoDash} disabled={ecoDashLoading}
+                className="font-mono text-xs px-4 py-2 rounded"
+                style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
+                {ecoDashLoading ? "Loading…" : "↺ Refresh"}
+              </button>
+            </div>
+          </div>
+
+          {!ecoDash && !ecoDashLoading && (
+            <div style={s} className="text-center py-4">
+              <div className="font-mono text-xs" style={{ color: "#64748b" }}>Click Refresh to load economy data.</div>
+            </div>
+          )}
+
+          {ecoDash && (
+            <>
+              {/* Circulation */}
+              <div style={s}>
+                <div className="font-mono font-bold text-xs mb-3" style={{ color: "#f59e0b", letterSpacing: "0.1em" }}>CIRCULATION</div>
+                <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
+                  {[
+                    { label: "TOTAL DC", value: formatDC(ecoDash.totalDcCirculation ?? 0) + " DC", color: "#f59e0b" },
+                    { label: "TOTAL NC", value: (ecoDash.totalNcCirculation ?? 0).toLocaleString() + " NC", color: "#a855f7" },
+                    { label: "DC CREATED TODAY", value: formatDC(ecoDash.dcCreatedToday ?? 0) + " DC", color: "#39d353" },
+                    { label: "DC DESTROYED TODAY", value: formatDC(ecoDash.dcDestroyedToday ?? 0) + " DC", color: "#ff2d55" },
+                    { label: "NC CREATED TODAY", value: (ecoDash.ncCreatedToday ?? 0).toLocaleString() + " NC", color: "#39d353" },
+                    { label: "NC DESTROYED TODAY", value: (ecoDash.ncDestroyedToday ?? 0).toLocaleString() + " NC", color: "#ff2d55" },
+                  ].map(m => (
+                    <div key={m.label} style={{ textAlign: "center", background: "#0a0a0f", borderRadius: 6, padding: "10px 6px", border: "1px solid #1e293b" }}>
+                      <div className="font-mono font-bold text-sm" style={{ color: m.color }}>{m.value}</div>
+                      <div className="font-mono mt-1" style={{ fontSize: 9, color: "#64748b", letterSpacing: "0.05em" }}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Auction + Bounty + Event */}
+              <div style={s}>
+                <div className="font-mono font-bold text-xs mb-3" style={{ color: "#00d4ff", letterSpacing: "0.1em" }}>LIVE GAME STATE</div>
+                <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
+                  {[
+                    { label: "ACTIVE AUCTIONS", value: String(ecoDash.activeAuctionCount ?? 0), color: "#00d4ff" },
+                    { label: "AUCTION ESCROW", value: formatDC(ecoDash.totalAuctionEscrow ?? 0) + " DC", color: "#00d4ff" },
+                    { label: "BOUNTY POOL", value: formatDC(ecoDash.bountyPoolTotal ?? 0) + " DC", color: "#ff2d55" },
+                    { label: "EVENT PARTICIPATION", value: (ecoDash.eventParticipationRate ?? 0) + "%", color: "#f59e0b" },
+                    { label: "BATTLE PASS CONV.", value: (ecoDash.battlePassConversionRate ?? 0) + "%", color: "#a855f7" },
+                    { label: "RETENTION (7d)", value: (ecoDash.retentionRate ?? 0) + "%", color: "#39d353" },
+                  ].map(m => (
+                    <div key={m.label} style={{ textAlign: "center", background: "#0a0a0f", borderRadius: 6, padding: "10px 6px", border: "1px solid #1e293b" }}>
+                      <div className="font-mono font-bold text-sm" style={{ color: m.color }}>{m.value}</div>
+                      <div className="font-mono mt-1" style={{ fontSize: 9, color: "#64748b", letterSpacing: "0.05em" }}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Top DC Earners */}
+              <div style={s}>
+                <div className="font-mono font-bold text-xs mb-3" style={{ color: "#39d353", letterSpacing: "0.1em" }}>TOP 10 DC EARNERS THIS WEEK</div>
+                <div className="space-y-1">
+                  {(ecoDash.top10DcEarners ?? []).length === 0 && (
+                    <div className="font-mono text-xs" style={{ color: "#64748b" }}>No data yet.</div>
+                  )}
+                  {(ecoDash.top10DcEarners ?? []).map((p: any, i: number) => (
+                    <div key={p._id} className="flex items-center justify-between px-3 py-2 rounded"
+                      style={{ background: "#0a0a0f", border: "1px solid #1e293b" }}>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-xs" style={{ color: "#475569", minWidth: 20 }}>#{i + 1}</span>
+                        <span className="font-mono text-xs font-bold" style={{ color: "#e2e8f0" }}>{p.username}</span>
+                        <span className="font-mono text-xs" style={{ color: "#475569" }}>Lv{p.level}</span>
+                      </div>
+                      <span className="font-mono text-xs font-bold" style={{ color: "#39d353" }}>
+                        {formatDC(p.weeklyDc ?? 0)} DC
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Registrations per day */}
+              {(ecoDash.registrationsPerDay ?? []).length > 0 && (
+                <div style={s}>
+                  <div className="font-mono font-bold text-xs mb-3" style={{ color: "#a855f7", letterSpacing: "0.1em" }}>NEW REGISTRATIONS (LAST 14 DAYS)</div>
+                  <div className="space-y-1">
+                    {(ecoDash.registrationsPerDay ?? []).map((d: any) => (
+                      <div key={d._id} className="flex items-center gap-3">
+                        <span className="font-mono text-xs" style={{ color: "#64748b", minWidth: 90 }}>{d._id}</span>
+                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "#1e293b" }}>
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${Math.min(100, (d.count / Math.max(...(ecoDash.registrationsPerDay ?? []).map((x: any) => x.count), 1)) * 100)}%`,
+                              background: "#a855f7",
+                            }}
+                          />
+                        </div>
+                        <span className="font-mono text-xs font-bold" style={{ color: "#a855f7", minWidth: 30 }}>{d.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
     </div>
   );

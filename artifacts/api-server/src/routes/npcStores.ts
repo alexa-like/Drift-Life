@@ -267,6 +267,23 @@ router.post("/:storeId/buy", requireAuth, async (req: AuthRequest, res: Response
           basePrice: listing.price,
         });
       }
+
+      // Onboarding stage 1→2: buying any vehicle advances the player to stage 2
+      if (realType === "vehicle") {
+        const buyerFull = await User.findById(req.userId).select("onboardingStage username");
+        if (buyerFull && (buyerFull.onboardingStage ?? 0) === 1) {
+          User.findOneAndUpdate(
+            { _id: req.userId, onboardingStage: 1 },
+            { $set: { onboardingStage: 2 }, $inc: { dc: 500 } },
+          ).catch(() => {});
+          import("../lib/notifyUser").then(({ notifyUser }) =>
+            notifyUser({ userId: String(req.userId), type: "achievements", message: "Wheels acquired! 500 DC bonus. Now find a job — steady income matters." })
+          ).catch(() => {});
+          import("../lib/economyLog").then(({ logEconomy }) =>
+            logEconomy("dc_in", 500, "onboarding_stage2_reward", { userId: String(req.userId), username: buyerFull.username })
+          ).catch(() => {});
+        }
+      }
     } else {
       // Add to arena inventory (PlayerMiniGameInventory)
       const itemDef = await MiniGameItem.findOne({ itemId: listing.itemId }).lean();

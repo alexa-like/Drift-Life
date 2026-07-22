@@ -33,6 +33,8 @@ import Item from "../models/Item";
 import { getGameConfig } from "../lib/gameConfig";
 import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
 import { awardBattlePassXp } from "../lib/battlePassXp";
+import { checkOnboardingProgression } from "../lib/onboardingHelper";
+import { logEconomy } from "../lib/economyLog";
 import { updateQuestProgress } from "../lib/questProgress";
 import { checkMentorLevelBonus } from "../lib/mentorBonus";
 
@@ -503,9 +505,10 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
       gated.heatDecayAt = new Date();
       gated.wantedLevel = Math.min(5, gated.wantedLevel + run.wantedIncrease);
       gated.wantedDecayAt = new Date();
-      // Onboarding: first run unlocks stage 1
-      if (gated.onboardingStage === 0 && gated.successfulCrimes >= 2) {
+      // Onboarding stage 0→1: first successful crime → grant 1,000 DC starter bonus
+      if (gated.onboardingStage === 0 && gated.successfulCrimes >= 1) {
         gated.onboardingStage = 1;
+        dcGained += 1000; // 1,000 DC starter grant included in the atomic DC update below
       }
       narrative = run.flavour;
     } else {
@@ -598,7 +601,13 @@ router.post("/:runId/commit", requireAuth, async (req: AuthRequest, res) => {
     }
 
     if (leveled) {
-      checkMentorLevelBonus(String(req.userId), (rewarded.level ?? 1) - 1, rewarded.level ?? 1).catch(() => {});
+      const prevLvl = (rewarded.level ?? 1) - 1;
+      const newLvl  = rewarded.level ?? 1;
+      checkMentorLevelBonus(String(req.userId), prevLvl, newLvl).catch(() => {});
+      checkOnboardingProgression(String(req.userId), prevLvl, newLvl).catch(() => {});
+    }
+    if (success && dcGained > 0) {
+      logEconomy("dc_in", dcGained, "crime_reward", { userId: String(req.userId), username: rewarded.username });
     }
     if (success) {
       awardEventPoints({ userId: String(req.userId), username: rewarded.username, action: "crime_success", io: req.app.locals["io"] }).catch(() => {});

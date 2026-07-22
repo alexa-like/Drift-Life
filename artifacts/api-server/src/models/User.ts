@@ -131,6 +131,7 @@ export interface IUser extends Document {
   referralCode: string;
   referredBy: string | null;
   referralCount: number;
+  referralRewardsClaimed: number;
   jobCooldowns: Record<string, Date>;
   pendingMinigame: { token: string; jobId: string; expiresAt: Date } | null;
   lastNpcCombatAt: Date | null;
@@ -408,6 +409,7 @@ const UserSchema = new Schema<IUser>(
     referralCode: { type: String, unique: true, sparse: true },
     referredBy: { type: String, default: null },
     referralCount: { type: Number, default: 0 },
+    referralRewardsClaimed: { type: Number, default: 0 },
     jobCooldowns: { type: Map, of: Date, default: {} },
     pendingMinigame: {
       type: new Schema(

@@ -64,6 +64,7 @@ import { DevToolbar } from "./components/DevToolbar";
 import { PlayerInspectModal } from "./components/PlayerInspectModal";
 import { OfflineOverlay } from "./components/OfflineOverlay";
 import { PlayerVantaPanel } from "./components/PlayerVantaPanel";
+import OnboardingModal from "./components/OnboardingModal";
 import { SocketProvider, useSocket } from "./context/SocketContext";
 import { api } from "./lib/api";
 import { Notification } from "./lib/types";
@@ -400,6 +401,15 @@ function GameApp() {
           </PageTransition>
         </main>
         <ToastContainer toasts={toasts} removeToast={removeToast} />
+        {/* 12.1: Tutorial / Onboarding Modal */}
+        {(user!.onboardingStage ?? 0) < 4 && (
+          <OnboardingModal
+            user={user!}
+            onNav={navTo}
+            refreshUser={refreshUser}
+            addToast={addToast}
+          />
+        )}
         {/* 11.4: Player Vanta Tutor — floating help button for all players */}
         <PlayerVantaPanel user={user!} addToast={addToast} />
         {user!.devMode && (

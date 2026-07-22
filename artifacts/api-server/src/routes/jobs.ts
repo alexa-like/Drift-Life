@@ -159,8 +159,32 @@ router.post("/:jobId/work", requireAuth, async (req: AuthRequest, res) => {
 
     const leveled = levelUp(rewarded);
     if (leveled) {
-      checkMentorLevelBonus(String(req.userId), (rewarded.level ?? 1) - 1, rewarded.level ?? 1).catch(() => {});
+      const prevLvl = (rewarded.level ?? 1) - 1;
+      const newLvl  = rewarded.level ?? 1;
+      checkMentorLevelBonus(String(req.userId), prevLvl, newLvl).catch(() => {});
+      import("../lib/onboardingHelper").then(({ checkOnboardingProgression }) =>
+        checkOnboardingProgression(String(req.userId), prevLvl, newLvl)
+      ).catch(() => {});
     }
+
+    // Onboarding stage 2→3: completing first job advances stage
+    if ((gated.onboardingStage ?? 0) === 2) {
+      User.findOneAndUpdate(
+        { _id: gated._id, onboardingStage: 2 },
+        { $set: { onboardingStage: 3 }, $inc: { dc: 500 } },
+      ).catch(() => {});
+      import("../lib/notifyUser").then(({ notifyUser }) =>
+        notifyUser({ userId: String(req.userId), type: "achievements", message: "First paycheck! 500 DC bonus. Keep at it — reach level 5 to fully unlock the city." })
+      ).catch(() => {});
+      import("../lib/economyLog").then(({ logEconomy }) =>
+        logEconomy("dc_in", 500, "onboarding_stage3_reward", { userId: String(req.userId), username: rewarded.username })
+      ).catch(() => {});
+    }
+
+    // Economy log for job reward
+    import("../lib/economyLog").then(({ logEconomy }) =>
+      logEconomy("dc_in", dcGained, "job_reward", { userId: String(req.userId), username: rewarded.username })
+    ).catch(() => {});
 
     // Server-issued minigame session — bonus completion must present this exact
     // token; the client can never just POST an arbitrary multiplier for free DC.

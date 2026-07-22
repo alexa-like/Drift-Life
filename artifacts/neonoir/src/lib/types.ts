@@ -101,6 +101,7 @@ export interface User {
   blockedUsers: string[];
   following: string[];
   referralCode: string;
+  referralRewardsClaimed?: number;
   createdAt: string;
   alterEgoName: string | null;
   implants?: Array<{ id: string; name: string; slot: string; installedAt: string }>;

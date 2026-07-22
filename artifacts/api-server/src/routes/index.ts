@@ -64,6 +64,7 @@ import seasonsRouter from "./seasons";
 import hackingRouter from "./hacking";
 import mentorRouter from "./mentor";
 import playerVantaRouter from "./player-vanta";
+import referralRouter from "./referral";
 
 const router: IRouter = Router();
 
@@ -132,6 +133,7 @@ router.use("/seasons", seasonsRouter);
 router.use("/hack", hackingRouter);
 router.use("/mentor", mentorRouter);
 router.use("/player-vanta", playerVantaRouter);
+router.use("/referral", referralRouter);
 router.use("/owner/battle-pass", ownerBattlePassRouter);
 
 export default router;

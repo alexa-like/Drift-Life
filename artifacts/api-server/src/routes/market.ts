@@ -168,6 +168,21 @@ router.post("/shop/buy", requireAuth, validateBody(marketShopBuySchema), async (
     }
 
     await user.save();
+
+    // Onboarding stage 1→2: buying any vehicle advances the player to stage 2
+    if (shopItem.type === "vehicle" && (user.onboardingStage ?? 0) === 1) {
+      User.findOneAndUpdate(
+        { _id: user._id, onboardingStage: 1 },
+        { $set: { onboardingStage: 2 }, $inc: { dc: 500 } },
+      ).catch(() => {});
+      import("../lib/notifyUser").then(({ notifyUser }) =>
+        notifyUser({ userId: String(user._id), type: "achievements", message: "Wheels acquired! 500 DC bonus. Now find a job — steady income matters." })
+      ).catch(() => {});
+      import("../lib/economyLog").then(({ logEconomy }) =>
+        logEconomy("dc_in", 500, "onboarding_stage2_reward", { userId: String(user._id), username: user.username })
+      ).catch(() => {});
+    }
+
     res.json({ message: `Purchased ${qty > 1 ? `${qty}x ` : ""}${shopItem.name}`, dc: user.dc });
   } catch (err: any) {
     req.log.error({ err }, "shop buy error");

@@ -95,6 +95,7 @@ export function safeUser(user: InstanceType<typeof User>) {
     blockedUsers: user.blockedUsers || [],
     following: user.following || [],
     referralCode: user.referralCode,
+    referralRewardsClaimed: (user as any).referralRewardsClaimed ?? 0,
     createdAt: user.createdAt,
     onboardingStage: user.onboardingStage ?? 0,
     // ── Monetization ───────────────────────────────────────────────────────
@@ -220,16 +221,12 @@ router.post("/register", async (req, res) => {
       }
     } catch { /* non-fatal — defaults are optional */ }
 
-    // Referral bonus
+    // Referral link — increment referrer's count now; reward fires at level 5 (not at signup)
     if (referralCode) {
-      const referrer = await User.findOne({ referralCode });
-      if (referrer) {
-        referrer.dc += 500;
-        referrer.xp += 200;
-        levelUp(referrer);
-        referrer.referralCount += 1;
-        await referrer.save();
-      }
+      User.findOneAndUpdate(
+        { referralCode },
+        { $inc: { referralCount: 1 } },
+      ).catch(() => {});
     }
 
     let autoVerified = false;

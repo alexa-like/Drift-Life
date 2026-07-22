@@ -665,4 +665,20 @@ router.post("/badges/unpin", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/user/skip-onboarding — skip tutorial entirely (advances to stage 4, no rewards)
+router.post("/skip-onboarding", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const updated = await User.findOneAndUpdate(
+      { _id: req.userId, onboardingStage: { $lt: 4 } },
+      { $set: { onboardingStage: 4 } },
+      { returnDocument: "after" },
+    );
+    if (!updated) return res.json({ message: "Already at full access" });
+    res.json({ message: "Skipped tutorial", onboardingStage: 4 });
+  } catch (err: any) {
+    req.log.error({ err }, "skip-onboarding error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export default router;
