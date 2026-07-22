@@ -474,7 +474,7 @@ export function LeaderboardPage({ onNavigate }: { onNavigate?: (page: string) =>
                         fontSize: i === 0 ? 18 : 14, color: medalColor,
                       }}>
                         {(entry as any).avatarUrl
-                          ? <img src={(entry as any).avatarUrl} alt={entry.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ? <img src={(entry as any).avatarUrl} alt={entry.username} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           : entry.username.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -531,7 +531,7 @@ export function LeaderboardPage({ onNavigate }: { onNavigate?: (page: string) =>
                       fontSize: 11, color: fc,
                     }}>
                       {(entry as any).avatarUrl
-                        ? <img src={(entry as any).avatarUrl} alt={entry.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        ? <img src={(entry as any).avatarUrl} alt={entry.username} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         : entry.username.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">

@@ -33,6 +33,7 @@ router.get("/", async (req: AuthRequest, res) => {
       };
     });
 
+    res.setHeader("Cache-Control", "public, max-age=30");
     res.json(items);
   } catch (err: any) {
     req.log.error({ err }, "cosmetics GET error");

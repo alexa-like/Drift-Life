@@ -285,7 +285,7 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
             justifyContent: "center", fontSize: 24, overflow: "hidden",
           }}>
             {user.avatarUrl
-              ? <img src={user.avatarUrl} alt={user.username} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
+              ? <img src={user.avatarUrl} alt={user.username} loading="lazy" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
               : user.username.charAt(0).toUpperCase()}
           </div>
 

@@ -12,6 +12,7 @@ import { logger } from "../lib/logger";
 import { postToSystemFeed } from "../lib/systemFeed";
 import { sendPushToUser } from "../lib/sendPushToUser";
 import { notifyTelegram } from "../lib/telegram";
+import { logEconomy } from "../lib/economyLog";
 
 const router = Router();
 
@@ -260,6 +261,9 @@ router.post("/:id/bid", requireAuth, validateBody(auctionBidSchema), async (req:
       { returnDocument: 'after' },
     );
     if (!bidder) return res.status(400).json({ message: "Not enough DC" });
+
+    // Log DC spent on bid
+    logEconomy("dc_out", amount, "auction_bid", { userId: String(req.userId), username: bidder.username });
 
     const previousBidderId = listing.currentBidderId;
     const previousBid = listing.currentBid;

@@ -8,7 +8,6 @@
 
 export * from './adjustPlayerDcBody';
 export * from './adjustPlayerNcBody';
-export * from './attackPlayerBody';
 export * from './authResponse';
 export * from './avatarInput';
 export * from './avatarResponse';

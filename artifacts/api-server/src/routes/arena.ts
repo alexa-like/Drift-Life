@@ -24,6 +24,7 @@ import { awardBattlePassXp } from "../lib/battlePassXp";
 import { updateQuestProgress } from "../lib/questProgress";
 import { checkMentorLevelBonus } from "../lib/mentorBonus";
 import { claimBounty } from "./bounties";
+import { logEconomy } from "../lib/economyLog";
 
 const router = Router();
 
@@ -1681,6 +1682,11 @@ async function grantCombatRewards(match: any) {
       }
     }
     await u.save();
+
+    // Log DC earned to economy log (fire-and-forget)
+    if (dcEarned > 0) {
+      logEconomy("dc_in", dcEarned, "arena_reward", { userId, username: u.username });
+    }
 
     // ── Win-streak milestone feed posts ──────────────────────────────────────
     if (isWinner) {

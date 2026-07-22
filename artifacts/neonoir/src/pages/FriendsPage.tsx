@@ -111,7 +111,7 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
           style={{ width: 38, height: 38, background: "#0a0a0f", border: `2px solid ${fc}` }}
         >
           {f.avatarUrl
-            ? <img src={f.avatarUrl} alt="" className="w-full h-full object-cover" />
+            ? <img src={f.avatarUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
             : <span className="font-mono font-bold text-sm" style={{ color: fc }}>
                 {f.username.slice(0, 2).toUpperCase()}
               </span>}
@@ -224,7 +224,7 @@ export function FriendsPage({ user, addToast, onInspectPlayer }: Props) {
                     style={{ width: 38, height: 38, background: "#0a0a0f", border: `2px solid ${fc}` }}
                   >
                     {f.avatarUrl
-                      ? <img src={f.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      ? <img src={f.avatarUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
                       : <span className="font-mono font-bold text-sm" style={{ color: fc }}>
                           {f.username.slice(0, 2).toUpperCase()}
                         </span>}
