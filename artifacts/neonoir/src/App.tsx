@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PreferencesProvider, usePreferences } from "./context/PreferencesContext";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
@@ -19,6 +19,12 @@ import OnboardingModal from "./components/OnboardingModal";
 import { SocketProvider, useSocket } from "./context/SocketContext";
 import { api } from "./lib/api";
 import { Notification } from "./lib/types";
+import {
+  isPushSupported,
+  getPushPermission,
+  getSubscriptionStatus,
+  subscribeToPush,
+} from "./lib/pushNotifications";
 
 // ── 13.5 Performance: Lazy-load all page modules ─────────────────────────────
 // Named exports need the .then(m => ({ default: m.X })) pattern
@@ -219,6 +225,25 @@ function GameApp() {
   useEffect(() => {
     document.documentElement.style.setProperty("--nav-h", `${navHeight}px`);
   }, [navHeight]);
+
+  // Auto-prompt for push notifications on first login.
+  // Only fires once per session when the user object first appears.
+  // Skips silently if: push unsupported, permission already decided, or already subscribed.
+  const pushAttempted = useRef(false);
+  useEffect(() => {
+    if (!user || pushAttempted.current) return;
+    if (!isPushSupported()) return;
+    if (getPushPermission() !== "default") return; // already granted or denied — don't re-prompt
+    pushAttempted.current = true;
+    // Short delay so the page finishes rendering before the browser dialog appears.
+    const t = setTimeout(async () => {
+      const alreadySubscribed = await getSubscriptionStatus();
+      if (!alreadySubscribed) {
+        await subscribeToPush();
+      }
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [user]);
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
   const [shopStoreId, setShopStoreId] = useState<string | null>(null);
   const [tradeWithPlayer, setTradeWithPlayer] = useState<{ id: string; username: string } | null>(null);
