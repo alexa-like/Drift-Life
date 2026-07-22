@@ -67,7 +67,7 @@ export function AuthPage({ onLogin }: Props) {
   const isSuccess = error.includes("sent");
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center p-4 relative overflow-hidden" style={{ background: "#050505" }}>
+    <div className="flex items-center justify-center p-4 relative overflow-hidden" style={{ minHeight: "calc(100dvh / var(--dl-scale, 1))", background: "var(--dl-bg, #08080c)" }}>
       <div className="dl-page-bg bg-terminal" />
       
       {/* 3D Perspective Grid Background */}

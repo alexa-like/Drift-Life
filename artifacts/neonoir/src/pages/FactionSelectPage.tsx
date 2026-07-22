@@ -74,7 +74,7 @@ export function FactionSelectPage({ onComplete, addToast }: Props) {
   if (confirming && selected) {
     const faction = FACTIONS.find(f => f.id === selected)!;
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center px-4 relative overflow-hidden" style={{ background: "#050505" }}>
+      <div className="flex items-center justify-center px-4 relative overflow-hidden" style={{ minHeight: "calc(100dvh / var(--dl-scale, 1))", background: "var(--dl-bg, #08080c)" }}>
         <div className="dl-page-bg bg-faction" />
         <div className="scanlines absolute inset-0 pointer-events-none" />
         
@@ -123,7 +123,7 @@ export function FactionSelectPage({ onComplete, addToast }: Props) {
   }
 
   return (
-    <div className="min-h-[100dvh] py-12 px-4 relative overflow-hidden" style={{ background: "#050505" }}>
+    <div className="py-12 px-4 relative overflow-hidden" style={{ minHeight: "calc(100dvh / var(--dl-scale, 1))", background: "var(--dl-bg, #08080c)" }}>
       <div className="dl-page-bg bg-faction" />
       <div className="scanlines absolute inset-0 pointer-events-none opacity-50" />
       

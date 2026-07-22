@@ -910,7 +910,7 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
   return (
     <div
       className="max-w-4xl mx-auto flex flex-col clip-card border border-[#1e1e2e] bg-[#08080c] relative overflow-hidden z-10"
-      style={{ height: "calc(100dvh - var(--nav-h, 210px) - var(--btm-h, 80px) - 8px)" }}
+      style={{ height: "calc(100dvh / var(--dl-scale, 1) - var(--nav-h, 210px) - var(--btm-h, 80px))" }}
     >
       <div className="dl-page-bg bg-terminal" />
       <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />

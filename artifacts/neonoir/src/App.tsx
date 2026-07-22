@@ -278,7 +278,7 @@ function GameApp() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-terminal relative overflow-hidden" style={{ background: "#05050a" }}>
+      <div className="flex items-center justify-center bg-terminal relative overflow-hidden" style={{ minHeight: "calc(100dvh / var(--dl-scale, 1))", background: "var(--dl-bg, #08080c)" }}>
         <div className="scanlines absolute inset-0 pointer-events-none" />
         <div className="absolute inset-0 pointer-events-none opacity-20 data-stream" />
         
