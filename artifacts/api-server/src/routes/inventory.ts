@@ -339,17 +339,25 @@ router.post("/buy-loadout-slot", requireAuth, async (req: AuthRequest, res) => {
 
     const ncCost = 300 * (currentSlots + 1); // 300, 600, 900
 
+    // Single conditional update — enforces BOTH affordability AND the 3-slot
+    // cap atomically, so concurrent requests cannot push slots past 3.
     const updated = await User.findOneAndUpdate(
-      { _id: req.userId, nc: { $gte: ncCost } },
+      { _id: req.userId, nc: { $gte: ncCost }, purchasedLoadoutSlots: { $lt: 3 } },
       { $inc: { nc: -ncCost, purchasedLoadoutSlots: 1 } },
       { returnDocument: "after" },
     );
-    if (!updated)
+    if (!updated) {
+      // Re-fetch to distinguish "not enough NC" from "cap already hit"
+      const fresh = await User.findById(req.userId).select("nc purchasedLoadoutSlots").lean();
+      const slots  = (fresh as any)?.purchasedLoadoutSlots ?? 0;
+      if (slots >= 3)
+        return res.status(400).json({ message: "Maximum 3 additional loadout slots already purchased" });
       return res.status(400).json({
         message: `Not enough NC — slot costs ${ncCost} NC`,
         notEnoughNc: true,
         ncRequired: ncCost,
       });
+    }
 
     const newSlots = (updated as any).purchasedLoadoutSlots ?? 0;
     res.json({

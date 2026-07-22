@@ -1332,16 +1332,18 @@ router.post("/:id/upgrade", requireAuth, async (req: AuthRequest, res) => {
         .json({ message: `Insufficient DC — need ${amount.toLocaleString()} DC` });
 
     // Step 2: atomically increment progress on the business document.
-    // Using $inc prevents last-write-wins corruption under concurrent requests.
+    // The `tier: { $lt: TIER_MAX }` condition prevents charging DC into a
+    // business that reached max tier concurrently (race between pre-check and
+    // this write). If the update returns null the DC is refunded immediately.
     const updatedBiz = await Business.findOneAndUpdate(
-      { _id: req.params.id },
+      { _id: req.params.id, tier: { $lt: TIER_MAX } },
       { $inc: { upgradeProgress: amount } },
       { returnDocument: "after" },
     );
     if (!updatedBiz) {
-      // Extremely unlikely; refund DC and bail
+      // Either the business hit TIER_MAX concurrently, or it was deleted.
       await User.updateOne({ _id: req.userId }, { $inc: { dc: amount } });
-      return res.status(500).json({ message: "Business not found after DC deduction" });
+      return res.status(400).json({ message: "Business is already at maximum tier" });
     }
 
     const newProgress  = (updatedBiz as any).upgradeProgress as number;
