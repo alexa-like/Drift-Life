@@ -24,6 +24,7 @@ import {
   getPushPermission,
   getSubscriptionStatus,
   subscribeToPush,
+  isWebView,
 } from "./lib/pushNotifications";
 
 // ── 13.5 Performance: Lazy-load all page modules ─────────────────────────────
@@ -228,10 +229,11 @@ function GameApp() {
 
   // Auto-prompt for push notifications on first login.
   // Only fires once per session when the user object first appears.
-  // Skips silently if: push unsupported, permission already decided, or already subscribed.
+  // Skips silently if: WebView wrapper, push unsupported, permission already decided, or already subscribed.
   const pushAttempted = useRef(false);
   useEffect(() => {
     if (!user || pushAttempted.current) return;
+    if (isWebView()) return;          // WebViews don't support PushManager — never prompt
     if (!isPushSupported()) return;
     if (getPushPermission() !== "default") return; // already granted or denied — don't re-prompt
     pushAttempted.current = true;

@@ -7,6 +7,7 @@ import {
   getSubscriptionStatus,
   subscribeToPush,
   unsubscribeFromPush,
+  isWebView,
 } from "../lib/pushNotifications";
 import { CyberButton } from "../components/CyberButton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
@@ -713,10 +714,12 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
               )}
             </div>
             <div className="font-mono mb-3" style={{ color: "#64748b", fontSize: 11 }}>
-              {!pushSupported
-                ? "Not supported in this browser. Install the app on Android/iOS for push support."
+              {isWebView()
+                ? "Push notifications are not available inside webtoapp / WebView wrappers. Open Neonoir in Chrome or Safari, or install it as a PWA (Add to Home Screen) for full push support."
+                : !pushSupported
+                ? "Not supported in this browser. Open Neonoir in Chrome or Safari, or install it as a PWA for push support."
                 : pushPermission === "denied"
-                ? "Blocked — open browser settings and allow notifications for this site."
+                ? "Blocked — open your browser's site settings and allow notifications for this site."
                 : pushSubscribed
                 ? "You'll receive notifications even when the app is closed or minimized."
                 : "Get notified about DMs, combat results, crimes, and more — even when Neonoir is closed."}
@@ -732,12 +735,20 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
                 {pushSubscribed ? "🔕 Disable Push Notifications" : "🔔 Enable Push Notifications"}
               </CyberButton>
             )}
-            {pushPermission === "denied" && (
+            {!isWebView() && pushPermission === "denied" && (
               <div
                 className="font-mono text-xs px-3 py-2 rounded"
                 style={{ background: "#ff6b3518", border: "1px solid #ff6b3540", color: "#ff6b35" }}
               >
                 ⚠ Notifications blocked. Go to your browser's site settings to re-enable them.
+              </div>
+            )}
+            {isWebView() && (
+              <div
+                className="font-mono text-xs px-3 py-2 rounded"
+                style={{ background: "#a855f718", border: "1px solid #a855f740", color: "#a855f7" }}
+              >
+                💡 For push notifications, open Neonoir in your browser and use "Add to Home Screen" to install it as a PWA — or visit the game URL directly in Chrome.
               </div>
             )}
           </div>
