@@ -16,7 +16,7 @@ Read `NEONOIR_MASTER_PLAN.md` in full before touching any file. Every rule in th
 ---
 
 ## ⭐ TIER 1 — BATTLE PASS CREATION SYSTEM
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 Read `NEONOIR_MASTER_PLAN.md` in full before touching anything. Follow every permanent rule.
 
