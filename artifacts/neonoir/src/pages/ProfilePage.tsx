@@ -158,6 +158,25 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
     }
   }, [activeTab]);
 
+  // 12.3 — Referral stats
+  const [referralStats, setReferralStats] = useState<{
+    referralCode: string;
+    referralLink: string;
+    totalSignups: number;
+    reachedLevel5: number;
+    pendingRewards: number;
+  } | null>(null);
+
+  useEffect(() => {
+    api.get<{
+      referralCode: string;
+      referralLink: string;
+      totalSignups: number;
+      reachedLevel5: number;
+      pendingRewards: number;
+    }>("/referral").then(setReferralStats).catch(() => {});
+  }, []);
+
   // Load reset status on mount
   useEffect(() => {
     api.get<{ hasOffer: boolean; offerExpiresAt: string | null; lastSeasonResetAt: string | null }>(
@@ -575,14 +594,41 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
               </div>
             </div>
 
-            {/* Referral */}
-            <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderLeft: "3px solid #2A2A3A", borderRadius: 8, padding: 20 }}>
-              <CyberSectionHeader title="REFERRAL CODE" accent="#39d353" size="sm" className="mb-2" />
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm" style={{ color: "#00d4ff", letterSpacing: "0.15em" }}>{user.referralCode}</span>
-                <CyberButton size="sm" variant="ghost" onClick={() => { navigator.clipboard?.writeText(user.referralCode); addToast("Copied!", "success"); }}>Copy</CyberButton>
+            {/* 12.3 — Referral */}
+            <div style={{ background: "#111118", border: "1px solid #1e1e2e", borderLeft: "3px solid #39d353", borderRadius: 8, padding: 20 }}>
+              <CyberSectionHeader title="REFERRAL" accent="#39d353" size="sm" className="mb-3" />
+              {/* Code + link */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-mono text-sm font-bold" style={{ color: "#00d4ff", letterSpacing: "0.15em" }}>
+                  {referralStats?.referralCode ?? user.referralCode}
+                </span>
+                <CyberButton size="sm" variant="ghost" onClick={() => {
+                  const link = referralStats?.referralLink ?? `https://neonoir.app/register?ref=${user.referralCode}`;
+                  navigator.clipboard?.writeText(link);
+                  addToast("Referral link copied!", "success");
+                }}>Copy Link</CyberButton>
               </div>
-              <p className="font-mono mt-1" style={{ fontSize: 10, color: "#64748b" }}>Earn 500 DC + 200 XP per successful referral</p>
+              <p className="font-mono mb-3" style={{ fontSize: 10, color: "#64748b", wordBreak: "break-all" }}>
+                {referralStats?.referralLink ?? `https://neonoir.app/register?ref=${user.referralCode}`}
+              </p>
+              {/* Stats */}
+              {referralStats && (
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "SIGNUPS", value: referralStats.totalSignups, color: "#f59e0b" },
+                    { label: "ACTIVE (LV5+)", value: referralStats.reachedLevel5, color: "#39d353" },
+                    { label: "PENDING", value: referralStats.pendingRewards, color: "#a855f7" },
+                  ].map(s => (
+                    <div key={s.label} style={{ textAlign: "center", background: "#0a0a0f", borderRadius: 6, padding: "8px 4px", border: "1px solid #1e293b" }}>
+                      <div className="font-mono font-bold text-sm" style={{ color: s.color }}>{s.value}</div>
+                      <div className="font-mono mt-1" style={{ fontSize: 9, color: "#64748b", letterSpacing: "0.05em" }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="font-mono mt-3" style={{ fontSize: 10, color: "#64748b" }}>
+                Earn 500 NC (first referral) or 300 NC per active player you bring in.
+              </p>
             </div>
           </>
         )}

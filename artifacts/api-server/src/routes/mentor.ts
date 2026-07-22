@@ -139,7 +139,7 @@ router.post("/request/:mentorId", requireAuth, async (req: AuthRequest, res) => 
     }
 
     await notifyUser({
-      userId: mentorId,
+      userId: String(mentorId),
       type: "general",
       message: `${requester.username} (Level ${requester.level}) is requesting you as their mentor. Accept in the Mentor panel.`,
       link: "/mentor",
@@ -183,7 +183,7 @@ router.post("/accept/:menteeId", requireAuth, async (req: AuthRequest, res) => {
     ]);
 
     await notifyUser({
-      userId: menteeId,
+      userId: String(menteeId),
       type: "general",
       message: `${mentor.username} accepted you as their mentee! You both now earn +15% battle pass XP on all actions.`,
       link: "/mentor",

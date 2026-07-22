@@ -17,7 +17,7 @@ export function logEconomy(
     type,
     amount,
     source,
-    userId:   opts?.userId   ?? null,
-    username: opts?.username ?? null,
+    userId:   opts?.userId   ?? undefined,
+    username: opts?.username ?? undefined,
   }).catch(() => {/* non-fatal */});
 }

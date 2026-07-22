@@ -493,6 +493,13 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   useEffect(() => { if (tab === "activity") { loadRecentFeed(); loadAuditLog(); } }, [tab, loadRecentFeed, loadAuditLog]);
   useEffect(() => { if (tab === "patch-notes") loadPatchNotes(); }, [tab, loadPatchNotes]);
   useEffect(() => { if (tab === "items") loadShopItems(); }, [tab, loadShopItems]);
+  // 12.2 — Economy dashboard auto-refresh every 60 seconds while tab is active
+  useEffect(() => {
+    if (tab !== "eco-dash") return;
+    if (!ecoDash) loadEcoDash();
+    const interval = setInterval(loadEcoDash, 60_000);
+    return () => clearInterval(interval);
+  }, [tab]); // eslint-disable-line
   useEffect(() => {
     if (tab !== "vanta-ai") return;
     // Load AI model list on first visit

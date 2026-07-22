@@ -275,6 +275,25 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
   const [sending,  setSending]  = useState(false);
   const [saving,   setSaving]   = useState(false);
 
+  // 12.3 — Referral stats
+  const [referralStats, setReferralStats] = useState<{
+    referralCode: string;
+    referralLink: string;
+    totalSignups: number;
+    reachedLevel5: number;
+    pendingRewards: number;
+  } | null>(null);
+
+  useEffect(() => {
+    api.get<{
+      referralCode: string;
+      referralLink: string;
+      totalSignups: number;
+      reachedLevel5: number;
+      pendingRewards: number;
+    }>("/referral").then(setReferralStats).catch(() => {});
+  }, []);
+
   const [appearOffline, setAppearOffline] = useState(user.appearOffline ?? false);
   const [dmPrivacy,     setDmPrivacy]     = useState<"anyone"|"nobody">(user.dmPrivacy ?? "anyone");
   const [liteMode,      setLiteMode]      = useState(user.liteModeEnabled ?? false);
@@ -557,31 +576,69 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
 
       {/* Account */}
       {tab === "account" && (
-        <AnimatedCard accent="#00d4ff">
-          <div className="flex flex-col gap-3">
-            {[
-              { label: "Username",      value: user.username },
-              { label: "Tag",           value: user.tag || "N/A" },
-              { label: "Email",         value: user.email },
-              { label: "Role",          value: user.role },
-              { label: "Faction",       value: user.faction || "None" },
-              { label: "Referral Code", value: user.referralCode },
-              { label: "Member since",  value: new Date(user.createdAt).toLocaleDateString() },
-            ].map(f => (
-              <div
-                key={f.label}
-                className="flex justify-between items-center pb-2"
-                style={{ borderBottom: "1px solid #1e1e2e" }}
-              >
-                <span className="font-mono text-xs" style={{ color: "#64748b" }}>{f.label}</span>
-                <span className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{f.value}</span>
+        <>
+          <AnimatedCard accent="#00d4ff">
+            <div className="flex flex-col gap-3">
+              {[
+                { label: "Username",     value: user.username },
+                { label: "Tag",          value: user.tag || "N/A" },
+                { label: "Email",        value: user.email },
+                { label: "Role",         value: user.role },
+                { label: "Faction",      value: user.faction || "None" },
+                { label: "Member since", value: new Date(user.createdAt).toLocaleDateString() },
+              ].map(f => (
+                <div
+                  key={f.label}
+                  className="flex justify-between items-center pb-2"
+                  style={{ borderBottom: "1px solid #1e1e2e" }}
+                >
+                  <span className="font-mono text-xs" style={{ color: "#64748b" }}>{f.label}</span>
+                  <span className="font-mono text-xs" style={{ color: "#e2e8f0" }}>{f.value}</span>
+                </div>
+              ))}
+              <CyberButton variant="danger" size="sm" onClick={() => setLogoutConfirm(true)} className="mt-1">
+                Log Out
+              </CyberButton>
+            </div>
+          </AnimatedCard>
+
+          {/* 12.3 — Referral Section */}
+          <AnimatedCard accent="#39d353">
+            <div className="flex flex-col gap-3">
+              <CyberSectionHeader title="REFERRAL" accent="#39d353" size="sm" />
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm font-bold" style={{ color: "#00d4ff", letterSpacing: "0.15em" }}>
+                  {referralStats?.referralCode ?? user.referralCode}
+                </span>
+                <CyberButton size="sm" variant="ghost" onClick={() => {
+                  const link = referralStats?.referralLink ?? `https://neonoir.app/register?ref=${user.referralCode}`;
+                  navigator.clipboard?.writeText(link);
+                  addToast("Referral link copied!", "success");
+                }}>Copy Link</CyberButton>
               </div>
-            ))}
-            <CyberButton variant="danger" size="sm" onClick={() => setLogoutConfirm(true)} className="mt-1">
-              Log Out
-            </CyberButton>
-          </div>
-        </AnimatedCard>
+              <p className="font-mono" style={{ fontSize: 10, color: "#475569", wordBreak: "break-all" }}>
+                {referralStats?.referralLink ?? `https://neonoir.app/register?ref=${user.referralCode}`}
+              </p>
+              {referralStats && (
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  {[
+                    { label: "SIGNUPS", value: referralStats.totalSignups, color: "#f59e0b" },
+                    { label: "ACTIVE (LV5+)", value: referralStats.reachedLevel5, color: "#39d353" },
+                    { label: "PENDING", value: referralStats.pendingRewards, color: "#a855f7" },
+                  ].map(s => (
+                    <div key={s.label} style={{ textAlign: "center", background: "#0a0a0f", borderRadius: 6, padding: "8px 4px", border: "1px solid #1e293b" }}>
+                      <div className="font-mono font-bold text-sm" style={{ color: s.color }}>{s.value}</div>
+                      <div className="font-mono mt-1" style={{ fontSize: 9, color: "#64748b", letterSpacing: "0.05em" }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="font-mono" style={{ fontSize: 10, color: "#64748b" }}>
+                Earn 500 NC (first referral) or 300 NC when each person you invite reaches Level 5.
+              </p>
+            </div>
+          </AnimatedCard>
+        </>
       )}
 
       {logoutConfirm && (

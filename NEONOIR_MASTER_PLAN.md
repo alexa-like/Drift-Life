@@ -657,7 +657,7 @@ Create new `routes/player-vanta.ts`:
 ---
 
 ## TIER 12 — TUTORIAL / ONBOARDING + ECONOMY DASHBOARD + REFERRAL
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Make the game accessible to new players, give the owner visibility into the economy, and create a referral growth loop.
 
