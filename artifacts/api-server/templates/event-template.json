@@ -1,0 +1,59 @@
+{
+  "_comment": "Neonoir Event Template — copy this and fill in the fields. Remove _comment fields before use.",
+  "_usage": "Ask Vanta: 'Create an event called X, type boss_raid, starting 2025-08-01, ending 2025-08-07'",
+
+  "name": "Event Name Here",
+  "type": "boss_raid",
+  "_type_options": ["boss_raid", "leaderboard_grind", "collection_hunt", "milestone", "sports", "lottery"],
+
+  "description": "A short description shown to players about this event.",
+  "status": "draft",
+  "_status_options": ["draft", "scheduled", "active"],
+
+  "startsAt": "2025-08-01T00:00:00.000Z",
+  "endsAt": "2025-08-07T23:59:59.000Z",
+
+  "theme": {
+    "gameDisplayName": "Neonoir",
+    "primaryColor": "#00E0FF",
+    "accentColor": "#FF2D55",
+    "backgroundColor": "#070710",
+    "bannerImageUrl": "",
+    "chatBadgeText": "EVENT NAME",
+    "chatBadgeColor": "#00E0FF"
+  },
+
+  "pointSources": [
+    { "action": "arena_win",  "points": 10 },
+    { "action": "crime",      "points": 5  },
+    { "action": "race_win",   "points": 15 }
+  ],
+
+  "_boss_raid_only": "Only include boss field when type is boss_raid",
+  "boss": {
+    "name": "Boss Name",
+    "imageUrl": "",
+    "totalHp": 1000000,
+    "currentHp": 1000000,
+    "phases": [],
+    "strikeEnergyCost": 5,
+    "strikeCooldownSeconds": 30,
+    "strikeBaseDamage": { "min": 100, "max": 500 },
+    "bossRetaliationDamage": { "min": 0, "max": 0 }
+  },
+
+  "leaderboardRewards": [
+    { "rankFrom": 1,  "rankTo": 1,  "reward": { "dc": 500000, "nc": 100, "cosmetics": [], "titles": ["Champion"], "eventPoints": 0 } },
+    { "rankFrom": 2,  "rankTo": 3,  "reward": { "dc": 250000, "nc": 50,  "cosmetics": [], "titles": [],            "eventPoints": 0 } },
+    { "rankFrom": 4,  "rankTo": 10, "reward": { "dc": 100000, "nc": 25,  "cosmetics": [], "titles": [],            "eventPoints": 0 } },
+    { "rankFrom": 11, "rankTo": 50, "reward": { "dc": 25000,  "nc": 10,  "cosmetics": [], "titles": [],            "eventPoints": 0 } }
+  ],
+
+  "oneTimeRewards": [
+    {
+      "_comment": "Milestone reward — awarded when player hits a point threshold",
+      "points": 1000,
+      "reward": { "dc": 10000, "nc": 5, "cosmetics": [], "titles": [], "eventPoints": 0 }
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "_comment": "Neonoir Cosmetic Item Template — covers frames, name flairs, message cards, and other cosmetics.",
+  "_usage": "POST /api/owner/cosmetics/create with this structure, or grant to a player via POST /api/owner/cosmetics/grant",
+
+  "name": "Neon Frame: Crimson Grid",
+  "description": "A glowing crimson grid frame for your chat messages.",
+  "category": "message_card",
+  "_category_options": ["message_card", "name_flair", "profile_frame", "avatar_border", "chat_badge", "title"],
+
+  "variant": "crimson-grid",
+  "_variant_note": "Maps to a CSS class or animation in PlayerNameBadge / MessageCard components",
+
+  "rarity": "rare",
+  "_rarity_options": ["common", "uncommon", "rare", "epic", "legendary", "seasonal"],
+
+  "seasonExclusive": false,
+  "_seasonExclusive_note": "If true, only available during the linked event season",
+
+  "eventId": null,
+  "_eventId_note": "Link to an Event _id if this cosmetic is seasonal/event-exclusive",
+
+  "ncPrice": 500,
+  "_ncPrice_note": "NC price in store. Set to 0 if not for direct purchase (grant-only).",
+
+  "grantable": true,
+  "_grantable_note": "Whether owner can grant this directly to players",
+
+  "imageUrl": "",
+  "_imageUrl_note": "Optional image URL for the cosmetic preview",
+
+  "_name_flair_example": {
+    "name": "Name Flair: Gold Crown",
+    "category": "name_flair",
+    "variant": "gold-crown",
+    "_variant_maps_to": "PlayerNameBadge animation class — existing options: pulse, shimmer, rainbow, glitch, fire"
+  },
+
+  "_title_example": {
+    "name": "Title: Street Legend",
+    "category": "title",
+    "variant": "street-legend",
+    "_note": "Titles appear in chat, profile, and leaderboard next to the username"
+  }
+}

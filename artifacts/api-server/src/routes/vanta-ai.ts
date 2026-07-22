@@ -98,6 +98,11 @@ You have direct access to game systems and can:
 • Scan for suspicious player behavior
 • Check if specific game features are working
 • Generate precise fix prompts for the Replit development agent when you find code issues
+• CREATE EVENTS — use schedule_event(name, type, startsAt, endsAt) to create any event. Types: boss_raid, leaderboard_grind, collection_hunt, milestone, sports, lottery. Use get_event_calendar to list all events. Use modify_event to edit any field after creation.
+• VIEW & PLAN — use get_event_calendar or plan_year_of_events for the full event calendar.
+• END EVENTS — use end_event_early(eventId) to end any active event immediately.
+
+IDENTITY PROTOCOL: A SESSION block will be injected below telling you the owner's username. When asked who the owner is, always use that name. Never guess. Use get_player_info to look up the owner's full account details when asked.
 
 TOOL CALL FORMAT — CRITICAL:
 Always call tools using the proper API JSON format. NEVER output raw XML or angle-bracket tags such as <function_calls>, </function_calls>, <function>, </function>, <invoke>, or any similar markup. Those will cause errors. Only JSON-structured tool calls through the API.
@@ -531,7 +536,8 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
   try {
     switch (name) {
       case "get_player_info": {
-        const u = args["username"] as string;
+        const u = ((args["username"] as string | null | undefined) ?? "").trim();
+        if (!u) return "❌ username is required. Please specify the player's username to look up.";
         const user = await User.findOne({ username: new RegExp(`^${u.replace("#", "").split("#")[0]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") })
           .select("username tag email level xp dc nc bankBalance energy adrenaline nitro merit keys keyShards spinTokens dirtyDc sim health status role banned banReason jailedUntil hospitalizedUntil district currentLocation totalCrimes successfulCrimes totalFights wins losses totalRaces raceWins wantedLevel reputation createdAt lastLogin isGhostAccount");
         if (!user) return `❌ Player "${u}" not found.`;
@@ -825,7 +831,10 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
         const players = await User.find(query).sort({ lastLogin: -1 }).limit(limit).select("username level dc role banned status district createdAt lastLogin");
         if (!players.length) return `No players found (filter: ${filter}).`;
         const roleTag = (r: string) => r === "owner" ? "👑 OWNER" : r === "admin" ? "🛡 ADMIN" : r === "mod" ? "⚖ MOD" : r === "staff" ? "🔧 STAFF" : "PLAYER";
-        return players.map(p => `• ${p.username} [${roleTag(p.role)}] | Lv${p.level} | ${p.dc.toLocaleString()} DC | ${p.status} | ${p.district || "—"}`).join("\n");
+        return players
+          .filter(p => p.username != null)
+          .map(p => `• ${p.username} [${roleTag(p.role ?? "player")}] | Lv${p.level ?? 0} | ${(p.dc ?? 0).toLocaleString()} DC | ${p.status ?? "active"} | ${p.district || "—"}`)
+          .join("\n") || `No valid players found (filter: ${filter}).`;
       }
 
       // ── Tier 2: Event Engine ───────────────────────────────────────────────────
@@ -1389,21 +1398,23 @@ router.post("/chat", async (req: AuthRequest, res) => {
     }
 
     // Pre-compute owner IP exclusion list — accounts sharing the owner's IP are invisible to all scans
-    const ownerUser = await User.findById(req.userId).select("lastLoginIp").lean();
+    const ownerUser = await User.findById(req.userId).select("username lastLoginIp").lean();
     const ownerIp: string | null = (ownerUser as any)?.lastLoginIp ?? null;
+    const ownerUsername: string = (ownerUser as any)?.username ?? "owner";
     let ownerIpExcludeIds: string[] = [];
     if (ownerIp) {
       const sharedIpAccounts = await User.find({ lastLoginIp: ownerIp, _id: { $ne: req.userId } }).select("_id").lean();
       ownerIpExcludeIds = sharedIpAccounts.map(u => String(u._id));
     }
 
-    // 11.3 — Prepend context summary to system prompt so Vanta never forgets
+    // 11.3 — Prepend context summary + inject owner identity so Vanta never forgets who she serves
+    const ownerSessionCtx = `\n\n---\nSESSION: You are currently serving "${ownerUsername}" — this is the game owner's account. When asked who the owner is, the answer is "${ownerUsername}". Use get_player_info("${ownerUsername}") to pull their full account data when needed.\n---`;
     const effectiveSystemPrompt = session.contextSummary
-      ? `${VANTA_SYSTEM_PROMPT}\n\n---\nCONTEXT FROM EARLIER IN THIS CONVERSATION (auto-summarized):\n${session.contextSummary}\n---`
-      : VANTA_SYSTEM_PROMPT;
+      ? `${VANTA_SYSTEM_PROMPT}${ownerSessionCtx}\n\n---\nCONTEXT FROM EARLIER IN THIS CONVERSATION (auto-summarized):\n${session.contextSummary}\n---`
+      : VANTA_SYSTEM_PROMPT + ownerSessionCtx;
 
-    // Build Groq messages from session history (last 20 messages for context)
-    const historyMessages: GroqMessage[] = session.messages.slice(-20).map((m) => ({
+    // Build Groq messages from session history (last 8 messages — keeps token usage within Groq limits)
+    const historyMessages: GroqMessage[] = session.messages.slice(-8).map((m) => ({
       role: m.role as "user" | "assistant" | "tool",
       content: m.content,
       ...(m.toolCallId ? { tool_call_id: m.toolCallId } : {}),
@@ -1530,18 +1541,21 @@ router.post("/chat", async (req: AuthRequest, res) => {
 
         send({ type: "result", text: result.length > 300 ? result.slice(0, 300) + "..." : result, tool: toolName });
 
-        // Add tool result to messages
+        // Add tool result to messages — truncate to avoid Groq 413 / TPM limits
+        const resultForGroq = result.length > 600
+          ? result.slice(0, 600) + "\n…[truncated — ask a more specific question to see full details]"
+          : result;
         messages.push({
           role: "tool",
-          content: result,
+          content: resultForGroq,
           tool_call_id: toolCall.id,
           name: toolName,
         });
 
-        // Save to session
+        // Save to session (keep more for display purposes)
         session.messages.push({
           role: "tool",
-          content: result,
+          content: result.slice(0, 1500),
           toolCallId: toolCall.id,
           toolName,
           timestamp: new Date(),

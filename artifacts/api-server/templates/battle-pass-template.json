@@ -1,0 +1,56 @@
+{
+  "_comment": "Neonoir Battle Pass Template — one pass per active event/season.",
+  "_usage": "POST /api/owner/battle-pass/create with this structure (via Vanta or direct API call)",
+
+  "seasonName": "Season 1: Neon Uprising",
+  "eventId": "PASTE_EVENT_ID_HERE",
+
+  "premiumPrice": 999,
+  "_premiumPrice_note": "NC cost to unlock premium track",
+
+  "levels": [
+    {
+      "level": 1,
+      "xpRequired": 0,
+      "freeReward":    { "dc": 500,   "nc": 0,  "cosmetics": [],           "titles": [] },
+      "premiumReward": { "dc": 2000,  "nc": 5,  "cosmetics": [],           "titles": [] }
+    },
+    {
+      "level": 5,
+      "xpRequired": 4000,
+      "freeReward":    { "dc": 2500,  "nc": 0,  "cosmetics": [],           "titles": [] },
+      "premiumReward": { "dc": 10000, "nc": 15, "cosmetics": ["COSMETIC_ID"], "titles": [] }
+    },
+    {
+      "level": 10,
+      "xpRequired": 10000,
+      "freeReward":    { "dc": 5000,  "nc": 0,  "cosmetics": [],           "titles": ["Veteran"]   },
+      "premiumReward": { "dc": 25000, "nc": 30, "cosmetics": ["COSMETIC_ID"], "titles": ["Premium"]  }
+    },
+    {
+      "level": 25,
+      "xpRequired": 30000,
+      "freeReward":    { "dc": 15000, "nc": 0,  "cosmetics": [],           "titles": []            },
+      "premiumReward": { "dc": 75000, "nc": 75, "cosmetics": ["COSMETIC_ID"], "titles": ["Elite"]    }
+    },
+    {
+      "level": 50,
+      "xpRequired": 80000,
+      "freeReward":    { "dc": 50000,  "nc": 50,  "cosmetics": [],           "titles": ["Grinder"]   },
+      "premiumReward": { "dc": 250000, "nc": 250, "cosmetics": ["COSMETIC_ID"], "titles": ["Champion"]  }
+    }
+  ],
+
+  "_xp_sources": {
+    "arena_win":       15,
+    "crime_success":   5,
+    "race_win":        20,
+    "quest_complete":  50,
+    "daily_login":     10,
+    "boss_strike":     8,
+    "event_collect":   12
+  },
+
+  "hallOfFameEnabled": true,
+  "hallOfFameSize": 50
+}
