@@ -213,6 +213,12 @@ function GameApp() {
 
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [navHeight, setNavHeight] = useState(210);
+
+  // Publish nav height as a CSS variable so pages like ChatPage can size themselves correctly
+  // without hardcoding a pixel offset that breaks under zoom or scaling.
+  useEffect(() => {
+    document.documentElement.style.setProperty("--nav-h", `${navHeight}px`);
+  }, [navHeight]);
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
   const [shopStoreId, setShopStoreId] = useState<string | null>(null);
   const [tradeWithPlayer, setTradeWithPlayer] = useState<{ id: string; username: string } | null>(null);

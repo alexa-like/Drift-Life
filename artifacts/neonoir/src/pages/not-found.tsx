@@ -6,7 +6,7 @@ import { CyberSectionHeader } from "../components/CyberSectionHeader";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center relative z-10 p-4">
+    <div className="min-h-[100dvh] w-full flex items-center justify-center relative z-10 p-4">
       <div className="dl-page-bg bg-terminal" />
       <div className="scanlines absolute inset-0 pointer-events-none opacity-20 fixed" />
       

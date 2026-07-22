@@ -8,6 +8,11 @@
 
 /* ── Neonoir Design Tokens ── */
 :root {
+  /* Responsive offset for the bottom navigation bar.
+     Mobile (<768 px): BottomNav is visible → 80 px.
+     Desktop (≥768 px): only the main padding-bottom (pb-8 = 32 px) applies. */
+  --btm-h: 80px;
+
   /* Surfaces */
   --dl-bg:          #08080c;
   --dl-surface:     #111118;
@@ -47,6 +52,12 @@
   --event-primary: #00d4ff;
   --event-accent:  #ff2d55;
   --event-bg:      transparent;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --btm-h: 32px;
+  }
 }
 
 * {
