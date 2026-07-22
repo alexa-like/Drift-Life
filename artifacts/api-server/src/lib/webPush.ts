@@ -3,7 +3,7 @@ import { logger } from "./logger";
 
 const VAPID_PUBLIC_KEY  = process.env["VAPID_PUBLIC_KEY"]  ?? "_2eRihoiTaTu1K1mM6b0jHfTxkUNxc2gNRTlwNgm30g0ZeFWwtl7aldkeRaeGah4Ri60MGwnQKXrmCBP6-RC1w";
 const VAPID_PRIVATE_KEY = process.env["VAPID_PRIVATE_KEY"] ?? "BzWw_4iN5KbOY_c_aMF_V3ud7Zk3KlQmCpykf-g7O-E";
-const VAPID_SUBJECT     = "mailto:admin@neonoir.app";
+const VAPID_SUBJECT     = "mailto:admin@neonoir-wrsh.onrender.com";
 
 let _webPushReady = false;
 try {

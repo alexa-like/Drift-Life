@@ -603,13 +603,13 @@ export function ProfilePage({ user, refreshUser, addToast }: Props) {
                   {referralStats?.referralCode ?? user.referralCode}
                 </span>
                 <CyberButton size="sm" variant="ghost" onClick={() => {
-                  const link = referralStats?.referralLink ?? `https://neonoir.app/register?ref=${user.referralCode}`;
+                  const link = referralStats?.referralLink ?? `https://neonoir-wrsh.onrender.com/register?ref=${user.referralCode}`;
                   navigator.clipboard?.writeText(link);
                   addToast("Referral link copied!", "success");
                 }}>Copy Link</CyberButton>
               </div>
               <p className="font-mono mb-3" style={{ fontSize: 10, color: "#64748b", wordBreak: "break-all" }}>
-                {referralStats?.referralLink ?? `https://neonoir.app/register?ref=${user.referralCode}`}
+                {referralStats?.referralLink ?? `https://neonoir-wrsh.onrender.com/register?ref=${user.referralCode}`}
               </p>
               {/* Stats */}
               {referralStats && (

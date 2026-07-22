@@ -721,7 +721,7 @@ When the referred player reaches level 5 (not just registers — must actually p
 
 `GET /api/referral` — player's referral code + stats (how many people joined, how many reached level 5)
 
-Referral link shown on profile page and settings: `https://neonoir.app/register?ref={code}`
+Referral link shown on profile page and settings: `https://neonoir-wrsh.onrender.com/register?ref={code}`
 
 ### 12.4 — Verify
 - Onboarding stages advance correctly at the right triggers

@@ -612,13 +612,13 @@ export function SettingsPage({ user, refreshUser, addToast, onLogout }: Props) {
                   {referralStats?.referralCode ?? user.referralCode}
                 </span>
                 <CyberButton size="sm" variant="ghost" onClick={() => {
-                  const link = referralStats?.referralLink ?? `https://neonoir.app/register?ref=${user.referralCode}`;
+                  const link = referralStats?.referralLink ?? `https://neonoir-wrsh.onrender.com/register?ref=${user.referralCode}`;
                   navigator.clipboard?.writeText(link);
                   addToast("Referral link copied!", "success");
                 }}>Copy Link</CyberButton>
               </div>
               <p className="font-mono" style={{ fontSize: 10, color: "#475569", wordBreak: "break-all" }}>
-                {referralStats?.referralLink ?? `https://neonoir.app/register?ref=${user.referralCode}`}
+                {referralStats?.referralLink ?? `https://neonoir-wrsh.onrender.com/register?ref=${user.referralCode}`}
               </p>
               {referralStats && (
                 <div className="grid grid-cols-3 gap-2 mt-1">

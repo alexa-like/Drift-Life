@@ -17,7 +17,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 
     res.json({
       referralCode:          user.referralCode,
-      referralLink:          `https://neonoir.app/register?ref=${user.referralCode}`,
+      referralLink:          `https://neonoir-wrsh.onrender.com/register?ref=${user.referralCode}`,
       totalSignups:          user.referralCount ?? 0,
       reachedLevel5,
       pendingRewards:        Math.max(0, (user.referralCount ?? 0) - reachedLevel5),

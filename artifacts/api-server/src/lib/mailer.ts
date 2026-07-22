@@ -39,7 +39,7 @@ function buildHtml(otp: string, subject: string): string {
 // Preferred path whenever BREVO_API_KEY is configured.
 async function sendViaBrevo(to: string, otp: string, subject: string): Promise<void> {
   const apiKey = process.env["BREVO_API_KEY"];
-  const fromEmail = process.env["GMAIL_USER"] || "no-reply@neonoir.app";
+  const fromEmail = process.env["GMAIL_USER"] || "no-reply@neonoir-wrsh.onrender.com";
   const subjectLine = subject === "Password Reset"
     ? "Neonoir — Password Reset Code"
     : "Neonoir — Your verification code";
