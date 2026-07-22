@@ -1,0 +1,21 @@
+Pages are monolithic — most game pages are 1,000+ lines with sub-components defined inside them instead of split out.
+Inline styles everywhere — neon colours, glow effects, and hex values are scattered across every file instead of living in one theme file. If you ever want to change the primary cyan colour, you'd be hunting through dozens of files.
+shadcn/ui is installed but barely used — it adds weight without benefit.
+Duplicate UI patterns — tab bars, stat bars, and card panels are re-built slightly differently on every page instead of using a shared component.
+Bro about this 3 others you mentioned did you know what I hate about this project?
+
+Things are not structured well
+For example the inline you mentioned up
+It should be all in one so if change is to make it apply to all 
+For example I don't know how images are manage 
+Images should be somewhere stored so it should be called where it's needed not that it will appear all where it's needed that will be better like now the arena it should be like hmmm in future another arena game can come in arena should be somewhere not disturbing other features so if change is to make to all arena game it will be once easy not opening alot of folders files etc 
+
+Tho I don't know how most things are managed but I can see from the frustrating of the agent when changing some things how it can take time for them to done 
+Note just sharing my opinion I don't ask you to do anything yet 
+You can tell me what is possible and what is not 
+Let me give another example all currency is to manage in one place call where it's needed 
+All pages should be in a place call where it's requested so it will be if another page is to be added the agent will know it's dealing with this file alone maybe some wiring up can make the agent use another files 
+Overall I just want things to be easier so if a feature is dealing with it will be easy to change is to do in a feature it should be easy not opening alot of files that's frustrating 😓
+Tell me what's possible what's not 
+What you think about it 
+Advantages mostly disadvantage 
