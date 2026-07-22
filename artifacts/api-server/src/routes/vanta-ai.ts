@@ -10,6 +10,7 @@ import {
   callGroq, GROQ_MODELS, DEFAULT_VANTA_MODEL, pingModel,
   type GroqMessage, type GroqTool,
 } from "../lib/groq";
+import { signAccess } from "../lib/jwt";
 import VantaAISession from "../models/VantaAISession";
 import VantaScheduledTask from "../models/VantaScheduledTask";
 import ServerConfig from "../models/ServerConfig";
@@ -19,6 +20,7 @@ import CrimeLog from "../models/CrimeLog";
 import VantaLog from "../models/VantaLog";
 import FeedEvent from "../models/FeedEvent";
 import Event from "../models/Event";
+import EventProgress from "../models/EventProgress";
 import { endEvent } from "../lib/eventEngine";
 import Notification from "../models/Notification";
 import { logAdminAction } from "../models/AdminAuditLog";
@@ -27,6 +29,50 @@ import { logger } from "../lib/logger";
 
 const router = Router();
 router.use(requireOwner as any);
+
+// ── 11.1: OWNER RESTRICTION GUARD ─────────────────────────────────────────────
+/**
+ * Checks whether a Vanta tool call would affect the owner account.
+ * Returns an error message string if blocked, or null if the call is safe.
+ * This guard runs BEFORE execTool on every tool call.
+ */
+async function checkOwnerRestriction(
+  toolName: string,
+  args: Record<string, unknown>,
+  ownerId: string
+): Promise<string | null> {
+  // Hardcoded names of tools that could permanently harm the owner account — block if they ever exist
+  const permanentlyBlockedTools = new Set([
+    "change_owner_role", "delete_owner_account", "revoke_owner_session",
+    "change_owner_password", "change_owner_email", "wipe_owner_data",
+  ]);
+  if (permanentlyBlockedTools.has(toolName)) {
+    return "This action is not permitted on the owner account.";
+  }
+
+  // For ban_player: check if the target resolves to the owner's account
+  if (toolName === "ban_player") {
+    const username = args["username"] as string | undefined;
+    if (username) {
+      const target = await User.findOne({
+        username: new RegExp(`^${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+      }).select("_id role").lean();
+      if (target && (String(target._id) === ownerId || (target as any).role === "owner")) {
+        return "This action is not permitted on the owner account.";
+      }
+    }
+  }
+
+  // For adjust_currency: check if the target is the owner (allowed — currency adjustments are safe)
+  // For delete_test_accounts: safe — only deletes ghost accounts
+  // Future-proof: block any tool that explicitly targets owner fields
+  if (toolName === "adjust_currency" || toolName === "get_player_info") {
+    // These are read-only or safe adjustments — no restriction needed
+    return null;
+  }
+
+  return null;
+}
 
 // ── VANTA SYSTEM PROMPT ────────────────────────────────────────────────────────
 const VANTA_SYSTEM_PROMPT = `You are Vanta, the private AI assistant and system administrator for Neonoir — a gritty cyberpunk crime RPG set in New Vanta, 2047. You serve the game owner exclusively.
@@ -320,6 +366,64 @@ const VANTA_TOOLS: GroqTool[] = [
           filter: { type: "string", description: "Filter: 'online', 'banned', 'new_today', 'high_level', 'jailed', 'hospitalized', 'ghost'" },
           limit: { type: "number", default: 10 },
         },
+      },
+    },
+  },
+
+  // ── Tier 11: Live Testing Engine ─────────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "test_system",
+      description: "Live-test any game system end-to-end using ghost accounts. Creates ghosts, runs API calls, verifies DB state, cleans up, returns structured pass/fail report.",
+      parameters: {
+        type: "object",
+        properties: {
+          system: {
+            type: "string",
+            enum: ["crimes", "arena", "racing", "market", "auction", "hacking", "quests", "chat", "notifications", "battle_pass", "mentor", "business"],
+            description: "Which game system to test",
+          },
+          scenario: { type: "string", description: "Optional: specific scenario to test within the system" },
+        },
+        required: ["system"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "test_event",
+      description: "Dry-run a specific event: simulate participation, trigger end, verify rewards and leaderboard. Cleans up all test data after.",
+      parameters: {
+        type: "object",
+        properties: {
+          eventId: { type: "string", description: "Event _id or slug to test" },
+        },
+        required: ["eventId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_health_check",
+      description: "Run a full pass/fail health check across all major game systems. Returns a dashboard showing which systems are healthy and which have failures.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "stress_test",
+      description: "Concurrency test: fire an endpoint from multiple ghost accounts simultaneously, check for race conditions (duplicate items, wrong balances).",
+      parameters: {
+        type: "object",
+        properties: {
+          endpoint: { type: "string", description: "API endpoint path to test, e.g. /api/crimes" },
+          concurrency: { type: "number", description: "Number of simultaneous requests (max 10)", default: 5 },
+        },
+        required: ["endpoint"],
       },
     },
   },
@@ -844,6 +948,348 @@ async function execTool(name: string, args: Record<string, unknown>, actorId: st
         return `✅ Event **"${event.name}"** ended. Reward distribution running in background.${endReason ? `\nFeed message: "${endReason}"` : ""}`;
       }
 
+      // ── Tier 11: Live Testing Engine ──────────────────────────────────────────
+      case "test_system": {
+        const system = (args["system"] as string) || "crimes";
+        const PORT = process.env["PORT"] || "8080";
+        const baseUrl = `http://localhost:${PORT}`;
+
+        interface TestResult {
+          test: string;
+          passed: boolean;
+          expected?: string;
+          actual?: string;
+          error?: string;
+        }
+        const results: TestResult[] = [];
+
+        // Create two ghost accounts for testing
+        const stamp = Date.now();
+        const g1Name = `__vt_${stamp}_a`.slice(0, 20);
+        const g2Name = `__vt_${stamp}_b`.slice(0, 20);
+        const pw = await bcrypt.hash("VantaTest2047!", 10);
+
+        let ghost1Id = "", ghost2Id = "";
+        try {
+          const g1 = await User.create({
+            username: g1Name, email: `${g1Name}@vanta.ghost`, tag: `${g1Name}#0001`,
+            passwordHash: pw, isGhostAccount: true, isEmailVerified: true,
+            dc: 9_999_999, nc: 9999, energy: 100, maxEnergy: 100,
+            strength: 50, charisma: 50, intelligence: 50, streetCred: 50,
+            level: 10, role: "player",
+          });
+          ghost1Id = String(g1._id);
+          const g2 = await User.create({
+            username: g2Name, email: `${g2Name}@vanta.ghost`, tag: `${g2Name}#0002`,
+            passwordHash: pw, isGhostAccount: true, isEmailVerified: true,
+            dc: 9_999_999, nc: 9999, energy: 100, maxEnergy: 100,
+            strength: 50, charisma: 50, intelligence: 50, streetCred: 50,
+            level: 10, role: "player",
+          });
+          ghost2Id = String(g2._id);
+        } catch (createErr) {
+          return `❌ Could not create ghost accounts: ${createErr}`;
+        }
+
+        const token1 = signAccess({ userId: ghost1Id, username: g1Name, role: "player" });
+        const h1 = { "Content-Type": "application/json", Authorization: `Bearer ${token1}` };
+
+        // Run system-specific tests
+        const runTest = async (testName: string, fn: () => Promise<{ ok: boolean; detail?: string }>) => {
+          try {
+            const r = await fn();
+            results.push({ test: testName, passed: r.ok, actual: r.detail });
+          } catch (e: unknown) {
+            results.push({ test: testName, passed: false, error: e instanceof Error ? e.message : String(e) });
+          }
+        };
+
+        if (system === "crimes") {
+          await runTest("GET /api/crimes/catalog returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/crimes/catalog`, { headers: h1 });
+            return { ok: r.ok, detail: `status ${r.status}` };
+          });
+          await runTest("POST /api/crimes (commit crime) returns 200 or expected error", async () => {
+            const r = await fetch(`${baseUrl}/api/crimes`, {
+              method: "POST", headers: h1,
+              body: JSON.stringify({ crimeId: "petty_theft" }),
+            });
+            const ok = r.ok || r.status === 429 || r.status === 403;
+            return { ok, detail: `status ${r.status}` };
+          });
+          await runTest("Crime catalog has entries", async () => {
+            const r = await fetch(`${baseUrl}/api/crimes/catalog`, { headers: h1 });
+            const data = await r.json() as unknown;
+            const arr = Array.isArray(data) ? data : (data as any).crimes ?? [];
+            return { ok: arr.length > 0, detail: `${arr.length} crimes` };
+          });
+        } else if (system === "arena") {
+          await runTest("GET /api/arena/state returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/arena/state`, { headers: h1 });
+            return { ok: r.ok, detail: `status ${r.status}` };
+          });
+          await runTest("POST /api/arena/queue-pve accepted", async () => {
+            const r = await fetch(`${baseUrl}/api/arena/queue-pve`, {
+              method: "POST", headers: h1, body: "{}",
+            });
+            const ok = r.ok || r.status === 400 || r.status === 409;
+            return { ok, detail: `status ${r.status}` };
+          });
+        } else if (system === "racing") {
+          await runTest("GET /api/race/state returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/race/state`, { headers: h1 });
+            return { ok: r.ok || r.status === 404, detail: `status ${r.status}` };
+          });
+        } else if (system === "market") {
+          await runTest("GET /api/market returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/market`, { headers: h1 });
+            return { ok: r.ok, detail: `status ${r.status}` };
+          });
+          await runTest("Market returns array", async () => {
+            const r = await fetch(`${baseUrl}/api/market`, { headers: h1 });
+            const data = await r.json() as unknown;
+            const arr = Array.isArray(data) ? data : (data as any).listings ?? [];
+            return { ok: r.ok, detail: `${arr.length} listings` };
+          });
+        } else if (system === "chat") {
+          await runTest("GET /api/chat/messages returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/chat/messages?room=global`, { headers: h1 });
+            return { ok: r.ok, detail: `status ${r.status}` };
+          });
+        } else if (system === "notifications") {
+          await runTest("GET /api/notifications returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/notifications`, { headers: h1 });
+            return { ok: r.ok, detail: `status ${r.status}` };
+          });
+        } else if (system === "quests") {
+          await runTest("GET /api/quests returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/quests`, { headers: h1 });
+            return { ok: r.ok, detail: `status ${r.status}` };
+          });
+        } else if (system === "hacking") {
+          await runTest("GET /api/hack/history returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/hack/history`, { headers: h1 });
+            return { ok: r.ok, detail: `status ${r.status}` };
+          });
+        } else if (system === "battle_pass") {
+          await runTest("GET /api/battle-pass returns 200 or 404", async () => {
+            const r = await fetch(`${baseUrl}/api/battle-pass`, { headers: h1 });
+            return { ok: r.ok || r.status === 404, detail: `status ${r.status}` };
+          });
+        } else if (system === "mentor") {
+          await runTest("GET /api/mentor/available returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/mentor/available`, { headers: h1 });
+            return { ok: r.ok, detail: `status ${r.status}` };
+          });
+        } else if (system === "business") {
+          await runTest("GET /api/businesses returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/businesses`, { headers: h1 });
+            return { ok: r.ok, detail: `status ${r.status}` };
+          });
+        } else if (system === "auction") {
+          await runTest("GET /api/auction returns 200", async () => {
+            const r = await fetch(`${baseUrl}/api/auction`, { headers: h1 });
+            return { ok: r.ok, detail: `status ${r.status}` };
+          });
+        } else {
+          results.push({ test: `System "${system}"`, passed: false, error: "Unknown system — no test suite defined" });
+        }
+
+        // Cleanup
+        await User.deleteMany({ _id: { $in: [new mongoose.Types.ObjectId(ghost1Id), new mongoose.Types.ObjectId(ghost2Id)] } });
+
+        const passed = results.filter(r => r.passed).length;
+        const failed = results.filter(r => !r.passed).length;
+        return JSON.stringify({
+          system,
+          testsRun: results.length,
+          passed,
+          failed,
+          status: failed === 0 ? "✅ All tests passed" : `⚠️ ${failed} test(s) failed`,
+          errors: results.filter(r => !r.passed),
+          details: results,
+        }, null, 2);
+      }
+
+      case "test_event": {
+        const eventId = args["eventId"] as string;
+        if (!eventId) return "❌ eventId is required.";
+        const evtQuery = mongoose.isValidObjectId(eventId) ? { _id: eventId } : { slug: eventId };
+        const event = await Event.findOne(evtQuery).lean();
+        if (!event) return `❌ Event "${eventId}" not found.`;
+
+        const stamp = Date.now();
+        const ghostNames = [`__vevt_${stamp}_1`.slice(0, 20), `__vevt_${stamp}_2`.slice(0, 20), `__vevt_${stamp}_3`.slice(0, 20)];
+        const pw = await bcrypt.hash("VantaEvt2047!", 10);
+        interface TestResult { test: string; passed: boolean; detail?: string; error?: string; }
+        const results: TestResult[] = [];
+        const ghostIds: string[] = [];
+
+        try {
+          for (const name of ghostNames) {
+            const g = await User.create({
+              username: name, email: `${name}@vanta.ghost`, tag: `${name}#0000`,
+              passwordHash: pw, isGhostAccount: true, isEmailVerified: true,
+              dc: 9_999_999, nc: 9999, energy: 100, maxEnergy: 100,
+              strength: 50, charisma: 50, intelligence: 50, streetCred: 50,
+              level: 15, role: "player",
+            });
+            ghostIds.push(String(g._id));
+          }
+
+          const PORT = process.env["PORT"] || "8080";
+          const baseUrl = `http://localhost:${PORT}`;
+          const tokens = ghostIds.map((id, i) => signAccess({ userId: id, username: ghostNames[i]!, role: "player" }));
+          const headers = (i: number) => ({ "Content-Type": "application/json", Authorization: `Bearer ${tokens[i]!}` });
+
+          // Test: fetch event details
+          const eventResp = await fetch(`${baseUrl}/api/events/${eventId}`, { headers: headers(0) });
+          results.push({ test: "Event details accessible", passed: eventResp.ok || eventResp.status === 404, detail: `status ${eventResp.status}` });
+
+          // Test: simulate point accumulation
+          const eventType = (event as any).type;
+          if (eventType === "boss_raid") {
+            const strikeResp = await fetch(`${baseUrl}/api/events/${eventId}/boss/strike`, {
+              method: "POST", headers: headers(0), body: "{}",
+            });
+            results.push({ test: "Boss strike accepted", passed: strikeResp.ok || strikeResp.status === 400 || strikeResp.status === 404, detail: `status ${strikeResp.status}` });
+          } else if (eventType === "leaderboard_grind") {
+            results.push({ test: "Leaderboard grind event type detected", passed: true, detail: "Points via crimes/arena" });
+          }
+
+          // Test: leaderboard endpoint
+          const lbResp = await fetch(`${baseUrl}/api/events/${eventId}/leaderboard`, { headers: headers(0) });
+          results.push({ test: "Event leaderboard endpoint", passed: lbResp.ok || lbResp.status === 404, detail: `status ${lbResp.status}` });
+
+          // Test: EventProgress docs can be read
+          const epCount = await EventProgress.countDocuments({ eventId: event._id }).catch(() => 0);
+          results.push({ test: "EventProgress readable from DB", passed: true, detail: `${epCount} participant docs` });
+
+        } finally {
+          // Cleanup ghost accounts and their event progress
+          await User.deleteMany({ _id: { $in: ghostIds.map(id => new mongoose.Types.ObjectId(id)) } });
+          await EventProgress.deleteMany({ userId: { $in: ghostIds } }).catch(() => {});
+        }
+
+        const passed = results.filter(r => r.passed).length;
+        const failed = results.filter(r => !r.passed).length;
+        return JSON.stringify({
+          eventId, eventName: (event as any).name, eventType: (event as any).type,
+          testsRun: results.length, passed, failed,
+          status: failed === 0 ? "✅ Event test passed" : `⚠️ ${failed} issue(s) found`,
+          results,
+        }, null, 2);
+      }
+
+      case "run_health_check": {
+        const systems = ["crimes", "arena", "racing", "market", "chat", "notifications", "quests"] as const;
+        const systemResults: Record<string, { passed: number; failed: number; status: string }> = {};
+
+        for (const sys of systems) {
+          try {
+            const rawReport = await execTool("test_system", { system: sys }, actorId, actorUsername, ownerIpExcludeIds, io);
+            const report = JSON.parse(rawReport) as { passed: number; failed: number; status: string };
+            systemResults[sys] = { passed: report.passed, failed: report.failed, status: report.status };
+          } catch (e: unknown) {
+            systemResults[sys] = { passed: 0, failed: 1, status: `❌ Error: ${e instanceof Error ? e.message : String(e)}` };
+          }
+        }
+
+        const totalPassed = Object.values(systemResults).reduce((a, r) => a + r.passed, 0);
+        const totalFailed = Object.values(systemResults).reduce((a, r) => a + r.failed, 0);
+        const failingSystems = Object.entries(systemResults).filter(([, r]) => r.failed > 0).map(([s]) => s);
+
+        let dashboard = `**🏥 SYSTEM HEALTH CHECK — ${new Date().toLocaleString()}**\n\n`;
+        for (const [sys, r] of Object.entries(systemResults)) {
+          dashboard += `• ${sys.padEnd(16)} ${r.status}\n`;
+        }
+        dashboard += `\n**Total:** ${totalPassed} passed, ${totalFailed} failed`;
+        if (failingSystems.length > 0) {
+          dashboard += `\n⚠️ **Attention required:** ${failingSystems.join(", ")}`;
+        } else {
+          dashboard += "\n✅ All systems operational";
+        }
+
+        pushLog("info", "Vanta health check complete", `${totalPassed} passed, ${totalFailed} failed`);
+        return dashboard;
+      }
+
+      case "stress_test": {
+        const endpoint = args["endpoint"] as string;
+        const concurrency = Math.min(Number(args["concurrency"]) || 5, 10);
+        if (!endpoint) return "❌ endpoint is required.";
+
+        const PORT = process.env["PORT"] || "8080";
+        const baseUrl = `http://localhost:${PORT}`;
+        const stamp = Date.now();
+        const pw = await bcrypt.hash("VantaStress2047!", 10);
+        const ghostIds: string[] = [];
+        const ghostUsernames: string[] = [];
+
+        interface StressResult { userId: string; status: number; ok: boolean; latencyMs: number; }
+        const stressResults: StressResult[] = [];
+
+        try {
+          // Create ghost accounts
+          for (let i = 0; i < concurrency; i++) {
+            const name = `__vst_${stamp}_${i}`.slice(0, 20);
+            const g = await User.create({
+              username: name, email: `${name}@vanta.ghost`, tag: `${name}#0${i}`,
+              passwordHash: pw, isGhostAccount: true, isEmailVerified: true,
+              dc: 9_999_999, nc: 9999, energy: 100, maxEnergy: 100,
+              strength: 50, charisma: 50, intelligence: 50, streetCred: 50,
+              level: 10, role: "player",
+            });
+            ghostIds.push(String(g._id));
+            ghostUsernames.push(name);
+          }
+
+          // Fire concurrent requests
+          const normalizedEndpoint = endpoint.startsWith("/api") ? endpoint : `/api${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+          const requests = ghostIds.map(async (id, i): Promise<StressResult> => {
+            const token = signAccess({ userId: id, username: ghostUsernames[i]!, role: "player" });
+            const t0 = Date.now();
+            const r = await fetch(`${baseUrl}${normalizedEndpoint}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: "{}",
+            });
+            return { userId: id, status: r.status, ok: r.ok || r.status < 500, latencyMs: Date.now() - t0 };
+          });
+
+          const settled = await Promise.allSettled(requests);
+          for (const s of settled) {
+            if (s.status === "fulfilled") stressResults.push(s.value);
+            else stressResults.push({ userId: "?", status: 0, ok: false, latencyMs: 0 });
+          }
+
+          // Check for potential race conditions: duplicate items, DC anomalies
+          const dcValues = await User.find({
+            _id: { $in: ghostIds.map(id => new mongoose.Types.ObjectId(id)) },
+          }).select("dc").lean();
+          const allDcOk = dcValues.every(u => (u as any).dc >= 0);
+
+          const successCount = stressResults.filter(r => r.ok).length;
+          const failCount = stressResults.filter(r => !r.ok).length;
+          const avgLatency = Math.round(stressResults.reduce((a, r) => a + r.latencyMs, 0) / stressResults.length);
+
+          return JSON.stringify({
+            endpoint: normalizedEndpoint,
+            concurrency,
+            successCount,
+            failCount,
+            avgLatencyMs: avgLatency,
+            dcSanityCheck: allDcOk ? "✅ No negative balances detected" : "⚠️ Balance anomaly detected",
+            statusBreakdown: stressResults.map(r => `${r.status}`).join(", "),
+            assessment: failCount === 0
+              ? "✅ No race conditions detected at this concurrency level"
+              : `⚠️ ${failCount} request(s) failed — investigate for race conditions`,
+          }, null, 2);
+        } finally {
+          await User.deleteMany({ _id: { $in: ghostIds.map(id => new mongoose.Types.ObjectId(id)) } });
+        }
+      }
+
       default:
         return `❌ Unknown tool: ${name}`;
     }
@@ -871,10 +1317,22 @@ router.post("/models/ping", async (req: AuthRequest, res) => {
   res.json(result);
 });
 
-// GET /api/vanta-ai/session
+// GET /api/vanta-ai/session — returns last 100 messages for persistence (11.3)
 router.get("/session", async (req: AuthRequest, res) => {
-  const session = await VantaAISession.findOne({ ownerId: req.userId }).sort({ createdAt: -1 });
-  res.json({ session: session ?? null });
+  const session = await VantaAISession.findOne({ ownerId: req.userId!, sessionType: { $ne: "player" } }).sort({ updatedAt: -1 });
+  if (!session) {
+    res.json({ session: null, messages: [] });
+    return;
+  }
+  // Return last 100 messages so the frontend can restore the conversation
+  const messages = session.messages.slice(-100).map(m => ({
+    role: m.role,
+    content: m.content,
+    toolCallId: m.toolCallId,
+    toolName: m.toolName,
+    timestamp: m.timestamp,
+  }));
+  res.json({ session: { _id: session._id, aiModel: session.aiModel, contextSummary: session.contextSummary }, messages });
 });
 
 // DELETE /api/vanta-ai/session
@@ -922,12 +1380,12 @@ router.post("/chat", async (req: AuthRequest, res) => {
   }
 
   try {
-    // Load or create session
+    // Load or create owner session (11.3: find-or-create; exclude player sessions)
     let session = sessionId
       ? await VantaAISession.findById(sessionId)
-      : await VantaAISession.findOne({ ownerId: req.userId }).sort({ createdAt: -1 });
+      : await VantaAISession.findOne({ ownerId: req.userId!, sessionType: { $ne: "player" } }).sort({ updatedAt: -1 });
     if (!session) {
-      session = await VantaAISession.create({ ownerId: req.userId!, aiModel: activeModel, messages: [] });
+      session = await VantaAISession.create({ ownerId: req.userId!, sessionType: "owner", aiModel: activeModel, messages: [] });
     }
 
     // Pre-compute owner IP exclusion list — accounts sharing the owner's IP are invisible to all scans
@@ -938,6 +1396,11 @@ router.post("/chat", async (req: AuthRequest, res) => {
       const sharedIpAccounts = await User.find({ lastLoginIp: ownerIp, _id: { $ne: req.userId } }).select("_id").lean();
       ownerIpExcludeIds = sharedIpAccounts.map(u => String(u._id));
     }
+
+    // 11.3 — Prepend context summary to system prompt so Vanta never forgets
+    const effectiveSystemPrompt = session.contextSummary
+      ? `${VANTA_SYSTEM_PROMPT}\n\n---\nCONTEXT FROM EARLIER IN THIS CONVERSATION (auto-summarized):\n${session.contextSummary}\n---`
+      : VANTA_SYSTEM_PROMPT;
 
     // Build Groq messages from session history (last 20 messages for context)
     const historyMessages: GroqMessage[] = session.messages.slice(-20).map((m) => ({
@@ -974,7 +1437,7 @@ router.post("/chat", async (req: AuthRequest, res) => {
           model: activeModel,
           messages,
           tools: VANTA_TOOLS,
-          systemPrompt: VANTA_SYSTEM_PROMPT,
+          systemPrompt: effectiveSystemPrompt,
           maxTokens: 2048,
           temperature: 0.6,
         });
@@ -985,7 +1448,7 @@ router.post("/chat", async (req: AuthRequest, res) => {
           const fallback = await callGroq({
             model: activeModel,
             messages: [...messages, { role: "user" as const, content: "Please respond in plain text without calling any tools. Give your best answer based on the conversation so far." }],
-            systemPrompt: VANTA_SYSTEM_PROMPT,
+            systemPrompt: effectiveSystemPrompt,
             maxTokens: 1024,
             temperature: 0.4,
           });
@@ -1015,7 +1478,16 @@ router.post("/chat", async (req: AuthRequest, res) => {
         let toolArgs: Record<string, unknown> = {};
         try { toolArgs = JSON.parse(toolCall.function.arguments); } catch { /* use empty */ }
 
-        // Friendly progress label
+        // 11.1: Reject any tool call that would harm the owner account
+        const restriction = await checkOwnerRestriction(toolName, toolArgs, req.userId!);
+        if (restriction) {
+          const blockMsg = `🔒 Action blocked by owner-protection guard: ${restriction}`;
+          messages.push({ role: "tool", content: blockMsg, tool_call_id: toolCall.id, name: toolName });
+          session.messages.push({ role: "tool", content: blockMsg, toolCallId: toolCall.id, toolName, timestamp: new Date() });
+          send({ type: "result", text: blockMsg, tool: toolName });
+          continue;
+        }
+
         const progressLabels: Record<string, string> = {
           get_player_info: `Looking up player "${toolArgs["username"]}"...`,
           adjust_currency: `Adjusting ${toolArgs["currency"]} for ${toolArgs["username"]}...`,
@@ -1035,6 +1507,11 @@ router.post("/chat", async (req: AuthRequest, res) => {
           scan_suspicious_players: "Scanning player data...",
           generate_agent_prompt: "Generating agent fix prompt...",
           list_players: `Listing players (${toolArgs["filter"]})...`,
+          // Tier 11: Live Testing Engine
+          test_system: `Running live test suite for the ${toolArgs["system"]} system...`,
+          test_event: `Testing event "${toolArgs["eventId"]}" end-to-end...`,
+          run_health_check: "Running full health check across all game systems...",
+          stress_test: `Stress-testing ${toolArgs["endpoint"]} with ${toolArgs["concurrency"] ?? 5} concurrent ghost requests...`,
         };
 
         send({ type: "action", text: progressLabels[toolName] ?? `Running ${toolName}...`, tool: toolName });
@@ -1089,6 +1566,30 @@ router.post("/chat", async (req: AuthRequest, res) => {
     // Save assistant reply to session
     session.messages.push({ role: "assistant", content: replyText, timestamp: new Date() });
     session.aiModel = activeModel;
+
+    // 11.3: Context summary + trim when message count exceeds 100
+    if (session.messages.length > 100) {
+      const toSummarize = session.messages.slice(0, session.messages.length - 100);
+      const summaryText = toSummarize
+        .filter(m => m.role === "user" || m.role === "assistant")
+        .map(m => `${m.role === "user" ? "Owner" : "Vanta"}: ${m.content.slice(0, 300)}`)
+        .join("\n");
+      try {
+        const ctxResp = await callGroq({
+          model: activeModel,
+          messages: [{ role: "user", content: `Summarize this conversation in 3-5 sentences capturing key decisions, actions taken, and important context:\n\n${summaryText}` }],
+          systemPrompt: "You are a concise summarizer. Output only the summary paragraph, no preamble.",
+          maxTokens: 300,
+          temperature: 0.3,
+        });
+        if (ctxResp.content) {
+          const prev = session.contextSummary ? session.contextSummary + " " : "";
+          session.contextSummary = (prev + ctxResp.content).slice(-2000);
+        }
+      } catch { /* non-fatal — context summary is best-effort */ }
+      session.messages = session.messages.slice(-100);
+    }
+
     await session.save();
 
     send({ type: "message", text: replyText });

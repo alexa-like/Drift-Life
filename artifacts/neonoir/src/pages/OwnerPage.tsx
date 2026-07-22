@@ -482,9 +482,32 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
   useEffect(() => { if (tab === "patch-notes") loadPatchNotes(); }, [tab, loadPatchNotes]);
   useEffect(() => { if (tab === "items") loadShopItems(); }, [tab, loadShopItems]);
   useEffect(() => {
-    if (tab === "vanta-ai" && !vantaAiModels.length) {
+    if (tab !== "vanta-ai") return;
+    // Load AI model list on first visit
+    if (!vantaAiModels.length) {
       api.get<{ models: { id: string; label: string; description: string }[] }>("/vanta-ai/models")
         .then(r => setVantaAiModels(r.models)).catch(() => {});
+    }
+    // 11.3: Restore last 100 messages from persistent session on mount (if chat is empty)
+    if (vantaMessages.length === 0) {
+      api.get<{
+        session: { _id: string; aiModel: string } | null;
+        messages: Array<{ role: string; content: string; toolCallId?: string; toolName?: string }>;
+      }>("/vanta-ai/session")
+        .then(r => {
+          if (r.session && r.messages.length > 0) {
+            setVantaSessionId(r.session._id);
+            setVantaModel(r.session.aiModel || "llama-3.3-70b-versatile");
+            // Map DB roles to UI display roles
+            const uiMessages: VantaMsg[] = r.messages
+              .filter(m => m.role === "user" || m.role === "assistant")
+              .map(m => m.role === "user"
+                ? { role: "user" as const, text: m.content }
+                : { role: "vanta" as const, text: m.content }
+              );
+            setVantaMessages(uiMessages);
+          }
+        }).catch(() => {});
     }
   }, [tab]); // eslint-disable-line
   useEffect(() => {

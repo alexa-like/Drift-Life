@@ -11,8 +11,15 @@ export interface IVantaMessage {
 export interface IVantaAISession extends Document {
   _id: mongoose.Types.ObjectId;
   ownerId: string;
+  /** For player sessions: the player's userId. Null for owner sessions. */
+  playerId: string | null;
+  /** Distinguishes owner panel sessions from player tutor sessions. */
+  sessionType: "owner" | "player";
   aiModel: string;
   messages: IVantaMessage[];
+  /** Auto-generated summary of older messages trimmed from the front of the array.
+   *  Prepended to Vanta's system prompt so she never truly forgets important context. */
+  contextSummary: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,12 +33,15 @@ const VantaMessageSchema = new Schema<IVantaMessage>({
 }, { _id: false });
 
 const VantaAISessionSchema = new Schema<IVantaAISession>({
-  ownerId:  { type: String, required: true, index: true },
-  aiModel:  { type: String, required: true },
-  messages: { type: [VantaMessageSchema], default: [] },
+  ownerId:        { type: String, required: true, index: true },
+  playerId:       { type: String, default: null },
+  sessionType:    { type: String, enum: ["owner", "player"], default: "owner" },
+  aiModel:        { type: String, required: true },
+  messages:       { type: [VantaMessageSchema], default: [] },
+  contextSummary: { type: String, default: null },
 }, { timestamps: true });
 
-// Only keep the last 30 days of sessions
-VantaAISessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+// Keep sessions for 90 days
+VantaAISessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
 export default mongoose.model<IVantaAISession>("VantaAISession", VantaAISessionSchema);
