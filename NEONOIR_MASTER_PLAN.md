@@ -736,7 +736,7 @@ Referral link shown on profile page and settings: `https://neonoir.app/register?
 ---
 
 ## TIER 13 — FINAL POLISH: ANIMATIONS + MOBILE + PERFORMANCE
-**Status: ⏳ Not started**
+**Status: ✅ Done**
 
 **Goal:** Make the game feel premium. Smooth animations, proper mobile experience, fast loads.
 

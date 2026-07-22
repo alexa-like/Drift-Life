@@ -34,6 +34,7 @@ router.get("/state", requireAuth, async (req: AuthRequest, res) => {
     const now = new Date();
     const activeEvents = world.activeEvents.filter(e => e.endsAt > now);
 
+    res.setHeader("Cache-Control", "public, max-age=30");
     res.json({
       timeOfDay: world.timeOfDay,
       weather: world.weather,
@@ -54,6 +55,7 @@ router.get("/state", requireAuth, async (req: AuthRequest, res) => {
 
 // ── GET /api/world/districts ─────────────────────────────────────────────────
 router.get("/districts", requireAuth, (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=30");
   res.json(DISTRICT_MODIFIERS);
 });
 

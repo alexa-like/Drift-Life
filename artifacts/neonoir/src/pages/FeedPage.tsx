@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { FeedEvent, User, LiveGiveaway } from "../lib/types";
 import { api } from "../lib/api";
 import { CyberButton } from "../components/CyberButton";
+import { CyberSkeleton } from "../components/CyberSkeleton";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { MentionText } from "../components/MentionText";
 import { GiveawayCard } from "../components/GiveawayCard";
@@ -258,9 +259,7 @@ export function FeedPage({ user, refreshUser, addToast, onInspectPlayer }: Props
       )}
 
       {loading && events.length === 0 ? (
-        <div className="text-center py-12 font-mono text-xs" style={{ color: "#1e1e2e" }}>
-          Loading feed...
-        </div>
+        <CyberSkeleton type="feed" count={8} />
       ) : events.length === 0 ? (
         <div className="text-center py-12 font-mono text-xs" style={{ color: "#475569" }}>
           No city events yet. Check back soon.

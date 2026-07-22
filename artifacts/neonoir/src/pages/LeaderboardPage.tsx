@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { motion } from "framer-motion";
 import { LeaderboardEntry } from "../lib/types";
 import { api } from "../lib/api";
@@ -6,6 +6,7 @@ import { formatDC } from "../lib/format";
 import { CyberSectionHeader } from "../components/CyberSectionHeader";
 import { CyberButton } from "../components/CyberButton";
 import { PrestigeBadge } from "../components/PrestigeBadge";
+import { CyberSkeleton } from "../components/CyberSkeleton";
 
 type SortType = "level" | "dc" | "wins" | "crimes";
 type BoardTab = "city" | "minigame" | "mostWanted" | "hallOfFame";
@@ -33,7 +34,7 @@ function MostWanted() {
   }, []);
 
   if (loading) {
-    return <div className="text-center py-16 font-mono text-xs animate-pulse" style={{ color: "#334155" }}>Scanning the city...</div>;
+    return <CyberSkeleton count={10} />;
   }
   if (bounties.length === 0) {
     return <div className="text-center py-16 font-mono text-xs" style={{ color: "#475569" }}>No active bounties. The city is quiet... for now.</div>;
@@ -181,7 +182,7 @@ function MiniLeaderboard() {
       </div>
 
       {loading ? (
-        <div className="font-mono text-xs text-center py-8 animate-pulse" style={{ color: "#334155" }}>Loading…</div>
+        <CyberSkeleton count={5} />
       ) : !data || data.entries.length === 0 ? (
         <div className="font-mono text-xs text-center py-8" style={{ color: "#475569" }}>
           No entries yet this week. Be the first!
@@ -441,7 +442,7 @@ export function LeaderboardPage({ onNavigate }: { onNavigate?: (page: string) =>
       </div>
 
       {loading ? (
-        <div className="text-center py-16 font-mono text-xs animate-pulse" style={{ color: "#334155" }}>Pulling city records...</div>
+        <CyberSkeleton count={15} />
       ) : entries.length === 0 ? (
         <div className="text-center py-16 font-mono text-xs" style={{ color: "#475569" }}>No data yet. Start playing.</div>
       ) : (

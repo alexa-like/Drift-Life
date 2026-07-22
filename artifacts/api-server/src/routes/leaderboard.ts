@@ -182,6 +182,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         .lean();
     }
 
+    res.setHeader("Cache-Control", "public, max-age=30");
     res.json(players.map((p, i) => formatPlayer(p, i, category)));
   } catch (err: any) {
     req.log.error({ err }, "leaderboard error");

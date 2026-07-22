@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../lib/api";
+import { CyberSkeleton } from "../components/CyberSkeleton";
 import { User } from "../lib/types";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -268,6 +269,9 @@ export default function BattlePassPage({ user, addToast, onNavigate }: Props) {
   const [quests, setQuests] = useState<{ daily: QuestEntry[]; weekly: QuestEntry[] } | null>(null);
   const [questsLoading, setQuestsLoading] = useState(false);
   const [questClaiming, setQuestClaiming] = useState<string | null>(null);
+  // 13.3 — Level-up celebration state
+  const [levelUpBurst, setLevelUpBurst] = useState(false);
+  const prevLevelRef = useRef<number | null>(null);
 
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -288,6 +292,19 @@ export default function BattlePassPage({ user, addToast, onNavigate }: Props) {
       .catch(() => setQuests({ daily: [], weekly: [] }))
       .finally(() => setQuestsLoading(false));
   }, [tab, quests]);
+
+  // 13.3 — Detect level-up and trigger brief celebration burst
+  useEffect(() => {
+    if (!passData) return undefined;
+    const prev = prevLevelRef.current;
+    prevLevelRef.current = passData.playerLevel;
+    if (prev !== null && passData.playerLevel > prev) {
+      setLevelUpBurst(true);
+      const t = setTimeout(() => setLevelUpBurst(false), 2000);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [passData?.playerLevel]);
 
   // Scroll to current level on load
   useEffect(() => {
@@ -409,7 +426,41 @@ export default function BattlePassPage({ user, addToast, onNavigate }: Props) {
         <div className="p-3 rounded-sm" style={{ background: "#08080c", border: "1px solid #1e1e2e" }}>
           <div className="flex items-center justify-between gap-4 mb-2">
             <div className="flex items-center gap-3">
-              <div className="font-display font-black text-xl" style={{ color: "#00d4ff" }}>Lv {passData.playerLevel}</div>
+              {/* 13.3 — Level indicator with level-up celebration burst */}
+              <div className="relative">
+                <div className="font-display font-black text-xl" style={{ color: "#00d4ff" }}>Lv {passData.playerLevel}</div>
+                <AnimatePresence>
+                  {levelUpBurst && (
+                    <motion.div
+                      key="lvl-up-burst"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1.4 }}
+                      exit={{ opacity: 0, scale: 2 }}
+                      transition={{ duration: 0.4, ease: "easeOut" }}
+                      className="absolute inset-0 pointer-events-none"
+                      style={{
+                        background: "radial-gradient(circle, #00d4ff60 0%, transparent 70%)",
+                        filter: "blur(4px)",
+                      }}
+                    />
+                  )}
+                </AnimatePresence>
+                <AnimatePresence>
+                  {levelUpBurst && (
+                    <motion.div
+                      key="lvl-up-label"
+                      initial={{ opacity: 0, y: 0 }}
+                      animate={{ opacity: 1, y: -20 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                      className="absolute left-0 right-0 text-center font-display font-black uppercase text-[10px] tracking-widest pointer-events-none"
+                      style={{ color: "#00d4ff", textShadow: "0 0 10px #00d4ff", top: 0, whiteSpace: "nowrap" }}
+                    >
+                      ⬆ LEVEL UP!
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
               <div className="font-mono text-xs" style={{ color: "#475569" }}>{passData.playerXp.toLocaleString()} season XP</div>
             </div>
             {passData.playerLevel < pass.totalLevels && (() => {
@@ -466,7 +517,7 @@ export default function BattlePassPage({ user, addToast, onNavigate }: Props) {
       {tab === "pass" && (
         <div>
           {passLoading ? (
-            <div className="h-40 rounded-sm animate-pulse" style={{ background: "#111118" }} />
+            <CyberSkeleton type="pass" count={10} />
           ) : !pass ? (
             <div className="py-16 text-center space-y-4">
               <div className="text-5xl">🌟</div>

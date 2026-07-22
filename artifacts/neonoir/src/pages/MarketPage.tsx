@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { CyberSkeleton } from "../components/CyberSkeleton";
 import { motion } from "framer-motion";
 import { User } from "../lib/types";
 import { api } from "../lib/api";
@@ -113,7 +114,7 @@ export function MarketPage({ user, refreshUser, addToast }: Props) {
           );
         })}
         {shopItems.length === 0 && (
-          <div className="text-center py-12 text-xs font-mono" style={{ color: "#475569" }}>Loading shop…</div>
+          <CyberSkeleton type="card" count={5} />
         )}
       </div>
     </div>

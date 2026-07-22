@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../lib/api";
 import { useSocket } from "../context/SocketContext";
 import { User } from "../lib/types";
+import { useSwipe } from "../hooks/useSwipe";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -573,6 +574,12 @@ export default function EventPage({ user, addToast, onNavigate }: Props) {
   const [phaseAlert, setPhaseAlert] = useState<string | null>(null);
   const [bossKilled, setBossKilled] = useState(false);
   const [lastStrikeAt, setLastStrikeAt] = useState<string | null>(null);
+  // 13.4 — Tab state for swipe navigation between event panel and leaderboard
+  const [panelTab, setPanelTab] = useState<"event" | "leaderboard">("event");
+  const swipeHandlers = useSwipe(
+    () => setPanelTab("leaderboard"),
+    () => setPanelTab("event"),
+  );
 
   const damageIdRef = useRef(0);
   const phaseAlertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -716,7 +723,7 @@ export default function EventPage({ user, addToast, onNavigate }: Props) {
   const accent = event.theme.accentColor || "#ff2d55";
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5 pb-8">
+    <div className="max-w-3xl mx-auto space-y-5 pb-8" {...swipeHandlers}>
 
       {/* ── Event banner ──────────────────────────────────────────────────── */}
       <div
@@ -777,47 +784,89 @@ export default function EventPage({ user, addToast, onNavigate }: Props) {
         </div>
       )}
 
+      {/* ── 13.4 Tab switcher (swipe L/R on mobile to switch) ───────────────── */}
+      <div className="flex gap-1" style={{ borderBottom: `1px solid ${primary}30` }}>
+        {(["event", "leaderboard"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setPanelTab(t)}
+            className="font-mono uppercase text-xs tracking-widest px-4 py-2 transition-colors"
+            style={{
+              color: panelTab === t ? primary : "#475569",
+              borderBottom: `2px solid ${panelTab === t ? primary : "transparent"}`,
+              background: "transparent",
+              fontWeight: panelTab === t ? "bold" : "normal",
+            }}
+          >
+            {t === "event" ? "Event" : "Leaderboard"}
+          </button>
+        ))}
+        <span className="ml-auto font-mono text-[9px] self-center" style={{ color: "#1e1e2e" }}>
+          swipe ←→
+        </span>
+      </div>
+
       {/* ── Type-specific main panel ────────────────────────────────────────── */}
-      <div className="p-4 rounded-sm" style={{ background: "#0a0a0f", border: `1px solid ${primary}20` }}>
-        {event.type === "boss_raid" && event.boss && (
-          <BossPanel
-            event={event}
-            progress={playerProgress}
-            bossHp={bossHp}
-            primary={primary}
-            accent={accent}
-            onStrike={handleStrike}
-            striking={striking}
-            damageNumbers={damageNumbers}
-            phaseAlert={phaseAlert}
-            bossKilled={bossKilled}
-            lastStrikeAt={lastStrikeAt}
-          />
+      <AnimatePresence mode="wait" initial={false}>
+        {panelTab === "event" && (
+          <motion.div
+            key="event-panel"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0, transition: { duration: 0.18 } }}
+            exit={{ opacity: 0, x: -20, transition: { duration: 0.12 } }}
+            className="space-y-5"
+          >
+            <div className="p-4 rounded-sm" style={{ background: "#0a0a0f", border: `1px solid ${primary}20` }}>
+              {event.type === "boss_raid" && event.boss && (
+                <BossPanel
+                  event={event}
+                  progress={playerProgress}
+                  bossHp={bossHp}
+                  primary={primary}
+                  accent={accent}
+                  onStrike={handleStrike}
+                  striking={striking}
+                  damageNumbers={damageNumbers}
+                  phaseAlert={phaseAlert}
+                  bossKilled={bossKilled}
+                  lastStrikeAt={lastStrikeAt}
+                />
+              )}
+              {event.type === "collection_hunt" && event.collectible && (
+                <CollectionPanel event={event} progress={playerProgress} primary={primary} accent={accent} />
+              )}
+              {event.type === "milestone" && (
+                <MilestonePanel event={event} progress={playerProgress} primary={primary} accent={accent} />
+              )}
+              {event.type === "sports" && (
+                <SportsPanel event={event} progress={playerProgress} primary={primary} accent={accent} />
+              )}
+              {event.type === "lottery" && (
+                <LotteryPanel event={event} progress={playerProgress} primary={primary} accent={accent} />
+              )}
+              {event.type === "leaderboard_grind" && (
+                <GrindPanel event={event} progress={playerProgress} primary={primary} accent={accent} />
+              )}
+            </div>
+            {/* ── Reward at your current rank ─────────────────────────────────── */}
+            <RewardPreview event={event} myRank={leaderboard?.myRank ?? null} primary={primary} accent={accent} />
+          </motion.div>
         )}
-        {event.type === "collection_hunt" && event.collectible && (
-          <CollectionPanel event={event} progress={playerProgress} primary={primary} accent={accent} />
-        )}
-        {event.type === "milestone" && (
-          <MilestonePanel event={event} progress={playerProgress} primary={primary} accent={accent} />
-        )}
-        {event.type === "sports" && (
-          <SportsPanel event={event} progress={playerProgress} primary={primary} accent={accent} />
-        )}
-        {event.type === "lottery" && (
-          <LotteryPanel event={event} progress={playerProgress} primary={primary} accent={accent} />
-        )}
-        {event.type === "leaderboard_grind" && (
-          <GrindPanel event={event} progress={playerProgress} primary={primary} accent={accent} />
-        )}
-      </div>
 
-      {/* ── Reward at your current rank ─────────────────────────────────────── */}
-      <RewardPreview event={event} myRank={leaderboard?.myRank ?? null} primary={primary} accent={accent} />
-
-      {/* ── Event leaderboard ───────────────────────────────────────────────── */}
-      <div className="p-4 rounded-sm" style={{ background: "#08080c", border: `1px solid ${primary}20` }}>
-        <EventLeaderboard data={leaderboard} primary={primary} accent={accent} />
-      </div>
+        {panelTab === "leaderboard" && (
+          <motion.div
+            key="leaderboard-panel"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0, transition: { duration: 0.18 } }}
+            exit={{ opacity: 0, x: 20, transition: { duration: 0.12 } }}
+          >
+            {/* ── Event leaderboard ──────────────────────────────────────────── */}
+            <div className="p-4 rounded-sm" style={{ background: "#08080c", border: `1px solid ${primary}20` }}>
+              <EventLeaderboard data={leaderboard} primary={primary} accent={accent} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Nav links ───────────────────────────────────────────────────────── */}
       <div className="flex gap-3 flex-wrap">

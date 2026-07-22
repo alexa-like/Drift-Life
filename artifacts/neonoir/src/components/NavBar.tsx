@@ -3,7 +3,7 @@ import {
   Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard,
   BarChart2, Gavel, Building2, Dumbbell, Briefcase, Car, Globe, Cpu, Shield, Swords, Crosshair,
   Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark,
-  Wrench, Trophy, Gift, PawPrint, Bell, Settings, Flag, CalendarDays, Star, type LucideIcon,
+  Wrench, Trophy, Gift, PawPrint, Bell, Settings, Flag, CalendarDays, Star, Menu, X, type LucideIcon,
 } from "lucide-react";
 import { User } from "../lib/types";
 import { WantedStars } from "./WantedStars";
@@ -11,7 +11,7 @@ import { formatDC } from "../lib/format";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { AnnouncementBanner } from "./AnnouncementBanner";
 import { api } from "../lib/api";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 function RollingNumber({ value, color }: { value: number; color: string }) {
@@ -193,7 +193,12 @@ function AvatarMenu({ user, onNav, onLogout }: { user: User; onNav: (id: string)
         style={{ fontSize: 11, color: "#e2e8f0", background: "#111118", border: "1px solid #1e1e2e" }}
       >
         {user.avatarUrl ? (
-          <img src={user.avatarUrl} alt="" style={{ width: 20, height: 20, clipPath: "polygon(20% 0%, 100% 0%, 80% 100%, 0% 100%)", objectFit: "cover" }} />
+          <img
+            src={user.avatarUrl}
+            alt=""
+            loading="lazy"
+            style={{ width: 20, height: 20, clipPath: "polygon(20% 0%, 100% 0%, 80% 100%, 0% 100%)", objectFit: "cover" }}
+          />
         ) : (
           <span className="text-cyan-500">USER</span>
         )}
@@ -260,6 +265,9 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
   const energyColor = user.energy >= user.maxEnergy ? "#39d353" : "#00d4ff";
   const energySecsLeft = useEnergyCountdown((user as any).energyRegenAt, user.energy, user.maxEnergy);
 
+  // 13.4 — Mobile hamburger menu state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const navRef = useRef<HTMLElement>(null);
   const onHeightChangeRef = useRef(onHeightChange);
   useEffect(() => { onHeightChangeRef.current = onHeightChange; }, [onHeightChange]);
@@ -278,193 +286,311 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
     return () => { ro.disconnect(); cancelAnimationFrame(raf); };
   }, []);
 
+  // Filter nav items (same logic as icon row)
+  const filteredNav = (user.navOrder && (user.navOrder as string[]).length > 0
+    ? [...NAV].sort((a, b) => {
+        const order = user.navOrder as string[];
+        const ia = order.indexOf(a.id);
+        const ib = order.indexOf(b.id);
+        if (ia === -1 && ib === -1) return 0;
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      })
+    : NAV
+  ).filter(item => {
+    const minStage = item.minStage ?? 0;
+    if ((user.onboardingStage ?? 0) < minStage) return false;
+    if (item.roles && !item.roles.includes(user.role)) return false;
+    const status = (user as any).status as string | undefined;
+    const isNormal = !status || status === "normal";
+    const isAbroad = status === "abroad";
+    const sf = item.statusFilter;
+    if (!sf) return true;
+    if (sf === "normal") return isNormal;
+    if (sf === "normal|abroad") return isNormal || isAbroad;
+    if (sf === "abroad") return isAbroad;
+    return true;
+  });
+
   return (
-    <nav
-      ref={navRef}
-      className="fixed top-0 left-0 right-0 z-40"
-      style={{ background: "#0a0a0f", borderBottom: "1px solid #1e1e2e" }}
-    >
-      {/* HUD Background Grid */}
-      <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0h20v20H0V0zm10 10h10v10H10V10zM0 10h10v10H0V10zM10 0h10v10H10V0z\' fill=\'%2300d4ff\' fill-opacity=\'1\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")' }} />
+    <>
+      <nav
+        ref={navRef}
+        className="fixed top-0 left-0 right-0 z-40"
+        style={{ background: "#0a0a0f", borderBottom: "1px solid #1e1e2e" }}
+      >
+        {/* HUD Background Grid */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0h20v20H0V0zm10 10h10v10H10V10zM0 10h10v10H0V10zM10 0h10v10H10V0z\' fill=\'%2300d4ff\' fill-opacity=\'1\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")' }} />
 
-      {/* Top XP Bar - Full width */}
-      <div className="h-1 w-full bg-[#111118] relative overflow-hidden">
-        <motion.div
-          className="h-full absolute top-0 left-0"
-          initial={{ width: 0 }}
-          animate={{ width: `${xpPct}%` }}
-          style={{
-            background: `linear-gradient(90deg, ${fc}40, ${fc})`,
-            boxShadow: `0 0 10px ${fc}`,
-          }}
-        >
-          {/* Sweeping highlight on XP bar */}
+        {/* Top XP Bar - Full width */}
+        <div className="h-1 w-full bg-[#111118] relative overflow-hidden">
           <motion.div
-            animate={{ x: ["-100%", "200%"] }}
-            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-            className="absolute top-0 bottom-0 w-20"
-            style={{ background: `linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)`, transform: "skewX(-20deg)" }}
-          />
-        </motion.div>
-        {xpPct >= 95 && (
-          <div className="absolute top-0 bottom-0 left-0 right-0 animate-pulse bg-white/20" />
-        )}
-      </div>
-
-      {/* Main Bar */}
-      <div className="flex items-center gap-3 px-4 py-2" style={{ borderBottom: "1px solid #111118" }}>
-        <button
-          className="font-display font-black text-xl flex-shrink-0 tracking-widest uppercase glitch-text"
-          style={{ color: user.activeEvent?.primaryColor || "#00d4ff", textShadow: `0 0 15px ${user.activeEvent?.primaryColor || "#00d4ff"}` }}
-          onClick={() => onNav("dashboard")}
-        >
-          {user.activeEvent?.gameDisplayName ?? "NEONOIR"}
-        </button>
-
-        <SearchBar onInspectPlayer={onInspectPlayer} onNav={onNav} />
-
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={() => onNav("notifications")}
-            className="relative font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800 flex items-center justify-center"
+            className="h-full absolute top-0 left-0"
+            initial={{ width: 0 }}
+            animate={{ width: `${xpPct}%` }}
             style={{
-              fontSize: 12,
-              color: unreadNotifs > 0 ? "#ff2d55" : "#475569",
-              background: unreadNotifs > 0 ? "#ff2d5515" : "#111118",
-              border: `1px solid ${unreadNotifs > 0 ? "#ff2d55" : "#1e1e2e"}`,
-              boxShadow: unreadNotifs > 0 ? "0 0 12px #ff2d5540" : "none",
+              background: `linear-gradient(90deg, ${fc}40, ${fc})`,
+              boxShadow: `0 0 10px ${fc}`,
             }}
           >
-            <Bell size={16} strokeWidth={2} />
+            <motion.div
+              animate={{ x: ["-100%", "200%"] }}
+              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+              className="absolute top-0 bottom-0 w-20"
+              style={{ background: `linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)`, transform: "skewX(-20deg)" }}
+            />
+          </motion.div>
+          {xpPct >= 95 && (
+            <div className="absolute top-0 bottom-0 left-0 right-0 animate-pulse bg-white/20" />
+          )}
+        </div>
+
+        {/* Main Bar */}
+        <div className="flex items-center gap-3 px-4 py-2" style={{ borderBottom: "1px solid #111118" }}>
+          <button
+            className="font-display font-black text-xl flex-shrink-0 tracking-widest uppercase glitch-text"
+            style={{ color: user.activeEvent?.primaryColor || "#00d4ff", textShadow: `0 0 15px ${user.activeEvent?.primaryColor || "#00d4ff"}` }}
+            onClick={() => onNav("dashboard")}
+          >
+            {user.activeEvent?.gameDisplayName ?? "NEONOIR"}
           </button>
-          <AvatarMenu user={user} onNav={onNav} onLogout={onLogout} />
-        </div>
-      </div>
 
-      <AnnouncementBanner />
+          {/* SearchBar hidden on mobile to save space */}
+          <div className="hidden sm:block flex-1 max-w-xs mx-2">
+            <SearchBar onInspectPlayer={onInspectPlayer} onNav={onNav} />
+          </div>
+          <div className="flex-1 sm:hidden" />
 
-      {/* ── Row A: Vitals — HP / NRV / ENG ───────────────────────────── */}
-      <div className="flex items-center gap-2 px-4 py-1.5" style={{ background: "rgba(13,13,20,0.85)", backdropFilter: "blur(4px)", borderBottom: "1px solid #111118" }}>
-        {/* Status badges */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <span className="font-mono text-[10px] uppercase bg-slate-800 px-2 py-0.5 clip-btn text-slate-300">
-            Lv.<span className="text-white font-bold">{user.level}</span>
-          </span>
-          {user.faction && (
-            <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn font-bold" style={{ background: `${fc}20`, color: fc, border: `1px solid ${fc}40` }}>
-              {user.faction}
-            </span>
-          )}
-          {isHosp && (
-            <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn animate-pulse font-bold bg-red-900/30 text-red-500 border border-red-500/50">
-              HOSP
-            </span>
-          )}
-          {isJailed && (
-            <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn font-bold bg-amber-900/30 text-amber-500 border border-amber-500/50">
-              JAIL
-            </span>
-          )}
-        </div>
-        {/* Stat bars */}
-        <div className="flex-1 flex items-center gap-2 min-w-0">
-          <StatBar label="HP"  value={user.health} max={user.maxHealth} color="#ff2d55" />
-          <StatBar label="NRV" value={user.nerve}  max={user.maxNerve}  color="#ff6b35" />
-          <StatBar
-            label="ENG"
-            value={user.energy}
-            max={user.maxEnergy}
-            color={energyColor}
-            sublabel={energySecsLeft !== null && user.energy < user.maxEnergy ? `+${energySecsLeft}s` : undefined}
-          />
-        </div>
-      </div>
-
-      {/* ── Row B: Currencies ─────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-1.5" style={{ background: "rgba(8,8,12,0.9)", backdropFilter: "blur(4px)", borderBottom: "1px solid #1e1e2e" }}>
-        <CurrencyBadge label="DC"     value={user.dc}                    color="#f59e0b" />
-        <CurrencyBadge label="NC"     value={user.nc}                    color="#a855f7" />
-        <CurrencyBadge label="BANK"   value={user.bankBalance}           color="#10b981" />
-        <CurrencyBadge label="KEYS"   value={user.keys ?? 0}             color="#00d4ff" integer />
-        <CurrencyBadge label="SHARDS" value={user.keyShards ?? 0}        color="#64748b" integer />
-        <CurrencyBadge label="MERIT"  value={(user as any).merit ?? 0}   color="#f43f5e" integer />
-        <CurrencyBadge label="SPINS"  value={(user as any).spinTokens ?? 0} color="#8b5cf6" integer />
-      </div>
-
-      {/* Nav Icons */}
-      <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-        {(user.navOrder && (user.navOrder as string[]).length > 0
-          ? [...NAV].sort((a, b) => {
-              const order = user.navOrder as string[];
-              const ia = order.indexOf(a.id);
-              const ib = order.indexOf(b.id);
-              if (ia === -1 && ib === -1) return 0;
-              if (ia === -1) return 1;
-              if (ib === -1) return -1;
-              return ia - ib;
-            })
-          : NAV
-        ).filter(item => {
-          const minStage = item.minStage ?? 0;
-          if ((user.onboardingStage ?? 0) < minStage) return false;
-          if (item.roles && !item.roles.includes(user.role)) return false;
-          const status = (user as any).status as string | undefined;
-          const isNormal = !status || status === "normal";
-          const isAbroad = status === "abroad";
-          const sf = item.statusFilter;
-          if (!sf) return true;
-          if (sf === "normal") return isNormal;
-          if (sf === "normal|abroad") return isNormal || isAbroad;
-          if (sf === "abroad") return isAbroad;
-          return true;
-        }).map(item => {
-          const isActive = active === item.id;
-          const Icon = item.icon;
-          const isEventItem = item.id === "events";
-          const hasActiveEvent = isEventItem && !!user.activeEvent;
-          const eventColor = user.activeEvent?.primaryColor || "#ff2d55";
-          const iconColor = isActive ? "#00d4ff" : hasActiveEvent ? eventColor : "#475569";
-          return (
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
-              key={item.id}
-              onClick={() => onNav(item.id)}
-              className="relative flex flex-col items-center flex-shrink-0 group transition-all clip-nav-item"
+              onClick={() => onNav("notifications")}
+              className="relative font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800 flex items-center justify-center"
               style={{
-                minWidth: 54,
-                padding: "8px 4px 6px",
-                background: isActive ? "#00d4ff20" : hasActiveEvent ? `${eventColor}15` : "#111118",
-                border: isActive ? "1px solid #00d4ff" : hasActiveEvent ? `1px solid ${eventColor}50` : "1px solid #1e1e2e",
-                boxShadow: isActive ? "0 0 20px #00d4ff40" : hasActiveEvent ? `0 0 12px ${eventColor}30` : "none",
+                fontSize: 12,
+                color: unreadNotifs > 0 ? "#ff2d55" : "#475569",
+                background: unreadNotifs > 0 ? "#ff2d5515" : "#111118",
+                border: `1px solid ${unreadNotifs > 0 ? "#ff2d55" : "#1e1e2e"}`,
+                boxShadow: unreadNotifs > 0 ? "0 0 12px #ff2d5540" : "none",
               }}
             >
-              {/* Pulsing dot for active event */}
-              {hasActiveEvent && !isActive && (
-                <span
-                  className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full animate-ping"
-                  style={{ background: eventColor, boxShadow: `0 0 6px ${eventColor}` }}
-                />
-              )}
-              <Icon 
-                size={18} 
-                strokeWidth={isActive ? 2 : 1.5} 
-                color={iconColor} 
-                className={cn(isActive && "drop-shadow-[0_0_12px_#00d4ff]")}
-              />
-              <span
-                className={cn("font-mono uppercase tracking-wider mt-1.5", isActive && "glitch-text")}
+              <Bell size={16} strokeWidth={2} />
+            </button>
+            <AvatarMenu user={user} onNav={onNav} onLogout={onLogout} />
+            {/* 13.4 — Hamburger button — mobile only */}
+            <button
+              className="md:hidden flex items-center justify-center"
+              style={{
+                width: 36,
+                height: 36,
+                background: mobileMenuOpen ? "#00d4ff20" : "#111118",
+                border: `1px solid ${mobileMenuOpen ? "#00d4ff" : "#1e1e2e"}`,
+                borderRadius: 2,
+              }}
+              onClick={() => setMobileMenuOpen(o => !o)}
+              aria-label="Open navigation menu"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {mobileMenuOpen ? (
+                  <motion.span key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <X size={18} color="#00d4ff" />
+                  </motion.span>
+                ) : (
+                  <motion.span key="menu" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <Menu size={18} color="#64748b" />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
+        </div>
+
+        <AnnouncementBanner />
+
+        {/* ── Row A: Vitals — HP / NRV / ENG ───────────────────────────── */}
+        <div className="flex items-center gap-2 px-4 py-1.5" style={{ background: "rgba(13,13,20,0.85)", backdropFilter: "blur(4px)", borderBottom: "1px solid #111118" }}>
+          {/* Status badges */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="font-mono text-[10px] uppercase bg-slate-800 px-2 py-0.5 clip-btn text-slate-300">
+              Lv.<span className="text-white font-bold">{user.level}</span>
+            </span>
+            {user.faction && (
+              <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn font-bold" style={{ background: `${fc}20`, color: fc, border: `1px solid ${fc}40` }}>
+                {user.faction}
+              </span>
+            )}
+            {isHosp && (
+              <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn animate-pulse font-bold bg-red-900/30 text-red-500 border border-red-500/50">
+                HOSP
+              </span>
+            )}
+            {isJailed && (
+              <span className="font-mono text-[10px] uppercase px-2 py-0.5 clip-btn font-bold bg-amber-900/30 text-amber-500 border border-amber-500/50">
+                JAIL
+              </span>
+            )}
+          </div>
+          {/* Stat bars */}
+          <div className="flex-1 flex items-center gap-2 min-w-0">
+            <StatBar label="HP"  value={user.health} max={user.maxHealth} color="#ff2d55" />
+            <StatBar label="NRV" value={user.nerve}  max={user.maxNerve}  color="#ff6b35" />
+            <StatBar
+              label="ENG"
+              value={user.energy}
+              max={user.maxEnergy}
+              color={energyColor}
+              sublabel={energySecsLeft !== null && user.energy < user.maxEnergy ? `+${energySecsLeft}s` : undefined}
+            />
+          </div>
+        </div>
+
+        {/* ── Row B: Currencies ─────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-1.5" style={{ background: "rgba(8,8,12,0.9)", backdropFilter: "blur(4px)", borderBottom: "1px solid #1e1e2e" }}>
+          <CurrencyBadge label="DC"     value={user.dc}                    color="#f59e0b" />
+          <CurrencyBadge label="NC"     value={user.nc}                    color="#a855f7" />
+          <CurrencyBadge label="BANK"   value={user.bankBalance}           color="#10b981" />
+          <CurrencyBadge label="KEYS"   value={user.keys ?? 0}             color="#00d4ff" integer />
+          <CurrencyBadge label="SHARDS" value={user.keyShards ?? 0}        color="#64748b" integer />
+          <CurrencyBadge label="MERIT"  value={(user as any).merit ?? 0}   color="#f43f5e" integer />
+          <CurrencyBadge label="SPINS"  value={(user as any).spinTokens ?? 0} color="#8b5cf6" integer />
+        </div>
+
+        {/* Nav Icons — desktop only (hidden md:flex → visible on md+) */}
+        <div className="hidden md:flex items-center gap-1.5 px-3 py-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          {filteredNav.map(item => {
+            const isActive = active === item.id;
+            const Icon = item.icon;
+            const isEventItem = item.id === "events";
+            const hasActiveEvent = isEventItem && !!user.activeEvent;
+            const eventColor = user.activeEvent?.primaryColor || "#ff2d55";
+            const iconColor = isActive ? "#00d4ff" : hasActiveEvent ? eventColor : "#475569";
+            return (
+              <button
+                key={item.id}
+                onClick={() => onNav(item.id)}
+                className="relative flex flex-col items-center flex-shrink-0 group transition-all clip-nav-item"
                 style={{
-                  fontSize: 8,
-                  color: isActive ? "#fff" : hasActiveEvent ? eventColor : "#64748b",
-                  fontWeight: isActive || hasActiveEvent ? "bold" : "normal",
-                  textShadow: isActive ? "0 0 5px #00d4ff" : hasActiveEvent ? `0 0 5px ${eventColor}` : "none",
+                  minWidth: 54,
+                  padding: "8px 4px 6px",
+                  background: isActive ? "#00d4ff20" : hasActiveEvent ? `${eventColor}15` : "#111118",
+                  border: isActive ? "1px solid #00d4ff" : hasActiveEvent ? `1px solid ${eventColor}50` : "1px solid #1e1e2e",
+                  boxShadow: isActive ? "0 0 20px #00d4ff40" : hasActiveEvent ? `0 0 12px ${eventColor}30` : "none",
                 }}
               >
-                {hasActiveEvent ? (user.activeEvent!.chatBadgeText?.split(" ")[0] || "Event") : item.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </nav>
+                {hasActiveEvent && !isActive && (
+                  <span
+                    className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full animate-ping"
+                    style={{ background: eventColor, boxShadow: `0 0 6px ${eventColor}` }}
+                  />
+                )}
+                <Icon
+                  size={18}
+                  strokeWidth={isActive ? 2 : 1.5}
+                  color={iconColor}
+                  className={cn(isActive && "drop-shadow-[0_0_12px_#00d4ff]")}
+                />
+                <span
+                  className={cn("font-mono uppercase tracking-wider mt-1.5", isActive && "glitch-text")}
+                  style={{
+                    fontSize: 8,
+                    color: isActive ? "#fff" : hasActiveEvent ? eventColor : "#64748b",
+                    fontWeight: isActive || hasActiveEvent ? "bold" : "normal",
+                    textShadow: isActive ? "0 0 5px #00d4ff" : hasActiveEvent ? `0 0 5px ${eventColor}` : "none",
+                  }}
+                >
+                  {hasActiveEvent ? (user.activeEvent!.chatBadgeText?.split(" ")[0] || "Event") : item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* 13.4 — Mobile slide-in drawer */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            key="mobile-drawer-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[50] md:hidden"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", stiffness: 350, damping: 35 }}
+              className="absolute top-0 right-0 bottom-0 overflow-y-auto"
+              style={{
+                width: "min(320px, 85vw)",
+                background: "#0a0a0f",
+                borderLeft: "1px solid #00d4ff40",
+                boxShadow: "-10px 0 40px #00d4ff10",
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Drawer header */}
+              <div
+                className="flex items-center justify-between px-4 py-3"
+                style={{ borderBottom: "1px solid #1e1e2e", background: "#111118" }}
+              >
+                <span className="font-display font-black text-sm tracking-widest uppercase" style={{ color: "#00d4ff" }}>
+                  NAVIGATION
+                </span>
+                <button onClick={() => setMobileMenuOpen(false)}>
+                  <X size={18} color="#475569" />
+                </button>
+              </div>
+
+              {/* Nav grid */}
+              <div className="grid grid-cols-3 gap-2 p-3">
+                {filteredNav.map(item => {
+                  const isActive = active === item.id;
+                  const Icon = item.icon;
+                  const isEventItem = item.id === "events";
+                  const hasActiveEvent = isEventItem && !!user.activeEvent;
+                  const eventColor = user.activeEvent?.primaryColor || "#ff2d55";
+                  const iconColor = isActive ? "#00d4ff" : hasActiveEvent ? eventColor : "#475569";
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => { onNav(item.id); setMobileMenuOpen(false); }}
+                      style={{
+                        padding: "12px 6px",
+                        background: isActive ? "#00d4ff20" : "#111118",
+                        border: `1px solid ${isActive ? "#00d4ff" : "#1e1e2e"}`,
+                        borderRadius: 3,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 6,
+                        minHeight: 64,
+                      }}
+                    >
+                      <Icon size={20} strokeWidth={isActive ? 2 : 1.5} color={iconColor} />
+                      <span
+                        className="font-mono uppercase"
+                        style={{
+                          fontSize: 9,
+                          letterSpacing: "0.06em",
+                          color: isActive ? "#00d4ff" : "#64748b",
+                          fontWeight: isActive ? "bold" : "normal",
+                        }}
+                      >
+                        {item.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

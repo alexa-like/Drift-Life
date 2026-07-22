@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { CyberSkeleton } from "../components/CyberSkeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { api } from "../lib/api";
@@ -120,7 +121,7 @@ function BotAuctionTab({ addToast }: { addToast: Props["addToast"] }) {
       </div>
 
       {isLoading ? (
-        <div className="font-mono text-xs text-center py-10" style={{ color: "#334155" }}>Loading auctions...</div>
+        <CyberSkeleton type="card" count={5} />
       ) : listings.length === 0 ? (
         <div className="font-mono text-xs text-center py-10" style={{ color: "#334155" }}>
           No active auctions right now. Check back soon — new lots drop regularly.
@@ -326,7 +327,7 @@ function BlackMarketTab({ user, refreshUser, addToast }: Props) {
         ☠ Anonymous marketplace. Items carry a 5% seizure risk every 6 hours. Listings expire in 48 hours. Requires Level 20+ to list. No refunds.
       </div>
       {bmLoading ? (
-        <div className="font-mono text-xs text-center py-10" style={{ color: "#334155" }}>Loading dark listings…</div>
+        <CyberSkeleton type="card" count={3} />
       ) : bmListings.length === 0 ? (
         <div className="font-mono text-xs text-center py-10" style={{ color: "#475569" }}>
           No listings on the dark market. Be the first to list from your inventory.

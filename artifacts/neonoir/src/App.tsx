@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PreferencesProvider, usePreferences } from "./context/PreferencesContext";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
@@ -6,58 +6,9 @@ import { useConnectivity } from "./hooks/useConnectivity";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "./hooks/useAuth";
 import { useToast } from "./hooks/useToast";
-import { AuthPage } from "./pages/AuthPage";
-import { Dashboard } from "./pages/Dashboard";
-import { CrimesPage } from "./pages/CrimesPage";
-import { JobsPage } from "./pages/JobsPage";
-
-import { BankPage } from "./pages/BankPage";
-import { InventoryPage } from "./pages/InventoryPage";
-import { LeaderboardPage } from "./pages/LeaderboardPage";
-import { FeedPage } from "./pages/FeedPage";
-import { NotificationsPage } from "./pages/NotificationsPage";
-import { HospitalPage } from "./pages/HospitalPage";
-import { ProfilePage } from "./pages/ProfilePage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { OwnerPage } from "./pages/OwnerPage";
-import { AchievementsPage } from "./pages/AchievementsPage";
-import { ChatPage } from "./pages/ChatPage";
-import { GuildsPage } from "./pages/GuildsPage";
-import { AuctionPage } from "./pages/AuctionPage";
-import { TradePage } from "./pages/TradePage";
-import { FriendsPage } from "./pages/FriendsPage";
-import TrainingCenterPage from "./pages/TrainingCenterPage";
-import MatchHistoryPage from "./pages/MatchHistoryPage";
-import GaragePage from "./pages/GaragePage";
-import ArenaHubPage from "./pages/ArenaHubPage";
-import ArenaCombatPage from "./pages/ArenaCombatPage";
-import { MissionsPage } from "./pages/MissionsPage";
-import LoadoutPage from "./pages/LoadoutPage";
-import ShopHubPage from "./pages/ShopHubPage";
-import { DistrictHubPage } from "./pages/DistrictHubPage";
-import { TravelPage } from "./pages/TravelPage";
-import { DailyPage } from "./pages/DailyPage";
-import { DistrictPage } from "./pages/DistrictPage";
-import { LegalPage } from "./pages/LegalPage";
-import { SupportPage } from "./pages/SupportPage";
-import NpcStorePage from "./pages/NpcStorePage";
-import RaceHubPage from "./pages/RaceHubPage";
-import RaceMatchPage from "./pages/RaceMatchPage";
-import { StaffPortalPage } from "./pages/StaffPortalPage";
-import { BusinessPage } from "./pages/BusinessPage";
-import { FactionPage } from "./pages/FactionPage";
-import CityPage from "./pages/CityPage";
-import NetPage from "./pages/NetPage";
-import CyberPage from "./pages/CyberPage";
-import { StorePage } from "./pages/StorePage";
-import EventPage from "./pages/EventPage";
-import UpcomingEventsPage from "./pages/UpcomingEventsPage";
-import EventArchivePage from "./pages/EventArchivePage";
-import HallOfFamePage from "./pages/HallOfFamePage";
-import BattlePassPage from "./pages/BattlePassPage";
-import HackPage from "./pages/HackPage";
-import MentorPage from "./pages/MentorPage";
 import { NavBar } from "./components/NavBar";
+import { BottomNav } from "./components/BottomNav";
+import { CyberSkeleton } from "./components/CyberSkeleton";
 import { PageTransition } from "./components/PageTransition";
 import { ToastContainer } from "./components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
@@ -69,7 +20,71 @@ import { SocketProvider, useSocket } from "./context/SocketContext";
 import { api } from "./lib/api";
 import { Notification } from "./lib/types";
 
+// ── 13.5 Performance: Lazy-load all page modules ─────────────────────────────
+// Named exports need the .then(m => ({ default: m.X })) pattern
+const AuthPage         = lazy(() => import("./pages/AuthPage").then(m => ({ default: m.AuthPage })));
+const Dashboard        = lazy(() => import("./pages/Dashboard").then(m => ({ default: m.Dashboard })));
+const CrimesPage       = lazy(() => import("./pages/CrimesPage").then(m => ({ default: m.CrimesPage })));
+const JobsPage         = lazy(() => import("./pages/JobsPage").then(m => ({ default: m.JobsPage })));
+const BankPage         = lazy(() => import("./pages/BankPage").then(m => ({ default: m.BankPage })));
+const InventoryPage    = lazy(() => import("./pages/InventoryPage").then(m => ({ default: m.InventoryPage })));
+const LeaderboardPage  = lazy(() => import("./pages/LeaderboardPage").then(m => ({ default: m.LeaderboardPage })));
+const FeedPage         = lazy(() => import("./pages/FeedPage").then(m => ({ default: m.FeedPage })));
+const NotificationsPage= lazy(() => import("./pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
+const HospitalPage     = lazy(() => import("./pages/HospitalPage").then(m => ({ default: m.HospitalPage })));
+const ProfilePage      = lazy(() => import("./pages/ProfilePage").then(m => ({ default: m.ProfilePage })));
+const SettingsPage     = lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
+const OwnerPage        = lazy(() => import("./pages/OwnerPage").then(m => ({ default: m.OwnerPage })));
+const AchievementsPage = lazy(() => import("./pages/AchievementsPage").then(m => ({ default: m.AchievementsPage })));
+const ChatPage         = lazy(() => import("./pages/ChatPage").then(m => ({ default: m.ChatPage })));
+const GuildsPage       = lazy(() => import("./pages/GuildsPage").then(m => ({ default: m.GuildsPage })));
+const AuctionPage      = lazy(() => import("./pages/AuctionPage").then(m => ({ default: m.AuctionPage })));
+const TradePage        = lazy(() => import("./pages/TradePage").then(m => ({ default: m.TradePage })));
+const FriendsPage      = lazy(() => import("./pages/FriendsPage").then(m => ({ default: m.FriendsPage })));
+const MissionsPage     = lazy(() => import("./pages/MissionsPage").then(m => ({ default: m.MissionsPage })));
+const DistrictHubPage  = lazy(() => import("./pages/DistrictHubPage").then(m => ({ default: m.DistrictHubPage })));
+const TravelPage       = lazy(() => import("./pages/TravelPage").then(m => ({ default: m.TravelPage })));
+const DailyPage        = lazy(() => import("./pages/DailyPage").then(m => ({ default: m.DailyPage })));
+const DistrictPage     = lazy(() => import("./pages/DistrictPage").then(m => ({ default: m.DistrictPage })));
+const LegalPage        = lazy(() => import("./pages/LegalPage").then(m => ({ default: m.LegalPage })));
+const SupportPage      = lazy(() => import("./pages/SupportPage").then(m => ({ default: m.SupportPage })));
+const BusinessPage     = lazy(() => import("./pages/BusinessPage").then(m => ({ default: m.BusinessPage })));
+const FactionPage      = lazy(() => import("./pages/FactionPage").then(m => ({ default: m.FactionPage })));
+const StorePage        = lazy(() => import("./pages/StorePage").then(m => ({ default: m.StorePage })));
+const StaffPortalPage  = lazy(() => import("./pages/StaffPortalPage").then(m => ({ default: m.StaffPortalPage })));
+const HackPage         = lazy(() => import("./pages/HackPage"));
+const MentorPage       = lazy(() => import("./pages/MentorPage"));
+
+// Default exports use the simpler lazy(() => import(...)) pattern
+const TrainingCenterPage = lazy(() => import("./pages/TrainingCenterPage"));
+const MatchHistoryPage   = lazy(() => import("./pages/MatchHistoryPage"));
+const GaragePage         = lazy(() => import("./pages/GaragePage"));
+const ArenaHubPage       = lazy(() => import("./pages/ArenaHubPage"));
+const ArenaCombatPage    = lazy(() => import("./pages/ArenaCombatPage"));
+const LoadoutPage        = lazy(() => import("./pages/LoadoutPage"));
+const ShopHubPage        = lazy(() => import("./pages/ShopHubPage"));
+const NpcStorePage       = lazy(() => import("./pages/NpcStorePage"));
+const RaceHubPage        = lazy(() => import("./pages/RaceHubPage"));
+const RaceMatchPage      = lazy(() => import("./pages/RaceMatchPage"));
+const CityPage           = lazy(() => import("./pages/CityPage"));
+const NetPage            = lazy(() => import("./pages/NetPage"));
+const CyberPage          = lazy(() => import("./pages/CyberPage"));
+const EventPage          = lazy(() => import("./pages/EventPage"));
+const UpcomingEventsPage = lazy(() => import("./pages/UpcomingEventsPage"));
+const EventArchivePage   = lazy(() => import("./pages/EventArchivePage"));
+const HallOfFamePage     = lazy(() => import("./pages/HallOfFamePage"));
+const BattlePassPage     = lazy(() => import("./pages/BattlePassPage"));
+
 const queryClient = new QueryClient();
+
+/** Suspense fallback: full-width skeleton that matches the nav height offset */
+function PageLoadFallback() {
+  return (
+    <div className="py-8 px-1">
+      <CyberSkeleton type="list" count={8} />
+    </div>
+  );
+}
 
 function SocketEvents({ addToast, onUserUpdate }: { addToast: (message: string, type?: "success" | "error" | "info" | "warning") => void; onUserUpdate: () => void }) {
   const { socket } = useSocket();
@@ -104,14 +119,8 @@ function SocketEvents({ addToast, onUserUpdate }: { addToast: (message: string, 
       onUserUpdate();
     };
 
-    const onBalanceUpdate = () => {
-      onUserUpdate();
-    };
-    // Generic live-update event emitted by Vanta AI and other server-side tools
-    // after they mutate user state (currency, status, ban, etc.)
-    const onUserDataUpdated = () => {
-      onUserUpdate();
-    };
+    const onBalanceUpdate = () => { onUserUpdate(); };
+    const onUserDataUpdated = () => { onUserUpdate(); };
 
     socket.on("attack_notification", onAttack);
     socket.on("trade_offer", onTradeOffer);
@@ -138,8 +147,7 @@ function SocketEvents({ addToast, onUserUpdate }: { addToast: (message: string, 
 }
 
 // ── Hash routing helpers ──────────────────────────────────────────────────────
-// URL format: example.com/#/settings  (no server config needed; survives refresh)
-const HASH_BLOCKLIST = new Set(["arena-combat", "race-match"]); // sub-pages — don't put in URL
+const HASH_BLOCKLIST = new Set(["arena-combat", "race-match"]);
 
 function getPageFromHash(): string {
   const raw = window.location.hash.replace(/^#\/?/, "").split("?")[0];
@@ -159,8 +167,6 @@ function GameApp() {
   const { user, loading, login, logout, refreshUser } = useAuth();
   const { toasts, addToast, removeToast } = useToast();
 
-  // Pull UI scale / theme saved on the account once per login — lets a
-  // player's zoom + day/night choice follow them to a new device.
   useEffect(() => {
     if (user) hydrateFromAccount(String(user.id), user.uiScale, user.uiTheme);
   }, [user?.id, hydrateFromAccount]);
@@ -173,21 +179,19 @@ function GameApp() {
   }, []);
   useEffect(() => { (window as any).__setPage = setPage; }, [setPage]);
 
-  // Sync URL → state on browser back/forward
   useEffect(() => {
     const handler = () => setPageState(getPageFromHash());
     window.addEventListener("popstate", handler);
     return () => window.removeEventListener("popstate", handler);
   }, []);
 
-  // Keep hash in sync whenever page state changes
   useEffect(() => { setHash(page); }, [page]);
 
   // ── Deployment update detection ──────────────────────────────────────────────
   const updateAvailable = useUpdateCheck(5 * 60 * 1000);
   const [updateDismissed, setUpdateDismissed] = useState(false);
 
-  // ── Event theme: apply CSS vars + page title while an event is active ──────
+  // ── Event theme ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const ev = user?.activeEvent;
     const root = document.documentElement;
@@ -204,7 +208,7 @@ function GameApp() {
     }
   }, [user?.activeEvent?.eventId]);
 
-  // ── Connectivity state ────────────────────────────────────────────────────────
+  // ── Connectivity ─────────────────────────────────────────────────────────────
   const { isOnline, checkNow } = useConnectivity();
 
   const [unreadNotifs, setUnreadNotifs] = useState(0);
@@ -212,7 +216,6 @@ function GameApp() {
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
   const [shopStoreId, setShopStoreId] = useState<string | null>(null);
   const [tradeWithPlayer, setTradeWithPlayer] = useState<{ id: string; username: string } | null>(null);
-  // Live arena HP override: keeps the NavBar HP bar in sync during a fight
   const [arenaHp, setArenaHp] = useState<{ current: number; max: number } | null>(null);
   const handleArenaHpChange = useCallback((current: number, max: number) => {
     setArenaHp({ current, max });
@@ -220,10 +223,8 @@ function GameApp() {
 
   const navTo = useCallback((p: string) => {
     setPage(p);
-    // Clear the arena HP override whenever the player navigates away from combat
     if (p !== "arena-combat") setArenaHp(null);
   }, [setPage]);
-
 
   // Poll notifications count
   useEffect(() => {
@@ -277,13 +278,12 @@ function GameApp() {
 
   if (!user) {
     return (
-      <>
+      <Suspense fallback={null}>
         <AuthPage onLogin={login} />
         <ToastContainer toasts={toasts} removeToast={removeToast} />
-      </>
+      </Suspense>
     );
   }
-
 
   const pageProps = { user: user!, refreshUser, addToast };
 
@@ -315,12 +315,11 @@ function GameApp() {
       case "loadout":       return <LoadoutPage user={user!} addToast={addToast} />;
       case "trade":         return <TradePage user={user!} addToast={addToast} prefilledPlayer={tradeWithPlayer} onTradeOpened={() => setTradeWithPlayer(null)} />;
       case "friends":       return <FriendsPage user={user!} addToast={addToast} onInspectPlayer={setInspectUserId} />;
-      // Wire Cartel pages
       case "training":
       case "gym":           return <TrainingCenterPage user={user!} refreshUser={refreshUser} addToast={addToast} />;
-      case "garage":        return <GaragePage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
+      case "garage":        return <GaragePage user={user!} onUserUpdate={(_u: any) => { refreshUser(); }} />;
       case "city":          return <CityPage user={user!} onUserUpdate={() => { refreshUser(); }} refreshUser={refreshUser} addToast={addToast} />;
-      case "net":           return <NetPage user={user!} onUserUpdate={(u) => { refreshUser(); }} />;
+      case "net":           return <NetPage user={user!} onUserUpdate={(_u: any) => { refreshUser(); }} />;
       case "cyber":         return <CyberPage user={user!} addToast={addToast} />;
       case "store":         return <StorePage user={user!} onUserUpdate={refreshUser} onNavigate={setPage} />;
       case "events":        return <EventPage user={user!} addToast={addToast} onNavigate={setPage} />;
@@ -357,7 +356,6 @@ function GameApp() {
     <SocketProvider userId={user!.id}>
       <SocketEvents addToast={addToast} onUserUpdate={refreshUser} />
       <OfflineOverlay isOffline={!isOnline} onRetry={checkNow} />
-      {/* Update banner — shown when a new deployment is detected */}
       {updateAvailable && !updateDismissed && (
         <div
           className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-4 py-2 bg-[#0d0d14] border-b border-[#00d4ff] shadow-[0_0_20px_rgba(0,212,255,0.3)]"
@@ -392,16 +390,22 @@ function GameApp() {
           onInspectPlayer={setInspectUserId}
           onHeightChange={setNavHeight}
         />
+        {/* 13.4 — BottomNav pinned for mobile; desktop gets 32px padding, mobile gets 80px for bottom bar */}
         <main
-          style={{ paddingTop: navHeight, paddingBottom: 32 }}
-          className="px-3 sm:px-4 max-w-5xl mx-auto w-full"
+          style={{ paddingTop: navHeight }}
+          className="px-3 sm:px-4 max-w-5xl mx-auto w-full pb-20 md:pb-8"
         >
-          <PageTransition pageKey={page}>
-            {renderPage()}
-          </PageTransition>
+          <Suspense fallback={<PageLoadFallback />}>
+            <PageTransition pageKey={page}>
+              {renderPage()}
+            </PageTransition>
+          </Suspense>
         </main>
+
+        {/* 13.4 — Mobile bottom nav bar */}
+        <BottomNav active={page} onNav={navTo} />
+
         <ToastContainer toasts={toasts} removeToast={removeToast} />
-        {/* 12.1: Tutorial / Onboarding Modal */}
         {(user!.onboardingStage ?? 0) < 4 && (
           <OnboardingModal
             user={user!}
@@ -410,7 +414,6 @@ function GameApp() {
             addToast={addToast}
           />
         )}
-        {/* 11.4: Player Vanta Tutor — floating help button for all players */}
         <PlayerVantaPanel user={user!} addToast={addToast} />
         {user!.devMode && (
           <DevToolbar user={user!} onRefresh={refreshUser} addToast={addToast} />
