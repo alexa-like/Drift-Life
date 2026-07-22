@@ -207,4 +207,32 @@ ownerBattlePassRouter.get("/", async (req: any, res: any) => {
   }
 });
 
+// GET /api/owner/battle-pass/:id — get one pass with full levels array
+ownerBattlePassRouter.get("/:id", async (req: any, res: any) => {
+  if (!["owner", "admin"].includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const pass = await BattlePass.findById(req.params.id).lean();
+    if (!pass) return res.status(404).json({ error: "Pass not found" });
+    return res.json(pass);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/owner/battle-pass/:id/deactivate — set status to ended
+ownerBattlePassRouter.post("/:id/deactivate", async (req: any, res: any) => {
+  if (!["owner", "admin"].includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const pass = await BattlePass.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: "ended" } },
+      { new: true }
+    );
+    if (!pass) return res.status(404).json({ error: "Pass not found" });
+    return res.json(pass);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
