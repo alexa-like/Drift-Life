@@ -206,6 +206,8 @@ export interface IUser extends Document {
   } | null;
   // ── 10.15 Pinned achievement badges ─────────────────────────────────────
   pinnedBadges?: string[];
+  // ── Tier 10 NC utility ───────────────────────────────────────────────────
+  purchasedLoadoutSlots: number;  // 0–3 extra loadout slots bought with NC
   // ── 11 Cosmetics system ──────────────────────────────────────────────────
   cosmeticInventory: Array<{
     cosmeticId: string;

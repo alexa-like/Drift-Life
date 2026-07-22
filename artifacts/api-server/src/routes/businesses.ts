@@ -1314,14 +1314,13 @@ router.post("/:id/upgrade", requireAuth, async (req: AuthRequest, res) => {
     if (!businessId || businessId.toString() !== req.params.id)
       return res.status(403).json({ message: "You do not own this business" });
 
-    const biz = await Business.findById(req.params.id).lean();
-    if (!biz) return res.status(404).json({ message: "Business not found" });
-
-    const currentTier = (biz as any).tier ?? 1;
-    if (currentTier >= TIER_MAX)
+    // Quick pre-check — full guard is the atomic DC deduct below
+    const bizPre = await Business.findById(req.params.id).lean();
+    if (!bizPre) return res.status(404).json({ message: "Business not found" });
+    if (((bizPre as any).tier ?? 1) >= TIER_MAX)
       return res.status(400).json({ message: "Business is already at maximum tier" });
 
-    // Atomically deduct DC
+    // Step 1: atomically deduct DC from user
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, dc: { $gte: amount } },
       { $inc: { dc: -amount } },
@@ -1332,46 +1331,82 @@ router.post("/:id/upgrade", requireAuth, async (req: AuthRequest, res) => {
         .status(400)
         .json({ message: `Insufficient DC — need ${amount.toLocaleString()} DC` });
 
-    const prevProgress = (biz as any).upgradeProgress ?? 0;
-    const newProgress  = prevProgress + amount;
+    // Step 2: atomically increment progress on the business document.
+    // Using $inc prevents last-write-wins corruption under concurrent requests.
+    const updatedBiz = await Business.findOneAndUpdate(
+      { _id: req.params.id },
+      { $inc: { upgradeProgress: amount } },
+      { returnDocument: "after" },
+    );
+    if (!updatedBiz) {
+      // Extremely unlikely; refund DC and bail
+      await User.updateOne({ _id: req.userId }, { $inc: { dc: amount } });
+      return res.status(500).json({ message: "Business not found after DC deduction" });
+    }
+
+    const newProgress  = (updatedBiz as any).upgradeProgress as number;
+    const currentTier  = (updatedBiz as any).tier as number ?? 1;
     const nextTier     = currentTier + 1;
-    const threshold    = TIER_UPGRADE_THRESHOLDS[nextTier];
-    const tierAdvanced = newProgress >= threshold;
+    const threshold    = TIER_UPGRADE_THRESHOLDS[nextTier] ?? Infinity;
+    const tierAdvanced = currentTier < TIER_MAX && newProgress >= threshold;
     const newTier      = tierAdvanced ? nextTier : currentTier;
 
-    const newLaunderCooldown = tierAdvanced
-      ? Math.max(1, ((biz as any).launderingCooldownHours ?? 6) - 0.5)
-      : ((biz as any).launderingCooldownHours ?? 6);
-    const newPassivePH = TIER_INCOME_PER_HOUR[newTier] ?? 200;
-
-    await Business.updateOne(
-      { _id: biz._id },
-      {
-        $set: {
-          tier:                    newTier,
-          upgradeProgress:         newProgress,
-          passiveIncomePerHour:    newPassivePH,
-          launderingCooldownHours: newLaunderCooldown,
-        },
-      },
-    );
-
     if (tierAdvanced) {
-      Notification.create({
-        userId:  req.userId,
-        type:    "system",
-        message: `${(biz as any).name} reached Tier ${newTier}! Income: ${newPassivePH.toLocaleString()} DC/hr. Laundering cooldown reduced.`,
-      }).catch(() => {});
+      const newPassivePH       = TIER_INCOME_PER_HOUR[newTier] ?? 200;
+      const newLaunderCooldown = Math.max(
+        1,
+        ((updatedBiz as any).launderingCooldownHours ?? 6) - 0.5,
+      );
+
+      // Guard: only advance if this request is the one crossing the threshold
+      // (concurrent requests both see newProgress >= threshold, but only one
+      //  wins because we condition on tier === currentTier).
+      const advanced = await Business.findOneAndUpdate(
+        { _id: req.params.id, tier: currentTier },
+        {
+          $set: {
+            tier:                    newTier,
+            passiveIncomePerHour:    newPassivePH,
+            launderingCooldownHours: newLaunderCooldown,
+          },
+        },
+        { returnDocument: "after" },
+      );
+
+      if (advanced) {
+        Notification.create({
+          userId:  req.userId,
+          type:    "system",
+          message: `${(updatedBiz as any).name} reached Tier ${newTier}! Income: ${newPassivePH.toLocaleString()} DC/hr. Laundering cooldown reduced.`,
+        }).catch(() => {});
+
+        return res.json({
+          invested: amount,
+          newProgress,
+          tier: newTier,
+          tierAdvanced: true,
+          nextThreshold: TIER_UPGRADE_THRESHOLDS[Math.min(newTier + 1, TIER_MAX)] ?? null,
+          passiveIncomePerHour: newPassivePH,
+          launderingCooldownHours: newLaunderCooldown,
+          newDc: updatedUser.dc,
+        });
+      }
+      // Another concurrent request already advanced tier — fall through and
+      // return non-advanced response with updated progress.
     }
+
+    const finalTier       = (updatedBiz as any).tier as number ?? currentTier;
+    const finalPassivePH  = TIER_INCOME_PER_HOUR[finalTier] ?? 200;
+    const finalCooldown   = (updatedBiz as any).launderingCooldownHours ?? 6;
 
     res.json({
       invested: amount,
       newProgress,
-      tier: newTier,
-      tierAdvanced,
-      nextThreshold: TIER_UPGRADE_THRESHOLDS[Math.min(newTier + 1, TIER_MAX)] ?? null,
-      passiveIncomePerHour: newPassivePH,
-      launderingCooldownHours: newLaunderCooldown,
+      tier: finalTier,
+      tierAdvanced: false,
+      nextThreshold: TIER_UPGRADE_THRESHOLDS[Math.min(finalTier + 1, TIER_MAX)] ?? null,
+      passiveIncomePerHour: finalPassivePH,
+      launderingCooldownHours: finalCooldown,
       newDc: updatedUser.dc,
     });
   } catch (err) {
@@ -1445,7 +1480,7 @@ router.post("/:id/skip-launder", requireAuth, async (req: AuthRequest, res) => {
     const biz = await Business.findById(req.params.id).lean();
     if (!biz) return res.status(404).json({ message: "Business not found" });
 
-    const cooldownHours   = (biz as any).launderingCooldownHours ?? 6;
+    const cooldownHours                = (biz as any).launderingCooldownHours ?? 6;
     const lastLaunderedAt: Date | null = (biz as any).lastLaunderedAt ?? null;
 
     let remainingMins = 0;
@@ -1461,20 +1496,35 @@ router.post("/:id/skip-launder", requireAuth, async (req: AuthRequest, res) => {
 
     const ncCost = Math.max(5, remainingMins);
 
+    // Step 1: claim the skip by atomically clearing lastLaunderedAt, but only
+    // if it still matches the value we read.  This ensures exactly one concurrent
+    // request wins the race — the loser gets a 409 and is never charged NC.
+    const claimed = await Business.findOneAndUpdate(
+      { _id: biz._id, lastLaunderedAt: lastLaunderedAt },
+      { $set: { lastLaunderedAt: null } },
+      { returnDocument: "after" },
+    );
+    if (!claimed)
+      return res.status(409).json({
+        message: "Cooldown was already cleared by a concurrent request — try launching again",
+      });
+
+    // Step 2: charge NC.  If the user can't afford it, restore the cooldown and bail.
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, nc: { $gte: ncCost } },
       { $inc: { nc: -ncCost } },
       { returnDocument: "after" },
     );
-    if (!updatedUser)
+    if (!updatedUser) {
+      // Restore the cooldown we just cleared so the player isn't left in a
+      // free-skip state after a failed payment.
+      await Business.updateOne({ _id: biz._id }, { $set: { lastLaunderedAt: lastLaunderedAt } });
       return res.status(400).json({
         message: `Not enough NC — need ${ncCost} NC to skip ${remainingMins}-minute cooldown`,
         notEnoughNc: true,
         ncRequired: ncCost,
       });
-
-    // Clear lastLaunderedAt so laundering is available immediately
-    await Business.updateOne({ _id: biz._id }, { $set: { lastLaunderedAt: null } });
+    }
 
     res.json({ ncSpent: ncCost, remainingMinsSkipped: remainingMins, newNc: updatedUser.nc });
   } catch (err) {
