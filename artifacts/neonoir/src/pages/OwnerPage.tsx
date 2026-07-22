@@ -5,6 +5,7 @@ import { formatDC } from "../lib/format";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import EventGameModesTab from "../components/EventGameModesTab";
 import BattlePassTab from "../components/BattlePassTab";
+import CosmeticsTab from "../components/CosmeticsTab";
 
 interface Props {
   user: User;
@@ -92,7 +93,7 @@ interface EconomyGameConfig {
 }
 interface GameCatalog { runs: RunCatalogEntry[]; jobs: JobCatalogEntry[]; staffTiers: Record<string, StaffTierEntry>; }
 
-type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "event-game-modes" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy" | "eco-dash" | "database" | "vanta-ai" | "defaults" | "battle-pass";
+type Tab = "stats" | "users" | "patch-notes" | "activity" | "items" | "grants" | "vanta" | "royale-logs" | "combat-hist" | "race-hist" | "drop-rates" | "special-events" | "event-game-modes" | "announcements" | "giveaways" | "staff" | "mass-actions" | "economy" | "eco-dash" | "database" | "vanta-ai" | "defaults" | "battle-pass" | "cosmetics";
 type VantaMsg = { role: "user" | "vanta" | "progress" | "action" | "result" | "agent_prompt" | "error"; text: string; tool?: string; summary?: string; prompt?: string; };
 
 export function OwnerPage({ user, addToast, onNav }: Props) {
@@ -919,6 +920,10 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
             {t.label}
           </button>
         ))}
+        <button onClick={() => setTab("cosmetics")} className="px-4 py-2 rounded font-mono text-xs transition-all"
+          style={{ background: tab === "cosmetics" ? "#06b6d418" : "#111118", color: tab === "cosmetics" ? "#06b6d4" : "#475569", border: `1px solid ${tab === "cosmetics" ? "#06b6d440" : "#1e1e2e"}` }}>
+          ✨ Cosmetics
+        </button>
         <button onClick={() => setTab("vanta")} className="px-4 py-2 rounded font-mono text-xs transition-all"
           style={{ background: tab === "vanta" ? "#ff2d5518" : "#111118", color: tab === "vanta" ? "#ff2d55" : "#475569", border: `1px solid ${tab === "vanta" ? "#ff2d5540" : "#1e1e2e"}` }}>
           VantaLog
@@ -1757,6 +1762,8 @@ export function OwnerPage({ user, addToast, onNav }: Props) {
       {tab === "event-game-modes" && <EventGameModesTab addToast={addToast} />}
 
       {tab === "battle-pass" && <BattlePassTab addToast={addToast} />}
+
+      {tab === "cosmetics" && <CosmeticsTab addToast={addToast} />}
 
       {tab === "announcements" && (
         <div className="space-y-5">

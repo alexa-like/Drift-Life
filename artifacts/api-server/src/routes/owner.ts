@@ -1481,6 +1481,79 @@ router.patch("/cosmetics/:id", requireOwner as any, async (req: AuthRequest, res
   }
 });
 
+// GET /api/owner/cosmetics — list all cosmetics sorted by type then name
+router.get("/cosmetics", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const items = await CosmeticItemModel.find().sort({ type: 1, name: 1 }).lean();
+    res.json(items);
+  } catch (err: any) {
+    req.log.error({ err }, "owner list-cosmetics error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// DELETE /api/owner/cosmetics/:id — hard delete a cosmetic
+router.delete("/cosmetics/:id", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await CosmeticItemModel.findOneAndDelete({ id });
+    if (!deleted) return res.status(404).json({ message: "Cosmetic not found" });
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "delete-cosmetic",
+      details: { cosmeticId: id, name: deleted.name },
+    });
+    res.json({ message: `${deleted.name} deleted` });
+  } catch (err: any) {
+    req.log.error({ err }, "owner delete-cosmetic error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/owner/cosmetics/grant-by-username — grant cosmetic by username
+router.post("/cosmetics/grant-by-username", requireOwner as any, async (req: AuthRequest, res) => {
+  try {
+    const { cosmeticId, username } = req.body as { cosmeticId: string; username: string };
+    if (!cosmeticId || !username) return res.status(400).json({ message: "cosmeticId and username required" });
+
+    const item = await CosmeticItemModel.findOne({ id: cosmeticId }).lean();
+    if (!item) return res.status(404).json({ message: "Cosmetic not found" });
+
+    const player = await User.findOne({ username: new RegExp(`^${username.trim()}$`, "i") }).select("_id username").lean();
+    if (!player) return res.status(404).json({ message: `Player "${username}" not found` });
+
+    await User.findByIdAndUpdate(
+      player._id,
+      {
+        $addToSet: { ownedCosmetics: cosmeticId },
+        $push: {
+          cosmeticInventory: {
+            cosmeticId,
+            acquiredAt: new Date(),
+            expiresAt: null,
+            source: "owner_grant",
+          },
+        },
+      }
+    );
+
+    logAdminAction({
+      actorId: req.userId!,
+      actorUsername: req.username || "unknown",
+      action: "grant-cosmetic",
+      targetId: String(player._id),
+      targetUsername: player.username as string,
+      details: { cosmeticId, cosmeticName: item.name },
+    });
+
+    res.json({ message: `${item.name} granted to ${player.username}` });
+  } catch (err: any) {
+    req.log.error({ err }, "owner grant-by-username error");
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // ── EVENT MANAGEMENT (Owner) ──────────────────────────────────────────────────
 import Event from "../models/Event";
 import EventProgress from "../models/EventProgress";
