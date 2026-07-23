@@ -1,9 +1,9 @@
 import { Router } from "express";
 import mongoose from "mongoose";
-import User from "../models/User";
-import Item from "../models/Item";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { isHospitalized } from "../models/User";
+import User from "../../models/User";
+import Item from "../../models/Item";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
+import { isHospitalized } from "../../models/User";
 
 const router = Router();
 
@@ -15,7 +15,7 @@ router.get("/status", requireAuth, async (req: AuthRequest, res) => {
     const hosp = user.hospitalizedUntil && user.hospitalizedUntil > new Date();
 
     // Subscriber hospital speed reduction
-    const { getActiveTier } = await import("../lib/subscription");
+    const { getActiveTier } = await import("../../lib/subscription");
     const subTier = getActiveTier(user as any);
     const speedReduction = subTier?.hospitalSpeedPct ?? 0;
 

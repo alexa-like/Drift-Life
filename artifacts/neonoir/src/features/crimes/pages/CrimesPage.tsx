@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Crime } from "../shared/types";
-import { api } from "../shared/api";
-import { formatDC } from "../shared/format";
-import { AnimatedCard } from "../shared/components/AnimatedCard";
-import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
-import { CyberButton } from "../shared/components/CyberButton";
-import { ActionResult } from "../shared/components/ActionResult";
-import { NeonProgressBar } from "../shared/components/NeonProgressBar";
+import { User, Crime } from "../../../shared/types";
+import { api } from "../../../shared/api";
+import { formatDC } from "../../../shared/format";
+import { AnimatedCard } from "../../../shared/components/AnimatedCard";
+import { CyberSectionHeader } from "../../../shared/components/CyberSectionHeader";
+import { CyberButton } from "../../../shared/components/CyberButton";
+import { ActionResult } from "../../../shared/components/ActionResult";
+import { NeonProgressBar } from "../../../shared/components/NeonProgressBar";
 import { WantedStars } from "@/shared/components/WantedStars";
 
 interface Props {

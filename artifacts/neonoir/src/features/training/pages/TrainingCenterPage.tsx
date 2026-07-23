@@ -6,8 +6,8 @@
  *   - Endurance Training → energy regen speed bonus
  */
 import { useState, useEffect, useCallback } from "react";
-import { api } from "../shared/api";
-import type { User } from "../shared/types";
+import { api } from "../../../shared/api";
+import type { User } from "../../../shared/types";
 
 interface TrainingTypeDef {
   id: string;

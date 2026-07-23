@@ -38,8 +38,8 @@ export interface RouteEntry {
 
 export const AuthPageLazy       = lazy(() => import("./pages/AuthPage").then(m => ({ default: m.AuthPage })));
 export const DashboardLazy      = lazy(() => import("./pages/Dashboard").then(m => ({ default: m.Dashboard })));
-export const CrimesPageLazy     = lazy(() => import("./pages/CrimesPage").then(m => ({ default: m.CrimesPage })));
-export const JobsPageLazy       = lazy(() => import("./pages/JobsPage").then(m => ({ default: m.JobsPage })));
+export const CrimesPageLazy     = lazy(() => import("./features/crimes/pages/CrimesPage").then(m => ({ default: m.CrimesPage })));
+export const JobsPageLazy       = lazy(() => import("./features/jobs/pages/JobsPage").then(m => ({ default: m.JobsPage })));
 export const BankPageLazy       = lazy(() => import("./pages/BankPage").then(m => ({ default: m.BankPage })));
 export const InventoryPageLazy  = lazy(() => import("./pages/InventoryPage").then(m => ({ default: m.InventoryPage })));
 export const LeaderboardPageLazy= lazy(() => import("./pages/LeaderboardPage").then(m => ({ default: m.LeaderboardPage })));
@@ -58,7 +58,7 @@ export const FriendsPageLazy    = lazy(() => import("./pages/FriendsPage").then(
 export const MissionsPageLazy   = lazy(() => import("./pages/MissionsPage").then(m => ({ default: m.MissionsPage })));
 export const DistrictHubPageLazy= lazy(() => import("./pages/DistrictHubPage").then(m => ({ default: m.DistrictHubPage })));
 export const TravelPageLazy     = lazy(() => import("./pages/TravelPage").then(m => ({ default: m.TravelPage })));
-export const DailyPageLazy      = lazy(() => import("./pages/DailyPage").then(m => ({ default: m.DailyPage })));
+export const DailyPageLazy      = lazy(() => import("./features/daily/pages/DailyPage").then(m => ({ default: m.DailyPage })));
 export const DistrictPageLazy   = lazy(() => import("./pages/DistrictPage").then(m => ({ default: m.DistrictPage })));
 export const LegalPageLazy      = lazy(() => import("./pages/LegalPage").then(m => ({ default: m.LegalPage })));
 export const SupportPageLazy    = lazy(() => import("./pages/SupportPage").then(m => ({ default: m.SupportPage })));
@@ -68,7 +68,7 @@ export const StorePageLazy      = lazy(() => import("./pages/StorePage").then(m 
 export const StaffPortalPageLazy= lazy(() => import("./pages/StaffPortalPage").then(m => ({ default: m.StaffPortalPage })));
 export const HackPageLazy       = lazy(() => import("./pages/HackPage"));
 export const MentorPageLazy     = lazy(() => import("./pages/MentorPage"));
-export const TrainingCenterPageLazy = lazy(() => import("./pages/TrainingCenterPage"));
+export const TrainingCenterPageLazy = lazy(() => import("./features/training/pages/TrainingCenterPage"));
 export const MatchHistoryPageLazy   = lazy(() => import("./pages/MatchHistoryPage"));
 export const GaragePageLazy     = lazy(() => import("./pages/GaragePage"));
 export const ArenaHubPageLazy   = lazy(() => import("./pages/ArenaHubPage"));
