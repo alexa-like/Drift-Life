@@ -8,7 +8,7 @@
  * POST /api/mini-leaderboard/reset  (owner only — manual trigger)
  */
 import { Router } from "express";
-import MiniGameLeaderboard, { LeaderboardType } from "../models/MiniGameLeaderboard";
+import MiniGameLeaderboard, { LeaderboardType } from "../features/garage/models/MiniGameLeaderboard";
 import User from "../models/User";
 import Notification from "../models/Notification";
 import { requireAuth, requireOwner, AuthRequest } from "../middlewares/auth";

@@ -3,8 +3,8 @@ import { requireAuth, AuthRequest } from "../middlewares/auth";
 import NpcStoreListing, { INpcStoreListing } from "../models/NpcStoreListing";
 import User from "../models/User";
 import Item from "../models/Item";
-import MiniGameItem from "../models/MiniGameItem";
-import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
+import MiniGameItem from "../features/garage/models/MiniGameItem";
+import PlayerMiniGameInventory from "../features/garage/models/PlayerMiniGameInventory";
 import { SHOP_ITEMS } from "./market";
 
 const router = Router();

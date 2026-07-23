@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import User from "../models/User";
-import { rollCityEncounter } from "./crimes";
+import { rollCityEncounter } from "../features/crimes/routes";
 
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, levelUp } from "../lib/regen";

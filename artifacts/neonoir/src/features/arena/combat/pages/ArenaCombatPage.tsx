@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { api } from "../shared/api";
-import { User } from "../shared/types";
-import { MatchResultModal } from "../components/MatchResultModal";
+import { api } from "../../../../shared/api";
+import { User } from "../../../../shared/types";
+import { MatchResultModal } from "../../components/MatchResultModal";
 
 interface Props {
   user: User;

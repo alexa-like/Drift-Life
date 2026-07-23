@@ -4,8 +4,8 @@
  */
 import { Router } from "express";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
-import CombatMatch from "../models/CombatMatch";
-import RaceMatch from "../models/RaceMatch";
+import CombatMatch from "../features/arena/models/CombatMatch";
+import RaceMatch from "../features/race/models/RaceMatch";
 
 const router = Router();
 

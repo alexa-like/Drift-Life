@@ -9,18 +9,18 @@
  */
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import User from "../models/User";
-import RaceMatch from "../models/RaceMatch";
-import PlayerGarage from "../models/PlayerGarage";
-import MiniGameLeaderboard from "../models/MiniGameLeaderboard";
-import Notification from "../models/Notification";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { fireMissionEvent } from "../lib/missionEvents";
-import { checkAchievements } from "./achievements";
-import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
-import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
-import { awardBattlePassXp } from "../lib/battlePassXp";
-import { updateQuestProgress } from "../lib/questProgress";
+import User from "../../models/User";
+import RaceMatch from "./models/RaceMatch";
+import PlayerGarage from "../garage/models/PlayerGarage";
+import MiniGameLeaderboard from "../garage/models/MiniGameLeaderboard";
+import Notification from "../../models/Notification";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
+import { fireMissionEvent } from "../../lib/missionEvents";
+import { checkAchievements } from "../../routes/achievements";
+import { announceLeaderboardMilestone } from "../../lib/leaderboardHighlights";
+import { getActiveFlashEvent, awardEventPoints } from "../../lib/eventEngine";
+import { awardBattlePassXp } from "../../lib/battlePassXp";
+import { updateQuestProgress } from "../../lib/questProgress";
 
 const router = Router();
 
@@ -770,7 +770,7 @@ router.post("/cars/:carId/service", requireAuth, async (req: AuthRequest, res) =
       // Get car tier from RaceCar model
       let carTier = "common";
       try {
-        const RaceCar = (await import("../models/RaceCar")).default;
+        const RaceCar = (await import("../../models/RaceCar")).default;
         const carDef = await RaceCar.findOne({ carId }).lean();
         carTier = (carDef as any)?.tier ?? "common";
       } catch (e) {}
@@ -781,7 +781,7 @@ router.post("/cars/:carId/service", requireAuth, async (req: AuthRequest, res) =
       if (user.dc < cost) { res.status(400).json({ message: "Not enough DC. Service costs " + cost + " DC." }); return; }
       await User.findByIdAndUpdate(req.userId, { $inc: { dc: -cost } });
     } else if (method === "token") {
-      const Item = (await import("../models/Item")).default;
+      const Item = (await import("../../models/Item")).default;
       const token = await Item.findOne({ owner: req.userId, name: "Service Token", quantity: { $gt: 0 } });
       if (!token) { res.status(400).json({ message: "No Service Token in inventory" }); return; }
       token.quantity = (token.quantity ?? 1) - 1;

@@ -1,8 +1,8 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import AuctionListing from "../models/AuctionListing";
-import MiniGameItem from "../models/MiniGameItem";
-import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
+import MiniGameItem from "../features/garage/models/MiniGameItem";
+import PlayerMiniGameInventory from "../features/garage/models/PlayerMiniGameInventory";
 import User from "../models/User";
 import Notification from "../models/Notification";
 import { requireAuth, AuthRequest } from "../middlewares/auth";

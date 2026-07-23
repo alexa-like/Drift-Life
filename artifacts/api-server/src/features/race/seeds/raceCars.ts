@@ -4,8 +4,8 @@
  * Run once at startup if RaceCar / CarPart collections are empty.
  */
 import RaceCar from "../models/RaceCar";
-import CarPart from "../models/CarPart";
-import { logger } from "../lib/logger";
+import CarPart from "../../garage/models/CarPart";
+import { logger } from "../../../lib/logger";
 
 const RACE_CARS = [
   // ── COMMON (3 cars) ────────────────────────────────────────────────────────

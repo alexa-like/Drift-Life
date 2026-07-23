@@ -4,12 +4,12 @@
  */
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { api } from "../shared/api";
-import { User } from "../shared/types";
-import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
-import { CyberButton } from "../shared/components/CyberButton";
-import { AnimatedCard } from "../shared/components/AnimatedCard";
-import { formatDC } from "../shared/format";
+import { api } from "../../../shared/api";
+import { User } from "../../../shared/types";
+import { CyberSectionHeader } from "../../../shared/components/CyberSectionHeader";
+import { CyberButton } from "../../../shared/components/CyberButton";
+import { AnimatedCard } from "../../../shared/components/AnimatedCard";
+import { formatDC } from "../../../shared/format";
 
 interface Props {
   user: User;

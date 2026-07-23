@@ -4,8 +4,8 @@
  * Humanity thresholds apply negative effects at 3, 6, 9 implants.
  */
 import { Router } from "express";
-import User, { applyRegen } from "../models/User";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
+import User, { applyRegen } from "../../models/User";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
 
 const router = Router();
 

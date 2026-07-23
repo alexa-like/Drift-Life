@@ -5,8 +5,8 @@
  */
 import { Router } from "express";
 import PlayerLoadout from "../models/PlayerLoadout";
-import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
-import MiniGameItem from "../models/MiniGameItem";
+import PlayerMiniGameInventory from "../features/garage/models/PlayerMiniGameInventory";
+import MiniGameItem from "../features/garage/models/MiniGameItem";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 
 const router = Router();

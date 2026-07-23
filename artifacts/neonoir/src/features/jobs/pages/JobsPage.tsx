@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { User, Job } from "../../../shared/types";
 import { api } from "../../../shared/api";
-import { MiniGameModal } from "../../../components/MiniGameModal";
+import { MiniGameModal } from "../../garage/components/MiniGameModal";
 import { formatDC } from "../../../shared/format";
 
 interface Props {

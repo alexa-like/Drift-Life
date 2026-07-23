@@ -1,5 +1,5 @@
 import React from "react";
-import { ItemImage } from "./ItemImage";
+import { ItemImage } from "../../../shared/components/ItemImage";
 
 const RESULT_CSS = `
 @keyframes victoryPulse {

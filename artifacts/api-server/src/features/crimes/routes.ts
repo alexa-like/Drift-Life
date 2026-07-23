@@ -714,8 +714,8 @@ router.post("/pursuit/resolve", requireAuth, validateBody(pursuitResolveSchema),
       // Skill check: active mini-game race car's topSpeed + handling drive the outrun bonus (0 to 0.40)
       let carBonus = 0;
       try {
-        const PlayerGarage = (await import("../../models/PlayerGarage")).default;
-        const RaceCar      = (await import("../../models/RaceCar")).default;
+        const PlayerGarage = (await import("../garage/models/PlayerGarage")).default;
+        const RaceCar      = (await import("../race/models/RaceCar")).default;
         const garage = await PlayerGarage.findOne({ userId: user._id }).lean();
         if (garage?.activeCar) {
           const car = await RaceCar.findOne({ carId: garage.activeCar }).select("baseStats").lean();

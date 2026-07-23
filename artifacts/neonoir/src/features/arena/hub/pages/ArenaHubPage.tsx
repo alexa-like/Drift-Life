@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { User } from "../shared/types";
-import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { User } from "../../../../shared/types";
+import { CyberSectionHeader } from "../../../../shared/components/CyberSectionHeader";
 
 interface Props {
   user: User;

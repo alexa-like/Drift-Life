@@ -17,16 +17,16 @@ import { STAFF_TIERS, STAFF_TASKS, getSubscriptionExpiry } from "../lib/staffTie
 import ChatMessage from "../models/ChatMessage";
 import Notification from "../models/Notification";
 import CrimeLog from "../models/CrimeLog";
-import PlayerGarage from "../models/PlayerGarage";
+import PlayerGarage from "../features/garage/models/PlayerGarage";
 import PlayerLoadout from "../models/PlayerLoadout";
-import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
+import PlayerMiniGameInventory from "../features/garage/models/PlayerMiniGameInventory";
 import FriendRequest from "../models/FriendRequest";
 import Achievement from "../models/Achievement";
 import SupportTicket from "../models/SupportTicket";
 import PushSubscription from "../models/PushSubscription";
 import AuctionListing from "../models/AuctionListing";
-import CombatMatch from "../models/CombatMatch";
-import RaceMatch from "../models/RaceMatch";
+import CombatMatch from "../features/arena/models/CombatMatch";
+import RaceMatch from "../features/race/models/RaceMatch";
 import Guild from "../models/Guild";
 import Faction from "../models/Faction";
 import EconomyLog from "../models/EconomyLog";
@@ -699,7 +699,7 @@ router.get("/royale-logs", async (req: AuthRequest, res) => {
 // ── GET /api/owner/combat-history — paginated combat match history ─────────────
 router.get("/combat-history", async (req: AuthRequest, res) => {
   try {
-    const CombatMatch = (await import("../models/CombatMatch")).default;
+    const CombatMatch = (await import("../features/arena/models/CombatMatch")).default;
     const page   = Math.max(1, Number(req.query.page) || 1);
     const limit  = Math.min(50, Number(req.query.limit) || 20);
     const userId = req.query.userId as string | undefined;
@@ -732,7 +732,7 @@ router.get("/combat-history", async (req: AuthRequest, res) => {
 // ── GET /api/owner/race-history — paginated race match history ─────────────────
 router.get("/race-history", async (req: AuthRequest, res) => {
   try {
-    const RaceMatch = (await import("../models/RaceMatch")).default;
+    const RaceMatch = (await import("../features/race/models/RaceMatch")).default;
     const page   = Math.max(1, Number(req.query.page) || 1);
     const limit  = Math.min(50, Number(req.query.limit) || 20);
     const userId = req.query.userId as string | undefined;

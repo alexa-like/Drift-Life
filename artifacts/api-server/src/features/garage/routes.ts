@@ -8,11 +8,11 @@
  */
 import { Router } from "express";
 import mongoose from "mongoose";
-import User from "../models/User";
-import PlayerGarage from "../models/PlayerGarage";
-import RaceCar from "../models/RaceCar";
-import CarPart from "../models/CarPart";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
+import User from "../../models/User";
+import PlayerGarage from "./models/PlayerGarage";
+import RaceCar from "../race/models/RaceCar";
+import CarPart from "./models/CarPart";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
 
 const router = Router();
 

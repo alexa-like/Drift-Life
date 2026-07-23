@@ -1,7 +1,7 @@
 import { Router } from "express";
 import User from "../models/User";
 import Item from "../models/Item";
-import PlayerGarage from "../models/PlayerGarage";
+import PlayerGarage from "../features/garage/models/PlayerGarage";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 
 const router = Router();

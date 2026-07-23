@@ -7,24 +7,24 @@
  */
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import User, { computeMaxHp } from "../models/User";
-import CombatMatch from "../models/CombatMatch";
-import PlayerLoadout from "../models/PlayerLoadout";
-import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
-import MiniGameItem from "../models/MiniGameItem";
-import MiniGameLeaderboard from "../models/MiniGameLeaderboard";
-import Notification from "../models/Notification";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { fireMissionEvent } from "../lib/missionEvents";
-import { checkAchievements } from "./achievements";
-import { emitFeedEvent } from "../lib/feedEvents";
-import { announceLeaderboardMilestone } from "../lib/leaderboardHighlights";
-import { getActiveFlashEvent, awardEventPoints } from "../lib/eventEngine";
-import { awardBattlePassXp } from "../lib/battlePassXp";
-import { updateQuestProgress } from "../lib/questProgress";
-import { checkMentorLevelBonus } from "../lib/mentorBonus";
-import { claimBounty } from "./bounties";
-import { logEconomy } from "../lib/economyLog";
+import User, { computeMaxHp } from "../../models/User";
+import CombatMatch from "./models/CombatMatch";
+import PlayerLoadout from "../../models/PlayerLoadout";
+import PlayerMiniGameInventory from "../garage/models/PlayerMiniGameInventory";
+import MiniGameItem from "../garage/models/MiniGameItem";
+import MiniGameLeaderboard from "../garage/models/MiniGameLeaderboard";
+import Notification from "../../models/Notification";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
+import { fireMissionEvent } from "../../lib/missionEvents";
+import { checkAchievements } from "../../routes/achievements";
+import { emitFeedEvent } from "../../lib/feedEvents";
+import { announceLeaderboardMilestone } from "../../lib/leaderboardHighlights";
+import { getActiveFlashEvent, awardEventPoints } from "../../lib/eventEngine";
+import { awardBattlePassXp } from "../../lib/battlePassXp";
+import { updateQuestProgress } from "../../lib/questProgress";
+import { checkMentorLevelBonus } from "../../lib/mentorBonus";
+import { claimBounty } from "../../routes/bounties";
+import { logEconomy } from "../../lib/economyLog";
 
 const router = Router();
 
@@ -1778,7 +1778,7 @@ async function grantCombatRewards(match: any) {
       ? match.player2Id?.toString() ?? null
       : match.player1Id?.toString() ?? null;
     if (loserId) {
-      import("../lib/warScoring").then(({ awardArenaWarPoints }) =>
+      import("../../lib/warScoring").then(({ awardArenaWarPoints }) =>
         awardArenaWarPoints(winnerId, loserId, (match as any)._io)
       ).catch(() => {});
     }
@@ -1867,10 +1867,10 @@ router.post("/match/:id/taunt", requireAuth, async (req: AuthRequest, res) => {
 
 router.post("/queue-pve", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { getActiveEvent } = await import("../lib/eventEngine");
-    const EventProgress = (await import("../models/EventProgress")).default;
-    const FeedEvent     = (await import("../models/FeedEvent")).default;
-    const Notification  = (await import("../models/Notification")).default;
+    const { getActiveEvent } = await import("../../lib/eventEngine");
+    const EventProgress = (await import("../../models/EventProgress")).default;
+    const FeedEvent     = (await import("../../models/FeedEvent")).default;
+    const Notification  = (await import("../../models/Notification")).default;
 
     const event = await getActiveEvent();
     if (!event || event.type !== "boss_raid") {

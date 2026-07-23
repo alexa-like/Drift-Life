@@ -4,18 +4,18 @@
  */
 import { Router } from "express";
 import mongoose from "mongoose";
-import User from "../models/User";
-import ActionMastery, { masteryGain } from "../models/ActionMastery";
-import Notification from "../models/Notification";
-import DarkListingModel from "../models/DarkListing";
-import HackSession from "../models/HackSession";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { applyRegen, isHospitalized, isJailed } from "../models/User";
-import { getWorldState, recalcSimPrice } from "../models/WorldState";
-import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
-import { validateBody } from "../middlewares/validate";
-import { netHackInitiateSchema, netHackSubmitSchema, netSimAmountSchema, netDarkListSchema } from "../lib/schemas";
-import { getEmployerPerk } from "../lib/employeePerks";
+import User from "../../models/User";
+import ActionMastery, { masteryGain } from "../../models/ActionMastery";
+import Notification from "../../models/Notification";
+import DarkListingModel from "../../models/DarkListing";
+import HackSession from "../hack/models/HackSession";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
+import { applyRegen, isHospitalized, isJailed } from "../../models/User";
+import { getWorldState, recalcSimPrice } from "../../models/WorldState";
+import { energySufficientExpr, buildRegenPipeline } from "../../lib/atomicRegen";
+import { validateBody } from "../../middlewares/validate";
+import { netHackInitiateSchema, netHackSubmitSchema, netSimAmountSchema, netDarkListSchema } from "../../lib/schemas";
+import { getEmployerPerk } from "../../lib/employeePerks";
 
 const router = Router();
 

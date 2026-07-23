@@ -17,7 +17,7 @@
  * same entry never double-post.
  */
 import mongoose from "mongoose";
-import MiniGameLeaderboard, { LeaderboardType } from "../models/MiniGameLeaderboard";
+import MiniGameLeaderboard, { LeaderboardType } from "../features/garage/models/MiniGameLeaderboard";
 import { postToSystemFeed } from "./systemFeed";
 
 const ASCENDING: LeaderboardType[] = ["race_fastest_2p", "race_fastest_4p"];

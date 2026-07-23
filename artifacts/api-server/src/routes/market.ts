@@ -2,7 +2,7 @@ import { Router } from "express";
 import User from "../models/User";
 import Item from "../models/Item";
 import PriceOverride from "../models/PriceOverride";
-import PlayerMiniGameInventory from "../models/PlayerMiniGameInventory";
+import PlayerMiniGameInventory from "../features/garage/models/PlayerMiniGameInventory";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { validateBody } from "../middlewares/validate";
 import { marketShopBuySchema, marketListingCreateSchema } from "../lib/schemas";

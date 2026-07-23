@@ -2,7 +2,7 @@
  * arenaItemSeed — seeds all arena MiniGameItem definitions.
  * Idempotent: uses findOneAndUpdate with upsert.
  */
-import MiniGameItem from "../models/MiniGameItem";
+import MiniGameItem from "../features/garage/models/MiniGameItem";
 import { logger } from "./logger";
 
 interface ItemSeed {

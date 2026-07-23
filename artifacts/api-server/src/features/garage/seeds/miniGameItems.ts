@@ -3,7 +3,7 @@
  * Uses upsert pattern keyed on itemId so re-running is safe.
  */
 import MiniGameItem from "../models/MiniGameItem";
-import { logger } from "../lib/logger";
+import { logger } from "../../../lib/logger";
 
 // ─── PISTOLS ────────────────────────────────────────────────────────────────
 const PISTOL_ITEMS = [

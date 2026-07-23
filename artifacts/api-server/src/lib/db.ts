@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { logger } from "./logger";
-import { seedRaceCars } from "../seeds/raceCars";
+import { seedRaceCars } from "../features/race/seeds/raceCars";
 
 // NOTE: Arena/combat MiniGameItem definitions (weapons, armor, consumables, ammo) are
 // seeded exclusively by `lib/arenaItemSeed.ts` (invoked from `lib/seed.ts` at boot).
