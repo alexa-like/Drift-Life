@@ -10,8 +10,8 @@
  * what will go live before hitting "Post Giveaway".
  */
 import { useState, useEffect } from "react";
-import { api } from "../lib/api";
-import { User, Item } from "../lib/types";
+import { api } from "../shared/api";
+import { User, Item } from "../shared/types";
 import { CyberButton } from "./CyberButton";
 import { ItemImage } from "./ItemImage";
 

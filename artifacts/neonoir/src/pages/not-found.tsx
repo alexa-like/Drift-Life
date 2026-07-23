@@ -1,8 +1,8 @@
 import { AlertCircle } from "lucide-react";
 import { Link } from "wouter";
-import { AnimatedCard } from "../components/AnimatedCard";
-import { CyberButton } from "../components/CyberButton";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
+import { AnimatedCard } from "../shared/components/AnimatedCard";
+import { CyberButton } from "../shared/components/CyberButton";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
 
 export default function NotFound() {
   return (

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { Achievement } from "../lib/types";
-import { api } from "../lib/api";
-import { User } from "../lib/types";
+import { Achievement } from "../shared/types";
+import { api } from "../shared/api";
+import { User } from "../shared/types";
 
 interface Props {
   user: User;

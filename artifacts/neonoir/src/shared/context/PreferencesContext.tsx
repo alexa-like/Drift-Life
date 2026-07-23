@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
-import { api } from "../lib/api";
+import { api } from "../api";
 
 export type Theme = "dark" | "light";
 

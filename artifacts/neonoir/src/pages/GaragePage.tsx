@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { api } from "../lib/api";
-import { User, PlayerGarage, OwnedCar, OwnedCarPartStack, CarPartDef, CarStats, CarPartType } from "../lib/types";
-import { CardArt } from "../components/CardArt";
+import { api } from "../shared/api";
+import { User, PlayerGarage, OwnedCar, OwnedCarPartStack, CarPartDef, CarStats, CarPartType } from "../shared/types";
+import { CardArt } from "../shared/components/CardArt";
 
 /** Shows the car's PNG asset; falls back to the programmatic CardArt if the file doesn't load. */
 function CarImage({ carId, tier, size }: { carId: string; tier: string; size: number }) {

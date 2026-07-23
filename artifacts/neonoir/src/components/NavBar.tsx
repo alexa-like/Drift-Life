@@ -1,19 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Home, Newspaper, MessageCircle, Package, Image as ImageIcon, CreditCard,
-  BarChart2, Gavel, Building2, Dumbbell, Briefcase, Car, Globe, Cpu, Shield, Swords, Crosshair,
-  Crown, ClipboardList, Skull, Plane, ShoppingCart, Building, Users, Landmark,
-  Wrench, Trophy, Gift, PawPrint, Bell, Settings, Flag, CalendarDays, Star, Menu, X,
-  Terminal, GraduationCap, type LucideIcon,
-} from "lucide-react";
-import { User } from "../lib/types";
-import { WantedStars } from "./WantedStars";
-import { formatDC } from "../lib/format";
-import { ConfirmDialog } from "./ConfirmDialog";
-import { AnnouncementBanner } from "./AnnouncementBanner";
-import { api } from "../lib/api";
+import { Bell, Menu, X } from "lucide-react";
+import { User } from "../shared/types";
+import { WantedStars } from "../shared/components/WantedStars";
+import { formatDC } from "../shared/format";
+import { ConfirmDialog } from "../shared/components/ConfirmDialog";
+import { AnnouncementBanner } from "../shared/components/AnnouncementBanner";
+import { api } from "../shared/api";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/utils";
+import { NAV_ROUTES, type RouteEntry } from "../registry";
 
 function RollingNumber({ value, color }: { value: number; color: string }) {
   const [display, setDisplay] = useState(value);
@@ -37,45 +32,6 @@ function RollingNumber({ value, color }: { value: number; color: string }) {
 }
 
 const FACTION_COLOR_DEFAULT = "#00d4ff";
-
-const NAV: { id: string; label: string; icon: LucideIcon; notify?: boolean; minStage?: number; group?: string; statusFilter?: string; roles?: string[] }[] = [
-  { id: "dashboard",    label: "Home",     icon: Home },
-  { id: "feed",         label: "Feed",     icon: Newspaper },
-  { id: "chat",         label: "Chat",     icon: MessageCircle },
-  { id: "inventory",    label: "Bag",      icon: Package },
-  { id: "store",        label: "Store",    icon: CreditCard },
-  { id: "leaderboard",  label: "Board",    icon: BarChart2 },
-  { id: "auction",      label: "Auction",  icon: Gavel },
-  { id: "city",         label: "City",     icon: Building2,     group: "wc",  statusFilter: "normal" },
-  { id: "training",     label: "Gym",      icon: Dumbbell,      group: "wc",  statusFilter: "normal" },
-  { id: "jobs",         label: "Jobs",     icon: Briefcase,     group: "wc",  statusFilter: "normal" },
-  { id: "garage",       label: "Garage",   icon: Car,           group: "wc",  minStage: 1, statusFilter: "normal" },
-  { id: "net",          label: "Net",      icon: Globe,         group: "wc",  minStage: 3, statusFilter: "normal" },
-  { id: "cyber",        label: "Cyber",    icon: Cpu,           group: "wc",  minStage: 3, statusFilter: "normal" },
-  { id: "hack",         label: "Hack",     icon: Terminal,      group: "wc",  statusFilter: "normal" },
-  { id: "guilds",       label: "Crew",     icon: Shield,        group: "wc",  minStage: 2, statusFilter: "normal" },
-  { id: "mentor",       label: "Mentor",   icon: GraduationCap,               statusFilter: "normal" },
-  { id: "faction",      label: "Faction",  icon: Flag,                        statusFilter: "normal" },
-  { id: "business",     label: "Biz",      icon: Building2,     group: "wc",  statusFilter: "normal" },
-  { id: "arena",        label: "Arena",    icon: Swords,        statusFilter: "normal" },
-  { id: "loadout",      label: "Loadout",  icon: Crosshair,     statusFilter: "normal" },
-  // { id: "royale",    label: "Royale",   icon: Crown,         statusFilter: "normal" }, // frozen
-  { id: "missions",     label: "Missions", icon: ClipboardList },
-  { id: "crimes",       label: "Crimes",   icon: Skull,         statusFilter: "normal|abroad" },
-  { id: "travel",       label: "Travel",   icon: Plane,         statusFilter: "normal|abroad" },
-  { id: "market",       label: "Market",   icon: ShoppingCart,  statusFilter: "normal|abroad" },
-  { id: "district-hub", label: "Hub",      icon: Building,      statusFilter: "abroad" },
-  { id: "friends",      label: "Friends",  icon: Users,         statusFilter: "normal" },
-  { id: "bank",         label: "Bank",     icon: Landmark,      statusFilter: "normal" },
-  // { id: "crafting",  label: "Craft",    icon: Wrench,        statusFilter: "normal" }, // frozen
-  { id: "events",       label: "Event",    icon: CalendarDays },
-  { id: "battle-pass",  label: "Pass",     icon: Star },
-  { id: "achievements", label: "Achiev",   icon: Trophy },
-  { id: "daily",        label: "Daily",    icon: Gift },
-  // { id: "companions", label: "Allies",  icon: PawPrint,      statusFilter: "normal" }, // frozen
-  { id: "staff-portal", label: "Staff",    icon: Shield,        roles: ["staff", "admin", "owner"] },
-  { id: "owner",        label: "Owner",    icon: Settings,      roles: ["admin", "owner"] },
-];
 
 function useEnergyCountdown(energyRegenAt: string | null | undefined, energy: number, maxEnergy: number): number | null {
   const [secsLeft, setSecsLeft] = useState<number | null>(null);
@@ -167,7 +123,6 @@ function SearchBar({ onInspectPlayer, onNav }: { onInspectPlayer?: (id: string) 
           className="absolute left-0 right-0 mt-1 clip-card"
           style={{ background: "#0a0a0f", border: "1px solid #00d4ff40", boxShadow: "0 8px 32px #00d4ff20", zIndex: 60, maxHeight: 320, overflowY: "auto" }}
         >
-          {/* Results render here... */}
           <div className="p-2 font-mono text-xs text-slate-400">SEARCHING NETWORK...</div>
         </div>
       )}
@@ -268,7 +223,6 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
   const energyColor = user.energy >= user.maxEnergy ? "#39d353" : "#00d4ff";
   const energySecsLeft = useEnergyCountdown((user as any).energyRegenAt, user.energy, user.maxEnergy);
 
-  // 13.4 — Mobile hamburger menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navRef = useRef<HTMLElement>(null);
@@ -289,9 +243,9 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
     return () => { ro.disconnect(); cancelAnimationFrame(raf); };
   }, []);
 
-  // Filter nav items (same logic as icon row)
+  // Filter nav items from registry — same logic as before
   const filteredNav = (user.navOrder && (user.navOrder as string[]).length > 0
-    ? [...NAV].sort((a, b) => {
+    ? [...NAV_ROUTES].sort((a, b) => {
         const order = user.navOrder as string[];
         const ia = order.indexOf(a.id);
         const ib = order.indexOf(b.id);
@@ -300,8 +254,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
         if (ib === -1) return -1;
         return ia - ib;
       })
-    : NAV
-  ).filter(item => {
+    : NAV_ROUTES
+  ).filter((item: RouteEntry) => {
     const minStage = item.minStage ?? 0;
     if ((user.onboardingStage ?? 0) < minStage) return false;
     if (item.roles && !item.roles.includes(user.role)) return false;
@@ -326,7 +280,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
         {/* HUD Background Grid */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0h20v20H0V0zm10 10h10v10H10V10zM0 10h10v10H0V10zM10 0h10v10H10V0z\' fill=\'%2300d4ff\' fill-opacity=\'1\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")' }} />
 
-        {/* Top XP Bar - Full width */}
+        {/* Top XP Bar */}
         <div className="h-1 w-full bg-[#111118] relative overflow-hidden">
           <motion.div
             className="h-full absolute top-0 left-0"
@@ -359,7 +313,6 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
             {user.activeEvent?.gameDisplayName ?? "NEONOIR"}
           </button>
 
-          {/* SearchBar hidden on mobile to save space */}
           <div className="hidden sm:block flex-1 max-w-xs mx-2">
             <SearchBar onInspectPlayer={onInspectPlayer} onNav={onNav} />
           </div>
@@ -380,7 +333,6 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
               <Bell size={16} strokeWidth={2} />
             </button>
             <AvatarMenu user={user} onNav={onNav} onLogout={onLogout} />
-            {/* 13.4 — Hamburger button — mobile only */}
             <button
               className="md:hidden flex items-center justify-center"
               style={{
@@ -410,9 +362,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
 
         <AnnouncementBanner />
 
-        {/* ── Row A: Vitals — HP / NRV / ENG ───────────────────────────── */}
+        {/* Row A: Vitals */}
         <div className="flex items-center gap-2 px-4 py-1.5" style={{ background: "rgba(13,13,20,0.85)", backdropFilter: "blur(4px)", borderBottom: "1px solid #111118" }}>
-          {/* Status badges */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <span className="font-mono text-[10px] uppercase bg-slate-800 px-2 py-0.5 clip-btn text-slate-300">
               Lv.<span className="text-white font-bold">{user.level}</span>
@@ -433,7 +384,6 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
               </span>
             )}
           </div>
-          {/* Stat bars */}
           <div className="flex-1 flex items-center gap-2 min-w-0">
             <StatBar label="HP"  value={user.health} max={user.maxHealth} color="#ff2d55" />
             <StatBar label="NRV" value={user.nerve}  max={user.maxNerve}  color="#ff6b35" />
@@ -447,7 +397,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
           </div>
         </div>
 
-        {/* ── Row B: Currencies ─────────────────────────────────────────── */}
+        {/* Row B: Currencies */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-1.5" style={{ background: "rgba(8,8,12,0.9)", backdropFilter: "blur(4px)", borderBottom: "1px solid #1e1e2e" }}>
           <CurrencyBadge label="DC"     value={user.dc}                    color="#f59e0b" />
           <CurrencyBadge label="NC"     value={user.nc}                    color="#a855f7" />
@@ -458,7 +408,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
           <CurrencyBadge label="SPINS"  value={(user as any).spinTokens ?? 0} color="#8b5cf6" integer />
         </div>
 
-        {/* Nav Icons — desktop only (hidden md:flex → visible on md+) */}
+        {/* Nav Icons — desktop only */}
         <div className="hidden md:flex items-center gap-1.5 px-3 py-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
           {filteredNav.map(item => {
             const isActive = active === item.id;
@@ -509,7 +459,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
         </div>
       </nav>
 
-      {/* 13.4 — Mobile slide-in drawer */}
+      {/* Mobile slide-in drawer */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
@@ -536,7 +486,6 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
               }}
               onClick={e => e.stopPropagation()}
             >
-              {/* Drawer header */}
               <div
                 className="flex items-center justify-between px-4 py-3"
                 style={{ borderBottom: "1px solid #1e1e2e", background: "#111118" }}
@@ -549,7 +498,6 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 </button>
               </div>
 
-              {/* Nav grid */}
               <div className="grid grid-cols-3 gap-2 p-3">
                 {filteredNav.map(item => {
                   const isActive = active === item.id;

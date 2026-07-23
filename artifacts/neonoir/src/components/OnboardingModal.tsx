@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User } from "../lib/types";
-import { api } from "../lib/api";
+import { User } from "../shared/types";
+import { api } from "../shared/api";
 import { CyberButton } from "./CyberButton";
 
 interface Props {

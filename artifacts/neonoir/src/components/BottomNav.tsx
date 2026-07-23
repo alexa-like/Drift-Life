@@ -1,23 +1,15 @@
 import { motion } from "framer-motion";
-import { Home, Skull, Swords, MessageCircle, User } from "lucide-react";
+import { BOTTOM_NAV_ROUTES } from "../registry";
 
 interface Props {
   active: string;
   onNav: (page: string) => void;
 }
 
-const ITEMS = [
-  { id: "dashboard", label: "Home",   icon: Home },
-  { id: "crimes",    label: "Crimes", icon: Skull },
-  { id: "arena",     label: "Arena",  icon: Swords },
-  { id: "chat",      label: "Chat",   icon: MessageCircle },
-  { id: "profile",   label: "Profile",icon: User },
-] as const;
-
 /**
  * Mobile bottom navigation bar — pinned to the bottom of the screen on
  * viewports narrower than 768 px. Hidden on md+ (handled by desktop NavBar).
- * Shows the 5 most-used sections of the game.
+ * Items come from the central registry (bottomNav: true entries).
  */
 export function BottomNav({ active, onNav }: Props) {
   return (
@@ -26,7 +18,7 @@ export function BottomNav({ active, onNav }: Props) {
       style={{ background: "#0a0a0f", borderTop: "1px solid #1e1e2e", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
       <div className="flex items-stretch">
-        {ITEMS.map(item => {
+        {BOTTOM_NAV_ROUTES.map(item => {
           const isActive = active === item.id;
           const Icon = item.icon;
           return (
@@ -39,7 +31,6 @@ export function BottomNav({ active, onNav }: Props) {
                 padding: "8px 4px",
                 background: isActive ? "#00d4ff12" : "transparent",
                 borderTop: `2px solid ${isActive ? "#00d4ff" : "transparent"}`,
-                // Ensure tap target meets WCAG AA 44px minimum
               }}
             >
               <motion.div

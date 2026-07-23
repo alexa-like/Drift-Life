@@ -5,11 +5,11 @@
  * POST /support/:id/reply  → add a reply to a ticket
  */
 import { useState, useEffect } from "react";
-import { User } from "../lib/types";
-import { api } from "../lib/api";
-import { AnimatedCard } from "../components/AnimatedCard";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { CyberButton } from "../components/CyberButton";
+import { User } from "../shared/types";
+import { api } from "../shared/api";
+import { AnimatedCard } from "../shared/components/AnimatedCard";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { CyberButton } from "../shared/components/CyberButton";
 
 const INPUT: React.CSSProperties = {
   background: "#0d1117", border: "1px solid #21262d", borderRadius: 6,

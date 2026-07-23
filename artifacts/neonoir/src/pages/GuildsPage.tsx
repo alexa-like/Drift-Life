@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
-import { User } from "../lib/types";
-import { CyberButton } from "../components/CyberButton";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { AnimatedCard } from "../components/AnimatedCard";
-import { formatDC } from "../lib/format";
+import { api } from "../shared/api";
+import { User } from "../shared/types";
+import { CyberButton } from "../shared/components/CyberButton";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { AnimatedCard } from "../shared/components/AnimatedCard";
+import { formatDC } from "../shared/format";
 
 interface GuildSummary {
   id: string;

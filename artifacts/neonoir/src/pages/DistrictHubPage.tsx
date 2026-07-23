@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
-import { User, District } from "../lib/types";
-import { api } from "../lib/api";
-import { formatDC } from "../lib/format";
-import { AnimatedCard } from "../components/AnimatedCard";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { CyberButton } from "../components/CyberButton";
-import { ActionResult } from "../components/ActionResult";
-import { ItemImage, nameToArenaItemId } from "../components/ItemImage";
-import { ConfirmDialog } from "../components/ConfirmDialog";
+import { User, District } from "../shared/types";
+import { api } from "../shared/api";
+import { formatDC } from "../shared/format";
+import { AnimatedCard } from "../shared/components/AnimatedCard";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { CyberButton } from "../shared/components/CyberButton";
+import { ActionResult } from "../shared/components/ActionResult";
+import { ItemImage, nameToArenaItemId } from "../shared/components/ItemImage";
+import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {

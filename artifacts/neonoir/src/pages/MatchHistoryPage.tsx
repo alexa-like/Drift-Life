@@ -3,7 +3,7 @@
  * Shows last 20 combat matches and last 20 race matches for the logged-in player.
  */
 import { useState, useEffect } from "react";
-import { api } from "../lib/api";
+import { api } from "../shared/api";
 
 interface CombatEntry {
   type: "combat";

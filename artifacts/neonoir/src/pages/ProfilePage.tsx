@@ -1,15 +1,15 @@
 // ─── Profile Page ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react";
-import { User } from "../lib/types";
-import { api } from "../lib/api";
-import { formatDC } from "../lib/format";
-import { WantedStars } from "../components/WantedStars";
-import { StatBar } from "../components/StatBar";
+import { User } from "../shared/types";
+import { api } from "../shared/api";
+import { formatDC } from "../shared/format";
+import { WantedStars } from "../shared/components/WantedStars";
+import { StatBar } from "../shared/components/StatBar";
 import { InventoryPage } from "./InventoryPage";
-import { CyberButton } from "../components/CyberButton";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { PlayerNameBadge, type SubscriberTier } from "../components/PlayerNameBadge";
+import { CyberButton } from "../shared/components/CyberButton";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { PlayerNameBadge, type SubscriberTier } from "../shared/components/PlayerNameBadge";
 import { PrestigeConfirmModal } from "../components/PrestigeConfirmModal";
 import { MessageCard, type MessageCardVariant } from "../components/MessageCard";
 

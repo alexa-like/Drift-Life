@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { ItemImage } from "../components/ItemImage";
-import { ConfirmDialog } from "../components/ConfirmDialog";
-import { api } from "../lib/api";
+import { ItemImage } from "../shared/components/ItemImage";
+import { ConfirmDialog } from "../shared/components/ConfirmDialog";
+import { api } from "../shared/api";
 
 const TIER_COLORS: Record<string, string> = {
   common: "#9ca3af", uncommon: "#22c55e", rare: "#3b82f6", epic: "#a855f7", legendary: "#f59e0b",

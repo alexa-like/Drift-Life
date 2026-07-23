@@ -1,6 +1,6 @@
 import { forwardRef, ReactNode, useState } from "react";
 import { motion, HTMLMotionProps } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/utils";
 
 interface AnimatedCardProps extends Omit<HTMLMotionProps<"div">, "ref" | "children"> {
   accent?: string;

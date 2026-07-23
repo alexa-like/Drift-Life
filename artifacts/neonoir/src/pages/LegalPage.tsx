@@ -3,7 +3,7 @@
  * Static content page; no auth required.
  */
 import { useState } from "react";
-import { CyberButton } from "../components/CyberButton";
+import { CyberButton } from "../shared/components/CyberButton";
 
 type LegalTab = "tos" | "privacy" | "rules";
 

@@ -5,8 +5,8 @@
  */
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "../lib/api";
-import type { User } from "../lib/types";
+import { api } from "../shared/api";
+import type { User } from "../shared/types";
 
 interface PlayerMsg {
   role: "user" | "vanta" | "error";

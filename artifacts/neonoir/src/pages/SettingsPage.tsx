@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { User } from "../lib/types";
-import { api } from "../lib/api";
+import { User } from "../shared/types";
+import { api } from "../shared/api";
 import {
   isPushSupported,
   getPushPermission,
@@ -8,13 +8,13 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
   isWebView,
-} from "../lib/pushNotifications";
-import { CyberButton } from "../components/CyberButton";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { AnimatedCard } from "../components/AnimatedCard";
-import { usePreferences, DEFAULT_SCALE, MIN_SCALE, MAX_SCALE } from "../context/PreferencesContext";
+} from "../shared/pushNotifications";
+import { CyberButton } from "../shared/components/CyberButton";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { AnimatedCard } from "../shared/components/AnimatedCard";
+import { usePreferences, DEFAULT_SCALE, MIN_SCALE, MAX_SCALE } from "../shared/context/PreferencesContext";
 import { ConnectionsPage } from "./ConnectionsPage";
-import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 
 interface Props {
   user: User;

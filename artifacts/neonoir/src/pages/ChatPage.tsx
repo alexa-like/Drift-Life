@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { User, ChatMessage, Conversation } from "../lib/types";
-import { api } from "../lib/api";
-import { useSocket } from "../context/SocketContext";
-import { CyberButton } from "../components/CyberButton";
+import { User, ChatMessage, Conversation } from "../shared/types";
+import { api } from "../shared/api";
+import { useSocket } from "../shared/context/SocketContext";
+import { CyberButton } from "../shared/components/CyberButton";
 import { MentionInput } from "../components/MentionInput";
 import { MentionText, GAME_EMOJIS } from "../components/MentionText";
-import { PlayerNameBadge } from "../components/PlayerNameBadge";
+import { PlayerNameBadge } from "../shared/components/PlayerNameBadge";
 import { MessageCard, deriveMessageVariant } from "../components/MessageCard";
 
 function fmtAchievementId(id: string): string {

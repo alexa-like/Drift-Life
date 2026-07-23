@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "../lib/api";
-import { useSocket } from "../context/SocketContext";
-import { User } from "../lib/types";
-import { useSwipe } from "../hooks/useSwipe";
+import { api } from "../shared/api";
+import { useSocket } from "../shared/context/SocketContext";
+import { User } from "../shared/types";
+import { useSwipe } from "../shared/hooks/useSwipe";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

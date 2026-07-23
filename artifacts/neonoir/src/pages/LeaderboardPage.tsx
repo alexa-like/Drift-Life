@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, memo } from "react";
 import { motion } from "framer-motion";
-import { LeaderboardEntry } from "../lib/types";
-import { api } from "../lib/api";
-import { formatDC } from "../lib/format";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { CyberButton } from "../components/CyberButton";
-import { PrestigeBadge } from "../components/PrestigeBadge";
-import { CyberSkeleton } from "../components/CyberSkeleton";
+import { LeaderboardEntry } from "../shared/types";
+import { api } from "../shared/api";
+import { formatDC } from "../shared/format";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { CyberButton } from "../shared/components/CyberButton";
+import { PrestigeBadge } from "../shared/components/PrestigeBadge";
+import { CyberSkeleton } from "../shared/components/CyberSkeleton";
 
 type SortType = "level" | "dc" | "wins" | "crimes";
 type BoardTab = "city" | "minigame" | "mostWanted" | "hallOfFame";

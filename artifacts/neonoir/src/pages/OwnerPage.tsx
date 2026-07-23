@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { User } from "../lib/types";
-import { api } from "../lib/api";
-import { formatDC } from "../lib/format";
-import { ConfirmDialog } from "../components/ConfirmDialog";
+import { User } from "../shared/types";
+import { api } from "../shared/api";
+import { formatDC } from "../shared/format";
+import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 import EventGameModesTab from "../components/EventGameModesTab";
 import BattlePassTab from "../components/BattlePassTab";
 import CosmeticsTab from "../components/CosmeticsTab";

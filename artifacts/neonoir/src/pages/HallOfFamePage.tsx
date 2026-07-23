@@ -5,8 +5,8 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { api } from "../lib/api";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
+import { api } from "../shared/api";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
 
 interface SeasonSummary {
   _id: string;

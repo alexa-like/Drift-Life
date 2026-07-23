@@ -1,4 +1,4 @@
-import { User } from "../lib/types";
+import { User } from "../shared/types";
 
 const PRESTIGE_CSS = `
 @keyframes prestigeGlow {

@@ -6,7 +6,7 @@ import profileRouter from "./profile";
 import crimesRouter from "./crimes";
 import jobsRouter from "./jobs";
 import bankRouter from "./bank";
-import hospitalRouter from "./hospital";
+import hospitalRouter from "../features/hospital/routes";
 import dailyRouter from "./daily";
 import feedRouter from "./feed";
 import leaderboardRouter from "./leaderboard";

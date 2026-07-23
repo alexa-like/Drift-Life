@@ -1,86 +1,85 @@
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PreferencesProvider, usePreferences } from "./context/PreferencesContext";
-import { useUpdateCheck } from "./hooks/useUpdateCheck";
-import { useConnectivity } from "./hooks/useConnectivity";
+import { PreferencesProvider, usePreferences } from "./shared/context/PreferencesContext";
+import { useUpdateCheck } from "./shared/hooks/useUpdateCheck";
+import { useConnectivity } from "./shared/hooks/useConnectivity";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useAuth } from "./hooks/useAuth";
-import { useToast } from "./hooks/useToast";
+import { useAuth } from "./shared/hooks/useAuth";
+import { useToast } from "./shared/hooks/useToast";
 import { NavBar } from "./components/NavBar";
 import { BottomNav } from "./components/BottomNav";
-import { CyberSkeleton } from "./components/CyberSkeleton";
-import { PageTransition } from "./components/PageTransition";
-import { ToastContainer } from "./components/ToastContainer";
+import { CyberSkeleton } from "./shared/components/CyberSkeleton";
+import { PageTransition } from "./shared/components/PageTransition";
+import { ToastContainer } from "./shared/components/ToastContainer";
 import { DevToolbar } from "./components/DevToolbar";
-import { PlayerInspectModal } from "./components/PlayerInspectModal";
-import { OfflineOverlay } from "./components/OfflineOverlay";
+import { PlayerInspectModal } from "./shared/components/PlayerInspectModal";
+import { OfflineOverlay } from "./shared/components/OfflineOverlay";
 import { PlayerVantaPanel } from "./components/PlayerVantaPanel";
 import OnboardingModal from "./components/OnboardingModal";
-import { SocketProvider, useSocket } from "./context/SocketContext";
-import { api } from "./lib/api";
-import { Notification } from "./lib/types";
+import { SocketProvider, useSocket } from "./shared/context/SocketContext";
+import { api } from "./shared/api";
+import { Notification } from "./shared/types";
 import {
   isPushSupported,
   getPushPermission,
   getSubscriptionStatus,
   subscribeToPush,
   isWebView,
-} from "./lib/pushNotifications";
+} from "./shared/pushNotifications";
 
-// ── 13.5 Performance: Lazy-load all page modules ─────────────────────────────
-// Named exports need the .then(m => ({ default: m.X })) pattern
-const AuthPage         = lazy(() => import("./pages/AuthPage").then(m => ({ default: m.AuthPage })));
-const Dashboard        = lazy(() => import("./pages/Dashboard").then(m => ({ default: m.Dashboard })));
-const CrimesPage       = lazy(() => import("./pages/CrimesPage").then(m => ({ default: m.CrimesPage })));
-const JobsPage         = lazy(() => import("./pages/JobsPage").then(m => ({ default: m.JobsPage })));
-const BankPage         = lazy(() => import("./pages/BankPage").then(m => ({ default: m.BankPage })));
-const InventoryPage    = lazy(() => import("./pages/InventoryPage").then(m => ({ default: m.InventoryPage })));
-const LeaderboardPage  = lazy(() => import("./pages/LeaderboardPage").then(m => ({ default: m.LeaderboardPage })));
-const FeedPage         = lazy(() => import("./pages/FeedPage").then(m => ({ default: m.FeedPage })));
-const NotificationsPage= lazy(() => import("./pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
-const HospitalPage     = lazy(() => import("./pages/HospitalPage").then(m => ({ default: m.HospitalPage })));
-const ProfilePage      = lazy(() => import("./pages/ProfilePage").then(m => ({ default: m.ProfilePage })));
-const SettingsPage     = lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
-const OwnerPage        = lazy(() => import("./pages/OwnerPage").then(m => ({ default: m.OwnerPage })));
-const AchievementsPage = lazy(() => import("./pages/AchievementsPage").then(m => ({ default: m.AchievementsPage })));
-const ChatPage         = lazy(() => import("./pages/ChatPage").then(m => ({ default: m.ChatPage })));
-const GuildsPage       = lazy(() => import("./pages/GuildsPage").then(m => ({ default: m.GuildsPage })));
-const AuctionPage      = lazy(() => import("./pages/AuctionPage").then(m => ({ default: m.AuctionPage })));
-const TradePage        = lazy(() => import("./pages/TradePage").then(m => ({ default: m.TradePage })));
-const FriendsPage      = lazy(() => import("./pages/FriendsPage").then(m => ({ default: m.FriendsPage })));
-const MissionsPage     = lazy(() => import("./pages/MissionsPage").then(m => ({ default: m.MissionsPage })));
-const DistrictHubPage  = lazy(() => import("./pages/DistrictHubPage").then(m => ({ default: m.DistrictHubPage })));
-const TravelPage       = lazy(() => import("./pages/TravelPage").then(m => ({ default: m.TravelPage })));
-const DailyPage        = lazy(() => import("./pages/DailyPage").then(m => ({ default: m.DailyPage })));
-const DistrictPage     = lazy(() => import("./pages/DistrictPage").then(m => ({ default: m.DistrictPage })));
-const LegalPage        = lazy(() => import("./pages/LegalPage").then(m => ({ default: m.LegalPage })));
-const SupportPage      = lazy(() => import("./pages/SupportPage").then(m => ({ default: m.SupportPage })));
-const BusinessPage     = lazy(() => import("./pages/BusinessPage").then(m => ({ default: m.BusinessPage })));
-const FactionPage      = lazy(() => import("./pages/FactionPage").then(m => ({ default: m.FactionPage })));
-const StorePage        = lazy(() => import("./pages/StorePage").then(m => ({ default: m.StorePage })));
-const StaffPortalPage  = lazy(() => import("./pages/StaffPortalPage").then(m => ({ default: m.StaffPortalPage })));
-const HackPage         = lazy(() => import("./pages/HackPage"));
-const MentorPage       = lazy(() => import("./pages/MentorPage"));
-
-// Default exports use the simpler lazy(() => import(...)) pattern
-const TrainingCenterPage = lazy(() => import("./pages/TrainingCenterPage"));
-const MatchHistoryPage   = lazy(() => import("./pages/MatchHistoryPage"));
-const GaragePage         = lazy(() => import("./pages/GaragePage"));
-const ArenaHubPage       = lazy(() => import("./pages/ArenaHubPage"));
-const ArenaCombatPage    = lazy(() => import("./pages/ArenaCombatPage"));
-const LoadoutPage        = lazy(() => import("./pages/LoadoutPage"));
-const ShopHubPage        = lazy(() => import("./pages/ShopHubPage"));
-const NpcStorePage       = lazy(() => import("./pages/NpcStorePage"));
-const RaceHubPage        = lazy(() => import("./pages/RaceHubPage"));
-const RaceMatchPage      = lazy(() => import("./pages/RaceMatchPage"));
-const CityPage           = lazy(() => import("./pages/CityPage"));
-const NetPage            = lazy(() => import("./pages/NetPage"));
-const CyberPage          = lazy(() => import("./pages/CyberPage"));
-const EventPage          = lazy(() => import("./pages/EventPage"));
-const UpcomingEventsPage = lazy(() => import("./pages/UpcomingEventsPage"));
-const EventArchivePage   = lazy(() => import("./pages/EventArchivePage"));
-const HallOfFamePage     = lazy(() => import("./pages/HallOfFamePage"));
-const BattlePassPage     = lazy(() => import("./pages/BattlePassPage"));
+// ── All page components come from the central registry ────────────────────────
+import {
+  AuthPageLazy       as AuthPage,
+  DashboardLazy      as Dashboard,
+  FeedPageLazy       as FeedPage,
+  CrimesPageLazy     as CrimesPage,
+  JobsPageLazy       as JobsPage,
+  BankPageLazy       as BankPage,
+  InventoryPageLazy  as InventoryPage,
+  LeaderboardPageLazy as LeaderboardPage,
+  NotificationsPageLazy as NotificationsPage,
+  HospitalPageLazy   as HospitalPage,
+  ProfilePageLazy    as ProfilePage,
+  SettingsPageLazy   as SettingsPage,
+  OwnerPageLazy      as OwnerPage,
+  AchievementsPageLazy as AchievementsPage,
+  ChatPageLazy       as ChatPage,
+  GuildsPageLazy     as GuildsPage,
+  AuctionPageLazy    as AuctionPage,
+  TradePageLazy      as TradePage,
+  FriendsPageLazy    as FriendsPage,
+  MissionsPageLazy   as MissionsPage,
+  DistrictHubPageLazy as DistrictHubPage,
+  TravelPageLazy     as TravelPage,
+  DailyPageLazy      as DailyPage,
+  DistrictPageLazy   as DistrictPage,
+  LegalPageLazy      as LegalPage,
+  SupportPageLazy    as SupportPage,
+  BusinessPageLazy   as BusinessPage,
+  FactionPageLazy    as FactionPage,
+  StorePageLazy      as StorePage,
+  StaffPortalPageLazy as StaffPortalPage,
+  HackPageLazy       as HackPage,
+  MentorPageLazy     as MentorPage,
+  TrainingCenterPageLazy as TrainingCenterPage,
+  MatchHistoryPageLazy   as MatchHistoryPage,
+  GaragePageLazy     as GaragePage,
+  ArenaHubPageLazy   as ArenaHubPage,
+  ArenaCombatPageLazy as ArenaCombatPage,
+  LoadoutPageLazy    as LoadoutPage,
+  ShopHubPageLazy    as ShopHubPage,
+  NpcStorePageLazy   as NpcStorePage,
+  RaceHubPageLazy    as RaceHubPage,
+  RaceMatchPageLazy  as RaceMatchPage,
+  CityPageLazy       as CityPage,
+  NetPageLazy        as NetPage,
+  CyberPageLazy      as CyberPage,
+  EventPageLazy      as EventPage,
+  UpcomingEventsPageLazy as UpcomingEventsPage,
+  EventArchivePageLazy   as EventArchivePage,
+  HallOfFamePageLazy as HallOfFamePage,
+  BattlePassPageLazy as BattlePassPage,
+} from "./registry";
 
 const queryClient = new QueryClient();
 
@@ -221,23 +220,18 @@ function GameApp() {
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [navHeight, setNavHeight] = useState(210);
 
-  // Publish nav height as a CSS variable so pages like ChatPage can size themselves correctly
-  // without hardcoding a pixel offset that breaks under zoom or scaling.
   useEffect(() => {
     document.documentElement.style.setProperty("--nav-h", `${navHeight}px`);
   }, [navHeight]);
 
   // Auto-prompt for push notifications on first login.
-  // Only fires once per session when the user object first appears.
-  // Skips silently if: WebView wrapper, push unsupported, permission already decided, or already subscribed.
   const pushAttempted = useRef(false);
   useEffect(() => {
     if (!user || pushAttempted.current) return;
-    if (isWebView()) return;          // WebViews don't support PushManager — never prompt
+    if (isWebView()) return;
     if (!isPushSupported()) return;
-    if (getPushPermission() !== "default") return; // already granted or denied — don't re-prompt
+    if (getPushPermission() !== "default") return;
     pushAttempted.current = true;
-    // Short delay so the page finishes rendering before the browser dialog appears.
     const t = setTimeout(async () => {
       const alreadySubscribed = await getSubscriptionStatus();
       if (!alreadySubscribed) {
@@ -246,6 +240,7 @@ function GameApp() {
     }, 3000);
     return () => clearTimeout(t);
   }, [user]);
+
   const [inspectUserId, setInspectUserId] = useState<string | null>(null);
   const [shopStoreId, setShopStoreId] = useState<string | null>(null);
   const [tradeWithPlayer, setTradeWithPlayer] = useState<{ id: string; username: string } | null>(null);
@@ -326,12 +321,11 @@ function GameApp() {
       case "feed":         return <FeedPage user={user!} refreshUser={refreshUser} addToast={addToast} onInspectPlayer={setInspectUserId} />;
       case "crimes":       return <CrimesPage {...pageProps} />;
       case "jobs":         return <JobsPage {...pageProps} />;
-
       case "bank":         return <BankPage {...pageProps} />;
       case "market":
       case "shop":         return shopStoreId
                               ? <NpcStorePage key={shopStoreId} storeId={shopStoreId} onBack={() => { setShopStoreId(null); }} />
-                              : <ShopHubPage onSelectStore={(id) => setShopStoreId(id)} />;
+                              : <ShopHubPage onSelectStore={(id: string) => setShopStoreId(id)} />;
       case "inventory":    return <InventoryPage {...pageProps} />;
       case "leaderboard":  return <LeaderboardPage onNavigate={setPage} />;
       case "hospital":     return <HospitalPage {...pageProps} />;
@@ -423,7 +417,6 @@ function GameApp() {
           onInspectPlayer={setInspectUserId}
           onHeightChange={setNavHeight}
         />
-        {/* 13.4 — BottomNav pinned for mobile; desktop gets 32px padding, mobile gets 80px for bottom bar */}
         <main
           style={{ paddingTop: navHeight }}
           className="px-3 sm:px-4 max-w-5xl mx-auto w-full pb-20 md:pb-8"
@@ -435,7 +428,6 @@ function GameApp() {
           </Suspense>
         </main>
 
-        {/* 13.4 — Mobile bottom nav bar */}
         <BottomNav active={page} onNav={navTo} />
 
         <ToastContainer toasts={toasts} removeToast={removeToast} />

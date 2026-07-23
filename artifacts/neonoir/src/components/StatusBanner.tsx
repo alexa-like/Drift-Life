@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { User } from "../lib/types";
-import { api } from "../lib/api";
-import { formatDC } from "../lib/format";
+import { User } from "../shared/types";
+import { api } from "../shared/api";
+import { formatDC } from "../shared/format";
 
 interface Props {
   user: User;

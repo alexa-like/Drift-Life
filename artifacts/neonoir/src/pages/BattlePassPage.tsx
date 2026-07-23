@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "../lib/api";
-import { CyberSkeleton } from "../components/CyberSkeleton";
-import { User } from "../lib/types";
+import { api } from "../shared/api";
+import { CyberSkeleton } from "../shared/components/CyberSkeleton";
+import { User } from "../shared/types";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

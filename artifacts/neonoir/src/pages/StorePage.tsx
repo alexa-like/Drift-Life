@@ -8,8 +8,8 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "../lib/api";
-import type { CosmeticItem } from "../lib/types";
+import { api } from "../shared/api";
+import type { CosmeticItem } from "../shared/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

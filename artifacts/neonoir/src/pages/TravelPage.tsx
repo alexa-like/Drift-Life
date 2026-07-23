@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, District } from "../lib/types";
-import { api } from "../lib/api";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { CyberButton } from "../components/CyberButton";
-import { AnimatedCard } from "../components/AnimatedCard";
-import { formatDC } from "../lib/format";
+import { User, District } from "../shared/types";
+import { api } from "../shared/api";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { CyberButton } from "../shared/components/CyberButton";
+import { AnimatedCard } from "../shared/components/AnimatedCard";
+import { formatDC } from "../shared/format";
 
 interface EncounterOption { id: string; label: string; description: string; }
 interface Encounter {

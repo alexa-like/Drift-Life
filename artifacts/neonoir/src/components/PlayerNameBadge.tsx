@@ -11,7 +11,7 @@
  */
 
 import { useEffect } from "react";
-import type { FlairData } from "../lib/types";
+import type { FlairData } from "../shared/types";
 
 export type { FlairData };
 export type SubscriberTier = "street_runner" | "neon_syndicate" | "apex_sovereign" | null | undefined;

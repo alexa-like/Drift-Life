@@ -1,4 +1,4 @@
-import { Toast } from "../hooks/useToast";
+import { Toast } from "../shared/hooks/useToast";
 import { motion, AnimatePresence } from "framer-motion";
 
 const COLORS: Record<string, string> = {

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
-import { User } from "../lib/types";
-import { AnimatedCard } from "../components/AnimatedCard";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { CyberButton } from "../components/CyberButton";
-import { formatDC } from "../lib/format";
+import { api } from "../shared/api";
+import { User } from "../shared/types";
+import { AnimatedCard } from "../shared/components/AnimatedCard";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { CyberButton } from "../shared/components/CyberButton";
+import { formatDC } from "../shared/format";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

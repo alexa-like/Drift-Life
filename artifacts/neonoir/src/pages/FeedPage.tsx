@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { FeedEvent, User, LiveGiveaway } from "../lib/types";
-import { api } from "../lib/api";
-import { CyberButton } from "../components/CyberButton";
-import { CyberSkeleton } from "../components/CyberSkeleton";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
+import { FeedEvent, User, LiveGiveaway } from "../shared/types";
+import { api } from "../shared/api";
+import { CyberButton } from "../shared/components/CyberButton";
+import { CyberSkeleton } from "../shared/components/CyberSkeleton";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
 import { MentionText } from "../components/MentionText";
 import { GiveawayCard } from "../components/GiveawayCard";
 import { CreateGiveawayModal } from "../components/CreateGiveawayModal";

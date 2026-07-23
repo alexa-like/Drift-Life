@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { User, FeedEvent } from "../lib/types";
+import { User, FeedEvent } from "../shared/types";
 import { EventBanner } from "../components/EventBanner";
-import { api } from "../lib/api";
-import { formatDC } from "../lib/format";
-import { WantedStars } from "../components/WantedStars";
-import { AnimatedCard } from "../components/AnimatedCard";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { NeonProgressBar } from "../components/NeonProgressBar";
-import { StatCounter } from "../components/StatCounter";
-import { CyberButton } from "../components/CyberButton";
+import { api } from "../shared/api";
+import { formatDC } from "../shared/format";
+import { WantedStars } from "../shared/components/WantedStars";
+import { AnimatedCard } from "../shared/components/AnimatedCard";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { NeonProgressBar } from "../shared/components/NeonProgressBar";
+import { StatCounter } from "../shared/components/StatCounter";
+import { CyberButton } from "../shared/components/CyberButton";
 
 interface Props {
   user: User;

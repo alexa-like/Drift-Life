@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { api } from "../lib/api";
-import { useSocket } from "../context/SocketContext";
-import type { User, Business, District } from "../lib/types";
-import { CyberButton } from "../components/CyberButton";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { AnimatedCard } from "../components/AnimatedCard";
+import { api } from "../shared/api";
+import { useSocket } from "../shared/context/SocketContext";
+import type { User, Business, District } from "../shared/types";
+import { CyberButton } from "../shared/components/CyberButton";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { AnimatedCard } from "../shared/components/AnimatedCard";
 
 interface Props {
   user: User;

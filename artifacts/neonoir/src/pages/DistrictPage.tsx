@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { User, District } from "../lib/types";
-import { api } from "../lib/api";
+import { User, District } from "../shared/types";
+import { api } from "../shared/api";
 
 interface Props {
   user: User;

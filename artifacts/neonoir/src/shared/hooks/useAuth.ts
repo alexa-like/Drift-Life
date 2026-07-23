@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { User } from "../lib/types";
-import { api } from "../lib/api";
+import { User } from "../types";
+import { api } from "../api";
 
 interface AuthState {
   user: User | null;

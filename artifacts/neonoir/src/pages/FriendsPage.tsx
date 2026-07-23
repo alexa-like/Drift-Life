@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { api } from "../lib/api";
-import type { User } from "../lib/types";
-import { CyberButton } from "../components/CyberButton";
-import { CyberSectionHeader } from "../components/CyberSectionHeader";
-import { AnimatedCard } from "../components/AnimatedCard";
-import { ConfirmDialog } from "../components/ConfirmDialog";
+import { api } from "../shared/api";
+import type { User } from "../shared/types";
+import { CyberButton } from "../shared/components/CyberButton";
+import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
+import { AnimatedCard } from "../shared/components/AnimatedCard";
+import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 
 interface Props {
   user: User;

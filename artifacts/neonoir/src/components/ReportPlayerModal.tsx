@@ -3,7 +3,7 @@
  * Accepts targetId + targetName; submits to POST /reports.
  */
 import { useState } from "react";
-import { api } from "../lib/api";
+import { api } from "../shared/api";
 import { CyberButton } from "./CyberButton";
 
 interface Props {

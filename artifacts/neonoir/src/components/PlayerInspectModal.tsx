@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
-import { User } from "../lib/types";
+import { api } from "../shared/api";
+import { User } from "../shared/types";
 
 interface PublicProfile {
   id: string;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LiveGiveaway } from "../lib/types";
-import { api } from "../lib/api";
+import { LiveGiveaway } from "../shared/types";
+import { api } from "../shared/api";
 import { CyberButton } from "./CyberButton";
 
 interface Props {

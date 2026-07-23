@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { api } from "../lib/api";
+import { api } from "../shared/api";
 
 const GAME_LOCATIONS: { id: string; label: string }[] = [
   { id: "feed",        label: "City Feed"       },

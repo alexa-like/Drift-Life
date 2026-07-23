@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { api } from "../lib/api";
-import { User } from "../lib/types";
-import { CyberButton } from "../components/CyberButton";
+import { api } from "../shared/api";
+import { User } from "../shared/types";
+import { CyberButton } from "../shared/components/CyberButton";
 
 type Mode = "login" | "register" | "verify";
 
