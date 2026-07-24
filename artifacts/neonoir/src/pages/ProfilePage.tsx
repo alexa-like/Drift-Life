@@ -6,7 +6,7 @@ import { api } from "../shared/api";
 import { formatDC } from "../shared/format";
 import { WantedStars } from "../shared/components/WantedStars";
 import { StatBar } from "../shared/components/StatBar";
-import { InventoryPage } from "./InventoryPage";
+import { InventoryPage } from "../features/inventory/pages/InventoryPage";
 import { CyberButton } from "../shared/components/CyberButton";
 import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
 import { PlayerNameBadge, type SubscriberTier } from "../shared/components/PlayerNameBadge";

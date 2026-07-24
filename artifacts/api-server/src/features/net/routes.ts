@@ -7,7 +7,7 @@ import mongoose from "mongoose";
 import User from "../../models/User";
 import ActionMastery, { masteryGain } from "../../models/ActionMastery";
 import Notification from "../../models/Notification";
-import DarkListingModel from "../../models/DarkListing";
+import DarkListingModel from "../market/models/DarkListing";
 import HackSession from "../hack/models/HackSession";
 import { requireAuth, AuthRequest } from "../../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed } from "../../models/User";

@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
-import { CyberSkeleton } from "../shared/components/CyberSkeleton";
+import { CyberSkeleton } from "../../../shared/components/CyberSkeleton";
 import { motion } from "framer-motion";
-import { User } from "../shared/types";
-import { api } from "../shared/api";
-import { ItemImage, nameToArenaItemId } from "../shared/components/ItemImage";
-import { formatDC } from "../shared/format";
-import { AnimatedCard } from "../shared/components/AnimatedCard";
-import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
-import { CyberButton } from "../shared/components/CyberButton";
-import { StatCounter } from "../shared/components/StatCounter";
+import { User } from "../../../shared/types";
+import { api } from "../../../shared/api";
+import { ItemImage, nameToArenaItemId } from "../../../shared/components/ItemImage";
+import { formatDC } from "../../../shared/format";
+import { AnimatedCard } from "../../../shared/components/AnimatedCard";
+import { CyberSectionHeader } from "../../../shared/components/CyberSectionHeader";
+import { CyberButton } from "../../../shared/components/CyberButton";
+import { StatCounter } from "../../../shared/components/StatCounter";
 
 interface ShopItem {
   id: string; name: string; type: string; rarity: string; slot: string | null;

@@ -4,7 +4,7 @@ import User from "../models/User";
 import FeedEvent from "../models/FeedEvent";
 import { requireStaff, requireOwner, AuthRequest } from "../middlewares/auth";
 import { levelUp, xpForLevel } from "../models/User";
-import { SHOP_ITEMS, PRICE_OVERRIDES } from "./market";
+import { SHOP_ITEMS, PRICE_OVERRIDES } from "../features/market/routes";
 import ServerConfig from "../models/ServerConfig";
 import AdminAuditLog, { logAdminAction } from "../models/AdminAuditLog";
 import ChatReport from "../models/ChatReport";
@@ -24,7 +24,7 @@ import FriendRequest from "../models/FriendRequest";
 import Achievement from "../models/Achievement";
 import SupportTicket from "../models/SupportTicket";
 import PushSubscription from "../models/PushSubscription";
-import AuctionListing from "../models/AuctionListing";
+import AuctionListing from "../features/auction/models/AuctionListing";
 import CombatMatch from "../features/arena/models/CombatMatch";
 import RaceMatch from "../features/race/models/RaceMatch";
 import Guild from "../models/Guild";
@@ -1799,7 +1799,7 @@ router.get("/economy-dashboard", requireOwner as any, async (_req, res) => {
       })(),
       // Bounty pool
       (async () => {
-        const Bounty = (await import("../models/Bounty")).default;
+        const Bounty = (await import("../features/bounties/models/Bounty")).default;
         const result = await Bounty.aggregate([
           { $match: { status: "active" } },
           { $group: { _id: null, total: { $sum: "$amount" } } },

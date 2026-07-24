@@ -1,10 +1,10 @@
 import { Router } from "express";
-import User from "../models/User";
-import { WALLET_CAP, BANK_CAP } from "../models/User";
+import User from "../../models/User";
+import { WALLET_CAP, BANK_CAP } from "../../models/User";
 
-import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { validateBody } from "../middlewares/validate";
-import { bankAmountSchema, bankTransferSchema } from "../lib/schemas";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
+import { validateBody } from "../../middlewares/validate";
+import { bankAmountSchema, bankTransferSchema } from "../../lib/schemas";
 
 const router = Router();
 

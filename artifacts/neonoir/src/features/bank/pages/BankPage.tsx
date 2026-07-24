@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { User } from "../shared/types";
-import { api } from "../shared/api";
-import { formatDC } from "../shared/format";
+import { User } from "../../../shared/types";
+import { api } from "../../../shared/api";
+import { formatDC } from "../../../shared/format";
 
 interface Props {
   user: User;

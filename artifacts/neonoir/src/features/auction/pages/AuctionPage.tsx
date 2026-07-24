@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
-import { CyberSkeleton } from "../shared/components/CyberSkeleton";
+import { CyberSkeleton } from "../../../shared/components/CyberSkeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { api } from "../shared/api";
-import { User } from "../shared/types";
-import { ItemImage, nameToArenaItemId } from "../shared/components/ItemImage";
-import { formatDC } from "../shared/format";
-import { AnimatedCard } from "../shared/components/AnimatedCard";
-import { CyberButton } from "../shared/components/CyberButton";
-import { TradePage } from "./TradePage";
+import { api } from "../../../shared/api";
+import { User } from "../../../shared/types";
+import { ItemImage, nameToArenaItemId } from "../../../shared/components/ItemImage";
+import { formatDC } from "../../../shared/format";
+import { AnimatedCard } from "../../../shared/components/AnimatedCard";
+import { CyberButton } from "../../../shared/components/CyberButton";
+import { TradePage } from "../../trade/pages/TradePage";
 
 interface AuctionItem {
   id: string;

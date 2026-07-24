@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { User, Item } from "../shared/types";
-import { api } from "../shared/api";
-import { ItemImage, nameToArenaItemId } from "../shared/components/ItemImage";
-import { AnimatedCard } from "../shared/components/AnimatedCard";
-import { CyberSectionHeader } from "../shared/components/CyberSectionHeader";
-import { CyberButton } from "../shared/components/CyberButton";
-import { ConfirmDialog } from "../shared/components/ConfirmDialog";
+import { User, Item } from "../../../shared/types";
+import { api } from "../../../shared/api";
+import { ItemImage, nameToArenaItemId } from "../../../shared/components/ItemImage";
+import { AnimatedCard } from "../../../shared/components/AnimatedCard";
+import { CyberSectionHeader } from "../../../shared/components/CyberSectionHeader";
+import { CyberButton } from "../../../shared/components/CyberButton";
+import { ConfirmDialog } from "../../../shared/components/ConfirmDialog";
 
 interface Props {
   user: User;

@@ -4,10 +4,10 @@
  * POST /api/loadout/combat
  */
 import { Router } from "express";
-import PlayerLoadout from "../models/PlayerLoadout";
-import PlayerMiniGameInventory from "../features/garage/models/PlayerMiniGameInventory";
-import MiniGameItem from "../features/garage/models/MiniGameItem";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
+import PlayerLoadout from "../../models/PlayerLoadout";
+import PlayerMiniGameInventory from "../garage/models/PlayerMiniGameInventory";
+import MiniGameItem from "../garage/models/MiniGameItem";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
 
 const router = Router();
 
@@ -265,7 +265,7 @@ router.post("/sell", requireAuth, async (req: AuthRequest, res) => {
     };
     const dcGained = SELL_DC[itemDef.tier] ?? 50;
 
-    const User = (await import("../models/User")).default;
+    const User = (await import("../../models/User")).default;
 
     if (isWeapon) {
       // Pull weapon stack entry

@@ -7,14 +7,14 @@
  */
 import { Router } from "express";
 import mongoose from "mongoose";
-import Bounty from "../models/Bounty";
-import User from "../models/User";
-import Notification from "../models/Notification";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { logger } from "../lib/logger";
-import { emitFeedEvent } from "../lib/feedEvents";
-import { sendPushToUser } from "../lib/sendPushToUser";
-import { notifyTelegram } from "../lib/telegram";
+import Bounty from "./models/Bounty";
+import User from "../../models/User";
+import Notification from "../../models/Notification";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
+import { logger } from "../../lib/logger";
+import { emitFeedEvent } from "../../lib/feedEvents";
+import { sendPushToUser } from "../../lib/sendPushToUser";
+import { notifyTelegram } from "../../lib/telegram";
 
 const router = Router();
 

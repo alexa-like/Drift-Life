@@ -1,7 +1,7 @@
 import { Router } from "express";
 import User from "../models/User";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { SHOP_ITEMS } from "./market";
+import { SHOP_ITEMS } from "../features/market/routes";
 import { DISTRICTS } from "./districts";
 
 const router = Router();

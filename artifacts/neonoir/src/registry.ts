@@ -40,8 +40,8 @@ export const AuthPageLazy       = lazy(() => import("./pages/AuthPage").then(m =
 export const DashboardLazy      = lazy(() => import("./pages/Dashboard").then(m => ({ default: m.Dashboard })));
 export const CrimesPageLazy     = lazy(() => import("./features/crimes/pages/CrimesPage").then(m => ({ default: m.CrimesPage })));
 export const JobsPageLazy       = lazy(() => import("./features/jobs/pages/JobsPage").then(m => ({ default: m.JobsPage })));
-export const BankPageLazy       = lazy(() => import("./pages/BankPage").then(m => ({ default: m.BankPage })));
-export const InventoryPageLazy  = lazy(() => import("./pages/InventoryPage").then(m => ({ default: m.InventoryPage })));
+export const BankPageLazy       = lazy(() => import("./features/bank/pages/BankPage").then(m => ({ default: m.BankPage })));
+export const InventoryPageLazy  = lazy(() => import("./features/inventory/pages/InventoryPage").then(m => ({ default: m.InventoryPage })));
 export const LeaderboardPageLazy= lazy(() => import("./pages/LeaderboardPage").then(m => ({ default: m.LeaderboardPage })));
 export const FeedPageLazy       = lazy(() => import("./pages/FeedPage").then(m => ({ default: m.FeedPage })));
 export const NotificationsPageLazy = lazy(() => import("./pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
@@ -52,8 +52,8 @@ export const OwnerPageLazy      = lazy(() => import("./pages/OwnerPage").then(m 
 export const AchievementsPageLazy = lazy(() => import("./pages/AchievementsPage").then(m => ({ default: m.AchievementsPage })));
 export const ChatPageLazy       = lazy(() => import("./pages/ChatPage").then(m => ({ default: m.ChatPage })));
 export const GuildsPageLazy     = lazy(() => import("./pages/GuildsPage").then(m => ({ default: m.GuildsPage })));
-export const AuctionPageLazy    = lazy(() => import("./pages/AuctionPage").then(m => ({ default: m.AuctionPage })));
-export const TradePageLazy      = lazy(() => import("./pages/TradePage").then(m => ({ default: m.TradePage })));
+export const AuctionPageLazy    = lazy(() => import("./features/auction/pages/AuctionPage").then(m => ({ default: m.AuctionPage })));
+export const TradePageLazy      = lazy(() => import("./features/trade/pages/TradePage").then(m => ({ default: m.TradePage })));
 export const FriendsPageLazy    = lazy(() => import("./pages/FriendsPage").then(m => ({ default: m.FriendsPage })));
 export const MissionsPageLazy   = lazy(() => import("./pages/MissionsPage").then(m => ({ default: m.MissionsPage })));
 export const DistrictHubPageLazy= lazy(() => import("./pages/DistrictHubPage").then(m => ({ default: m.DistrictHubPage })));
@@ -73,9 +73,9 @@ export const MatchHistoryPageLazy   = lazy(() => import("./pages/MatchHistoryPag
 export const GaragePageLazy     = lazy(() => import("./features/garage/pages/GaragePage"));
 export const ArenaHubPageLazy   = lazy(() => import("./features/arena/hub/pages/ArenaHubPage"));
 export const ArenaCombatPageLazy= lazy(() => import("./features/arena/combat/pages/ArenaCombatPage"));
-export const LoadoutPageLazy    = lazy(() => import("./pages/LoadoutPage"));
-export const ShopHubPageLazy    = lazy(() => import("./pages/ShopHubPage"));
-export const NpcStorePageLazy   = lazy(() => import("./pages/NpcStorePage"));
+export const LoadoutPageLazy    = lazy(() => import("./features/loadout/pages/LoadoutPage"));
+export const ShopHubPageLazy    = lazy(() => import("./features/shop/hub/pages/ShopHubPage"));
+export const NpcStorePageLazy   = lazy(() => import("./features/shop/npc/pages/NpcStorePage"));
 export const RaceHubPageLazy    = lazy(() => import("./features/race/hub/pages/RaceHubPage"));
 export const RaceMatchPageLazy  = lazy(() => import("./features/race/match/pages/RaceMatchPage"));
 export const CityPageLazy       = lazy(() => import("./pages/CityPage"));

@@ -1,11 +1,11 @@
 import { Router, Response } from "express";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
-import NpcStoreListing, { INpcStoreListing } from "../models/NpcStoreListing";
-import User from "../models/User";
-import Item from "../models/Item";
-import MiniGameItem from "../features/garage/models/MiniGameItem";
-import PlayerMiniGameInventory from "../features/garage/models/PlayerMiniGameInventory";
-import { SHOP_ITEMS } from "./market";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
+import NpcStoreListing, { INpcStoreListing } from "./models/NpcStoreListing";
+import User from "../../models/User";
+import Item from "../../models/Item";
+import MiniGameItem from "../garage/models/MiniGameItem";
+import PlayerMiniGameInventory from "../garage/models/PlayerMiniGameInventory";
+import { SHOP_ITEMS } from "../market/routes";
 
 const router = Router();
 
@@ -276,10 +276,10 @@ router.post("/:storeId/buy", requireAuth, async (req: AuthRequest, res: Response
             { _id: req.userId, onboardingStage: 1 },
             { $set: { onboardingStage: 2 }, $inc: { dc: 500 } },
           ).catch(() => {});
-          import("../lib/notifyUser").then(({ notifyUser }) =>
+          import("../../lib/notifyUser").then(({ notifyUser }) =>
             notifyUser({ userId: String(req.userId), type: "achievements", message: "Wheels acquired! 500 DC bonus. Now find a job — steady income matters." })
           ).catch(() => {});
-          import("../lib/economyLog").then(({ logEconomy }) =>
+          import("../../lib/economyLog").then(({ logEconomy }) =>
             logEconomy("dc_in", 500, "onboarding_stage2_reward", { userId: String(req.userId), username: buyerFull.username })
           ).catch(() => {});
         }

@@ -23,7 +23,7 @@ import { getActiveFlashEvent, awardEventPoints } from "../../lib/eventEngine";
 import { awardBattlePassXp } from "../../lib/battlePassXp";
 import { updateQuestProgress } from "../../lib/questProgress";
 import { checkMentorLevelBonus } from "../../lib/mentorBonus";
-import { claimBounty } from "../../routes/bounties";
+import { claimBounty } from "../bounties/routes";
 import { logEconomy } from "../../lib/economyLog";
 
 const router = Router();

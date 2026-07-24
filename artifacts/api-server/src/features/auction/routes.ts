@@ -1,18 +1,18 @@
 import { Router } from "express";
 import mongoose from "mongoose";
-import AuctionListing from "../models/AuctionListing";
-import MiniGameItem from "../features/garage/models/MiniGameItem";
-import PlayerMiniGameInventory from "../features/garage/models/PlayerMiniGameInventory";
-import User from "../models/User";
-import Notification from "../models/Notification";
-import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { validateBody } from "../middlewares/validate";
-import { auctionBidSchema } from "../lib/schemas";
-import { logger } from "../lib/logger";
-import { postToSystemFeed } from "../lib/systemFeed";
-import { sendPushToUser } from "../lib/sendPushToUser";
-import { notifyTelegram } from "../lib/telegram";
-import { logEconomy } from "../lib/economyLog";
+import AuctionListing from "./models/AuctionListing";
+import MiniGameItem from "../garage/models/MiniGameItem";
+import PlayerMiniGameInventory from "../garage/models/PlayerMiniGameInventory";
+import User from "../../models/User";
+import Notification from "../../models/Notification";
+import { requireAuth, AuthRequest } from "../../middlewares/auth";
+import { validateBody } from "../../middlewares/validate";
+import { auctionBidSchema } from "../../lib/schemas";
+import { logger } from "../../lib/logger";
+import { postToSystemFeed } from "../../lib/systemFeed";
+import { sendPushToUser } from "../../lib/sendPushToUser";
+import { notifyTelegram } from "../../lib/telegram";
+import { logEconomy } from "../../lib/economyLog";
 
 const router = Router();
 

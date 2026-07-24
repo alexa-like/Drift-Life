@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../shared/api";
-import { ItemImage } from "../shared/components/ItemImage";
-import { User } from "../shared/types";
+import { api } from "../../../shared/api";
+import { ItemImage } from "../../../shared/components/ItemImage";
+import { User } from "../../../shared/types";
 
 interface WeaponEntry {
   itemId: string;
