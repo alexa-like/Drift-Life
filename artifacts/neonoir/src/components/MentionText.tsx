@@ -52,13 +52,21 @@ interface Props {
   onLocationClick?: (location: string) => void;
 }
 
-export function MentionText({ text, mentions, onUserClick, onLocationClick }: Props) {
-  // Build a lower-case Set for fast lookup when mentions[] is provided
-  const mentionSet = mentions
-    ? new Set(mentions.map(m => m.toLowerCase()))
-    : null; // null → no filtering (backward-compat)
+import React, { memo, useMemo } from "react";
 
-  const parts = tokenize(text);
+// ⚡ Bolt performance optimization:
+// Wrap MentionText in React.memo and useMemo for tokenization/mention set construction.
+// In chat lists and feeds, messages are rendered repeatedly; memoizing prevents expensive
+// regex tokenization and Set allocations on non-updated messages.
+export const MentionText = memo(function MentionText({ text, mentions, onUserClick, onLocationClick }: Props) {
+  // Build a lower-case Set for fast lookup when mentions[] is provided
+  const mentionSet = useMemo(() => {
+    return mentions
+      ? new Set(mentions.map(m => m.toLowerCase()))
+      : null; // null → no filtering (backward-compat)
+  }, [mentions]);
+
+  const parts = useMemo(() => tokenize(text), [text]);
 
   return (
     <>
@@ -146,7 +154,7 @@ export function MentionText({ text, mentions, onUserClick, onLocationClick }: Pr
       })}
     </>
   );
-}
+});
 
 interface Token {
   type: "text" | "mention" | "location" | "emoji";

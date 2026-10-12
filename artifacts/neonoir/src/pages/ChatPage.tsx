@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { User, ChatMessage, Conversation } from "../shared/types";
 import { api } from "../shared/api";
@@ -104,7 +104,10 @@ function ReactionPicker({ onPick, onReplyTo }: { onPick: (emoji: string) => void
   );
 }
 
-function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onReact, onReplyTo, currentUserId }: {
+// ⚡ Bolt performance optimization:
+// Wrap MessageBubble in React.memo. When new messages arrive or timers tick,
+// existing messages in the list don't need to re-render.
+const MessageBubble = memo(function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onReact, onReplyTo, currentUserId }: {
   message: ChatMessage;
   isOwn: boolean;
   onUsernameClick?: (id: string) => void;
@@ -275,7 +278,7 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onRe
       {menu}
     </motion.div>
   );
-}
+});
 
 interface Props {
   user: User;
@@ -426,19 +429,19 @@ function GlobalTab({ user, onInspect, onReport, onMute, isMuted, muted, onToggle
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  async function send(content: string) {
+  const send = useCallback(async (content: string) => {
     try {
       await api.post<any>("/chat/global", { content, ...(replyingTo ? { replyToId: replyingTo.id } : {}) });
       setReplyingTo(null);
     } catch { /* ignore */ }
-  }
+  }, [replyingTo]);
 
-  async function handleReact(messageId: string, emoji: string) {
+  const handleReact = useCallback(async (messageId: string, emoji: string) => {
     try {
       const res = await api.post<{ reactions: any[] }>(`/chat/react/${messageId}`, { emoji });
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: res.reactions } : m));
     } catch { /* ignore */ }
-  }
+  }, []);
 
   const visible = messages.filter(m => !isMuted(m.userId));
 
@@ -506,9 +509,9 @@ function DistrictTab({ user, onInspect, onReport, onMute, isMuted }: { user: Use
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  async function send(content: string) {
+  const send = useCallback(async (content: string) => {
     try { await api.post<any>(`/chat/district/${district}`, { content }); } catch { /* ignore */ }
-  }
+  }, [district]);
 
   const visible = messages.filter(m => !isMuted(m.userId));
 
@@ -556,9 +559,9 @@ function FactionTab({ user, onInspect, onReport, onMute, isMuted }: { user: User
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  async function send(content: string) {
+  const send = useCallback(async (content: string) => {
     try { await api.post<any>("/chat/faction", { content }); } catch { /* ignore */ }
-  }
+  }, []);
 
   const FACTION_COLOR: Record<string, string> = { suits: "#f59e0b", street: "#ff2d55", grid: "#00d4ff" };
   const fc = user.faction ? FACTION_COLOR[user.faction] ?? "#a855f7" : "#a855f7";
@@ -780,19 +783,19 @@ function EventTab({ user, onInspect, onReport, onMute, isMuted }: { user: User }
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  async function send(content: string) {
+  const send = useCallback(async (content: string) => {
     try {
       await api.post<any>("/chat/event", { content, ...(replyingTo ? { replyToId: replyingTo.id } : {}) });
       setReplyingTo(null);
     } catch { /* ignore */ }
-  }
+  }, [replyingTo]);
 
-  async function handleReact(messageId: string, emoji: string) {
+  const handleReact = useCallback(async (messageId: string, emoji: string) => {
     try {
       const res = await api.post<{ reactions: any[] }>(`/chat/react/${messageId}`, { emoji });
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: res.reactions } : m));
     } catch { /* ignore */ }
-  }
+  }, []);
 
   const visible = messages.filter(m => !isMuted(m.userId));
 
@@ -872,12 +875,12 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
     if (tab === "event" && !user.activeEvent) setTab("global");
   }, [tab, isAbroad, user.activeEvent]);
 
-  function isMuted(userId: string) {
+  const isMuted = useCallback((userId: string) => {
     return mutedUserIds.includes(userId);
-  }
+  }, [mutedUserIds]);
 
-  async function handleMute(userId: string, username: string) {
-    if (isMuted(userId)) return;
+  const handleMute = useCallback(async (userId: string, username: string) => {
+    if (mutedUserIds.includes(userId)) return;
     setMutedUserIds(prev => [...prev, userId]);
     try {
       await api.post<any>(`/chat/mute/${userId}`, {});
@@ -886,16 +889,16 @@ export function ChatPage({ user, addToast, onInspectPlayer }: Props) {
       setMutedUserIds(prev => prev.filter(id => id !== userId));
       addToast("ERR: Mute failed", "error");
     }
-  }
+  }, [mutedUserIds, addToast]);
 
-  async function handleReport(messageId: string) {
+  const handleReport = useCallback(async (messageId: string) => {
     try {
       await api.post<any>("/chat/report", { messageId });
       addToast("Report submitted.", "success");
     } catch {
       addToast("ERR: Report failed", "error");
     }
-  }
+  }, [addToast]);
 
   function toggleGlobalMute() {
     setGlobalMuted(prev => {
