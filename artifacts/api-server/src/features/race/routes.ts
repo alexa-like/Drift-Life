@@ -770,7 +770,7 @@ router.post("/cars/:carId/service", requireAuth, async (req: AuthRequest, res) =
       // Get car tier from RaceCar model
       let carTier = "common";
       try {
-        const RaceCar = (await import("../../models/RaceCar")).default;
+        const RaceCar = (await import("./models/RaceCar")).default;
         const carDef = await RaceCar.findOne({ carId }).lean();
         carTier = (carDef as any)?.tier ?? "common";
       } catch (e) {}
