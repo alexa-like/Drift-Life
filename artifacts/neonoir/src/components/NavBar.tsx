@@ -493,7 +493,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 <span className="font-display font-black text-sm tracking-widest uppercase" style={{ color: "#00d4ff" }}>
                   NAVIGATION
                 </span>
-                <button onClick={() => setMobileMenuOpen(false)}>
+                <button onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation menu">
                   <X size={18} color="#475569" />
                 </button>
               </div>
