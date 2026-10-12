@@ -11,7 +11,7 @@
 import { Router } from "express";
 import User from "../models/User";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
-import { rollCityEncounter } from "./crimes";
+import { rollCityEncounter } from "../features/crimes/routes";
 
 const router = Router();
 

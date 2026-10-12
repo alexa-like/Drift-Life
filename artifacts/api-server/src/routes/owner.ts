@@ -1311,7 +1311,7 @@ router.post("/db-drop/:collection", requireOwner as any, async (req: AuthRequest
 router.get("/game-config", requireOwner as any, async (req: AuthRequest, res) => {
   try {
     const { getGameConfig, DEFAULT_GAME_CONFIG } = await import("../lib/gameConfig");
-    const { RUNS } = await import("./crimes");
+    const { RUNS } = await import("../features/crimes/routes");
     const { JOBS } = await import("./jobs");
     const config = await getGameConfig();
     res.json({

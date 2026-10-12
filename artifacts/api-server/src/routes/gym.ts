@@ -9,7 +9,7 @@ import ActionMastery from "../models/ActionMastery";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { applyRegen, isHospitalized, isJailed, moodMultiplier } from "../models/User";
 import { energySufficientExpr, buildRegenPipeline } from "../lib/atomicRegen";
-import { rollCityEncounter } from "./crimes";
+import { rollCityEncounter } from "../features/crimes/routes";
 import { getEmployerPerk } from "../lib/employeePerks";
 
 const router = Router();
