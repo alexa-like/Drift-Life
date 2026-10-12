@@ -368,7 +368,8 @@ router.post("/unlink", requireAuth, async (req: AuthRequest, res) => {
 // secret are rejected with 401. Without this, forged successful_payment events
 // could mint NC for free.
 router.post("/webhook", async (req, res) => {
-  const secretToken = "fbc6fcfc5581f5f2b9d03dc25dcd52e2df3399da36d7d695a5f2442e45591b7d";
+  // Use TELEGRAM_WEBHOOK_SECRET env var if configured, falling back to default secret for dev
+  const secretToken = process.env["TELEGRAM_WEBHOOK_SECRET"] ?? "fbc6fcfc5581f5f2b9d03dc25dcd52e2df3399da36d7d695a5f2442e45591b7d";
   if (req.headers["x-telegram-bot-api-secret-token"] !== secretToken) {
     return res.status(401).json({ message: "Unauthorized" });
   }
