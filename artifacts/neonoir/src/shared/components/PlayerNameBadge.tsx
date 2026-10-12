@@ -10,7 +10,7 @@
  * must be present in index.css — they are shared with the cosmetics system.
  */
 
-import { useEffect } from "react";
+import React, { memo, useEffect } from "react";
 import type { FlairData } from "../types";
 
 export type { FlairData };
@@ -70,7 +70,9 @@ function ensureCss() {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function PlayerNameBadge({
+// ⚡ Bolt performance optimization:
+// Wrap PlayerNameBadge in React.memo to prevent unnecessary re-renders when props remain unchanged.
+export const PlayerNameBadge = memo(function PlayerNameBadge({
   username,
   subscriptionTier,
   equippedNameFlair,
@@ -123,7 +125,7 @@ export function PlayerNameBadge({
       {username}
     </span>
   );
-}
+});
 
 /** Return just the chat color for a given tier (used for inline styling in bubbles) */
 export function tierChatColor(tier: SubscriberTier): string {
