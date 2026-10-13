@@ -2,6 +2,7 @@ import { Router } from "express";
 import { BattlePass } from "../models/BattlePass";
 import User from "../models/User";
 import { notifyUser } from "../lib/notifyUser";
+import { requireOwner } from "../middlewares/auth";
 
 const router = Router();
 
@@ -157,10 +158,10 @@ router.post("/claim/:level/:track", async (req: any, res: any) => {
 // Mounted under /api/owner/battle-pass via index.ts
 
 export const ownerBattlePassRouter = Router();
+ownerBattlePassRouter.use(requireOwner as any);
 
 // POST /api/owner/battle-pass — create a new pass for an event
 ownerBattlePassRouter.post("/", async (req: any, res: any) => {
-  if (!["owner", "admin"].includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
   try {
     const pass = new BattlePass(req.body);
     await pass.save();
@@ -172,7 +173,6 @@ ownerBattlePassRouter.post("/", async (req: any, res: any) => {
 
 // PATCH /api/owner/battle-pass/:id — edit any field
 ownerBattlePassRouter.patch("/:id", async (req: any, res: any) => {
-  if (!["owner", "admin"].includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
   try {
     const pass = await BattlePass.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
     if (!pass) return res.status(404).json({ error: "Pass not found" });
@@ -184,7 +184,6 @@ ownerBattlePassRouter.patch("/:id", async (req: any, res: any) => {
 
 // POST /api/owner/battle-pass/:id/activate — set status to active
 ownerBattlePassRouter.post("/:id/activate", async (req: any, res: any) => {
-  if (!["owner", "admin"].includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
   try {
     // Deactivate any currently active pass first
     await BattlePass.updateMany({ status: "active" }, { $set: { status: "ended" } });
@@ -198,7 +197,6 @@ ownerBattlePassRouter.post("/:id/activate", async (req: any, res: any) => {
 
 // GET /api/owner/battle-pass — list all passes
 ownerBattlePassRouter.get("/", async (req: any, res: any) => {
-  if (!["owner", "admin"].includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
   try {
     const passes = await BattlePass.find().sort({ createdAt: -1 }).lean();
     return res.json(passes);
@@ -209,7 +207,6 @@ ownerBattlePassRouter.get("/", async (req: any, res: any) => {
 
 // GET /api/owner/battle-pass/:id — get one pass with full levels array
 ownerBattlePassRouter.get("/:id", async (req: any, res: any) => {
-  if (!["owner", "admin"].includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
   try {
     const pass = await BattlePass.findById(req.params.id).lean();
     if (!pass) return res.status(404).json({ error: "Pass not found" });
@@ -221,7 +218,6 @@ ownerBattlePassRouter.get("/:id", async (req: any, res: any) => {
 
 // POST /api/owner/battle-pass/:id/deactivate — set status to ended
 ownerBattlePassRouter.post("/:id/deactivate", async (req: any, res: any) => {
-  if (!["owner", "admin"].includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
   try {
     const pass = await BattlePass.findByIdAndUpdate(
       req.params.id,
