@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, memo } from "react";
 import { motion } from "framer-motion";
 import { User, ChatMessage, Conversation } from "../shared/types";
 import { api } from "../shared/api";
@@ -104,7 +104,9 @@ function ReactionPicker({ onPick, onReplyTo }: { onPick: (emoji: string) => void
   );
 }
 
-function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onReact, onReplyTo, currentUserId }: {
+// ⚡ Bolt Optimization: Wrap MessageBubble in React.memo so incoming websocket messages only
+// render the new message bubble instead of re-rendering all previously received chat messages.
+const MessageBubble = memo(function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onReact, onReplyTo, currentUserId }: {
   message: ChatMessage;
   isOwn: boolean;
   onUsernameClick?: (id: string) => void;
@@ -275,7 +277,7 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onRe
       {menu}
     </motion.div>
   );
-}
+});
 
 interface Props {
   user: User;

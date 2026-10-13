@@ -1,3 +1,5 @@
+import React, { memo } from "react";
+
 // Game emoji catalog — mirrors backend EMOJI_CATALOG (16 slugs)
 export const GAME_EMOJIS: Record<string, { displayName: string; emoji: string; theme: string }> = {
   driftcar:      { displayName: "Drift Car",      emoji: "🚗", theme: "action" },
@@ -52,7 +54,8 @@ interface Props {
   onLocationClick?: (location: string) => void;
 }
 
-export function MentionText({ text, mentions, onUserClick, onLocationClick }: Props) {
+// ⚡ Bolt Optimization: Memoize MentionText to avoid re-tokenization on unchanged messages
+export const MentionText = memo(function MentionText({ text, mentions, onUserClick, onLocationClick }: Props) {
   // Build a lower-case Set for fast lookup when mentions[] is provided
   const mentionSet = mentions
     ? new Set(mentions.map(m => m.toLowerCase()))
@@ -146,17 +149,20 @@ export function MentionText({ text, mentions, onUserClick, onLocationClick }: Pr
       })}
     </>
   );
-}
+});
 
 interface Token {
   type: "text" | "mention" | "location" | "emoji";
   value: string;
 }
 
+// Pre-compiled regex instance outside tokenize function to avoid re-instantiating regex literal per tokenization call
+const TOKENIZE_REGEX = /(@[\w]+|\/[\w-]+|:([\w]+):)/g;
+
 function tokenize(text: string): Token[] {
   const tokens: Token[] = [];
-  // Match @mention, /location, or :emoji_slug:
-  const re = /(@[\w]+|\/[\w-]+|:([\w]+):)/g;
+  TOKENIZE_REGEX.lastIndex = 0;
+  const re = TOKENIZE_REGEX;
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
