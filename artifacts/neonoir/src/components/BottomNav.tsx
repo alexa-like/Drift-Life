@@ -25,6 +25,8 @@ export function BottomNav({ active, onNav }: Props) {
             <button
               key={item.id}
               onClick={() => onNav(item.id)}
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
               className="flex-1 flex flex-col items-center justify-center gap-1"
               style={{
                 minHeight: 56,
