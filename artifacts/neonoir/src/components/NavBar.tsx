@@ -114,6 +114,7 @@ function SearchBar({ onInspectPlayer, onNav }: { onInspectPlayer?: (id: string) 
           onChange={e => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           placeholder="SEARCH DATA..."
+          aria-label="Search network"
           className="w-full font-mono px-6 py-1.5 clip-bar text-xs uppercase"
           style={{ background: "#08080c", border: "1px solid #1e1e2e", color: "#00d4ff", outline: "none" }}
         />
@@ -147,6 +148,9 @@ function AvatarMenu({ user, onNav, onLogout }: { user: User; onNav: (id: string)
     <div ref={ref} className="relative flex-shrink-0">
       <button
         onClick={() => setOpen(o => !o)}
+        aria-label="User account menu"
+        aria-expanded={open}
+        aria-haspopup="true"
         className="flex items-center gap-2 font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800"
         style={{ fontSize: 11, color: "#e2e8f0", background: "#111118", border: "1px solid #1e1e2e" }}
       >
@@ -321,6 +325,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => onNav("notifications")}
+              aria-label={unreadNotifs > 0 ? `Notifications (${unreadNotifs} unread)` : "Notifications"}
               className="relative font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800 flex items-center justify-center"
               style={{
                 fontSize: 12,
@@ -330,7 +335,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 boxShadow: unreadNotifs > 0 ? "0 0 12px #ff2d5540" : "none",
               }}
             >
-              <Bell size={16} strokeWidth={2} />
+              <Bell size={16} strokeWidth={2} aria-hidden="true" />
             </button>
             <AvatarMenu user={user} onNav={onNav} onLogout={onLogout} />
             <button
@@ -343,7 +348,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 borderRadius: 2,
               }}
               onClick={() => setMobileMenuOpen(o => !o)}
-              aria-label="Open navigation menu"
+              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={mobileMenuOpen}
             >
               <AnimatePresence mode="wait" initial={false}>
                 {mobileMenuOpen ? (
@@ -493,8 +499,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 <span className="font-display font-black text-sm tracking-widest uppercase" style={{ color: "#00d4ff" }}>
                   NAVIGATION
                 </span>
-                <button onClick={() => setMobileMenuOpen(false)}>
-                  <X size={18} color="#475569" />
+                <button onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation menu">
+                  <X size={18} color="#475569" aria-hidden="true" />
                 </button>
               </div>
 
