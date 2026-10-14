@@ -7,6 +7,13 @@ import { notifyTelegram } from "./telegram";
 const MAX_NOTIFS = 30;
 
 /**
+ * Helper to escape regex special characters in a string.
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
  * Parse all @username tokens from a message body.
  * Returns unique lowercase usernames (no duplicates, no self-mention).
  */
@@ -34,11 +41,12 @@ export async function notifyMentions(opts: {
     const usernames = parseMentions(text);
     if (usernames.length === 0) return;
 
+    // Optimization: Select telegramId and telegramNotifications upfront in initial query to prevent N+1 User.findById queries inside the loop
     const targets = await User.find({
-      username: { $in: usernames.map(u => new RegExp(`^${u}$`, "i")) },
+      username: { $in: usernames.map(u => new RegExp(`^${escapeRegex(u)}$`, "i")) },
       _id: { $ne: senderId },
       banned: false,
-    }).select("_id").lean();
+    }).select("_id telegramId telegramNotifications").lean();
 
     if (targets.length === 0) return;
 
@@ -68,10 +76,9 @@ export async function notifyMentions(opts: {
           link: `/${sourcePage}`,
           tag: "mention",
         }, "mentions").catch(() => {});
-        // Telegram notification for mention
-        const tgUser = await User.findById(target._id).select("telegramId telegramNotifications").lean().catch(() => null);
+        // Telegram notification for mention - target already has telegramId and telegramNotifications
         notifyTelegram(
-          tgUser as any,
+          target as any,
           `📡 <b>${senderName}</b> mentioned you in ${sourceLabel}`,
         ).catch(() => {});
       } catch { /* individual failure — ignore */ }
