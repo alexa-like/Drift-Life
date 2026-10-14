@@ -1,0 +1,42 @@
+
+> @workspace/neonoir@0.0.0 dev /app/artifacts/neonoir
+> export PORT=${PORT:-5000} && vite --config vite.config.ts --host 0.0.0.0
+
+
+  VITE v7.3.5  ready in 380 ms
+
+  ➜  Local:   http://localhost:5000/
+  ➜  Network: http://192.168.0.2:5000/
+12:26:13 PM [vite] http proxy error: /api/auth/register
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980811177,"name":"Error","message":"notifs.filter is not a function","stack":"    at poll /app/artifacts/neonoir/src/App.tsx:262:30","loc":{"line":262,"column":30,"file":"/app/artifacts/neonoir/src/App.tsx"},"frame":"260|      const poll = async () => {\n261|        const notifs = await api.get<Notification[]>(\"/notifications\").catch(() => [] as Notification[]);\n262|        setUnreadNotifs(notifs.filter(n => !n.read).length);\n   |                               ^\n263|      };\n264|      poll();"}
+12:26:51 PM [vite] http proxy error: /api/world/announcement
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+12:26:51 PM [vite] http proxy error: /api/feed?page=1&limit=30
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+12:26:51 PM [vite] http proxy error: /api/giveaways/live
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+12:27:21 PM [vite] http proxy error: /api/world/announcement
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980841072,"name":"Error","message":"notifs.filter is not a function","stack":"    at poll /app/artifacts/neonoir/src/App.tsx:262:30","loc":{"line":262,"column":30,"file":"/app/artifacts/neonoir/src/App.tsx"},"frame":"260|      const poll = async () => {\n261|        const notifs = await api.get<Notification[]>(\"/notifications\").catch(() => [] as Notification[]);\n262|        setUnreadNotifs(notifs.filter(n => !n.read).length);\n   |                               ^\n263|      };\n264|      poll();"}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980862403,"name":"Error","message":"notifs.filter is not a function","stack":"    at poll /app/artifacts/neonoir/src/App.tsx:262:30","loc":{"line":262,"column":30,"file":"/app/artifacts/neonoir/src/App.tsx"},"frame":"260|      const poll = async () => {\n261|        const notifs = await api.get<Notification[]>(\"/notifications\").catch(() => [] as Notification[]);\n262|        setUnreadNotifs(notifs.filter(n => !n.read).length);\n   |                               ^\n263|      };\n264|      poll();"}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980862647,"name":"Error","message":"liveGiveaways.map is not a function","stack":"    at FeedPage /app/artifacts/neonoir/src/pages/FeedPage.tsx:238:28\n\n\n\n\n\n\n\n\n","loc":{"line":238,"column":28,"file":"/app/artifacts/neonoir/src/pages/FeedPage.tsx"},"frame":"236|          ) : (\n237|            <div className=\"space-y-0\">\n238|              {liveGiveaways.map((g, i) => (\n   |                             ^\n239|                <div key={g.id} style={{ borderTop: i > 0 ? \"1px solid #1a1a2e\" : undefined, padding: \"10px 14px\" }}>\n240|                  <GiveawayCard"}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980897650,"name":"Error","message":"notifs.filter is not a function","stack":"    at poll /app/artifacts/neonoir/src/App.tsx:262:30","loc":{"line":262,"column":30,"file":"/app/artifacts/neonoir/src/App.tsx"},"frame":"260|      const poll = async () => {\n261|        const notifs = await api.get<Notification[]>(\"/notifications\").catch(() => [] as Notification[]);\n262|        setUnreadNotifs(notifs.filter(n => !n.read).length);\n   |                               ^\n263|      };\n264|      poll();"}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980897885,"name":"Error","message":"events.map is not a function","stack":"    at FeedPage /app/artifacts/neonoir/src/pages/FeedPage.tsx:270:21\n\n\n\n\n\n\n\n\n","loc":{"line":270,"column":21,"file":"/app/artifacts/neonoir/src/pages/FeedPage.tsx"},"frame":"268|          <>\n269|            <div className=\"space-y-1\">\n270|              {events.map((ev, i) => {\n   |                      ^\n271|                const isPinned = (ev as any).pinned;\n272|  "}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980919741,"name":"Error","message":"notifs.filter is not a function","stack":"    at poll /app/artifacts/neonoir/src/App.tsx:262:30","loc":{"line":262,"column":30,"file":"/app/artifacts/neonoir/src/App.tsx"},"frame":"260|      const poll = async () => {\n261|        const notifs = await api.get<Notification[]>(\"/notifications\").catch(() => [] as Notification[]);\n262|        setUnreadNotifs(notifs.filter(n => !n.read).length);\n   |                               ^\n263|      };\n264|      poll();"}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980919961,"name":"Error","message":"events.map is not a function","stack":"    at FeedPage /app/artifacts/neonoir/src/pages/FeedPage.tsx:270:21\n\n\n\n\n\n\n\n\n","loc":{"line":270,"column":21,"file":"/app/artifacts/neonoir/src/pages/FeedPage.tsx"},"frame":"268|          <>\n269|            <div className=\"space-y-1\">\n270|              {events.map((ev, i) => {\n   |                      ^\n271|                const isPinned = (ev as any).pinned;\n272|  "}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980945765,"name":"Error","message":"notifs.filter is not a function","stack":"    at poll /app/artifacts/neonoir/src/App.tsx:262:30","loc":{"line":262,"column":30,"file":"/app/artifacts/neonoir/src/App.tsx"},"frame":"260|      const poll = async () => {\n261|        const notifs = await api.get<Notification[]>(\"/notifications\").catch(() => [] as Notification[]);\n262|        setUnreadNotifs(notifs.filter(n => !n.read).length);\n   |                               ^\n263|      };\n264|      poll();"}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980945986,"name":"Error","message":"events.map is not a function","stack":"    at FeedPage /app/artifacts/neonoir/src/pages/FeedPage.tsx:270:21\n\n\n\n\n\n\n\n\n","loc":{"line":270,"column":21,"file":"/app/artifacts/neonoir/src/pages/FeedPage.tsx"},"frame":"268|          <>\n269|            <div className=\"space-y-1\">\n270|              {events.map((ev, i) => {\n   |                      ^\n271|                const isPinned = (ev as any).pinned;\n272|  "}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791980981767,"name":"Error","message":"notifs.filter is not a function","stack":"    at poll /app/artifacts/neonoir/src/App.tsx:262:30","loc":{"line":262,"column":30,"file":"/app/artifacts/neonoir/src/App.tsx"},"frame":"260|      const poll = async () => {\n261|        const notifs = await api.get<Notification[]>(\"/notifications\").catch(() => [] as Notification[]);\n262|        setUnreadNotifs(notifs.filter(n => !n.read).length);\n   |                               ^\n263|      };\n264|      poll();"}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791981011722,"name":"Error","message":"notifs.filter is not a function","stack":"    at poll /app/artifacts/neonoir/src/App.tsx:262:30","loc":{"line":262,"column":30,"file":"/app/artifacts/neonoir/src/App.tsx"},"frame":"260|      const poll = async () => {\n261|        const notifs = await api.get<Notification[]>(\"/notifications\").catch(() => [] as Notification[]);\n262|        setUnreadNotifs(notifs.filter(n => !n.read).length);\n   |                               ^\n263|      };\n264|      poll();"}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1791981034182,"name":"Error","message":"notifs.filter is not a function","stack":"    at poll /app/artifacts/neonoir/src/App.tsx:262:30","loc":{"line":262,"column":30,"file":"/app/artifacts/neonoir/src/App.tsx"},"frame":"260|      const poll = async () => {\n261|        const notifs = await api.get<Notification[]>(\"/notifications\").catch(() => [] as Notification[]);\n262|        setUnreadNotifs(notifs.filter(n => !n.read).length);\n   |                               ^\n263|      };\n264|      poll();"}
