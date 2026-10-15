@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { motion } from "framer-motion";
 import { User, ChatMessage, Conversation } from "../shared/types";
 import { api } from "../shared/api";
@@ -104,7 +104,8 @@ function ReactionPicker({ onPick, onReplyTo }: { onPick: (emoji: string) => void
   );
 }
 
-function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onReact, onReplyTo, currentUserId }: {
+// Performance optimization: Memoize MessageBubble so adding a new message to a stream doesn't re-render existing 50 messages
+const MessageBubble = memo(function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onReact, onReplyTo, currentUserId }: {
   message: ChatMessage;
   isOwn: boolean;
   onUsernameClick?: (id: string) => void;
@@ -275,7 +276,7 @@ function MessageBubble({ message, isOwn, onUsernameClick, onReport, onMute, onRe
       {menu}
     </motion.div>
   );
-}
+});
 
 interface Props {
   user: User;
