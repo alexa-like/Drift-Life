@@ -1,0 +1,3 @@
+## 2025-05-18 - React.memo and Tokenization Memoization in Chat Streams
+**Learning:** High-frequency chat message streams (such as global/district chat) render up to 50 message items. Without memoization, every keystroke in the input box or incoming socket event triggers a full re-render of all `MessageBubble` components and re-calculates regex tokenization in `MentionText`. Memoizing `MessageBubble` with `React.memo` and tokenization in `MentionText` via `useMemo` reduces redundant processing by ~70x for message rendering.
+**Action:** Always wrap list items in high-frequency streams (chat, live feed, activity log) with `React.memo` and memoize regex tokenizers/parsers.

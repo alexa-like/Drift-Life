@@ -1,3 +1,5 @@
+import { memo, useMemo } from "react";
+
 // Game emoji catalog — mirrors backend EMOJI_CATALOG (16 slugs)
 export const GAME_EMOJIS: Record<string, { displayName: string; emoji: string; theme: string }> = {
   driftcar:      { displayName: "Drift Car",      emoji: "🚗", theme: "action" },
@@ -52,13 +54,14 @@ interface Props {
   onLocationClick?: (location: string) => void;
 }
 
-export function MentionText({ text, mentions, onUserClick, onLocationClick }: Props) {
+export const MentionText = memo(function MentionText({ text, mentions, onUserClick, onLocationClick }: Props) {
   // Build a lower-case Set for fast lookup when mentions[] is provided
-  const mentionSet = mentions
-    ? new Set(mentions.map(m => m.toLowerCase()))
-    : null; // null → no filtering (backward-compat)
+  const mentionSet = useMemo(() => (
+    mentions ? new Set(mentions.map(m => m.toLowerCase())) : null
+  ), [mentions]);
 
-  const parts = tokenize(text);
+  // Performance optimization: Memoize tokenization so regex matching is skipped on unchanged text
+  const parts = useMemo(() => tokenize(text), [text]);
 
   return (
     <>
@@ -146,7 +149,7 @@ export function MentionText({ text, mentions, onUserClick, onLocationClick }: Pr
       })}
     </>
   );
-}
+});
 
 interface Token {
   type: "text" | "mention" | "location" | "emoji";
