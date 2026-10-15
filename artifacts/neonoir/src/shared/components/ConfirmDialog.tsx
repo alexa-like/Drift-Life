@@ -1,3 +1,5 @@
+import { useEffect, useRef, useId } from "react";
+
 /**
  * ConfirmDialog — generic in-app confirmation modal.
  *
@@ -28,10 +30,32 @@ export function ConfirmDialog({
   onCancel,
 }: Props) {
   const accent = danger ? "#ff2d55" : "#00E0FF";
+  const titleId = useId();
+  const descId = useId();
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    cancelBtnRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) {
+        e.stopPropagation();
+        onCancel();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel, busy]);
 
   return (
     <div
       onClick={onCancel}
+      role={danger ? "alertdialog" : "dialog"}
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={descId}
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -47,12 +71,14 @@ export function ConfirmDialog({
         }}
       >
         <div
+          id={titleId}
           className="font-mono font-bold"
           style={{ fontSize: "1rem", color: accent, marginBottom: "0.5rem", letterSpacing: "0.05em" }}
         >
           {title}
         </div>
         <div
+          id={descId}
           className="font-mono"
           style={{ fontSize: "0.8rem", color: "#94a3b8", lineHeight: 1.5, marginBottom: "1.25rem", whiteSpace: "pre-line" }}
         >
@@ -60,9 +86,10 @@ export function ConfirmDialog({
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button
+            ref={cancelBtnRef}
             onClick={onCancel}
             disabled={busy}
-            className="font-mono font-bold"
+            className="font-mono font-bold focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:outline-none"
             style={{
               flex: 1, padding: "0.65rem", borderRadius: 8,
               background: "#1e1e2e", border: "1px solid #334155",
@@ -74,7 +101,7 @@ export function ConfirmDialog({
           <button
             onClick={onConfirm}
             disabled={busy}
-            className="font-mono font-bold"
+            className="font-mono font-bold focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
             style={{
               flex: 1, padding: "0.65rem", borderRadius: 8,
               background: `${accent}22`, border: `1px solid ${accent}`,

@@ -1,0 +1,3 @@
+## 2025-05-18 - Accessible In-App Confirmation Modals
+**Learning:** In-app confirmation dialogs used in sandboxed environments (or custom UI modals) require explicit keyboard handling (`Escape` to dismiss) and auto-focusing safe default buttons (Cancel) to prevent unintended destructive actions. `useId` provides unique ARIA linkage (`aria-labelledby` and `aria-describedby`) without manual ID collisions.
+**Action:** When building or updating modal components, set `role="alertdialog"` or `role="dialog"`, `aria-modal="true"`, listen for `Escape` key events, and focus the default action button on mount.
