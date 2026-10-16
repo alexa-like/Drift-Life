@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 interface StatBarProps {
   label: string;
   value: number;
@@ -5,7 +7,8 @@ interface StatBarProps {
   color: string;
 }
 
-export function StatBar({ label, value, max, color }: StatBarProps) {
+// ⚡ Bolt Optimization: Memoize StatBar to prevent unnecessary re-renders when parent views/dashboards update unrelated state.
+export const StatBar = memo(function StatBar({ label, value, max, color }: StatBarProps) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return (
     <div className="flex flex-col gap-0.5">
@@ -21,4 +24,4 @@ export function StatBar({ label, value, max, color }: StatBarProps) {
       </div>
     </div>
   );
-}
+});
