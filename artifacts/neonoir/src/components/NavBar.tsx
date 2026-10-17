@@ -147,7 +147,10 @@ function AvatarMenu({ user, onNav, onLogout }: { user: User; onNav: (id: string)
     <div ref={ref} className="relative flex-shrink-0">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800"
+        aria-label="User menu"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="flex items-center gap-2 font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#00d4ff]"
         style={{ fontSize: 11, color: "#e2e8f0", background: "#111118", border: "1px solid #1e1e2e" }}
       >
         {user.avatarUrl ? (
@@ -321,7 +324,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => onNav("notifications")}
-              className="relative font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800 flex items-center justify-center"
+              aria-label={`Notifications${unreadNotifs > 0 ? `, ${unreadNotifs} unread` : ""}`}
+              className="relative font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800 flex items-center justify-center focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#00d4ff]"
               style={{
                 fontSize: 12,
                 color: unreadNotifs > 0 ? "#ff2d55" : "#475569",
@@ -421,7 +425,9 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
               <button
                 key={item.id}
                 onClick={() => onNav(item.id)}
-                className="relative flex flex-col items-center flex-shrink-0 group transition-all clip-nav-item"
+                aria-label={item.label}
+                aria-current={isActive ? "page" : undefined}
+                className="relative flex flex-col items-center flex-shrink-0 group transition-all clip-nav-item focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#00d4ff]"
                 style={{
                   minWidth: 54,
                   padding: "8px 4px 6px",
@@ -493,7 +499,7 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 <span className="font-display font-black text-sm tracking-widest uppercase" style={{ color: "#00d4ff" }}>
                   NAVIGATION
                 </span>
-                <button onClick={() => setMobileMenuOpen(false)}>
+                <button onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation menu">
                   <X size={18} color="#475569" />
                 </button>
               </div>
