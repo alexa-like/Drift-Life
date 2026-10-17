@@ -14,6 +14,7 @@ interface Props {
 export function BottomNav({ active, onNav }: Props) {
   return (
     <nav
+      aria-label="Mobile main navigation"
       className="md:hidden fixed bottom-0 left-0 right-0 z-40"
       style={{ background: "#0a0a0f", borderTop: "1px solid #1e1e2e", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
@@ -25,7 +26,9 @@ export function BottomNav({ active, onNav }: Props) {
             <button
               key={item.id}
               onClick={() => onNav(item.id)}
-              className="flex-1 flex flex-col items-center justify-center gap-1"
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
+              className="flex-1 flex flex-col items-center justify-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#00d4ff] focus-visible:ring-inset"
               style={{
                 minHeight: 56,
                 padding: "8px 4px",
