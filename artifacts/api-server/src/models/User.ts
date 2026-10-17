@@ -724,6 +724,19 @@ export function moodMultiplier(user: IUser): number {
 export const WALLET_CAP = 100_000_000;
 export const BANK_CAP   = 1_000_000_000;
 
+// Performance Optimization: Indexes for Leaderboard & Ranking Queries
+// Queries in /api/leaderboard filter on `{ banned: false }` and sort/count by metrics.
+// Compound indexes avoid full collection scans and in-memory sorts (O(N log N) -> O(log N + K)).
+UserSchema.index({ banned: 1, level: -1, xp: -1 });
+UserSchema.index({ banned: 1, wins: -1 });
+UserSchema.index({ banned: 1, raceWins: -1 });
+UserSchema.index({ banned: 1, totalCrimes: -1 });
+UserSchema.index({ banned: 1, weeklyDc: -1 });
+UserSchema.index({ banned: 1, weeklyArenaWins: -1 });
+UserSchema.index({ banned: 1, weeklyRaceWins: -1 });
+UserSchema.index({ banned: 1, prestige: -1, level: -1 });
+UserSchema.index({ banned: 1, factionId: 1 });
+
 UserSchema.virtual("maxHealth").get(function (this: IUser) {
   return computeMaxHp(this.level, this.prestige);
 });
