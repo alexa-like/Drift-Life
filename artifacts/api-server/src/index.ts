@@ -517,8 +517,8 @@ async function start() {
     // TELEGRAM_WEBHOOK_URL must be set in the Render dashboard — it is the full
     // public URL of this server, e.g. https://neonoir.onrender.com/api/telegram/webhook
     const webhookUrl = process.env["TELEGRAM_WEBHOOK_URL"];
-    const webhookSecret = "fbc6fcfc5581f5f2b9d03dc25dcd52e2df3399da36d7d695a5f2442e45591b7d";
-    if (webhookUrl) {
+    const webhookSecret = process.env["TELEGRAM_WEBHOOK_SECRET"];
+    if (webhookUrl && webhookSecret) {
       registerWebhook(webhookUrl, webhookSecret).catch((err) => {
         logger.warn({ err }, "Telegram webhook registration failed at startup");
       });
