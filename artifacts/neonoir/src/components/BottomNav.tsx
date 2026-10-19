@@ -25,7 +25,9 @@ export function BottomNav({ active, onNav }: Props) {
             <button
               key={item.id}
               onClick={() => onNav(item.id)}
-              className="flex-1 flex flex-col items-center justify-center gap-1"
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
+              className="flex-1 flex flex-col items-center justify-center gap-1 focus-visible:ring-1 focus-visible:ring-cyan-500 focus-visible:outline-none"
               style={{
                 minHeight: 56,
                 padding: "8px 4px",

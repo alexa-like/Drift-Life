@@ -1,0 +1,3 @@
+## 2025-02-18 - Navigation Bar Accessibility & ARIA States
+**Learning:** Icon-only navigation buttons (e.g. notifications bell, mobile drawer toggles) and dynamic page navigation links in custom cyber UI components often omit `aria-label`, `aria-expanded`, and `aria-current` attributes, reducing accessibility for screen reader users.
+**Action:** Always include clear descriptive `aria-label`s (including dynamic counts like unread notifications), `aria-expanded` state on disclosure toggles, `aria-current="page"` on active navigation items, and `focus-visible` outline rings for keyboard navigation.
