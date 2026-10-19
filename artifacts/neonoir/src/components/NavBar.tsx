@@ -114,8 +114,9 @@ function SearchBar({ onInspectPlayer, onNav }: { onInspectPlayer?: (id: string) 
           onChange={e => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           placeholder="SEARCH DATA..."
-          className="w-full font-mono px-6 py-1.5 clip-bar text-xs uppercase"
-          style={{ background: "#08080c", border: "1px solid #1e1e2e", color: "#00d4ff", outline: "none" }}
+          aria-label="Search network data"
+          className="w-full font-mono px-6 py-1.5 clip-bar text-xs uppercase focus-visible:ring-1 focus-visible:ring-cyan-500 focus-visible:outline-none"
+          style={{ background: "#08080c", border: "1px solid #1e1e2e", color: "#00d4ff" }}
         />
       </div>
       {open && q.trim().length >= 2 && (
@@ -147,7 +148,10 @@ function AvatarMenu({ user, onNav, onLogout }: { user: User; onNav: (id: string)
     <div ref={ref} className="relative flex-shrink-0">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800"
+        aria-label="User account menu"
+        aria-expanded={open}
+        aria-haspopup="true"
+        className="flex items-center gap-2 font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800 focus-visible:ring-1 focus-visible:ring-cyan-500 focus-visible:outline-none"
         style={{ fontSize: 11, color: "#e2e8f0", background: "#111118", border: "1px solid #1e1e2e" }}
       >
         {user.avatarUrl ? (
@@ -321,7 +325,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => onNav("notifications")}
-              className="relative font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800 flex items-center justify-center"
+              aria-label={unreadNotifs > 0 ? `Notifications (${unreadNotifs} unread)` : "Notifications"}
+              className="relative font-mono px-2 py-1 clip-btn transition-colors hover:bg-slate-800 flex items-center justify-center focus-visible:ring-1 focus-visible:ring-cyan-500 focus-visible:outline-none"
               style={{
                 fontSize: 12,
                 color: unreadNotifs > 0 ? "#ff2d55" : "#475569",
@@ -330,11 +335,11 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 boxShadow: unreadNotifs > 0 ? "0 0 12px #ff2d5540" : "none",
               }}
             >
-              <Bell size={16} strokeWidth={2} />
+              <Bell size={16} strokeWidth={2} aria-hidden="true" />
             </button>
             <AvatarMenu user={user} onNav={onNav} onLogout={onLogout} />
             <button
-              className="md:hidden flex items-center justify-center"
+              className="md:hidden flex items-center justify-center focus-visible:ring-1 focus-visible:ring-cyan-500 focus-visible:outline-none"
               style={{
                 width: 36,
                 height: 36,
@@ -343,7 +348,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 borderRadius: 2,
               }}
               onClick={() => setMobileMenuOpen(o => !o)}
-              aria-label="Open navigation menu"
+              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={mobileMenuOpen}
             >
               <AnimatePresence mode="wait" initial={false}>
                 {mobileMenuOpen ? (
@@ -421,7 +427,9 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
               <button
                 key={item.id}
                 onClick={() => onNav(item.id)}
-                className="relative flex flex-col items-center flex-shrink-0 group transition-all clip-nav-item"
+                aria-label={hasActiveEvent ? (user.activeEvent!.chatBadgeText?.split(" ")[0] || "Event") : item.label}
+                aria-current={isActive ? "page" : undefined}
+                className="relative flex flex-col items-center flex-shrink-0 group transition-all clip-nav-item focus-visible:ring-1 focus-visible:ring-cyan-500 focus-visible:outline-none"
                 style={{
                   minWidth: 54,
                   padding: "8px 4px 6px",
@@ -493,8 +501,8 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                 <span className="font-display font-black text-sm tracking-widest uppercase" style={{ color: "#00d4ff" }}>
                   NAVIGATION
                 </span>
-                <button onClick={() => setMobileMenuOpen(false)}>
-                  <X size={18} color="#475569" />
+                <button onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation menu" className="focus-visible:ring-1 focus-visible:ring-cyan-500 focus-visible:outline-none">
+                  <X size={18} color="#475569" aria-hidden="true" />
                 </button>
               </div>
 
@@ -510,6 +518,9 @@ export function NavBar({ user, active, onNav, onLogout, unreadNotifs, onInspectP
                     <button
                       key={item.id}
                       onClick={() => { onNav(item.id); setMobileMenuOpen(false); }}
+                      aria-label={item.label}
+                      aria-current={isActive ? "page" : undefined}
+                      className="focus-visible:ring-1 focus-visible:ring-cyan-500 focus-visible:outline-none"
                       style={{
                         padding: "12px 6px",
                         background: isActive ? "#00d4ff20" : "#111118",
