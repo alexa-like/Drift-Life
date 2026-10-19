@@ -68,13 +68,21 @@ function getMondayMidnightUTC(): Date {
   return d;
 }
 
-// Lazy weekly reset — reset weekly fields for players whose weeklyReset < this Monday
+let lastWeeklyResetCheckMs = 0;
+
+// Lazy weekly reset — reset weekly fields for players whose weeklyReset < this Monday.
+// Guarded with lastWeeklyResetCheckMs to prevent redundant updateMany write queries on GET requests.
 async function maybeResetWeekly() {
   const monday = getMondayMidnightUTC();
+  const mondayMs = monday.getTime();
+  if (lastWeeklyResetCheckMs === mondayMs) {
+    return;
+  }
   await User.updateMany(
     { $or: [{ weeklyReset: { $lt: monday } }, { weeklyReset: null }] },
     { $set: { weeklyDc: 0, weeklyArenaWins: 0, weeklyRaceWins: 0, weeklyReset: monday } }
   );
+  lastWeeklyResetCheckMs = mondayMs;
 }
 
 const WEEKLY_RECAP_KEY = "leaderboard:lastWeeklyRecap";
