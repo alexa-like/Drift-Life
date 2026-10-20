@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "crypto";
 import { fireVantaEvent } from "../lib/vanta";
 import bcrypt from "bcryptjs";
 import User, { generateTag, generateReferralCode, levelUp, activeBuffTotal, computeMaxHp } from "../models/User";
@@ -529,13 +530,25 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/auth/admin-setup — grants owner access; uses SETUP_KEY env or hardcoded dev key
+function safeTimingSafeEqual(a: string, b: string): boolean {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const hashA = crypto.createHash("sha256").update(a).digest();
+  const hashB = crypto.createHash("sha256").update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+// POST /api/auth/admin-setup — grants owner access; requires SETUP_KEY environment variable
 // No auth required — used for initial owner bootstrap
 router.post("/admin-setup", async (req, res) => {
   try {
     const { setupKey, email, username, password } = req.body;
-    const validKey = "7dd93ffa96da6d072092adb907ae97d48a3b948d6c5954af0e9cf3199aa7ef68";
-    if (setupKey !== validKey) return res.status(403).json({ message: "Invalid setup key" });
+    const expectedKey = process.env["SETUP_KEY"];
+    if (!expectedKey) {
+      return res.status(403).json({ message: "Admin setup is disabled" });
+    }
+    if (typeof setupKey !== "string" || !safeTimingSafeEqual(setupKey, expectedKey)) {
+      return res.status(403).json({ message: "Invalid setup key" });
+    }
     if (!email && !username) return res.status(400).json({ message: "email or username required" });
 
     const emailLower = email?.toLowerCase().trim();
