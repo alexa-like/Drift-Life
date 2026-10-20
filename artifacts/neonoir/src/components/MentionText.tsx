@@ -1,3 +1,5 @@
+import React, { useMemo } from "react";
+
 // Game emoji catalog — mirrors backend EMOJI_CATALOG (16 slugs)
 export const GAME_EMOJIS: Record<string, { displayName: string; emoji: string; theme: string }> = {
   driftcar:      { displayName: "Drift Car",      emoji: "🚗", theme: "action" },
@@ -52,13 +54,21 @@ interface Props {
   onLocationClick?: (location: string) => void;
 }
 
-export function MentionText({ text, mentions, onUserClick, onLocationClick }: Props) {
-  // Build a lower-case Set for fast lookup when mentions[] is provided
-  const mentionSet = mentions
-    ? new Set(mentions.map(m => m.toLowerCase()))
-    : null; // null → no filtering (backward-compat)
+/**
+ * ⚡ Bolt Performance Optimization:
+ * MentionText is rendered frequently in high-frequency list views like Chat and Feed.
+ * 1. Wrapped in React.memo to skip re-renders when text/mentions props are unchanged.
+ * 2. Bounded TOKEN_CACHE prevents re-running regex parsing loops on identical strings.
+ * 3. mentionSet is memoized via useMemo to avoid allocating new Set objects on re-renders.
+ */
+export const MentionText = React.memo(function MentionText({ text, mentions, onUserClick, onLocationClick }: Props) {
+  // Memoize mention set construction to avoid garbage collection pressure during re-renders
+  const mentionSet = useMemo(() => {
+    return mentions ? new Set(mentions.map(m => m.toLowerCase())) : null;
+  }, [mentions]);
 
-  const parts = tokenize(text);
+  // Retrieve cached tokenization or parse via regex
+  const parts = useMemo(() => tokenize(text), [text]);
 
   return (
     <>
@@ -146,14 +156,21 @@ export function MentionText({ text, mentions, onUserClick, onLocationClick }: Pr
       })}
     </>
   );
-}
+});
 
 interface Token {
   type: "text" | "mention" | "location" | "emoji";
   value: string;
 }
 
+// Bounded LRU-style tokenization cache (max 500 entries) to avoid regex parsing overhead for identical strings
+const TOKEN_CACHE = new Map<string, Token[]>();
+const MAX_CACHE_SIZE = 500;
+
 function tokenize(text: string): Token[] {
+  const cached = TOKEN_CACHE.get(text);
+  if (cached) return cached;
+
   const tokens: Token[] = [];
   // Match @mention, /location, or :emoji_slug:
   const re = /(@[\w]+|\/[\w-]+|:([\w]+):)/g;
@@ -179,5 +196,12 @@ function tokenize(text: string): Token[] {
     last = m.index + raw.length;
   }
   if (last < text.length) tokens.push({ type: "text", value: text.slice(last) });
+
+  if (TOKEN_CACHE.size >= MAX_CACHE_SIZE) {
+    const firstKey = TOKEN_CACHE.keys().next().value;
+    if (firstKey) TOKEN_CACHE.delete(firstKey);
+  }
+  TOKEN_CACHE.set(text, tokens);
+
   return tokens;
 }
