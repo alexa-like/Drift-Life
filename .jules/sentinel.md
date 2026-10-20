@@ -1,0 +1,4 @@
+## 2025-05-18 - Admin Bootstrap Timing Attack & Hardcoded Fallback Secret
+**Vulnerability:** The `/admin-setup` endpoint used a hardcoded fallback secret key and simple string inequality comparison (`setupKey !== validKey`), exposing the owner setup flow to timing side-channel attacks and unauthorized admin account creation if environment variables were omitted.
+**Learning:** Hardcoding fallback setup keys in source code allows key leaks in public or shared repositories. In string comparisons, variable comparison times leak key length and byte matches.
+**Prevention:** Require `SETUP_KEY` to be explicitly set via environment variables (disable endpoint if missing) and hash secret inputs with SHA-256 before using `crypto.timingSafeEqual` to guarantee constant-time execution without length side channels.
