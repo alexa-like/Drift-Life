@@ -69,12 +69,24 @@ function getMondayMidnightUTC(): Date {
 }
 
 // Lazy weekly reset — reset weekly fields for players whose weeklyReset < this Monday
+// ⚡ Bolt Optimization: Track the last reset Monday timestamp in memory to avoid
+// redundant `User.updateMany` collection scans on every weekly leaderboard API request.
+let lastProcessedWeeklyResetMs: number | null = null;
+
 async function maybeResetWeekly() {
   const monday = getMondayMidnightUTC();
+  const mondayMs = monday.getTime();
+
+  if (lastProcessedWeeklyResetMs === mondayMs) {
+    return;
+  }
+
   await User.updateMany(
     { $or: [{ weeklyReset: { $lt: monday } }, { weeklyReset: null }] },
     { $set: { weeklyDc: 0, weeklyArenaWins: 0, weeklyRaceWins: 0, weeklyReset: monday } }
   );
+
+  lastProcessedWeeklyResetMs = mondayMs;
 }
 
 const WEEKLY_RECAP_KEY = "leaderboard:lastWeeklyRecap";

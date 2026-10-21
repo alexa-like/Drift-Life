@@ -549,6 +549,17 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
+// ⚡ Bolt Optimization: Leaderboard & weekly reset indexes for high-frequency queries
+UserSchema.index({ weeklyReset: 1 });
+UserSchema.index({ banned: 1, level: -1, xp: -1 });
+UserSchema.index({ banned: 1, wins: -1 });
+UserSchema.index({ banned: 1, totalCrimes: -1 });
+UserSchema.index({ banned: 1, raceWins: -1 });
+UserSchema.index({ banned: 1, weeklyDc: -1 });
+UserSchema.index({ banned: 1, weeklyArenaWins: -1 });
+UserSchema.index({ banned: 1, weeklyRaceWins: -1 });
+UserSchema.index({ banned: 1, prestige: -1, level: -1 });
+
 UserSchema.methods.getEffectiveStats = function(this: IUser): EffectiveStats {
   const stats: EffectiveStats = {
     strength: this.strength,
