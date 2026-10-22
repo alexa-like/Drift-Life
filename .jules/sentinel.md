@@ -1,0 +1,4 @@
+## 2025-05-18 - Hardcoded Fallback Secret in Admin Bootstrap Route
+**Vulnerability:** The `/api/auth/admin-setup` endpoint contained a hardcoded fallback string secret (`validKey = "7dd93ffa96da6d072092adb907ae97d48a3b948d6c5954af0e9cf3199aa7ef68"`) instead of strictly requiring the `SETUP_KEY` environment variable. Anyone with knowledge of the repository source code could invoke this route to elevate their account to `owner` privileges.
+**Learning:** Initial bootstrap/setup endpoints that bypass normal authentication must fail closed if their required environment secrets are unconfigured, rather than providing fallback static tokens in source code.
+**Prevention:** Never provide fallback static secrets in source code for high-privilege endpoints. Always inspect `process.env` and return HTTP 403 / 503 if the environment variable is unset.
