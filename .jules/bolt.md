@@ -1,0 +1,3 @@
+## 2025-05-20 - MongoDB Indexes for User Collection Leaderboard & District Queries
+**Learning:** In `artifacts/api-server`, queries against the `User` collection (such as leaderboard endpoints `/api/leaderboard` for `level`, `wins`, `raceWins`, `totalCrimes`, `weeklyDc`, `weeklyArenaWins`, `weeklyRaceWins`, `prestige` as well as district population queries) filtered by `{ banned: false }` or `{ district, banned: false }` were performing unindexed collection scans (COLLSCAN).
+**Action:** When creating or querying leaderboard/aggregate endpoints on large MongoDB collections, always ensure matching single or compound indexes exist on `{ banned: 1, <sortField>: -1 }` and `{ district: 1, banned: 1, isEmailVerified: 1 }` in Mongoose models.
