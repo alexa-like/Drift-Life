@@ -64,10 +64,17 @@ router.get("/:type", requireAuth, async (req: AuthRequest, res) => {
     const myEntry = await MiniGameLeaderboard.findOne({ leaderboardType: type, userId: req.userId, weekStart }).lean();
     let myRank: number | null = null;
     if (myEntry) {
-      const count = ASCENDING.includes(type)
-        ? await MiniGameLeaderboard.countDocuments({ leaderboardType: type, weekStart, score: { $lt: myEntry.score } })
-        : await MiniGameLeaderboard.countDocuments({ leaderboardType: type, weekStart, score: { $gt: myEntry.score } });
-      myRank = count + 1;
+      // ⚡ Performance optimization: check if user is already present in fetched top `ranked` entries
+      // to eliminate unnecessary DB count query for top players.
+      const rankedMatch = ranked.find(e => e.userId.toString() === req.userId);
+      if (rankedMatch) {
+        myRank = rankedMatch.rank;
+      } else {
+        const count = ASCENDING.includes(type)
+          ? await MiniGameLeaderboard.countDocuments({ leaderboardType: type, weekStart, score: { $lt: myEntry.score } })
+          : await MiniGameLeaderboard.countDocuments({ leaderboardType: type, weekStart, score: { $gt: myEntry.score } });
+        myRank = count + 1;
+      }
     }
 
     // Weekly reset time
