@@ -529,13 +529,15 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/auth/admin-setup — grants owner access; uses SETUP_KEY env or hardcoded dev key
+// POST /api/auth/admin-setup — grants owner access; requires SETUP_KEY environment variable
 // No auth required — used for initial owner bootstrap
 router.post("/admin-setup", async (req, res) => {
   try {
     const { setupKey, email, username, password } = req.body;
-    const validKey = "7dd93ffa96da6d072092adb907ae97d48a3b948d6c5954af0e9cf3199aa7ef68";
-    if (setupKey !== validKey) return res.status(403).json({ message: "Invalid setup key" });
+    const envSetupKey = process.env["SETUP_KEY"];
+    if (!envSetupKey || typeof setupKey !== "string" || setupKey !== envSetupKey) {
+      return res.status(403).json({ message: "Invalid setup key" });
+    }
     if (!email && !username) return res.status(400).json({ message: "email or username required" });
 
     const emailLower = email?.toLowerCase().trim();
