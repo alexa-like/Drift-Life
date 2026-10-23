@@ -32,6 +32,10 @@ export function ConfirmDialog({
   return (
     <div
       onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-dialog-title"
+      aria-describedby="confirm-dialog-message"
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -47,12 +51,14 @@ export function ConfirmDialog({
         }}
       >
         <div
+          id="confirm-dialog-title"
           className="font-mono font-bold"
           style={{ fontSize: "1rem", color: accent, marginBottom: "0.5rem", letterSpacing: "0.05em" }}
         >
           {title}
         </div>
         <div
+          id="confirm-dialog-message"
           className="font-mono"
           style={{ fontSize: "0.8rem", color: "#94a3b8", lineHeight: 1.5, marginBottom: "1.25rem", whiteSpace: "pre-line" }}
         >
