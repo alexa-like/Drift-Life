@@ -51,7 +51,12 @@ export function StatCounter({
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [value, duration]);
 
-  const formatted = format ? format(display) : display.toLocaleString();
+  // Fast-path numbers under 1000 to avoid Intl/toLocaleString overhead on every animation frame
+  const formatted = format
+    ? format(display)
+    : Math.abs(display) < 1000
+    ? display.toString()
+    : display.toLocaleString();
 
   return (
     <span

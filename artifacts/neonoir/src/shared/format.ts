@@ -11,9 +11,29 @@ export function formatDC(n: number): string {
   else if (abs >= 1e9)  { val = abs / 1e9;  suffix = "b"; }
   else if (abs >= 1e6)  { val = abs / 1e6;  suffix = "m"; }
   else if (abs >= 1e3)  { val = abs / 1e3;  suffix = "k"; }
-  else { return sign + Math.round(abs).toLocaleString(); }
-  const str = val >= 100 ? Math.round(val).toString()
-             : val >= 10  ? val.toFixed(1).replace(/\.0$/, "")
-             :               val.toFixed(2).replace(/\.?0+$/, "");
+  else {
+    // Fast path: avoid expensive Intl/toLocaleString overhead for small numbers
+    const rounded = Math.round(abs);
+    return rounded >= 1000 ? sign + "1k" : sign + rounded.toString();
+  }
+
+  // Fast string truncation instead of regex replacements
+  let str: string;
+  if (val >= 100) {
+    str = Math.round(val).toString();
+  } else if (val >= 10) {
+    const fixed = val.toFixed(1);
+    str = fixed.endsWith(".0") ? fixed.slice(0, -2) : fixed;
+  } else {
+    const fixed = val.toFixed(2);
+    if (fixed.endsWith(".00")) {
+      str = fixed.slice(0, -3);
+    } else if (fixed.endsWith("0")) {
+      str = fixed.slice(0, -1);
+    } else {
+      str = fixed;
+    }
+  }
+
   return sign + str + suffix;
 }
