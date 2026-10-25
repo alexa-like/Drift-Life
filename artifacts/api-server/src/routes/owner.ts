@@ -304,7 +304,7 @@ router.post("/unmute", async (req: AuthRequest, res) => {
 });
 
 // POST /api/owner/set-role
-router.post("/set-role", async (req: AuthRequest, res) => {
+router.post("/set-role", requireOwner as any, async (req: AuthRequest, res) => {
   try {
     const { userId, role } = req.body;
     if (!["player", "admin", "owner"].includes(role))
