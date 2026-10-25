@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 /**
  * ConfirmDialog — generic in-app confirmation modal.
  *
@@ -29,6 +31,16 @@ export function ConfirmDialog({
 }: Props) {
   const accent = danger ? "#ff2d55" : "#00E0FF";
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) {
+        onCancel();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel, busy]);
+
   return (
     <div
       onClick={onCancel}
@@ -39,6 +51,10 @@ export function ConfirmDialog({
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        aria-describedby="confirm-dialog-message"
         onClick={e => e.stopPropagation()}
         style={{
           background: "#0d0d15", border: `2px solid ${accent}55`,
@@ -47,12 +63,14 @@ export function ConfirmDialog({
         }}
       >
         <div
+          id="confirm-dialog-title"
           className="font-mono font-bold"
           style={{ fontSize: "1rem", color: accent, marginBottom: "0.5rem", letterSpacing: "0.05em" }}
         >
           {title}
         </div>
         <div
+          id="confirm-dialog-message"
           className="font-mono"
           style={{ fontSize: "0.8rem", color: "#94a3b8", lineHeight: 1.5, marginBottom: "1.25rem", whiteSpace: "pre-line" }}
         >
@@ -62,7 +80,7 @@ export function ConfirmDialog({
           <button
             onClick={onCancel}
             disabled={busy}
-            className="font-mono font-bold"
+            className="font-mono font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
             style={{
               flex: 1, padding: "0.65rem", borderRadius: 8,
               background: "#1e1e2e", border: "1px solid #334155",
@@ -74,7 +92,7 @@ export function ConfirmDialog({
           <button
             onClick={onConfirm}
             disabled={busy}
-            className="font-mono font-bold"
+            className="font-mono font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
             style={{
               flex: 1, padding: "0.65rem", borderRadius: 8,
               background: `${accent}22`, border: `1px solid ${accent}`,
