@@ -724,6 +724,18 @@ export function moodMultiplier(user: IUser): number {
 export const WALLET_CAP = 100_000_000;
 export const BANK_CAP   = 1_000_000_000;
 
+// ── Performance Indexes for Leaderboard & Weekly Reset Queries ─────────────
+// Optimizes leaderboard queries and weekly stats resets in leaderboard.ts
+UserSchema.index({ banned: 1, level: -1, xp: -1 });
+UserSchema.index({ banned: 1, wins: -1 });
+UserSchema.index({ banned: 1, raceWins: -1 });
+UserSchema.index({ banned: 1, totalCrimes: -1 });
+UserSchema.index({ banned: 1, weeklyDc: -1 });
+UserSchema.index({ banned: 1, weeklyArenaWins: -1 });
+UserSchema.index({ banned: 1, weeklyRaceWins: -1 });
+UserSchema.index({ banned: 1, prestige: -1, level: -1 });
+UserSchema.index({ weeklyReset: 1 });
+
 UserSchema.virtual("maxHealth").get(function (this: IUser) {
   return computeMaxHp(this.level, this.prestige);
 });
